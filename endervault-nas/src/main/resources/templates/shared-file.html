@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${item.name()}">Shared File</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<header class="topbar">
+    <a class="brand" th:href="@{/}">EnderVault Share</a>
+</header>
+
+<main class="workspace">
+    <section class="shared-summary">
+        <p class="eyebrow">Shared file</p>
+        <h1 th:text="${item.name()}">file</h1>
+        <dl class="details">
+            <div>
+                <dt>Type</dt>
+                <dd th:text="${item.mediaType()}">type</dd>
+            </div>
+            <div>
+                <dt>Size</dt>
+                <dd th:text="${item.sizeLabel()}">size</dd>
+            </div>
+            <div>
+                <dt>Modified</dt>
+                <dd th:text="${item.modifiedLabel()}">modified</dd>
+            </div>
+        </dl>
+        <div class="bulk-actions">
+            <a class="button-link" th:href="@{/s/{token}/download(token=${token})}">Download</a>
+            <a class="button-link ghost" th:if="${item.previewable()}" th:href="@{/s/{token}/preview(token=${token})}" target="_blank">Preview</a>
+        </div>
+    </section>
+</main>
+</body>
+</html>

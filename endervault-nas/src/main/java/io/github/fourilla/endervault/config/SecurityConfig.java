@@ -24,10 +24,13 @@ public class SecurityConfig {
             LoginFailureAlertHandler failureHandler
     ) throws Exception {
         http.authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/css/**", "/js/**", "/favicon.ico").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/", "/login", "/guest", "/guest/**").permitAll()
+                        .requestMatchers("/css/**", "/js/**", "/webjars/**", "/favicon.ico").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/", "/login", "/s/**").permitAll()
                         .requestMatchers("/files/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
+                )
+                .headers(headers -> headers
+                        .frameOptions(frameOptions -> frameOptions.sameOrigin())
                 )
                 .formLogin(login -> login
                         .loginPage("/login")
@@ -62,4 +65,3 @@ public class SecurityConfig {
         return new InMemoryUserDetailsManager(admin);
     }
 }
-

@@ -3,35 +3,32 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>EnderVault Public Files</title>
+    <title>Shared Directory</title>
     <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
 <body>
 <header class="topbar">
-    <a class="brand" th:href="@{/guest}">EnderVault Public</a>
-    <nav class="top-actions">
-        <a th:href="@{/login}">Admin login</a>
-    </nav>
+    <a class="brand" th:href="@{/s/{token}(token=${token})}">EnderVault Share</a>
 </header>
 
 <main class="workspace">
     <section class="pathbar" aria-label="Current path">
         <nav class="breadcrumbs">
             <a th:each="crumb : ${listing.breadcrumbs()}"
-               th:href="@{/guest(path=${crumb.path()})}"
+               th:href="@{/s/{token}(token=${token}, path=${crumb.path()})}"
                th:text="${crumb.label()}">Root</a>
         </nav>
-        <a class="ghost" th:if="${listing.hasParent()}" th:href="@{/guest(path=${listing.parentPath()})}">Up</a>
+        <a class="ghost" th:if="${listing.hasParent()}" th:href="@{/s/{token}(token=${token}, path=${listing.parentPath()})}">Up</a>
     </section>
 
     <section class="toolbar" aria-label="Download tools">
-        <form id="bulkActionForm" method="get" th:action="@{/guest/download.zip}">
+        <form id="bulkActionForm" method="get" th:action="@{/s/{token}/download.zip(token=${token})}">
             <input type="hidden" name="path" th:value="${path}">
         </form>
         <button form="bulkActionForm" type="submit">Download selected zip</button>
     </section>
 
-    <section class="table-wrap" aria-label="Public files">
+    <section class="table-wrap" aria-label="Shared directory">
         <table>
             <thead>
             <tr>
@@ -46,7 +43,7 @@
             <tbody>
             <tr th:each="dir : ${listing.directories()}">
                 <td><input form="bulkActionForm" type="checkbox" name="items" th:value="${dir.name()}"></td>
-                <td><a class="item-name folder" th:href="@{/guest(path=${dir.path()})}" th:text="${dir.name()}">folder</a></td>
+                <td><a class="item-name folder" th:href="@{/s/{token}(token=${token}, path=${dir.path()})}" th:text="${dir.name()}">folder</a></td>
                 <td>Folder</td>
                 <td>-</td>
                 <td th:text="${dir.modifiedLabel()}">-</td>
@@ -59,12 +56,12 @@
                 <td th:text="${file.sizeLabel()}">0 B</td>
                 <td th:text="${file.modifiedLabel()}">-</td>
                 <td>
-                    <a th:href="@{/guest/download(path=${path}, item=${file.name()})}">Download</a>
-                    <a th:if="${file.previewable()}" th:href="@{/guest/preview(path=${path}, item=${file.name()})}" target="_blank">Preview</a>
+                    <a th:href="@{/s/{token}/download(token=${token}, path=${path}, item=${file.name()})}">Download</a>
+                    <a th:if="${file.previewable()}" th:href="@{/s/{token}/preview(token=${token}, path=${path}, item=${file.name()})}" target="_blank">Preview</a>
                 </td>
             </tr>
             <tr th:if="${#lists.isEmpty(listing.directories()) and #lists.isEmpty(listing.files())}">
-                <td colspan="6" class="empty">No public files yet.</td>
+                <td colspan="6" class="empty">This shared folder is empty.</td>
             </tr>
             </tbody>
         </table>

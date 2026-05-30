@@ -1,7 +1,15 @@
 nas.storage.root=D:/Vault
-nas.storage.public-folder=public
 nas.storage.trash-folder=.trash
 nas.storage.metadata-folder=.endervault
+
+nas.thumbnails.video-enabled=true
+nas.thumbnails.cache-folder=thumbnails
+nas.thumbnails.generator-threads=1
+
+nas.browser.default-view=table
+nas.browser.default-sort=name
+nas.browser.default-direction=asc
+nas.browser.default-page-size=200
 
 nas.admin.username=admin
 nas.admin.password={bcrypt}REPLACE_WITH_BCRYPT_HASH
@@ -9,4 +17,3 @@ nas.admin.password={bcrypt}REPLACE_WITH_BCRYPT_HASH
 nas.notifications.telegram.enabled=false
 nas.notifications.telegram.bot-token=
 nas.notifications.telegram.chat-id=
-

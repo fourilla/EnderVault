@@ -12,6 +12,7 @@ import java.nio.file.LinkOption;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -34,7 +35,6 @@ public class StorageService {
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
     private final Path root;
-    private final Path publicRoot;
     private final Path trashRoot;
     private final Path metadataRoot;
     private final String trashFolder;
@@ -43,7 +43,6 @@ public class StorageService {
     public StorageService(NasProperties nasProperties) {
         NasProperties.Storage storage = nasProperties.getStorage();
         this.root = storage.getRoot().toAbsolutePath().normalize();
-        this.publicRoot = root.resolve(validateConfiguredFolder(storage.getPublicFolder())).normalize();
         this.trashFolder = validateConfiguredFolder(storage.getTrashFolder());
         this.metadataFolder = validateConfiguredFolder(storage.getMetadataFolder());
         this.trashRoot = root.resolve(trashFolder).normalize();
@@ -53,12 +52,20 @@ public class StorageService {
     @PostConstruct
     public void initialize() throws IOException {
         Files.createDirectories(root);
-        Files.createDirectories(publicRoot);
         Files.createDirectories(trashRoot);
         Files.createDirectories(metadataRoot);
     }
 
     public DirectoryListing list(StorageScope scope, String requestedPath) throws IOException {
+        return list(scope, requestedPath, FileSort.NAME, SortDirection.ASC);
+    }
+
+    public DirectoryListing list(
+            StorageScope scope,
+            String requestedPath,
+            FileSort sort,
+            SortDirection direction
+    ) throws IOException {
         Path directory = resolveDirectory(scope, requestedPath);
         String currentPath = toRelativePath(baseFor(scope), directory);
         List<FileItem> children;
@@ -66,8 +73,8 @@ public class StorageService {
         try (Stream<Path> stream = Files.list(directory)) {
             children = stream
                     .filter(path -> !isHiddenSystemPath(scope, path))
-                    .sorted(itemComparator())
-                    .map(path -> toFileItem(scope, path))
+                    .map(path -> toFileItem(baseFor(scope), path))
+                    .sorted(itemComparator(sort, direction))
                     .toList();
         }
 
@@ -85,6 +92,101 @@ public class StorageService {
 
     public Path resolveFile(StorageScope scope, String directoryPath, String fileName) throws IOException {
         Path file = resolveChild(scope, directoryPath, fileName, true);
+        if (!Files.isRegularFile(file)) {
+            throw new NoSuchFileException(fileName);
+        }
+        return file;
+    }
+
+    public Path resolveVaultFile(String vaultPath) throws IOException {
+        Path file = resolve(StorageScope.VAULT, vaultPath);
+        if (!Files.isRegularFile(file)) {
+            throw new NoSuchFileException(vaultPath);
+        }
+        return file;
+    }
+
+    public FileItem describeVaultPath(String vaultPath) throws IOException {
+        return toFileItem(root, resolve(StorageScope.VAULT, vaultPath));
+    }
+
+    public FileDetail detail(StorageScope scope, String vaultPath) throws IOException {
+        Path path = resolve(scope, vaultPath);
+        return toFileDetail(baseFor(scope), path);
+    }
+
+    public FileItem describeVaultChild(String directoryPath, String itemName) throws IOException {
+        return toFileItem(root, resolveChild(StorageScope.VAULT, directoryPath, itemName, true));
+    }
+
+    public String renameVaultPath(String vaultPath, String newName) throws IOException {
+        validateVaultItemPath(vaultPath);
+        Path source = resolve(StorageScope.VAULT, vaultPath);
+        Path target = source.resolveSibling(newName).normalize();
+        validateSingleName(newName);
+        ensureInsideBase(StorageScope.VAULT, target);
+        ensureParentInsideBase(StorageScope.VAULT, target);
+        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
+            throw new FileAlreadyExistsException(newName);
+        }
+        Files.move(source, target);
+        return toRelativePath(root, target);
+    }
+
+    public String moveVaultPath(String vaultPath, String targetDirectoryPath) throws IOException {
+        validateVaultItemPath(vaultPath);
+        Path source = resolve(StorageScope.VAULT, vaultPath);
+        Path targetDirectory = resolveDirectory(StorageScope.VAULT, targetDirectoryPath);
+        Path target = targetDirectory.resolve(source.getFileName()).normalize();
+        ensureInsideBase(StorageScope.VAULT, target);
+        if (targetDirectory.startsWith(source)) {
+            throw new StorageAccessException("A directory cannot be moved into itself.");
+        }
+        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
+            throw new FileAlreadyExistsException(target.getFileName().toString());
+        }
+        Files.move(source, target, StandardCopyOption.ATOMIC_MOVE);
+        return toRelativePath(root, target);
+    }
+
+    public void deleteVaultPath(String vaultPath) throws IOException {
+        validateVaultItemPath(vaultPath);
+        Path path = resolve(StorageScope.VAULT, vaultPath);
+        deleteRecursively(path);
+    }
+
+    public DirectoryListing listSharedDirectory(String sharedBasePath, String requestedPath) throws IOException {
+        Path sharedBase = resolveDirectory(StorageScope.VAULT, sharedBasePath);
+        Path directory = resolveSharedPath(sharedBase, requestedPath);
+        if (!Files.isDirectory(directory)) {
+            throw new NoSuchFileException(requestedPath == null ? "" : requestedPath);
+        }
+
+        String currentPath = toRelativePath(sharedBase, directory);
+        List<FileItem> children;
+        try (Stream<Path> stream = Files.list(directory)) {
+            children = stream
+                    .map(path -> toFileItem(sharedBase, path))
+                    .sorted(itemComparator(FileSort.NAME, SortDirection.ASC))
+                    .toList();
+        }
+
+        return new DirectoryListing(
+                currentPath,
+                parentPathOf(currentPath).orElse(null),
+                breadcrumbsFor(currentPath),
+                children.stream().filter(FileItem::directory).toList(),
+                children.stream().filter(item -> !item.directory()).toList()
+        );
+    }
+
+    public Path resolveSharedFile(String sharedBasePath, String requestedPath, String fileName) throws IOException {
+        validateSingleName(fileName);
+        Path sharedBase = resolveDirectory(StorageScope.VAULT, sharedBasePath);
+        Path directory = resolveSharedPath(sharedBase, requestedPath);
+        Path file = directory.resolve(fileName).normalize();
+        ensureInsideSharedBase(sharedBase, file);
+        ensureExistingPathInsideSharedBase(sharedBase, file);
         if (!Files.isRegularFile(file)) {
             throw new NoSuchFileException(fileName);
         }
@@ -154,6 +256,22 @@ public class StorageService {
         }
     }
 
+    public void writeSharedZip(String sharedBasePath, String directoryPath, List<String> itemNames,
+            OutputStream outputStream) throws IOException {
+        Path sharedBase = resolveDirectory(StorageScope.VAULT, sharedBasePath);
+        Path directory = resolveSharedPath(sharedBase, directoryPath);
+
+        try (ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream)) {
+            for (String itemName : itemNames) {
+                validateSingleName(itemName);
+                Path item = directory.resolve(itemName).normalize();
+                ensureInsideSharedBase(sharedBase, item);
+                ensureExistingPathInsideSharedBase(sharedBase, item);
+                writeZipEntry(item, item.getFileName().toString(), zipOutputStream);
+            }
+        }
+    }
+
     private Path resolveDirectory(StorageScope scope, String requestedPath) throws IOException {
         Path directory = resolve(scope, requestedPath);
         if (!Files.isDirectory(directory)) {
@@ -205,6 +323,14 @@ public class StorageService {
         return relative;
     }
 
+    private Path resolveSharedPath(Path sharedBase, String requestedPath) throws IOException {
+        Path relative = sanitizeRelativePath(requestedPath);
+        Path candidate = sharedBase.resolve(relative).normalize();
+        ensureInsideSharedBase(sharedBase, candidate);
+        ensureExistingPathInsideSharedBase(sharedBase, candidate);
+        return candidate;
+    }
+
     private void validateSingleName(String itemName) {
         if (itemName == null || itemName.isBlank()) {
             throw new StorageAccessException("Name is required.");
@@ -215,10 +341,15 @@ public class StorageService {
         }
     }
 
+    private void validateVaultItemPath(String vaultPath) {
+        if (vaultPath == null || vaultPath.isBlank() || "/".equals(vaultPath)) {
+            throw new StorageAccessException("Path is required.");
+        }
+    }
+
     private Path baseFor(StorageScope scope) {
         return switch (scope) {
             case VAULT -> root;
-            case PUBLIC -> publicRoot;
         };
     }
 
@@ -243,6 +374,20 @@ public class StorageService {
             throw new StorageAccessException("Invalid target path.");
         }
         ensureExistingPathInsideBase(scope, parent);
+    }
+
+    private void ensureInsideSharedBase(Path sharedBase, Path candidate) {
+        if (!candidate.normalize().startsWith(sharedBase)) {
+            throw new StorageAccessException("Path is outside the shared directory.");
+        }
+    }
+
+    private void ensureExistingPathInsideSharedBase(Path sharedBase, Path candidate) throws IOException {
+        Path realSharedBase = sharedBase.toRealPath();
+        Path realCandidate = candidate.toRealPath();
+        if (!realCandidate.startsWith(realSharedBase)) {
+            throw new StorageAccessException("Path is outside the shared directory.");
+        }
     }
 
     private String toRelativePath(Path base, Path path) {
@@ -277,12 +422,12 @@ public class StorageService {
         return breadcrumbs;
     }
 
-    private FileItem toFileItem(StorageScope scope, Path path) {
+    private FileItem toFileItem(Path relativeBase, Path path) {
         try {
             boolean directory = Files.isDirectory(path);
             String mediaType = directory ? "folder" : mediaType(path);
             long size = directory ? 0L : Files.size(path);
-            String relativePath = toRelativePath(baseFor(scope), path);
+            String relativePath = toRelativePath(relativeBase, path);
             Instant modified = Files.getLastModifiedTime(path).toInstant();
             return new FileItem(
                     path.getFileName().toString(),
@@ -291,6 +436,7 @@ public class StorageService {
                     size,
                     directory ? "-" : humanSize(size),
                     MODIFIED_FORMATTER.format(modified),
+                    modified,
                     mediaType,
                     isPreviewable(mediaType),
                     mediaType.startsWith("video/")
@@ -300,14 +446,76 @@ public class StorageService {
         }
     }
 
-    private Comparator<Path> itemComparator() {
+    private FileDetail toFileDetail(Path relativeBase, Path path) throws IOException {
+        boolean directory = Files.isDirectory(path);
+        String mediaType = directory ? "folder" : mediaType(path);
+        long size = directory ? 0L : Files.size(path);
+        String relativePath = toRelativePath(relativeBase, path);
+        BasicFileAttributes attributes = Files.readAttributes(path, BasicFileAttributes.class);
+        return new FileDetail(
+                path.getFileName().toString(),
+                relativePath,
+                parentPathOf(relativePath).orElse(null),
+                directory,
+                size,
+                directory ? "-" : humanSize(size),
+                directory ? childCount(path) : 0L,
+                MODIFIED_FORMATTER.format(attributes.creationTime().toInstant()),
+                MODIFIED_FORMATTER.format(attributes.lastModifiedTime().toInstant()),
+                MODIFIED_FORMATTER.format(attributes.lastAccessTime().toInstant()),
+                mediaType,
+                extensionOf(path, directory),
+                isPreviewable(mediaType),
+                mediaType.startsWith("video/")
+        );
+    }
+
+    private long childCount(Path directory) throws IOException {
+        try (Stream<Path> children = Files.list(directory)) {
+            return children
+                    .filter(path -> !isHiddenSystemPath(StorageScope.VAULT, path))
+                    .count();
+        }
+    }
+
+    private String extensionOf(Path path, boolean directory) {
+        if (directory) {
+            return "";
+        }
+        String name = path.getFileName().toString();
+        int index = name.lastIndexOf('.');
+        if (index <= 0 || index == name.length() - 1) {
+            return "";
+        }
+        return name.substring(index + 1).toLowerCase(Locale.ROOT);
+    }
+
+    private Comparator<FileItem> itemComparator(FileSort sort, SortDirection direction) {
+        Comparator<FileItem> nameComparator = Comparator.comparing(
+                item -> item.name().toLowerCase(Locale.ROOT)
+        );
+        Comparator<FileItem> primary = switch (sort) {
+            case SIZE -> Comparator.comparingLong(FileItem::size);
+            case MODIFIED -> Comparator.comparing(FileItem::modifiedAt);
+            case TYPE -> Comparator.comparing(
+                    (FileItem item) -> item.typeLabel().toLowerCase(Locale.ROOT)
+            ).thenComparing(item -> item.mediaType().toLowerCase(Locale.ROOT));
+            case NAME -> nameComparator;
+        };
+        if (direction == SortDirection.DESC) {
+            primary = primary.reversed();
+        }
+        return primary.thenComparing(nameComparator);
+    }
+
+    private Comparator<Path> pathNameComparator() {
         return Comparator
                 .comparing((Path path) -> !Files.isDirectory(path))
                 .thenComparing(path -> path.getFileName().toString().toLowerCase(Locale.ROOT));
     }
 
     private boolean isHiddenSystemPath(StorageScope scope, Path path) {
-        if (scope != StorageScope.VAULT || !path.getParent().equals(root)) {
+        if (!path.getParent().equals(root)) {
             return false;
         }
         String name = path.getFileName().toString();
@@ -375,7 +583,7 @@ public class StorageService {
             zipOutputStream.putNextEntry(new ZipEntry(normalizedEntryName + "/"));
             zipOutputStream.closeEntry();
             try (Stream<Path> children = Files.list(source)) {
-                for (Path child : children.sorted(itemComparator()).collect(Collectors.toList())) {
+                for (Path child : children.sorted(pathNameComparator()).collect(Collectors.toList())) {
                     writeZipEntry(child, normalizedEntryName + "/" + child.getFileName(), zipOutputStream);
                 }
             }
@@ -389,4 +597,3 @@ public class StorageService {
         zipOutputStream.closeEntry();
     }
 }
-

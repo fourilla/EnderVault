@@ -1,19 +1,25 @@
 package io.github.fourilla.endervault.storage;
 
-import java.time.Instant;
-
-public record FileItem(
+public record FileDetail(
         String name,
         String path,
+        String parentPath,
         boolean directory,
         long size,
         String sizeLabel,
+        long childCount,
+        String createdLabel,
         String modifiedLabel,
-        Instant modifiedAt,
+        String accessedLabel,
         String mediaType,
+        String extension,
         boolean previewable,
         boolean streamable
 ) {
+    public boolean hasParent() {
+        return parentPath != null;
+    }
+
     public boolean image() {
         return mediaType.startsWith("image/");
     }
@@ -28,24 +34,5 @@ public record FileItem(
 
     public boolean pdf() {
         return mediaType.equals("application/pdf");
-    }
-
-    public String typeLabel() {
-        if (directory) {
-            return "Folder";
-        }
-        if (image()) {
-            return "Image";
-        }
-        if (video()) {
-            return "Video";
-        }
-        if (text()) {
-            return "Text";
-        }
-        if (pdf()) {
-            return "PDF";
-        }
-        return "File";
     }
 }
