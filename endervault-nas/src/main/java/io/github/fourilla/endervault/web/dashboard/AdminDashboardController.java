@@ -1,4 +1,4 @@
-package io.github.fourilla.endervault.web;
+package io.github.fourilla.endervault.web.dashboard;
 
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.common.ByteSizeFormatter;

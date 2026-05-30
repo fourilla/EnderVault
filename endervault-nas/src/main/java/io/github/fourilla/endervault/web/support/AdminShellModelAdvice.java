@@ -1,7 +1,12 @@
-package io.github.fourilla.endervault.web;
+package io.github.fourilla.endervault.web.support;
 
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.storage.StorageUsage;
+import io.github.fourilla.endervault.web.dashboard.AdminDashboardController;
+import io.github.fourilla.endervault.web.dashboard.AdminLogController;
+import io.github.fourilla.endervault.web.file.AdminFileController;
+import io.github.fourilla.endervault.web.share.AdminShareController;
+import io.github.fourilla.endervault.web.trash.AdminTrashController;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
 

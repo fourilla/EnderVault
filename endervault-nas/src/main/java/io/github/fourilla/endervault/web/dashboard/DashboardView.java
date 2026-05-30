@@ -1,4 +1,4 @@
-package io.github.fourilla.endervault.web;
+package io.github.fourilla.endervault.web.dashboard;
 
 import io.github.fourilla.endervault.activity.ActivityLogEntry;
 import io.github.fourilla.endervault.storage.StorageUsage;

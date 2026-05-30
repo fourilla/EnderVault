@@ -1,4 +1,4 @@
-package io.github.fourilla.endervault.web;
+package io.github.fourilla.endervault.web.support;
 
 import io.github.fourilla.endervault.storage.FileItem;
 
@@ -15,7 +15,7 @@ public record UploadedFilePayload(
         boolean previewable
 ) {
 
-    static UploadedFilePayload from(FileItem item) {
+    public static UploadedFilePayload from(FileItem item) {
         return new UploadedFilePayload(
                 item.name(),
                 item.path(),

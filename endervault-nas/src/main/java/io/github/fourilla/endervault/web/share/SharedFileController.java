@@ -1,4 +1,4 @@
-package io.github.fourilla.endervault.web;
+package io.github.fourilla.endervault.web.share;
 
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.share.ShareLink;
@@ -7,6 +7,8 @@ import io.github.fourilla.endervault.share.ShareTargetType;
 import io.github.fourilla.endervault.storage.DirectoryListing;
 import io.github.fourilla.endervault.storage.FileItem;
 import io.github.fourilla.endervault.storage.StorageService;
+import io.github.fourilla.endervault.web.support.FileResponseService;
+import io.github.fourilla.endervault.web.support.SelectedItems;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;

@@ -1,33 +1,38 @@
-package io.github.fourilla.endervault.web;
+package io.github.fourilla.endervault.web.support;
 
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-final class FlashNotifications {
+public final class FlashNotifications {
 
-    static final String ATTRIBUTE_NAME = "notifications";
+    public static final String ATTRIBUTE_NAME = "notifications";
 
     private FlashNotifications() {
     }
 
-    static void success(RedirectAttributes redirectAttributes, String message) {
+    public static void success(RedirectAttributes redirectAttributes, String message) {
         add(redirectAttributes, FlashNotification.success(message));
     }
 
-    static void info(RedirectAttributes redirectAttributes, String message) {
+    public static void info(RedirectAttributes redirectAttributes, String message) {
         add(redirectAttributes, FlashNotification.info(message));
     }
 
-    static void info(RedirectAttributes redirectAttributes, String message, String actionLabel, String actionValue) {
+    public static void info(
+            RedirectAttributes redirectAttributes,
+            String message,
+            String actionLabel,
+            String actionValue
+    ) {
         add(redirectAttributes, FlashNotification.info(message, actionLabel, actionValue));
     }
 
-    static void warning(RedirectAttributes redirectAttributes, String message) {
+    public static void warning(RedirectAttributes redirectAttributes, String message) {
         add(redirectAttributes, FlashNotification.warning(message));
     }
 
-    static void error(RedirectAttributes redirectAttributes, String message) {
+    public static void error(RedirectAttributes redirectAttributes, String message) {
         add(redirectAttributes, FlashNotification.error(message));
     }
 

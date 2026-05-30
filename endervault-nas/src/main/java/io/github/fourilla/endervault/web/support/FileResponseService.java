@@ -1,4 +1,4 @@
-package io.github.fourilla.endervault.web;
+package io.github.fourilla.endervault.web.support;
 
 import io.github.fourilla.endervault.storage.StorageService;
 import java.io.IOException;

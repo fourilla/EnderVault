@@ -1,6 +1,7 @@
-package io.github.fourilla.endervault.web;
+package io.github.fourilla.endervault.web.dashboard;
 
 import io.github.fourilla.endervault.activity.ActivityLogService;
+import io.github.fourilla.endervault.web.support.FlashNotifications;
 import java.io.IOException;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;

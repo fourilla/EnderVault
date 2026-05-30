@@ -1,4 +1,4 @@
-package io.github.fourilla.endervault.web;
+package io.github.fourilla.endervault.web.auth;
 
 import java.security.Principal;
 import org.springframework.stereotype.Controller;
@@ -12,4 +12,3 @@ public class LoginController {
         return principal == null ? "login" : "redirect:/files";
     }
 }
-

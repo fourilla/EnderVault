@@ -1,4 +1,4 @@
-package io.github.fourilla.endervault.web;
+package io.github.fourilla.endervault.web.file;
 
 import io.github.fourilla.endervault.storage.FileItem;
 import java.util.List;

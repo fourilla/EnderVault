@@ -1,4 +1,4 @@
-package io.github.fourilla.endervault.web;
+package io.github.fourilla.endervault.web.support;
 
 import io.github.fourilla.endervault.share.ShareLink;
 
@@ -12,7 +12,7 @@ public record ShareLinkPayload(
         boolean active
 ) {
 
-    static ShareLinkPayload from(ShareLink shareLink, String url) {
+    public static ShareLinkPayload from(ShareLink shareLink, String url) {
         return new ShareLinkPayload(
                 shareLink.token(),
                 url,
