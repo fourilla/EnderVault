@@ -4,6 +4,9 @@ import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.favorite.FavoriteService;
+import io.github.fourilla.endervault.filetool.FileToolDescriptor;
+import io.github.fourilla.endervault.filetool.FileToolService;
+import io.github.fourilla.endervault.filetool.TextFileContent;
 import io.github.fourilla.endervault.recent.RecentService;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
@@ -24,6 +27,8 @@ import io.github.fourilla.endervault.web.support.FlashNotification;
 import io.github.fourilla.endervault.web.support.FlashNotifications;
 import io.github.fourilla.endervault.web.support.SelectedItems;
 import io.github.fourilla.endervault.web.support.ShareLinkPayload;
+import io.github.fourilla.endervault.web.support.TextFileLoadResponse;
+import io.github.fourilla.endervault.web.support.TextFilePayload;
 import io.github.fourilla.endervault.web.support.UploadedFilePayload;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -69,6 +74,7 @@ public class AdminFileController {
     private final FileResponseService fileResponseService;
     private final ShareLinkService shareLinkService;
     private final FavoriteService favoriteService;
+    private final FileToolService fileToolService;
     private final RecentService recentService;
     private final ThumbnailService thumbnailService;
     private final TrashService trashService;
@@ -80,6 +86,7 @@ public class AdminFileController {
             FileResponseService fileResponseService,
             ShareLinkService shareLinkService,
             FavoriteService favoriteService,
+            FileToolService fileToolService,
             RecentService recentService,
             ThumbnailService thumbnailService,
             TrashService trashService,
@@ -90,6 +97,7 @@ public class AdminFileController {
         this.fileResponseService = fileResponseService;
         this.shareLinkService = shareLinkService;
         this.favoriteService = favoriteService;
+        this.fileToolService = fileToolService;
         this.recentService = recentService;
         this.thumbnailService = thumbnailService;
         this.trashService = trashService;
@@ -181,11 +189,49 @@ public class AdminFileController {
     public String detail(@RequestParam("path") String path, Model model) throws IOException {
         FileDetail detail = detailForPath(path);
         recentService.recordVaultPath(detail.path());
+        FileToolDescriptor fileTool = fileToolService.resolve(detail);
         model.addAttribute("detail", detail);
+        model.addAttribute("fileTool", fileTool);
+        if (fileTool.text()) {
+            model.addAttribute("textContent", fileToolService.readText(detail, storageService.resolveVaultFile(detail.path())));
+        }
         model.addAttribute("shares", shareLinkService.listForVaultPath(detail.path()));
         model.addAttribute("shareBaseUrl", shareBaseUrl());
         model.addAttribute("favorite", favoriteService.isFavorite(detail.path()));
         return "file-detail";
+    }
+
+    @PostMapping("/files/detail/text")
+    public Object saveTextFromDetail(
+            @RequestParam("path") String path,
+            @RequestParam(value = "content", required = false) String content,
+            HttpServletRequest request,
+            RedirectAttributes redirectAttributes
+    ) throws IOException {
+        FileDetail detail = detailForPath(path);
+        Path file = storageService.resolveVaultFile(detail.path());
+        fileToolService.writeText(detail, file, content);
+        recentService.recordVaultPath(detail.path());
+        activityLogService.record("TEXT_SAVE", request, detail.path(), null, "Saved text file " + detail.name());
+        FlashNotification notification = FlashNotification.success("Text file saved.");
+        if (wantsJson(request)) {
+            return ResponseEntity.ok(ActionResponse.ok(notification));
+        }
+        FlashNotifications.success(redirectAttributes, notification.message());
+        return redirectToDetail(detail.path());
+    }
+
+    @GetMapping("/files/detail/text/load")
+    public ResponseEntity<TextFileLoadResponse> loadTextFromDetail(@RequestParam("path") String path) throws IOException {
+        FileDetail detail = detailForPath(path);
+        Path file = storageService.resolveVaultFile(detail.path());
+        TextFileContent content = fileToolService.loadText(detail, file);
+        if (!content.loaded()) {
+            throw new StorageAccessException(content.message());
+        }
+        TextFilePayload payload = TextFilePayload.from(content);
+        recentService.recordVaultPath(detail.path());
+        return ResponseEntity.ok(TextFileLoadResponse.ok(payload));
     }
 
     @PostMapping("/files/upload")

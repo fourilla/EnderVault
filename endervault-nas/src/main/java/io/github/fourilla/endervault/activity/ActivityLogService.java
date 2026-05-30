@@ -20,6 +20,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -177,6 +178,7 @@ public class ActivityLogService {
         int safeLimit = Math.max(1, limit);
         int start = Math.max(0, entries.size() - safeLimit);
         List<ActivityLogEntry> recentEntries = new ArrayList<>(entries.subList(start, entries.size()));
+        Collections.reverse(recentEntries);
         recentEntries.sort(Comparator.comparing(ActivityLogEntry::timestampForSort).reversed());
         return List.copyOf(recentEntries);
     }

@@ -100,6 +100,162 @@
     background: var(--panel);
 }
 
+.text-editor {
+    display: grid;
+    gap: 10px;
+}
+
+.text-editor-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.text-editor-toolbar > span {
+    flex: 1 1 160px;
+}
+
+.text-editor-toolbar > .icon-button {
+    flex: 0 0 auto;
+}
+
+.text-editor.is-dirty .text-editor-toolbar {
+    color: var(--focus);
+}
+
+.text-editor.is-codemirror-enhanced .text-editor-toolbar {
+    flex-wrap: nowrap;
+}
+
+.text-editor.is-codemirror-enhanced .text-editor-toolbar > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.text-editor-controls {
+    display: flex;
+    flex: 0 1 auto;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-left: auto;
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+
+.editor-control {
+    height: 34px;
+    max-width: 160px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel-muted);
+    color: var(--text);
+    padding: 0 10px;
+    font: inherit;
+}
+
+.editor-control.compact {
+    max-width: 84px;
+}
+
+.editor-toggle.is-active {
+    border-color: var(--focus);
+    color: var(--focus);
+}
+
+.text-editor:not(.is-editor-editing) .CodeMirror {
+    cursor: default;
+}
+
+.text-editor:not(.is-editor-editing) .CodeMirror-code {
+    caret-color: transparent;
+}
+
+body.is-text-editor-fullscreen {
+    overflow: hidden;
+}
+
+.text-editor-area {
+    width: 100%;
+    min-height: 64vh;
+    resize: vertical;
+    font-family: "Consolas", "Cascadia Mono", monospace;
+    line-height: 1.45;
+    white-space: pre;
+}
+
+.text-editor.is-codemirror-enhanced {
+    gap: 12px;
+}
+
+.text-editor .CodeMirror {
+    height: 64vh;
+    min-height: 480px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-family: "Consolas", "Cascadia Mono", monospace;
+    line-height: 1.45;
+}
+
+.text-editor .CodeMirror-focused {
+    border-color: var(--focus);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--focus) 35%, transparent);
+}
+
+.text-editor .CodeMirror-gutters {
+    border-right: 1px solid var(--line);
+}
+
+.text-editor.is-editor-fullscreen {
+    position: fixed;
+    inset: 14px;
+    z-index: 10000;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--panel);
+    padding: 14px;
+    box-shadow: 0 24px 80px rgb(0 0 0 / 55%);
+}
+
+.text-editor.is-editor-fullscreen .text-editor-toolbar {
+    flex: 0 0 auto;
+}
+
+.text-editor.is-editor-fullscreen .CodeMirror,
+.text-editor.is-editor-fullscreen .text-editor-area {
+    height: calc(100vh - 108px);
+    min-height: 0;
+}
+
+.tool-message {
+    margin: 0;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel-muted);
+    padding: 14px;
+    color: var(--muted);
+}
+
+.tool-message p {
+    margin: 0;
+}
+
+.tool-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
 .compact-table {
     margin-top: 14px;
 }

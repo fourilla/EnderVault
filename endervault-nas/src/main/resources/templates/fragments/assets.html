@@ -34,6 +34,38 @@
     <script defer th:src="@{/js/favorites.js}"></script>
 </th:block>
 
+<th:block th:fragment="fileToolsScript">
+    <link rel="stylesheet" th:href="@{/webjars/codemirror/5.65.19/lib/codemirror.css}">
+    <link rel="stylesheet" th:href="@{/webjars/codemirror/5.65.19/theme/material-darker.css}">
+    <link rel="stylesheet" th:href="@{/webjars/codemirror/5.65.19/addon/dialog/dialog.css}">
+    <script defer th:src="@{/webjars/codemirror/5.65.19/lib/codemirror.js}"></script>
+    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/xml/xml.js}"></script>
+    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/javascript/javascript.js}"></script>
+    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/css/css.js}"></script>
+    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/htmlmixed/htmlmixed.js}"></script>
+    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/markdown/markdown.js}"></script>
+    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/clike/clike.js}"></script>
+    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/python/python.js}"></script>
+    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/shell/shell.js}"></script>
+    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/properties/properties.js}"></script>
+    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/yaml/yaml.js}"></script>
+    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/sql/sql.js}"></script>
+    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/powershell/powershell.js}"></script>
+    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/ruby/ruby.js}"></script>
+    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/go/go.js}"></script>
+    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/rust/rust.js}"></script>
+    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/php/php.js}"></script>
+    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/dockerfile/dockerfile.js}"></script>
+    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/toml/toml.js}"></script>
+    <script defer th:src="@{/webjars/codemirror/5.65.19/addon/selection/active-line.js}"></script>
+    <script defer th:src="@{/webjars/codemirror/5.65.19/addon/edit/matchbrackets.js}"></script>
+    <script defer th:src="@{/webjars/codemirror/5.65.19/addon/edit/closebrackets.js}"></script>
+    <script defer th:src="@{/webjars/codemirror/5.65.19/addon/search/searchcursor.js}"></script>
+    <script defer th:src="@{/webjars/codemirror/5.65.19/addon/dialog/dialog.js}"></script>
+    <script defer th:src="@{/webjars/codemirror/5.65.19/addon/search/search.js}"></script>
+    <script defer th:src="@{/js/file-tools.js}"></script>
+</th:block>
+
 <th:block th:fragment="remoteDownloadScript">
     <script defer th:src="@{/js/remote-download.js}"></script>
 </th:block>

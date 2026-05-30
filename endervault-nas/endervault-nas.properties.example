@@ -26,6 +26,9 @@ nas.browser.default-page-size=200
 nas.recent.max-items=200
 nas.recent.record-directories=true
 
+nas.file-tools.text-auto-load-max-bytes=1048576
+nas.file-tools.text-manual-load-max-bytes=20971520
+
 nas.remote-download.enabled=true
 nas.remote-download.direct-enabled=true
 nas.remote-download.extractor-enabled=false

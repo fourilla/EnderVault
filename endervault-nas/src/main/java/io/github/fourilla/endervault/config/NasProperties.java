@@ -38,6 +38,9 @@ public class NasProperties {
     @Valid
     private Recent recent = new Recent();
 
+    @Valid
+    private FileTools fileTools = new FileTools();
+
     public Storage getStorage() {
         return storage;
     }
@@ -100,6 +103,14 @@ public class NasProperties {
 
     public void setRecent(Recent recent) {
         this.recent = recent;
+    }
+
+    public FileTools getFileTools() {
+        return fileTools;
+    }
+
+    public void setFileTools(FileTools fileTools) {
+        this.fileTools = fileTools;
     }
 
     public static class Storage {
@@ -417,6 +428,41 @@ public class NasProperties {
 
         public void setRecordDirectories(boolean recordDirectories) {
             this.recordDirectories = recordDirectories;
+        }
+    }
+
+    public static class FileTools {
+        @Min(1024)
+        private long textAutoLoadMaxBytes = 1048576L;
+
+        @Min(1024)
+        private long textManualLoadMaxBytes = 20971520L;
+
+        public long getTextAutoLoadMaxBytes() {
+            return textAutoLoadMaxBytes;
+        }
+
+        public void setTextAutoLoadMaxBytes(long textAutoLoadMaxBytes) {
+            this.textAutoLoadMaxBytes = textAutoLoadMaxBytes;
+        }
+
+        public long getTextManualLoadMaxBytes() {
+            return textManualLoadMaxBytes;
+        }
+
+        public void setTextManualLoadMaxBytes(long textManualLoadMaxBytes) {
+            this.textManualLoadMaxBytes = textManualLoadMaxBytes;
+        }
+
+        @Deprecated
+        public long getTextMaxBytes() {
+            return textAutoLoadMaxBytes;
+        }
+
+        @Deprecated
+        public void setTextMaxBytes(long textMaxBytes) {
+            this.textAutoLoadMaxBytes = textMaxBytes;
+            this.textManualLoadMaxBytes = Math.max(this.textManualLoadMaxBytes, textMaxBytes);
         }
     }
 

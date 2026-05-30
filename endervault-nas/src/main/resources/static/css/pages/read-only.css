@@ -128,6 +128,11 @@
     min-width: 0;
 }
 
+.readonly-hit-targets .readonly-table tbody tr,
+.readonly-hit-targets .readonly-file-card {
+    cursor: pointer;
+}
+
 .readonly-date-col {
     width: 132px;
     color: var(--muted);

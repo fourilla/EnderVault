@@ -94,6 +94,22 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void readOnlyPageLoadsEnhancedTapTargetScript() throws Exception {
+        String directory = "readonly-dir-" + System.nanoTime();
+        String filename = "readonly-file-" + System.nanoTime() + ".txt";
+        Files.createDirectories(ROOT.resolve(directory));
+        Files.writeString(ROOT.resolve(filename), "readonly");
+
+        mockMvc.perform(get("/files/read-only"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/read-only.js")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("readonly-table")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("readonly-file-card")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(directory)))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(filename)));
+    }
+
+    @Test
     void dashboardPageRendersSummaryPanels() throws Exception {
         mockMvc.perform(get("/files/dashboard"))
                 .andExpect(status().isOk())
@@ -248,6 +264,67 @@ class AdminNotificationFlowTest {
                 .andExpect(jsonPath("$.notification.type").value("info"))
                 .andExpect(jsonPath("$.notification.actionValue").exists())
                 .andExpect(jsonPath("$.shareLink.token").exists());
+    }
+
+    @Test
+    void textDetailPageRendersEditorAndSavesContent() throws Exception {
+        String filename = "text-editor-" + System.nanoTime() + ".txt";
+        Files.writeString(ROOT.resolve(filename), "before", StandardCharsets.UTF_8);
+
+        mockMvc.perform(get("/files/detail").param("path", filename))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("File Tools")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Text Editor")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"content\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("before")));
+
+        mockMvc.perform(post("/files/detail/text")
+                        .with(csrf())
+                        .param("path", filename)
+                        .param("content", "after"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/files/detail?path=" + filename))
+                .andExpect(flash().attributeExists(FlashNotifications.ATTRIBUTE_NAME));
+
+        assertThat(Files.readString(ROOT.resolve(filename), StandardCharsets.UTF_8)).isEqualTo("after");
+    }
+
+    @Test
+    void largeTextDetailPageDefersEditorUntilManualLoad() throws Exception {
+        String filename = "large-text-editor-" + System.nanoTime() + ".txt";
+        String largeContent = "large-text-" + "x".repeat(1024 * 1024);
+        Files.writeString(ROOT.resolve(filename), largeContent, StandardCharsets.UTF_8);
+
+        mockMvc.perform(get("/files/detail").param("path", filename))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("Load text")))
+                .andExpect(content().string(Matchers.containsString("Download original")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("name=\"content\""))));
+
+        mockMvc.perform(get("/files/detail/text/load")
+                        .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
+                        .param("path", filename))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.text.editable").value(true))
+                .andExpect(jsonPath("$.text.content", Matchers.startsWith("large-text-")));
+    }
+
+    @Test
+    void textSaveCanReturnJsonForEnhancedEditor() throws Exception {
+        String filename = "text-editor-json-" + System.nanoTime() + ".txt";
+        Files.writeString(ROOT.resolve(filename), "before", StandardCharsets.UTF_8);
+
+        mockMvc.perform(post("/files/detail/text")
+                        .with(csrf())
+                        .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
+                        .param("path", filename)
+                        .param("content", "after json"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.notification.type").value("success"));
+
+        assertThat(Files.readString(ROOT.resolve(filename), StandardCharsets.UTF_8)).isEqualTo("after json");
     }
 
     @Test
