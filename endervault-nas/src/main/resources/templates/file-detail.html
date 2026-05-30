@@ -4,24 +4,21 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title th:text="${detail.name()}">EnderVault Detail</title>
+    <link rel="stylesheet" th:href="@{/webjars/fortawesome__fontawesome-free/6.7.2/css/all.min.css}">
     <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
 <body>
-<header class="topbar">
-    <a class="brand" th:href="@{/files}">EnderVault</a>
-    <nav class="top-actions">
-        <a th:href="@{/files(path=${detail.parentPath()})}">Files</a>
-        <a th:href="@{/files/shares}">Shared links</a>
-        <form method="post" th:action="@{/logout}">
-            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-            <button class="ghost" type="submit">Log out</button>
-        </form>
-    </nav>
-</header>
+<div class="app-shell">
+<aside th:replace="~{fragments/admin-shell :: sidebar('files')}"></aside>
+<div class="app-main">
+<header th:replace="~{fragments/admin-shell :: topbar}"></header>
 
 <main class="workspace">
     <section class="pathbar" aria-label="Current path">
-        <a class="ghost" th:href="@{/files(path=${detail.parentPath()})}">Back to folder</a>
+        <a class="button-link ghost icon-button" th:href="@{/files(path=${detail.parentPath()})}"
+           title="Back to directory" aria-label="Back to directory">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+        </a>
         <span class="muted" th:text="${detail.path()}">path</span>
     </section>
 
@@ -44,14 +41,26 @@
 
     <section class="detail-layout">
         <article class="detail-panel detail-main">
-            <p class="eyebrow" th:text="${detail.directory() ? 'Folder' : 'File'}">File</p>
+            <p class="eyebrow" th:text="${detail.directory() ? 'Directory' : 'File'}">File</p>
             <h1 th:text="${detail.name()}">name</h1>
 
             <div class="detail-actions">
-                <a class="button-link" th:if="${detail.directory()}" th:href="@{/files(path=${detail.path()})}">Open</a>
-                <a class="button-link" th:if="${detail.directory()}" th:href="@{/files/detail/download.zip(path=${detail.path()})}">Download zip</a>
-                <a class="button-link" th:unless="${detail.directory()}" th:href="@{/files/detail/download(path=${detail.path()})}">Download</a>
-                <a class="button-link ghost" th:if="${not detail.directory() and detail.previewable()}" th:href="@{/files/detail/preview(path=${detail.path()})}" target="_blank">Open preview</a>
+                <a class="button-link icon-button" th:if="${detail.directory()}" th:href="@{/files(path=${detail.path()})}"
+                   title="Open directory" aria-label="Open directory">
+                    <i class="fas fa-folder-open" aria-hidden="true"></i>
+                </a>
+                <a class="button-link icon-button" th:if="${detail.directory()}" th:href="@{/files/detail/download.zip(path=${detail.path()})}"
+                   title="Download zip" aria-label="Download zip">
+                    <i class="fas fa-file-zipper" aria-hidden="true"></i>
+                </a>
+                <a class="button-link icon-button" th:unless="${detail.directory()}" th:href="@{/files/detail/download(path=${detail.path()})}"
+                   title="Download" aria-label="Download">
+                    <i class="fas fa-download" aria-hidden="true"></i>
+                </a>
+                <a class="button-link ghost icon-button" th:if="${not detail.directory() and detail.previewable()}" th:href="@{/files/detail/preview(path=${detail.path()})}" target="_blank"
+                   title="Preview" aria-label="Preview">
+                    <i class="fas fa-eye" aria-hidden="true"></i>
+                </a>
             </div>
 
             <dl class="details">
@@ -119,7 +128,9 @@
             <form class="stack" method="post" th:action="@{/files/detail/delete}">
                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                 <input type="hidden" name="path" th:value="${detail.path()}">
-                <button class="danger" type="submit">Delete</button>
+                <button class="danger icon-button" type="submit" title="Delete" aria-label="Delete">
+                    <i class="fas fa-trash-can" aria-hidden="true"></i>
+                </button>
             </form>
         </aside>
     </section>
@@ -147,22 +158,30 @@
                 <tbody>
                 <tr th:each="share : ${shares}">
                     <td><input readonly th:value="${shareBaseUrl + share.token()}"></td>
-                    <td th:text="${share.createdAt()}">created</td>
-                    <td th:text="${share.expiresAt() == null ? 'Never' : share.expiresAt()}">expires</td>
-                    <td th:text="${share.statusLabel()}">Active</td>
+                    <td th:text="${share.createdLabel()}">created</td>
+                    <td th:text="${share.expiresLabel()}">expires</td>
                     <td>
-                        <form class="row-form" method="post" th:action="@{/files/detail/shares/revoke}" th:if="${share.active()}">
-                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                            <input type="hidden" name="path" th:value="${detail.path()}">
-                            <input type="hidden" name="token" th:value="${share.token()}">
-                            <button class="danger" type="submit">Revoke</button>
-                        </form>
-                        <form class="row-form" method="post" th:action="@{/files/detail/shares/delete}">
-                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                            <input type="hidden" name="path" th:value="${detail.path()}">
-                            <input type="hidden" name="token" th:value="${share.token()}">
-                            <button class="ghost" type="submit">Delete</button>
-                        </form>
+                        <span class="status-badge" th:classappend="${share.statusClass()}" th:text="${share.statusLabel()}">Active</span>
+                    </td>
+                    <td>
+                        <div class="table-actions">
+                            <form class="row-form" method="post" th:action="@{/files/detail/shares/revoke}" th:if="${share.active()}">
+                                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                                <input type="hidden" name="path" th:value="${detail.path()}">
+                                <input type="hidden" name="token" th:value="${share.token()}">
+                                <button class="danger icon-button action-icon" type="submit" title="Revoke" aria-label="Revoke">
+                                    <i class="fas fa-link-slash" aria-hidden="true"></i>
+                                </button>
+                            </form>
+                            <form class="row-form" method="post" th:action="@{/files/detail/shares/delete}">
+                                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                                <input type="hidden" name="path" th:value="${detail.path()}">
+                                <input type="hidden" name="token" th:value="${share.token()}">
+                                <button class="ghost icon-button action-icon" type="submit" title="Delete" aria-label="Delete">
+                                    <i class="fas fa-trash-can" aria-hidden="true"></i>
+                                </button>
+                            </form>
+                        </div>
                     </td>
                 </tr>
                 <tr th:if="${#lists.isEmpty(shares)}">
@@ -173,5 +192,7 @@
         </div>
     </section>
 </main>
+</div>
+</div>
 </body>
 </html>

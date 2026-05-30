@@ -30,9 +30,14 @@ public record FileItem(
         return mediaType.equals("application/pdf");
     }
 
+    public String parentPath() {
+        int index = path.lastIndexOf('/');
+        return index < 0 ? "" : path.substring(0, index);
+    }
+
     public String typeLabel() {
         if (directory) {
-            return "Folder";
+            return "Directory";
         }
         if (image()) {
             return "Image";

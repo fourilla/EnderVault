@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
@@ -31,7 +32,7 @@ class StorageServiceTest {
     }
 
     @Test
-    void listsVaultWithoutInternalSystemFolders() throws Exception {
+    void listsVaultWithoutInternalSystemDirectories() throws Exception {
         Files.createDirectories(root.resolve("docs"));
         Files.writeString(root.resolve("note.txt"), "hello");
 
@@ -39,6 +40,27 @@ class StorageServiceTest {
 
         assertThat(listing.directories()).extracting(FileItem::name).containsExactly("docs");
         assertThat(listing.files()).extracting(FileItem::name).containsExactly("note.txt");
+    }
+
+    @Test
+    void listsTrashDirectorySeparately() throws Exception {
+        Files.writeString(root.resolve(".trash").resolve("deleted.txt"), "deleted");
+
+        DirectoryListing listing = storageService.listTrash();
+
+        assertThat(listing.path()).isEmpty();
+        assertThat(listing.files()).extracting(FileItem::name).containsExactly("deleted.txt");
+    }
+
+    @Test
+    void reportsStorageUsageForRootDisk() {
+        StorageUsage usage = storageService.storageUsage();
+
+        assertThat(usage.totalBytes()).isGreaterThanOrEqualTo(0L);
+        assertThat(usage.usedBytes()).isGreaterThanOrEqualTo(0L);
+        assertThat(usage.usedLabel()).isNotBlank();
+        assertThat(usage.totalLabel()).isNotBlank();
+        assertThat(usage.usedPercent()).isBetween(0, 100);
     }
 
     @Test
@@ -73,6 +95,80 @@ class StorageServiceTest {
         );
 
         assertThat(listing.files()).extracting(FileItem::name).containsExactly("older.txt", "newer.txt");
+    }
+
+    @Test
+    void searchesVaultRecursivelyFromRequestedRoot() throws Exception {
+        Files.createDirectories(root.resolve("docs").resolve("nested"));
+        Files.createDirectories(root.resolve("other"));
+        Files.writeString(root.resolve("docs").resolve("nested").resolve("report.txt"), "report");
+        Files.writeString(root.resolve("other").resolve("report.txt"), "outside");
+
+        List<FileItem> results = storageService.search(StorageScope.VAULT, "docs", "REPORT");
+
+        assertThat(results).extracting(FileItem::path).containsExactly("docs/nested/report.txt");
+    }
+
+    @Test
+    void searchReturnsMatchingDirectoriesAndFiles() throws Exception {
+        Files.createDirectories(root.resolve("photos-match"));
+        Files.writeString(root.resolve("match-note.txt"), "hello");
+
+        List<FileItem> results = storageService.search(StorageScope.VAULT, "", "match");
+
+        assertThat(results).extracting(FileItem::path).containsExactly("match-note.txt", "photos-match");
+        assertThat(results).extracting(FileItem::typeLabel).containsExactly("Text", "Directory");
+    }
+
+    @Test
+    void searchSkipsInternalSystemDirectories() throws Exception {
+        Files.writeString(root.resolve(".trash").resolve("secret-match.txt"), "deleted");
+        Files.writeString(root.resolve(".endervault").resolve("metadata-match.txt"), "metadata");
+        Files.writeString(root.resolve("visible-match.txt"), "visible");
+
+        List<FileItem> results = storageService.search(StorageScope.VAULT, "", "match");
+
+        assertThat(results).extracting(FileItem::path).containsExactly("visible-match.txt");
+    }
+
+    @Test
+    void sharedDirectoryHidesInternalSystemDirectories() throws Exception {
+        Files.writeString(root.resolve(".trash").resolve("deleted.txt"), "deleted");
+        Files.writeString(root.resolve(".endervault").resolve("metadata.json"), "metadata");
+        Files.writeString(root.resolve("visible.txt"), "visible");
+
+        DirectoryListing listing = storageService.listSharedDirectory("", "");
+
+        assertThat(listing.directories()).extracting(FileItem::name).isEmpty();
+        assertThat(listing.files()).extracting(FileItem::name).containsExactly("visible.txt");
+    }
+
+    @Test
+    void sharedDirectoryRejectsDirectInternalSystemDirectoryAccess() {
+        assertThatThrownBy(() -> storageService.listSharedDirectory("", ".endervault"))
+                .isInstanceOf(NoSuchFileException.class);
+    }
+
+    @Test
+    void sharedDirectoryRejectsDirectInternalSystemDirectoryDescendants() throws Exception {
+        Files.writeString(root.resolve(".endervault").resolve("metadata.json"), "metadata");
+
+        assertThatThrownBy(() -> storageService.listSharedDirectory("", ".endervault/metadata.json"))
+                .isInstanceOf(NoSuchFileException.class);
+    }
+
+    @Test
+    void vaultDirectPathRejectsInternalSystemDirectoryAccess() {
+        assertThatThrownBy(() -> storageService.detail(StorageScope.VAULT, ".endervault"))
+                .isInstanceOf(NoSuchFileException.class);
+    }
+
+    @Test
+    void vaultDirectPathRejectsInternalSystemDirectoryDescendants() throws Exception {
+        Files.writeString(root.resolve(".endervault").resolve("shared-links.json"), "[]");
+
+        assertThatThrownBy(() -> storageService.resolveVaultFile(".endervault/shared-links.json"))
+                .isInstanceOf(NoSuchFileException.class);
     }
 
     @Test

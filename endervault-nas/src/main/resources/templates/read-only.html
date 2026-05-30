@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>EnderVault Read-only</title>
+    <link rel="stylesheet" th:href="@{/webjars/fortawesome__fontawesome-free/6.7.2/css/all.min.css}">
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body class="readonly-page">
+<main class="workspace readonly-workspace">
+    <section class="breadcrumb-panel" aria-label="Current path">
+        <div class="breadcrumb-main">
+            <p class="breadcrumb-label">Read-only location</p>
+            <nav class="breadcrumbs">
+                <th:block th:each="crumb, iter : ${listing.breadcrumbs()}">
+                    <a th:classappend="${iter.last} ? ' current' : ''"
+                       th:href="@{/files/read-only(path=${crumb.path()}, size=${filePage.size()})}"
+                       th:text="${crumb.label()}">Root</a>
+                    <span class="breadcrumb-separator" th:unless="${iter.last}">/</span>
+                </th:block>
+            </nav>
+        </div>
+        <div class="readonly-path-actions">
+            <a class="button-link ghost icon-button"
+               th:href="@{/files(path=${path})}"
+               title="Open full file manager" aria-label="Open full file manager">
+                <i class="fas fa-desktop" aria-hidden="true"></i>
+            </a>
+        </div>
+    </section>
+
+    <section class="readonly-section" th:if="${not #lists.isEmpty(listing.directories())}" aria-label="Directories">
+        <header class="section-heading">
+            <h2 th:text="|Directories (${#lists.size(listing.directories())})|">Directories</h2>
+        </header>
+        <div class="table-wrap readonly-table">
+            <table>
+                <thead>
+                <tr>
+                    <th>Name</th>
+                    <th class="readonly-date-col">Modified</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="directory : ${listing.directories()}">
+                    <td>
+                        <a class="item-name directory"
+                           th:href="@{/files/read-only(path=${directory.path()}, size=${filePage.size()})}">
+                            <i class="fas fa-folder item-icon" aria-hidden="true"></i>
+                            <span th:text="${directory.name()}">directory</span>
+                        </a>
+                    </td>
+                    <td class="readonly-date-col" th:text="${directory.modifiedLabel()}">-</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="readonly-section" th:if="${filePage.totalItems() > 0}" aria-label="Files">
+        <header class="section-heading">
+            <h2 th:text="|Files (${filePage.totalItems()})|">Files</h2>
+            <p th:text="|Showing ${filePage.startItem()}-${filePage.endItem()}|">Showing 1-50</p>
+        </header>
+
+        <div class="readonly-file-grid">
+            <article class="readonly-file-card" th:each="file : ${filePage.items()}">
+                <a class="readonly-file-link"
+                   th:if="${file.previewable()}"
+                   th:href="@{/files/detail/preview(path=${file.path()})}">
+                    <span class="readonly-thumb">
+                        <img class="thumb-media" th:if="${file.image()}" loading="lazy"
+                             th:src="@{/files/detail/preview(path=${file.path()})}"
+                             th:alt="${file.name()}">
+                        <span class="video-thumb-wrap" th:if="${file.video()}">
+                            <img class="thumb-media" loading="lazy"
+                                 th:src="@{/files/detail/thumbnail(path=${file.path()})}"
+                                 th:alt="${file.name()}">
+                            <span class="thumb-play">Play</span>
+                        </span>
+                        <span class="thumb-placeholder" th:if="${not file.image() and not file.video()}" th:text="${file.typeLabel()}">File</span>
+                    </span>
+                    <span class="readonly-file-name" th:text="${file.name()}">file</span>
+                </a>
+                <a class="readonly-file-link"
+                   th:unless="${file.previewable()}"
+                   th:href="@{/files/detail/download(path=${file.path()})}">
+                    <span class="readonly-thumb">
+                        <span class="thumb-placeholder" th:text="${file.typeLabel()}">File</span>
+                    </span>
+                    <span class="readonly-file-name" th:text="${file.name()}">file</span>
+                </a>
+            </article>
+        </div>
+
+        <nav class="pagination" th:if="${filePage.totalPages() > 1}" aria-label="File pages">
+            <a class="ghost pagination-link" th:if="${filePage.hasPrevious()}"
+               th:href="@{/files/read-only(path=${path}, page=1, size=${filePage.size()})}">First</a>
+            <span class="ghost pagination-link disabled" th:unless="${filePage.hasPrevious()}">First</span>
+            <a class="ghost pagination-link" th:if="${filePage.hasPrevious()}"
+               th:href="@{/files/read-only(path=${path}, page=${filePage.previousPage()}, size=${filePage.size()})}">Previous</a>
+            <span class="ghost pagination-link disabled" th:unless="${filePage.hasPrevious()}">Previous</span>
+            <span class="page-status" th:text="|Page ${filePage.page()} of ${filePage.totalPages()}|">Page 1 of 1</span>
+            <a class="ghost pagination-link" th:if="${filePage.hasNext()}"
+               th:href="@{/files/read-only(path=${path}, page=${filePage.nextPage()}, size=${filePage.size()})}">Next</a>
+            <span class="ghost pagination-link disabled" th:unless="${filePage.hasNext()}">Next</span>
+            <a class="ghost pagination-link" th:if="${filePage.hasNext()}"
+               th:href="@{/files/read-only(path=${path}, page=${filePage.totalPages()}, size=${filePage.size()})}">Last</a>
+            <span class="ghost pagination-link disabled" th:unless="${filePage.hasNext()}">Last</span>
+        </nav>
+    </section>
+
+    <p th:if="${#lists.isEmpty(listing.directories()) and filePage.totalItems() == 0}"
+       class="empty browser-grid-empty">This directory is empty.</p>
+</main>
+</body>
+</html>

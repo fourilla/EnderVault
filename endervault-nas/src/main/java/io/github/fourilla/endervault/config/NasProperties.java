@@ -73,10 +73,10 @@ public class NasProperties {
         private Path root = Path.of("./storage");
 
         @NotBlank
-        private String trashFolder = ".trash";
+        private String trashDirectory = ".trash";
 
         @NotBlank
-        private String metadataFolder = ".endervault";
+        private String metadataDirectory = ".endervault";
 
         public Path getRoot() {
             return root;
@@ -86,20 +86,20 @@ public class NasProperties {
             this.root = root;
         }
 
-        public String getTrashFolder() {
-            return trashFolder;
+        public String getTrashDirectory() {
+            return trashDirectory;
         }
 
-        public void setTrashFolder(String trashFolder) {
-            this.trashFolder = trashFolder;
+        public void setTrashDirectory(String trashDirectory) {
+            this.trashDirectory = trashDirectory;
         }
 
-        public String getMetadataFolder() {
-            return metadataFolder;
+        public String getMetadataDirectory() {
+            return metadataDirectory;
         }
 
-        public void setMetadataFolder(String metadataFolder) {
-            this.metadataFolder = metadataFolder;
+        public void setMetadataDirectory(String metadataDirectory) {
+            this.metadataDirectory = metadataDirectory;
         }
     }
 
@@ -131,7 +131,7 @@ public class NasProperties {
         private boolean videoEnabled = true;
 
         @NotBlank
-        private String cacheFolder = "thumbnails";
+        private String cacheDirectory = "thumbnails";
 
         private int generatorThreads = 1;
 
@@ -143,12 +143,12 @@ public class NasProperties {
             this.videoEnabled = videoEnabled;
         }
 
-        public String getCacheFolder() {
-            return cacheFolder;
+        public String getCacheDirectory() {
+            return cacheDirectory;
         }
 
-        public void setCacheFolder(String cacheFolder) {
-            this.cacheFolder = cacheFolder;
+        public void setCacheDirectory(String cacheDirectory) {
+            this.cacheDirectory = cacheDirectory;
         }
 
         public int getGeneratorThreads() {

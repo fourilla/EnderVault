@@ -96,13 +96,13 @@ class ShareLinkServiceTest {
     void movesShareLinksForPathAndDescendants() throws Exception {
         Files.createDirectories(root.resolve("docs").resolve("sub"));
         Files.writeString(root.resolve("docs").resolve("sub").resolve("note.txt"), "hello");
-        ShareLink folderShare = shareLinkService.create("", "docs", null);
+        ShareLink directoryShare = shareLinkService.create("", "docs", null);
         ShareLink fileShare = shareLinkService.createForVaultPath("docs/sub/note.txt", null);
 
         Files.move(root.resolve("docs"), root.resolve("renamed"));
         shareLinkService.moveVaultPath("docs", "renamed");
 
-        assertThat(shareLinkService.requireUsable(folderShare.token()).path()).isEqualTo("renamed");
+        assertThat(shareLinkService.requireUsable(directoryShare.token()).path()).isEqualTo("renamed");
         assertThat(shareLinkService.requireUsable(fileShare.token()).path()).isEqualTo("renamed/sub/note.txt");
     }
 
@@ -110,12 +110,12 @@ class ShareLinkServiceTest {
     void revokesShareLinksForPathAndDescendants() throws Exception {
         Files.createDirectories(root.resolve("docs"));
         Files.writeString(root.resolve("docs").resolve("note.txt"), "hello");
-        ShareLink folderShare = shareLinkService.create("", "docs", null);
+        ShareLink directoryShare = shareLinkService.create("", "docs", null);
         ShareLink fileShare = shareLinkService.createForVaultPath("docs/note.txt", null);
 
         shareLinkService.revokeVaultPath("docs");
 
-        assertThatThrownBy(() -> shareLinkService.requireUsable(folderShare.token()))
+        assertThatThrownBy(() -> shareLinkService.requireUsable(directoryShare.token()))
                 .isInstanceOf(NoSuchFileException.class);
         assertThatThrownBy(() -> shareLinkService.requireUsable(fileShare.token()))
                 .isInstanceOf(NoSuchFileException.class);

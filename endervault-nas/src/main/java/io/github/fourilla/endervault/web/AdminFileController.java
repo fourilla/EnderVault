@@ -46,6 +46,7 @@ import org.springframework.web.util.UriUtils;
 public class AdminFileController {
 
     private static final int FALLBACK_PAGE_SIZE = 200;
+    private static final int READ_ONLY_PAGE_SIZE = 50;
     private static final List<Integer> PAGE_SIZE_OPTIONS = List.of(50, 100, 200, 500);
 
     private final NasProperties nasProperties;
@@ -98,6 +99,48 @@ public class AdminFileController {
         return "files";
     }
 
+    @GetMapping("/files/search")
+    public String search(
+            @RequestParam(value = "path", required = false) String path,
+            @RequestParam(value = "q", required = false) String query,
+            @RequestParam(value = "page", required = false) Integer page,
+            @RequestParam(value = "size", required = false) Integer size,
+            Model model
+    ) throws IOException {
+        int pageSize = normalizePageSize(size);
+        String normalizedQuery = normalizeSearchQuery(query);
+        DirectoryListing listing = storageService.list(StorageScope.VAULT, path);
+        List<FileItem> results = normalizedQuery.isEmpty()
+                ? List.of()
+                : storageService.search(StorageScope.VAULT, listing.path(), normalizedQuery);
+        FilePage resultPage = pageFiles(results, page, pageSize);
+
+        model.addAttribute("listing", listing);
+        model.addAttribute("path", listing.path());
+        model.addAttribute("query", normalizedQuery);
+        model.addAttribute("searchPerformed", !normalizedQuery.isEmpty());
+        model.addAttribute("pageSizes", pageSizeOptions());
+        model.addAttribute("resultPage", resultPage);
+        return "search";
+    }
+
+    @GetMapping("/files/read-only")
+    public String readOnly(
+            @RequestParam(value = "path", required = false) String path,
+            @RequestParam(value = "page", required = false) Integer page,
+            @RequestParam(value = "size", required = false) Integer size,
+            Model model
+    ) throws IOException {
+        int pageSize = size == null ? READ_ONLY_PAGE_SIZE : normalizePageSize(size);
+        DirectoryListing listing = storageService.list(StorageScope.VAULT, path);
+        FilePage filePage = pageFiles(listing.files(), page, pageSize);
+
+        model.addAttribute("listing", listing);
+        model.addAttribute("path", listing.path());
+        model.addAttribute("filePage", filePage);
+        return "read-only";
+    }
+
     @GetMapping("/files/detail")
     public String detail(@RequestParam("path") String path, Model model) throws IOException {
         FileDetail detail = detailForPath(path);
@@ -125,8 +168,8 @@ public class AdminFileController {
         return redirectToFiles(path, view, sort, direction, page, size);
     }
 
-    @PostMapping("/files/folders")
-    public String createFolder(
+    @PostMapping("/files/directories")
+    public String createDirectory(
             @RequestParam(value = "path", required = false) String path,
             @RequestParam("name") String name,
             @RequestParam(value = "view", required = false) String view,
@@ -136,7 +179,7 @@ public class AdminFileController {
             RedirectAttributes redirectAttributes
     ) throws IOException {
         storageService.createDirectory(path, name);
-        redirectAttributes.addFlashAttribute("message", "Folder created.");
+        redirectAttributes.addFlashAttribute("message", "Directory created.");
         return redirectToFiles(path, view, sort, direction, 1, size);
     }
 
@@ -150,6 +193,11 @@ public class AdminFileController {
         FileItem oldItem = storageService.describeVaultChild(path, item);
         storageService.rename(path, item, newName);
         FileItem newItem = storageService.describeVaultChild(path, newName);
+        thumbnailService.migrateVideoThumbnails(
+                storageService.resolveVaultPath(newItem.path()),
+                oldItem.path(),
+                newItem.path()
+        );
         shareLinkService.moveVaultPath(oldItem.path(), newItem.path());
         redirectAttributes.addFlashAttribute("message", "Item renamed.");
         return redirectToFiles(path);
@@ -163,6 +211,7 @@ public class AdminFileController {
     ) throws IOException {
         FileDetail detail = detailForPath(path);
         String newPath = storageService.renameVaultPath(detail.path(), newName);
+        thumbnailService.migrateVideoThumbnails(storageService.resolveVaultPath(newPath), detail.path(), newPath);
         shareLinkService.moveVaultPath(detail.path(), newPath);
         redirectAttributes.addFlashAttribute("message", "Item renamed.");
         return redirectToDetail(newPath);
@@ -178,6 +227,11 @@ public class AdminFileController {
         FileItem oldItem = storageService.describeVaultChild(path, item);
         storageService.move(path, item, targetPath);
         FileItem newItem = storageService.describeVaultChild(targetPath, item);
+        thumbnailService.migrateVideoThumbnails(
+                storageService.resolveVaultPath(newItem.path()),
+                oldItem.path(),
+                newItem.path()
+        );
         shareLinkService.moveVaultPath(oldItem.path(), newItem.path());
         redirectAttributes.addFlashAttribute("message", "Item moved.");
         return redirectToFiles(path);
@@ -191,6 +245,7 @@ public class AdminFileController {
     ) throws IOException {
         FileDetail detail = detailForPath(path);
         String newPath = storageService.moveVaultPath(detail.path(), targetPath);
+        thumbnailService.migrateVideoThumbnails(storageService.resolveVaultPath(newPath), detail.path(), newPath);
         shareLinkService.moveVaultPath(detail.path(), newPath);
         redirectAttributes.addFlashAttribute("message", "Item moved.");
         return redirectToDetail(newPath);
@@ -545,6 +600,10 @@ public class AdminFileController {
     private int defaultPageSize() {
         int configuredPageSize = nasProperties.getBrowser().getDefaultPageSize();
         return configuredPageSize > 0 ? configuredPageSize : FALLBACK_PAGE_SIZE;
+    }
+
+    private String normalizeSearchQuery(String query) {
+        return query == null ? "" : query.trim();
     }
 
     private List<Integer> pageSizeOptions() {

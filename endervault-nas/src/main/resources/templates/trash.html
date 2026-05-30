@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>EnderVault Trash</title>
+    <link rel="stylesheet" th:href="@{/webjars/fortawesome__fontawesome-free/6.7.2/css/all.min.css}">
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div class="app-shell">
+<aside th:replace="~{fragments/admin-shell :: sidebar('trash')}"></aside>
+<div class="app-main">
+<header th:replace="~{fragments/admin-shell :: topbar}"></header>
+
+<main class="workspace">
+    <section class="pathbar">
+        <h1>Trash</h1>
+    </section>
+
+    <section class="browser-section" th:if="${not #lists.isEmpty(listing.directories())}" aria-label="Trash directories">
+        <header class="section-heading">
+            <h2 th:text="|Directories (${#lists.size(listing.directories())})|">Directories</h2>
+        </header>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Modified</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="directory : ${listing.directories()}">
+                    <td class="item-name directory">
+                        <i class="fas fa-folder item-icon" aria-hidden="true"></i>
+                        <span th:text="${directory.name()}">directory</span>
+                    </td>
+                    <td>Directory</td>
+                    <td th:text="${directory.modifiedLabel()}">-</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="browser-section" th:if="${not #lists.isEmpty(listing.files())}" aria-label="Trash files">
+        <header class="section-heading">
+            <h2 th:text="|Files (${#lists.size(listing.files())})|">Files</h2>
+        </header>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Size</th>
+                    <th>Modified</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="file : ${listing.files()}">
+                    <td class="item-name" th:text="${file.name()}">file</td>
+                    <td th:text="${file.typeLabel()}">File</td>
+                    <td th:text="${file.sizeLabel()}">0 B</td>
+                    <td th:text="${file.modifiedLabel()}">-</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <p th:if="${#lists.isEmpty(listing.directories()) and #lists.isEmpty(listing.files())}"
+       class="empty browser-grid-empty">No trash items.</p>
+</main>
+</div>
+</div>
+</body>
+</html>

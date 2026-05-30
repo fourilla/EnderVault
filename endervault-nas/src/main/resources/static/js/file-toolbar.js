@@ -12,25 +12,25 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    const createFolderForm = document.getElementById("createFolderForm");
-    const folderNameInput = document.getElementById("newFolderNameInput");
-    const createFolderButton = document.getElementById("createFolderButton");
+    const createDirectoryForm = document.getElementById("createDirectoryForm");
+    const directoryNameInput = document.getElementById("newDirectoryNameInput");
+    const createDirectoryButton = document.getElementById("createDirectoryButton");
 
-    if (createFolderForm && folderNameInput && createFolderButton) {
-        createFolderButton.addEventListener("click", () => {
-            const folderName = window.prompt("Folder name");
-            if (!folderName) {
+    if (createDirectoryForm && directoryNameInput && createDirectoryButton) {
+        createDirectoryButton.addEventListener("click", () => {
+            const directoryName = window.prompt("Directory name");
+            if (!directoryName) {
                 return;
             }
 
-            const trimmedName = folderName.trim();
+            const trimmedName = directoryName.trim();
             if (!trimmedName) {
                 return;
             }
 
-            folderNameInput.disabled = false;
-            folderNameInput.value = trimmedName;
-            createFolderForm.submit();
+            directoryNameInput.disabled = false;
+            directoryNameInput.value = trimmedName;
+            createDirectoryForm.submit();
         });
     }
 

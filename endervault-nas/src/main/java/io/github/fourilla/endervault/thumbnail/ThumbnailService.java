@@ -13,10 +13,12 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Locale;
 import java.util.HexFormat;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,6 +26,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 import javax.imageio.ImageIO;
 import org.bytedeco.javacv.FFmpegFrameGrabber;
 import org.bytedeco.javacv.Frame;
@@ -49,13 +52,13 @@ public class ThumbnailService {
     public ThumbnailService(NasProperties nasProperties) {
         NasProperties.Storage storage = nasProperties.getStorage();
         NasProperties.Thumbnails thumbnails = nasProperties.getThumbnails();
-        String cacheFolder = validateFolderName(thumbnails.getCacheFolder());
+        String cacheDirectory = validateDirectoryName(thumbnails.getCacheDirectory());
 
         this.cacheRoot = storage.getRoot()
                 .toAbsolutePath()
                 .normalize()
-                .resolve(storage.getMetadataFolder())
-                .resolve(cacheFolder);
+                .resolve(storage.getMetadataDirectory())
+                .resolve(cacheDirectory);
         this.videoCacheRoot = cacheRoot.resolve("videos");
         this.placeholderFile = cacheRoot.resolve("video-placeholder.png");
         this.videoEnabled = thumbnails.isVideoEnabled();
@@ -92,17 +95,111 @@ public class ThumbnailService {
         return placeholder();
     }
 
+    public void migrateVideoThumbnails(Path currentPath, String oldVaultPath, String newVaultPath) {
+        if (!videoEnabled || oldVaultPath == null || newVaultPath == null || oldVaultPath.equals(newVaultPath)) {
+            return;
+        }
+
+        Path normalizedPath = currentPath.toAbsolutePath().normalize();
+        try {
+            if (!Files.exists(normalizedPath, LinkOption.NOFOLLOW_LINKS)) {
+                return;
+            }
+            if (Files.isRegularFile(normalizedPath, LinkOption.NOFOLLOW_LINKS)) {
+                migrateSingleVideoThumbnail(normalizedPath, oldVaultPath, newVaultPath);
+                return;
+            }
+            if (!Files.isDirectory(normalizedPath, LinkOption.NOFOLLOW_LINKS)) {
+                return;
+            }
+
+            try (Stream<Path> paths = Files.walk(normalizedPath)) {
+                for (Path path : paths
+                        .filter(candidate -> Files.isRegularFile(candidate, LinkOption.NOFOLLOW_LINKS))
+                        .filter(candidate -> !Files.isSymbolicLink(candidate))
+                        .toList()) {
+                    Path relativePath = normalizedPath.relativize(path);
+                    try {
+                        migrateSingleVideoThumbnail(
+                                path,
+                                childVaultPath(oldVaultPath, relativePath),
+                                childVaultPath(newVaultPath, relativePath)
+                        );
+                    } catch (IOException ex) {
+                        logger.warn("Failed to migrate video thumbnail for {}", path, ex);
+                    }
+                }
+            }
+        } catch (IOException ex) {
+            logger.warn("Failed to migrate video thumbnails from {} to {}", oldVaultPath, newVaultPath, ex);
+        }
+    }
+
     private ThumbnailFile placeholder() {
         return new ThumbnailFile(placeholderFile, "image/png", false);
     }
 
-    private Path videoCacheFile(Path videoFile, String vaultPath) throws IOException {
+    Path videoCacheFile(Path videoFile, String vaultPath) throws IOException {
         String key = "%s|%d|%d".formatted(
                 vaultPath,
                 Files.size(videoFile),
                 Files.getLastModifiedTime(videoFile).toMillis()
         );
         return videoCacheRoot.resolve(sha256(key) + ".jpg");
+    }
+
+    private void migrateSingleVideoThumbnail(Path currentVideoFile, String oldVaultPath, String newVaultPath)
+            throws IOException {
+        if (!isVideoFile(currentVideoFile)) {
+            return;
+        }
+
+        Path oldCacheFile = videoCacheFile(currentVideoFile, oldVaultPath);
+        if (!Files.exists(oldCacheFile)) {
+            return;
+        }
+
+        Path newCacheFile = videoCacheFile(currentVideoFile, newVaultPath);
+        if (oldCacheFile.equals(newCacheFile)) {
+            return;
+        }
+
+        Files.createDirectories(newCacheFile.getParent());
+        try {
+            Files.move(
+                    oldCacheFile,
+                    newCacheFile,
+                    StandardCopyOption.REPLACE_EXISTING,
+                    StandardCopyOption.ATOMIC_MOVE
+            );
+        } catch (AtomicMoveNotSupportedException ex) {
+            Files.move(oldCacheFile, newCacheFile, StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    private String childVaultPath(String baseVaultPath, Path relativePath) {
+        String suffix = relativePath.toString().replace('\\', '/');
+        if (suffix.isBlank()) {
+            return baseVaultPath;
+        }
+        if (baseVaultPath.isBlank()) {
+            return suffix;
+        }
+        return baseVaultPath + "/" + suffix;
+    }
+
+    private boolean isVideoFile(Path file) throws IOException {
+        String mediaType = Files.probeContentType(file);
+        if (mediaType != null && mediaType.startsWith("video/")) {
+            return true;
+        }
+        String name = file.getFileName().toString().toLowerCase(Locale.ROOT);
+        return name.endsWith(".mp4")
+                || name.endsWith(".m4v")
+                || name.endsWith(".mov")
+                || name.endsWith(".mkv")
+                || name.endsWith(".webm")
+                || name.endsWith(".avi");
     }
 
     private void scheduleGeneration(Path videoFile, Path cacheFile) {
@@ -158,18 +255,36 @@ public class ThumbnailService {
     }
 
     private void seekToPreviewPoint(FFmpegFrameGrabber grabber) throws Exception {
+        double durationSeconds = grabber.getLengthInTime() / 1_000_000.0;
+        double frameRate = grabber.getFrameRate();
         int lengthInFrames = grabber.getLengthInFrames();
+
         if (lengthInFrames > 0) {
-            grabber.setFrameNumber(Math.max(0, Math.min(lengthInFrames - 1, lengthInFrames / 20)));
+            int targetFrame = previewFrame(durationSeconds, frameRate, lengthInFrames);
+            grabber.setFrameNumber(targetFrame);
         }
+    }
+
+    static int previewFrame(double durationSeconds, double frameRate, int lengthInFrames) {
+        double targetSecond = durationSeconds >= 1.0d ? durationSeconds * 0.05d : durationSeconds / 2.0d;
+        int targetFrame = frameRate > 0.0d && Double.isFinite(frameRate)
+                ? (int) (targetSecond * frameRate)
+                : lengthInFrames / 20;
+        if (targetFrame >= lengthInFrames) {
+            targetFrame = lengthInFrames / 2;
+        }
+        return Math.max(0, Math.min(lengthInFrames - 1, targetFrame));
     }
 
     private BufferedImage grabThumbnailFrame(FFmpegFrameGrabber grabber) throws Exception {
         Java2DFrameConverter converter = new Java2DFrameConverter();
-        for (int i = 0; i < 30; i++) {
-            Frame frame = grabber.grab();
-            if (frame != null && frame.image != null) {
-                return converter.convert(frame);
+        for (int i = 0; i < 10; i++) {
+            Frame frame = grabber.grabImage();
+            if (frame != null) {
+                BufferedImage image = converter.convert(frame);
+                if (image != null) {
+                    return image;
+                }
             }
         }
         return null;
@@ -257,14 +372,14 @@ public class ThumbnailService {
         };
     }
 
-    private String validateFolderName(String folderName) {
-        if (folderName == null || folderName.isBlank()) {
-            throw new StorageAccessException("Thumbnail cache folder is required.");
+    private String validateDirectoryName(String directoryName) {
+        if (directoryName == null || directoryName.isBlank()) {
+            throw new StorageAccessException("Thumbnail cache directory is required.");
         }
-        if (folderName.contains("/") || folderName.contains("\\") || ".".equals(folderName)
-                || "..".equals(folderName) || folderName.contains(":")) {
-            throw new StorageAccessException("Invalid thumbnail cache folder: " + folderName);
+        if (directoryName.contains("/") || directoryName.contains("\\") || ".".equals(directoryName)
+                || "..".equals(directoryName) || directoryName.contains(":")) {
+            throw new StorageAccessException("Invalid thumbnail cache directory: " + directoryName);
         }
-        return folderName;
+        return directoryName;
     }
 }

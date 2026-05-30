@@ -1,7 +1,10 @@
 /target/
 /logs/
 /storage/
+
+# Local machine overrides and secrets.
 /endervault-nas.properties
+/*.local.properties
 
 .idea/
 .vscode/

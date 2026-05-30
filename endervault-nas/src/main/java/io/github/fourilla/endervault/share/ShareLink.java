@@ -1,6 +1,8 @@
 package io.github.fourilla.endervault.share;
 
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 
 public record ShareLink(
         String token,
@@ -10,6 +12,9 @@ public record ShareLink(
         Instant expiresAt,
         boolean enabled
 ) {
+    private static final DateTimeFormatter LABEL_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
+
     public boolean expired(Instant now) {
         return expiresAt != null && !expiresAt.isAfter(now);
     }
@@ -30,6 +35,24 @@ public record ShareLink(
             return "Expired";
         }
         return "Active";
+    }
+
+    public String statusClass() {
+        if (!enabled) {
+            return "revoked";
+        }
+        if (expired(Instant.now())) {
+            return "expired";
+        }
+        return "active";
+    }
+
+    public String createdLabel() {
+        return LABEL_FORMATTER.format(createdAt);
+    }
+
+    public String expiresLabel() {
+        return expiresAt == null ? "Never" : LABEL_FORMATTER.format(expiresAt);
     }
 
     public ShareLink revoke() {

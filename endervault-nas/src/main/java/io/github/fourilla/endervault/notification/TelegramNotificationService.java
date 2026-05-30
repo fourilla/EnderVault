@@ -5,10 +5,14 @@ import java.net.URI;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.web.client.RestTemplateBuilder;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
 
 @Service
 public class TelegramNotificationService {
@@ -28,23 +32,24 @@ public class TelegramNotificationService {
         if (!telegram.isEnabled()) {
             return;
         }
-        if (telegram.getBotToken().isBlank() || telegram.getChatId().isBlank()) {
+        String botToken = telegram.getBotToken().trim();
+        String chatId = telegram.getChatId().trim();
+        if (botToken.isBlank() || chatId.isBlank()) {
             log.warn("Telegram notification is enabled, but bot token or chat id is blank.");
             return;
         }
 
-        URI uri = UriComponentsBuilder
-                .fromUriString("https://api.telegram.org/bot" + telegram.getBotToken() + "/sendMessage")
-                .queryParam("chat_id", telegram.getChatId())
-                .queryParam("text", message)
-                .build()
-                .toUri();
+        URI uri = URI.create("https://api.telegram.org/bot" + botToken + "/sendMessage");
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+        MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+        body.add("chat_id", chatId);
+        body.add("text", message);
 
         try {
-            restTemplate.getForEntity(uri, String.class);
+            restTemplate.postForEntity(uri, new HttpEntity<>(body, headers), String.class);
         } catch (RestClientException ex) {
             log.warn("Failed to send Telegram notification.", ex);
         }
     }
 }
-

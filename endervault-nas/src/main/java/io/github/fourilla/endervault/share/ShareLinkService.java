@@ -39,7 +39,7 @@ public class ShareLinkService {
         this.registryFile = nasProperties.getStorage().getRoot()
                 .toAbsolutePath()
                 .normalize()
-                .resolve(nasProperties.getStorage().getMetadataFolder())
+                .resolve(nasProperties.getStorage().getMetadataDirectory())
                 .resolve("shared-links.json");
     }
 

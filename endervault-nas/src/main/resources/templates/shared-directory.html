@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Shared Directory</title>
+    <link rel="stylesheet" th:href="@{/webjars/fortawesome__fontawesome-free/6.7.2/css/all.min.css}">
     <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
 <body>
@@ -18,14 +19,19 @@
                th:href="@{/s/{token}(token=${token}, path=${crumb.path()})}"
                th:text="${crumb.label()}">Root</a>
         </nav>
-        <a class="ghost" th:if="${listing.hasParent()}" th:href="@{/s/{token}(token=${token}, path=${listing.parentPath()})}">Up</a>
+        <a class="button-link ghost icon-button" th:if="${listing.hasParent()}" th:href="@{/s/{token}(token=${token}, path=${listing.parentPath()})}"
+           title="Up" aria-label="Up">
+            <i class="fas fa-arrow-up" aria-hidden="true"></i>
+        </a>
     </section>
 
     <section class="toolbar" aria-label="Download tools">
         <form id="bulkActionForm" method="get" th:action="@{/s/{token}/download.zip(token=${token})}">
             <input type="hidden" name="path" th:value="${path}">
         </form>
-        <button form="bulkActionForm" type="submit">Download selected zip</button>
+        <button class="icon-button" form="bulkActionForm" type="submit" title="Download selected zip" aria-label="Download selected zip">
+            <i class="fas fa-file-zipper" aria-hidden="true"></i>
+        </button>
     </section>
 
     <section class="table-wrap" aria-label="Shared directory">
@@ -43,8 +49,11 @@
             <tbody>
             <tr th:each="dir : ${listing.directories()}">
                 <td><input form="bulkActionForm" type="checkbox" name="items" th:value="${dir.name()}"></td>
-                <td><a class="item-name folder" th:href="@{/s/{token}(token=${token}, path=${dir.path()})}" th:text="${dir.name()}">folder</a></td>
-                <td>Folder</td>
+                <td><a class="item-name directory" th:href="@{/s/{token}(token=${token}, path=${dir.path()})}">
+                    <i class="fas fa-folder item-icon" aria-hidden="true"></i>
+                    <span th:text="${dir.name()}">directory</span>
+                </a></td>
+                <td>Directory</td>
                 <td>-</td>
                 <td th:text="${dir.modifiedLabel()}">-</td>
                 <td>-</td>
@@ -56,12 +65,23 @@
                 <td th:text="${file.sizeLabel()}">0 B</td>
                 <td th:text="${file.modifiedLabel()}">-</td>
                 <td>
-                    <a th:href="@{/s/{token}/download(token=${token}, path=${path}, item=${file.name()})}">Download</a>
-                    <a th:if="${file.previewable()}" th:href="@{/s/{token}/preview(token=${token}, path=${path}, item=${file.name()})}" target="_blank">Preview</a>
+                    <div class="table-actions">
+                        <a class="button-link ghost icon-button action-icon"
+                           th:href="@{/s/{token}/download(token=${token}, path=${path}, item=${file.name()})}"
+                           title="Download" aria-label="Download">
+                            <i class="fas fa-download" aria-hidden="true"></i>
+                        </a>
+                        <a class="button-link ghost icon-button action-icon"
+                           th:if="${file.previewable()}"
+                           th:href="@{/s/{token}/preview(token=${token}, path=${path}, item=${file.name()})}" target="_blank"
+                           title="Preview" aria-label="Preview">
+                            <i class="fas fa-eye" aria-hidden="true"></i>
+                        </a>
+                    </div>
                 </td>
             </tr>
             <tr th:if="${#lists.isEmpty(listing.directories()) and #lists.isEmpty(listing.files())}">
-                <td colspan="6" class="empty">This shared folder is empty.</td>
+                <td colspan="6" class="empty">This shared directory is empty.</td>
             </tr>
             </tbody>
         </table>
@@ -69,4 +89,3 @@
 </main>
 </body>
 </html>
-

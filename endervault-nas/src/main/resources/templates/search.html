@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>EnderVault Search</title>
+    <link rel="stylesheet" th:href="@{/webjars/fortawesome__fontawesome-free/6.7.2/css/all.min.css}">
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div class="app-shell">
+<aside th:replace="~{fragments/admin-shell :: sidebar('files')}"></aside>
+<div class="app-main">
+<header th:replace="~{fragments/admin-shell :: topbar}"></header>
+
+<main class="workspace">
+    <section class="breadcrumb-panel" aria-label="Search root">
+        <div class="breadcrumb-main">
+            <p class="breadcrumb-label">Search in</p>
+            <nav class="breadcrumbs">
+                <th:block th:each="crumb, iter : ${listing.breadcrumbs()}">
+                    <a th:classappend="${iter.last} ? ' current' : ''"
+                       th:href="@{/files/search(path=${crumb.path()}, q=${query}, size=${resultPage.size()})}"
+                       th:text="${crumb.label()}">Root</a>
+                    <span class="breadcrumb-separator" th:unless="${iter.last}">/</span>
+                </th:block>
+            </nav>
+        </div>
+        <a class="button-link ghost icon-button" th:href="@{/files(path=${path})}"
+           title="Back to files" aria-label="Back to files">
+            <i class="fas fa-folder-open" aria-hidden="true"></i>
+        </a>
+    </section>
+
+    <section class="toolbar" aria-label="Search tools">
+        <form class="search-form" method="get" th:action="@{/files/search}">
+            <input type="hidden" name="path" th:value="${path}">
+            <input type="hidden" name="size" th:value="${resultPage.size()}">
+            <label class="search-field">
+                <span class="visually-hidden">Search keyword</span>
+                <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
+                <input name="q" th:value="${query}" placeholder="Search current directory" autocomplete="off" required>
+            </label>
+            <button class="icon-button" type="submit" title="Search" aria-label="Search">
+                <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
+            </button>
+        </form>
+    </section>
+
+    <section class="section-heading">
+        <div>
+            <h1>Search</h1>
+            <p th:if="${searchPerformed}">
+                <span th:text="${resultPage.totalItems()}">0</span>
+                <span>results for</span>
+                <strong th:text="${query}">keyword</strong>
+            </p>
+            <p th:unless="${searchPerformed}">Search files and directories below the selected location.</p>
+        </div>
+    </section>
+
+    <section class="table-wrap" th:if="${searchPerformed}" aria-label="Search results">
+        <table>
+            <thead>
+            <tr>
+                <th>Name</th>
+                <th>Location</th>
+                <th>Type</th>
+                <th>Size</th>
+                <th>Modified</th>
+                <th>Actions</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="item : ${resultPage.items()}">
+                <td>
+                    <a class="item-name directory" th:if="${item.directory()}" th:href="@{/files(path=${item.path()})}">
+                        <i class="fas fa-folder item-icon" aria-hidden="true"></i>
+                        <span th:text="${item.name()}">directory</span>
+                    </a>
+                    <a class="item-name" th:unless="${item.directory()}" th:href="@{/files/detail(path=${item.path()})}"
+                       th:text="${item.name()}">file</a>
+                </td>
+                <td>
+                    <a class="muted" th:href="@{/files(path=${item.parentPath()})}"
+                       th:text="${#strings.isEmpty(item.parentPath()) ? 'Root' : item.parentPath()}">Root</a>
+                </td>
+                <td th:text="${item.typeLabel()}">File</td>
+                <td th:text="${item.sizeLabel()}">0 B</td>
+                <td th:text="${item.modifiedLabel()}">-</td>
+                <td>
+                    <div class="table-actions">
+                        <a class="button-link ghost icon-button action-icon"
+                           th:if="${item.directory()}"
+                           th:href="@{/files/detail(path=${item.path()})}"
+                           title="Details" aria-label="Details">
+                            <i class="fas fa-circle-info" aria-hidden="true"></i>
+                        </a>
+                        <a class="button-link ghost icon-button action-icon"
+                           th:unless="${item.directory()}"
+                           th:href="@{/files/detail/download(path=${item.path()})}"
+                           title="Download" aria-label="Download">
+                            <i class="fas fa-download" aria-hidden="true"></i>
+                        </a>
+                        <a class="button-link ghost icon-button action-icon"
+                           th:if="${not item.directory() and item.previewable()}"
+                           th:href="@{/files/detail/preview(path=${item.path()})}"
+                           target="_blank" title="Preview" aria-label="Preview">
+                            <i class="fas fa-eye" aria-hidden="true"></i>
+                        </a>
+                    </div>
+                </td>
+            </tr>
+            <tr th:if="${resultPage.totalItems() == 0}">
+                <td colspan="6" class="empty">No matching items.</td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <p th:unless="${searchPerformed}" class="empty browser-grid-empty">Enter a keyword to search this directory.</p>
+
+    <nav class="pagination" th:if="${searchPerformed and resultPage.totalPages() > 1}" aria-label="Search result pages">
+        <a class="ghost pagination-link" th:if="${resultPage.hasPrevious()}"
+           th:href="@{/files/search(path=${path}, q=${query}, page=1, size=${resultPage.size()})}">First</a>
+        <span class="ghost pagination-link disabled" th:unless="${resultPage.hasPrevious()}">First</span>
+        <a class="ghost pagination-link" th:if="${resultPage.hasPrevious()}"
+           th:href="@{/files/search(path=${path}, q=${query}, page=${resultPage.previousPage()}, size=${resultPage.size()})}">Previous</a>
+        <span class="ghost pagination-link disabled" th:unless="${resultPage.hasPrevious()}">Previous</span>
+        <span class="page-status" th:text="|Page ${resultPage.page()} of ${resultPage.totalPages()}|">Page 1 of 1</span>
+        <a class="ghost pagination-link" th:if="${resultPage.hasNext()}"
+           th:href="@{/files/search(path=${path}, q=${query}, page=${resultPage.nextPage()}, size=${resultPage.size()})}">Next</a>
+        <span class="ghost pagination-link disabled" th:unless="${resultPage.hasNext()}">Next</span>
+        <a class="ghost pagination-link" th:if="${resultPage.hasNext()}"
+           th:href="@{/files/search(path=${path}, q=${query}, page=${resultPage.totalPages()}, size=${resultPage.size()})}">Last</a>
+        <span class="ghost pagination-link disabled" th:unless="${resultPage.hasNext()}">Last</span>
+    </nav>
+</main>
+</div>
+</div>
+</body>
+</html>
