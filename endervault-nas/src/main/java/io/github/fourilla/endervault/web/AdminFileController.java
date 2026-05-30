@@ -1,5 +1,6 @@
 package io.github.fourilla.endervault.web;
 
+import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
@@ -12,6 +13,7 @@ import io.github.fourilla.endervault.storage.StorageScope;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.thumbnail.ThumbnailFile;
 import io.github.fourilla.endervault.thumbnail.ThumbnailService;
+import io.github.fourilla.endervault.trash.TrashService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -19,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -55,19 +58,22 @@ public class AdminFileController {
     private final FileResponseService fileResponseService;
     private final ShareLinkService shareLinkService;
     private final ThumbnailService thumbnailService;
+    private final TrashService trashService;
 
     public AdminFileController(
             NasProperties nasProperties,
             StorageService storageService,
             FileResponseService fileResponseService,
             ShareLinkService shareLinkService,
-            ThumbnailService thumbnailService
+            ThumbnailService thumbnailService,
+            TrashService trashService
     ) {
         this.nasProperties = nasProperties;
         this.storageService = storageService;
         this.fileResponseService = fileResponseService;
         this.shareLinkService = shareLinkService;
         this.thumbnailService = thumbnailService;
+        this.trashService = trashService;
     }
 
     @GetMapping("/files")
@@ -310,15 +316,8 @@ public class AdminFileController {
             FlashNotifications.warning(redirectAttributes, "Select at least one item.");
             return redirectToFiles(path, view, sort, direction, page, size);
         }
-        List<FileItem> deletedItems = new ArrayList<>();
-        for (String item : items) {
-            deletedItems.add(storageService.describeVaultChild(path, item));
-        }
-        storageService.delete(path, items);
-        for (FileItem item : deletedItems) {
-            shareLinkService.revokeVaultPath(item.path());
-        }
-        FlashNotification notification = FlashNotification.success("Selected items deleted.");
+        trashService.moveToTrash(path, items);
+        FlashNotification notification = FlashNotification.success("Selected items moved to trash.");
         String redirect = redirectToFiles(path, view, sort, direction, page, size);
         if (wantsJson(request)) {
             return ResponseEntity.ok(ActionResponse.redirect(notification, redirectUrl(redirect)));
@@ -334,9 +333,8 @@ public class AdminFileController {
             RedirectAttributes redirectAttributes
     ) throws IOException {
         FileDetail detail = detailForPath(path);
-        storageService.deleteVaultPath(detail.path());
-        shareLinkService.revokeVaultPath(detail.path());
-        FlashNotification notification = FlashNotification.success("Item deleted.");
+        trashService.moveVaultPathToTrash(detail.path());
+        FlashNotification notification = FlashNotification.success("Item moved to trash.");
         String redirect = redirectToFiles(detail.parentPath());
         if (wantsJson(request)) {
             return ResponseEntity.ok(ActionResponse.redirect(notification, redirectUrl(redirect)));
@@ -349,11 +347,12 @@ public class AdminFileController {
     public Object share(
             @RequestParam(value = "path", required = false) String path,
             @RequestParam("item") String item,
-            @RequestParam(value = "expiresInDays", required = false) Integer expiresInDays,
+            @RequestParam(value = "expiresInDays", required = false) String expiresInDays,
+            @RequestParam(value = "customToken", required = false) String customToken,
             HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
-        ShareLink shareLink = shareLinkService.create(path, item, expiresAt(expiresInDays));
+        ShareLink shareLink = shareLinkService.create(path, item, expiresAt(expiresInDays), customToken);
         String shareUrl = shareUrl(shareLink);
         FlashNotification notification = FlashNotification.info("Share link created.", "Copy link", shareUrl);
 
@@ -368,12 +367,13 @@ public class AdminFileController {
     @PostMapping("/files/detail/share")
     public Object shareFromDetail(
             @RequestParam("path") String path,
-            @RequestParam(value = "expiresInDays", required = false) Integer expiresInDays,
+            @RequestParam(value = "expiresInDays", required = false) String expiresInDays,
+            @RequestParam(value = "customToken", required = false) String customToken,
             HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
         FileDetail detail = detailForPath(path);
-        ShareLink shareLink = shareLinkService.createForVaultPath(detail.path(), expiresAt(expiresInDays));
+        ShareLink shareLink = shareLinkService.createForVaultPath(detail.path(), expiresAt(expiresInDays), customToken);
         String shareUrl = shareUrl(shareLink);
         FlashNotification notification = FlashNotification.info("Share link created.", "Copy link", shareUrl);
 
@@ -623,11 +623,27 @@ public class AdminFileController {
                 .body(new FileSystemResource(thumbnail.path()));
     }
 
-    private Instant expiresAt(Integer expiresInDays) {
-        if (expiresInDays == null || expiresInDays <= 0) {
+    private Instant expiresAt(String expiresInDays) {
+        if (expiresInDays == null || expiresInDays.isBlank()) {
             return null;
         }
-        return Instant.now().plus(Duration.ofDays(expiresInDays));
+
+        long days;
+        try {
+            days = Long.parseLong(expiresInDays.trim());
+        } catch (NumberFormatException ex) {
+            throw new StorageAccessException("Expiration days must be a whole number.");
+        }
+
+        if (days <= 0) {
+            throw new StorageAccessException("Expiration days must be 1 or greater.");
+        }
+
+        try {
+            return Instant.now().plus(Duration.ofDays(days));
+        } catch (ArithmeticException | DateTimeException ex) {
+            throw new StorageAccessException("Expiration days is too large.");
+        }
     }
 
     private String normalizeView(String view) {

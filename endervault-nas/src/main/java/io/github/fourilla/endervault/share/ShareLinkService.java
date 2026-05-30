@@ -20,6 +20,7 @@ import java.util.Base64;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -27,6 +28,7 @@ public class ShareLinkService {
 
     private static final TypeReference<List<ShareLink>> SHARE_LINK_LIST = new TypeReference<>() {
     };
+    private static final Pattern CUSTOM_TOKEN_PATTERN = Pattern.compile("[A-Za-z0-9_-]{3,64}");
 
     private final StorageService storageService;
     private final ObjectMapper objectMapper;
@@ -52,16 +54,30 @@ public class ShareLinkService {
     }
 
     public synchronized ShareLink create(String directoryPath, String itemName, Instant expiresAt) throws IOException {
+        return create(directoryPath, itemName, expiresAt, null);
+    }
+
+    public synchronized ShareLink create(
+            String directoryPath,
+            String itemName,
+            Instant expiresAt,
+            String customToken
+    ) throws IOException {
         FileItem item = storageService.describeVaultChild(directoryPath, itemName);
-        return createFromItem(item, expiresAt);
+        return createFromItem(item, expiresAt, customToken);
     }
 
     public synchronized ShareLink createForVaultPath(String vaultPath, Instant expiresAt) throws IOException {
+        return createForVaultPath(vaultPath, expiresAt, null);
+    }
+
+    public synchronized ShareLink createForVaultPath(String vaultPath, Instant expiresAt, String customToken)
+            throws IOException {
         if (vaultPath == null || vaultPath.isBlank() || "/".equals(vaultPath)) {
             throw new StorageAccessException("Path is required.");
         }
         FileItem item = storageService.describeVaultPath(vaultPath);
-        return createFromItem(item, expiresAt);
+        return createFromItem(item, expiresAt, customToken);
     }
 
     public synchronized List<ShareLink> listForVaultPath(String vaultPath) throws IOException {
@@ -72,11 +88,12 @@ public class ShareLinkService {
                 .toList();
     }
 
-    private ShareLink createFromItem(FileItem item, Instant expiresAt) throws IOException {
+    private ShareLink createFromItem(FileItem item, Instant expiresAt, String customToken) throws IOException {
         ShareTargetType type = item.directory() ? ShareTargetType.DIRECTORY : ShareTargetType.FILE;
-        ShareLink shareLink = new ShareLink(newToken(), item.path(), type, Instant.now(), expiresAt, true);
-
         List<ShareLink> links = readAllMutable();
+        String token = requestedToken(customToken, links);
+        ShareLink shareLink = new ShareLink(token, item.path(), type, Instant.now(), expiresAt, true);
+
         links.add(shareLink);
         writeAll(links);
         return shareLink;
@@ -196,13 +213,32 @@ public class ShareLinkService {
         return newPath + candidatePath.substring(oldPath.length());
     }
 
-    private String newToken() throws IOException {
+    private String requestedToken(String customToken, List<ShareLink> existingLinks) {
+        if (customToken == null || customToken.isBlank()) {
+            return newToken(existingLinks);
+        }
+
+        String token = customToken.trim();
+        if (!CUSTOM_TOKEN_PATTERN.matcher(token).matches()) {
+            throw new StorageAccessException("Share token must be 3-64 characters using letters, numbers, '-' or '_'.");
+        }
+        if (tokenExists(existingLinks, token)) {
+            throw new StorageAccessException("Share token already exists.");
+        }
+        return token;
+    }
+
+    private String newToken(List<ShareLink> existingLinks) {
         String token;
         do {
             byte[] bytes = new byte[24];
             secureRandom.nextBytes(bytes);
             token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-        } while (find(token).isPresent());
+        } while (tokenExists(existingLinks, token));
         return token;
+    }
+
+    private boolean tokenExists(List<ShareLink> existingLinks, String token) {
+        return existingLinks.stream().anyMatch(link -> link.token().equals(token));
     }
 }

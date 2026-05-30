@@ -28,6 +28,9 @@ public class NasProperties {
     @Valid
     private Browser browser = new Browser();
 
+    @Valid
+    private Trash trash = new Trash();
+
     public Storage getStorage() {
         return storage;
     }
@@ -66,6 +69,14 @@ public class NasProperties {
 
     public void setBrowser(Browser browser) {
         this.browser = browser;
+    }
+
+    public Trash getTrash() {
+        return trash;
+    }
+
+    public void setTrash(Trash trash) {
+        this.trash = trash;
     }
 
     public static class Storage {
@@ -204,6 +215,40 @@ public class NasProperties {
 
         public void setDefaultPageSize(int defaultPageSize) {
             this.defaultPageSize = defaultPageSize;
+        }
+    }
+
+    public static class Trash {
+        @Min(1)
+        private int retentionDays = 30;
+
+        private boolean cleanupOnStartup = true;
+
+        @Min(60000)
+        private long cleanupIntervalMs = 3600000L;
+
+        public int getRetentionDays() {
+            return retentionDays;
+        }
+
+        public void setRetentionDays(int retentionDays) {
+            this.retentionDays = retentionDays;
+        }
+
+        public boolean isCleanupOnStartup() {
+            return cleanupOnStartup;
+        }
+
+        public void setCleanupOnStartup(boolean cleanupOnStartup) {
+            this.cleanupOnStartup = cleanupOnStartup;
+        }
+
+        public long getCleanupIntervalMs() {
+            return cleanupIntervalMs;
+        }
+
+        public void setCleanupIntervalMs(long cleanupIntervalMs) {
+            this.cleanupIntervalMs = cleanupIntervalMs;
         }
     }
 

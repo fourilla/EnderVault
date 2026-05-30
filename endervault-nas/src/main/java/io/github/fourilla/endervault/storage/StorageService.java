@@ -6,6 +6,7 @@ import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -37,6 +38,7 @@ public class StorageService {
     private final Path root;
     private final Path trashRoot;
     private final Path metadataRoot;
+    private final Path uploadTempRoot;
     private final String trashDirectoryName;
     private final String metadataDirectoryName;
 
@@ -47,6 +49,7 @@ public class StorageService {
         this.metadataDirectoryName = validateConfiguredDirectory(storage.getMetadataDirectory());
         this.trashRoot = root.resolve(trashDirectoryName).normalize();
         this.metadataRoot = root.resolve(metadataDirectoryName).normalize();
+        this.uploadTempRoot = metadataRoot.resolve("uploads").normalize();
     }
 
     @PostConstruct
@@ -54,6 +57,7 @@ public class StorageService {
         Files.createDirectories(root);
         Files.createDirectories(trashRoot);
         Files.createDirectories(metadataRoot);
+        Files.createDirectories(uploadTempRoot);
     }
 
     public DirectoryListing list(StorageScope scope, String requestedPath) throws IOException {
@@ -214,6 +218,46 @@ public class StorageService {
         deleteRecursively(path);
     }
 
+    public void moveVaultPathToTrash(String vaultPath, String trashName) throws IOException {
+        validateVaultItemPath(vaultPath);
+        Path source = resolve(StorageScope.VAULT, vaultPath);
+        Path target = resolveTrashChild(trashName);
+        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
+            throw new FileAlreadyExistsException(trashName);
+        }
+        movePath(source, target);
+    }
+
+    public void restoreTrashItem(String trashName, String originalPath) throws IOException {
+        Path trashItem = resolveTrashChild(trashName);
+        if (!Files.exists(trashItem, LinkOption.NOFOLLOW_LINKS)) {
+            throw new NoSuchFileException(trashName);
+        }
+        Path target = resolveRestoreTarget(originalPath);
+        movePath(trashItem, target);
+    }
+
+    public boolean trashItemExists(String trashName) {
+        Path trashItem = resolveTrashChild(trashName);
+        return Files.exists(trashItem, LinkOption.NOFOLLOW_LINKS);
+    }
+
+    public void deleteTrashItemIfExists(String trashName) throws IOException {
+        Path trashItem = resolveTrashChild(trashName);
+        if (Files.exists(trashItem, LinkOption.NOFOLLOW_LINKS)) {
+            deleteRecursively(trashItem);
+        }
+    }
+
+    public void deleteAllTrashItems() throws IOException {
+        Files.createDirectories(trashRoot);
+        try (Stream<Path> children = Files.list(trashRoot)) {
+            for (Path child : children.collect(Collectors.toList())) {
+                deleteRecursively(child);
+            }
+        }
+    }
+
     public DirectoryListing listSharedDirectory(String sharedBasePath, String requestedPath) throws IOException {
         Path sharedBase = resolveDirectory(StorageScope.VAULT, sharedBasePath);
         Path directory = resolveSharedPath(sharedBase, requestedPath);
@@ -269,10 +313,30 @@ public class StorageService {
         if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
             throw new FileAlreadyExistsException(filename);
         }
+        Files.createDirectories(uploadTempRoot);
+        Path temporaryFile = Files.createTempFile(uploadTempRoot, "upload-", ".tmp");
         try (InputStream inputStream = file.getInputStream()) {
-            Files.copy(inputStream, target);
+            Files.copy(inputStream, temporaryFile, StandardCopyOption.REPLACE_EXISTING);
+            moveUploadedFileIntoPlace(temporaryFile, target);
+            temporaryFile = null;
+        } finally {
+            if (temporaryFile != null) {
+                Files.deleteIfExists(temporaryFile);
+            }
         }
         return toFileItem(root, target);
+    }
+
+    private void moveUploadedFileIntoPlace(Path temporaryFile, Path target) throws IOException {
+        movePath(temporaryFile, target);
+    }
+
+    private void movePath(Path source, Path target) throws IOException {
+        try {
+            Files.move(source, target, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException ex) {
+            Files.move(source, target);
+        }
     }
 
     public void createDirectory(String directoryPath, String name) throws IOException {
@@ -398,6 +462,25 @@ public class StorageService {
         return candidate;
     }
 
+    private Path resolveTrashChild(String trashName) {
+        validateSingleName(trashName);
+        Path child = trashRoot.resolve(trashName).normalize();
+        ensureInsideTrashRoot(child);
+        return child;
+    }
+
+    private Path resolveRestoreTarget(String vaultPath) throws IOException {
+        validateVaultItemPath(vaultPath);
+        Path target = root.resolve(sanitizeRelativePath(vaultPath)).normalize();
+        ensureInsideBase(StorageScope.VAULT, target);
+        rejectHiddenSystemPath(StorageScope.VAULT, target);
+        ensureParentInsideBase(StorageScope.VAULT, target);
+        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
+            throw new FileAlreadyExistsException(target.getFileName().toString());
+        }
+        return target;
+    }
+
     private void validateSingleName(String itemName) {
         if (itemName == null || itemName.isBlank()) {
             throw new StorageAccessException("Name is required.");
@@ -476,6 +559,12 @@ public class StorageService {
     private void ensureInsideSharedBase(Path sharedBase, Path candidate) {
         if (!candidate.normalize().startsWith(sharedBase)) {
             throw new StorageAccessException("Path is outside the shared directory.");
+        }
+    }
+
+    private void ensureInsideTrashRoot(Path candidate) {
+        if (!candidate.normalize().startsWith(trashRoot)) {
+            throw new StorageAccessException("Path is outside trash.");
         }
     }
 

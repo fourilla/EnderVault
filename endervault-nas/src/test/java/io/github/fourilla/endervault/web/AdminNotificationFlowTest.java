@@ -79,7 +79,8 @@ class AdminNotificationFlowTest {
         mockMvc.perform(post("/files/detail/share")
                         .with(csrf())
                         .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
-                        .param("path", filename))
+                        .param("path", filename)
+                        .param("customToken", "ajax-share-" + System.nanoTime()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true))
                 .andExpect(jsonPath("$.notification.type").value("info"))
@@ -119,6 +120,8 @@ class AdminNotificationFlowTest {
                 .andExpect(jsonPath("$.redirectUrl").exists());
 
         assertThat(ROOT.resolve(filename)).doesNotExist();
+        assertThat(Files.readString(ROOT.resolve(".endervault").resolve("trash-records.json")))
+                .contains(filename);
     }
 
     @Test

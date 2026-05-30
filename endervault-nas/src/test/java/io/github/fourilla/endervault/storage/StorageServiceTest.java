@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -213,6 +214,18 @@ class StorageServiceTest {
         storageService.rename("", "demo.txt", "renamed.txt");
 
         assertThat(Files.readString(root.resolve("renamed.txt"))).isEqualTo("demo");
+    }
+
+    @Test
+    void uploadDoesNotLeaveInternalTemporaryFiles() throws Exception {
+        MockMultipartFile file = new MockMultipartFile("files", "clean.txt", "text/plain", "clean".getBytes());
+
+        storageService.upload("", file);
+
+        assertThat(Files.readString(root.resolve("clean.txt"))).isEqualTo("clean");
+        try (Stream<Path> temporaryFiles = Files.list(root.resolve(".endervault").resolve("uploads"))) {
+            assertThat(temporaryFiles).isEmpty();
+        }
     }
 
     @Test

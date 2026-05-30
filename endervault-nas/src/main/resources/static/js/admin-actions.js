@@ -1,8 +1,8 @@
 document.addEventListener("DOMContentLoaded", () => {
-    const submitJsonForm = async (form) => {
+    const submitJsonForm = async (form, formData = new FormData(form)) => {
         const response = await fetch(form.action, {
             method: form.method || "POST",
-            body: new FormData(form),
+            body: formData,
             headers: {
                 "Accept": "application/json",
                 "X-Requested-With": "fetch"
@@ -33,8 +33,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const setBusy = (form, busy) => {
         form.querySelectorAll("button, input, select").forEach((control) => {
-            if (control.type !== "hidden") {
+            if (control.tagName === "BUTTON") {
                 control.disabled = busy;
+                return;
+            }
+            if (control.type !== "hidden" && "readOnly" in control) {
+                control.readOnly = busy;
             }
         });
     };
@@ -186,9 +190,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
         form.addEventListener("submit", async (event) => {
             event.preventDefault();
+            const formData = new FormData(form);
             setBusy(form, true);
             try {
-                const body = await submitJsonForm(form);
+                const body = await submitJsonForm(form, formData);
                 handleSuccess(form, body);
             } catch (error) {
                 if (window.EnderVaultToasts) {

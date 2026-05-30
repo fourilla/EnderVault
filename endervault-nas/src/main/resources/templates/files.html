@@ -15,11 +15,11 @@
 <body>
 <div class="app-shell">
 <aside th:replace="~{fragments/admin-shell :: sidebar('files')}"></aside>
-<div class="app-main">
+<div class="app-main" data-file-dropzone>
 <header th:replace="~{fragments/admin-shell :: topbar}"></header>
 <div th:replace="~{fragments/notifications :: toasts}"></div>
 
-<main class="workspace" data-file-dropzone>
+<main class="workspace">
     <div class="drop-upload-overlay js-only" id="dropUploadOverlay" aria-hidden="true">
         <div class="drop-upload-panel">
             <i class="fas fa-cloud-arrow-up" aria-hidden="true"></i>

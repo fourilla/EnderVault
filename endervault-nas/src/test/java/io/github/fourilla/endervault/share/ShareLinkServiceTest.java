@@ -59,6 +59,36 @@ class ShareLinkServiceTest {
     }
 
     @Test
+    void createsShareLinkWithCustomToken() throws Exception {
+        Files.writeString(root.resolve("note.txt"), "hello");
+
+        ShareLink shareLink = shareLinkService.create("", "note.txt", null, "demo_123");
+
+        assertThat(shareLink.token()).isEqualTo("demo_123");
+        assertThat(shareLinkService.requireUsable("demo_123")).isEqualTo(shareLink);
+    }
+
+    @Test
+    void rejectsDuplicateCustomShareToken() throws Exception {
+        Files.writeString(root.resolve("a.txt"), "a");
+        Files.writeString(root.resolve("b.txt"), "b");
+        shareLinkService.create("", "a.txt", null, "same-token");
+
+        assertThatThrownBy(() -> shareLinkService.create("", "b.txt", null, "same-token"))
+                .isInstanceOf(StorageAccessException.class)
+                .hasMessageContaining("already exists");
+    }
+
+    @Test
+    void rejectsInvalidCustomShareToken() throws Exception {
+        Files.writeString(root.resolve("note.txt"), "hello");
+
+        assertThatThrownBy(() -> shareLinkService.create("", "note.txt", null, "bad/token"))
+                .isInstanceOf(StorageAccessException.class)
+                .hasMessageContaining("Share token");
+    }
+
+    @Test
     void listsShareLinksForVaultPath() throws Exception {
         Files.writeString(root.resolve("note.txt"), "hello");
         ShareLink shareLink = shareLinkService.createForVaultPath("note.txt", null);

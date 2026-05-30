@@ -245,14 +245,12 @@ a:focus {
 
 .drop-upload-overlay {
     display: none;
-    position: absolute;
+    position: fixed;
     z-index: 30;
-    inset: 0;
+    inset: 0 0 0 240px;
     align-items: center;
     justify-content: center;
-    min-height: 280px;
     border: 2px dashed var(--accent);
-    border-radius: 12px;
     background: rgba(15, 20, 26, 0.78);
     pointer-events: none;
 }
@@ -389,6 +387,181 @@ a:focus {
     opacity: 0;
     transform: translateY(-6px);
     transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.upload-activity {
+    position: fixed;
+    z-index: 980;
+    right: 20px;
+    bottom: 18px;
+    width: min(430px, calc(100vw - 32px));
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel-elevated);
+    box-shadow: 0 18px 44px var(--shadow);
+}
+
+.upload-activity[hidden] {
+    display: none;
+}
+
+.upload-activity-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-bottom: 1px solid var(--line);
+    padding: 11px 12px;
+}
+
+.upload-activity-heading {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+    min-width: 0;
+}
+
+.upload-activity-heading i {
+    color: var(--accent-strong);
+    font-size: 20px;
+}
+
+.upload-activity-heading strong,
+.upload-activity-heading span {
+    display: block;
+}
+
+.upload-activity-heading strong {
+    line-height: 1.2;
+}
+
+.upload-activity-summary {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.upload-activity-toggle {
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    min-height: 30px;
+    border-radius: 6px;
+}
+
+.upload-activity-toggle i {
+    font-size: 13px;
+}
+
+.upload-activity-body {
+    max-height: min(360px, 55vh);
+    overflow-y: auto;
+    padding: 10px;
+}
+
+.upload-activity.is-minimized .upload-activity-header {
+    border-bottom: 0;
+}
+
+.upload-activity.is-minimized .upload-activity-body {
+    display: none;
+}
+
+.upload-list {
+    display: grid;
+    gap: 9px;
+}
+
+.upload-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+    padding: 10px;
+}
+
+.upload-item-main {
+    display: grid;
+    gap: 7px;
+    min-width: 0;
+}
+
+.upload-item-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+}
+
+.upload-name {
+    overflow: hidden;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.upload-percent,
+.upload-meta {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.upload-progress-track {
+    overflow: hidden;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--thumb-bg);
+}
+
+.upload-progress-bar {
+    height: 100%;
+    border-radius: inherit;
+    background: var(--accent);
+    transition: width 140ms ease;
+}
+
+.upload-complete .upload-progress-bar {
+    background: #71d89d;
+}
+
+.upload-failed .upload-progress-bar,
+.upload-canceled .upload-progress-bar {
+    background: var(--danger);
+}
+
+.upload-failed,
+.upload-canceled {
+    border-color: var(--danger-line);
+}
+
+.upload-complete,
+.upload-failed,
+.upload-canceled {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.upload-cancel {
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    min-height: 30px;
+    border-radius: 6px;
+}
+
+.upload-cancel[hidden] {
+    display: none;
+}
+
+.upload-cancel i {
+    font-size: 13px;
+}
+
+.icon-button.is-busy {
+    box-shadow: 0 0 0 3px rgba(91, 189, 180, 0.18);
 }
 
 .pathbar,
@@ -554,6 +727,19 @@ a:focus {
     border: 1px solid var(--line);
     border-radius: 8px;
     background: var(--panel);
+}
+
+.share-create-form {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) minmax(110px, 140px) auto;
+}
+
+.share-create-form label {
+    min-width: 0;
+}
+
+.share-create-form button {
+    white-space: nowrap;
 }
 
 .visually-hidden {
@@ -1247,6 +1433,17 @@ tr:last-child td {
         width: auto;
     }
 
+    .drop-upload-overlay {
+        inset: 0;
+    }
+
+    .upload-activity {
+        right: 10px;
+        bottom: 10px;
+        left: 10px;
+        width: auto;
+    }
+
     .toolbar-cluster {
         justify-content: flex-end;
         width: 100%;
@@ -1291,6 +1488,10 @@ tr:last-child td {
     .toolbar-actions,
     .bulk-actions {
         flex-direction: row;
+    }
+
+    .share-create-form {
+        grid-template-columns: 1fr;
     }
 
     .table-actions,

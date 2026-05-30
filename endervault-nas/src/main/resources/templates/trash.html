@@ -18,11 +18,17 @@
 <main class="workspace">
     <section class="pathbar">
         <h1>Trash</h1>
+        <form class="row-form" method="post" th:action="@{/files/trash/empty}" th:if="${not #lists.isEmpty(records)}">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <button class="danger icon-button" type="submit" title="Empty trash" aria-label="Empty trash">
+                <i class="fas fa-broom" aria-hidden="true"></i>
+            </button>
+        </form>
     </section>
 
-    <section class="browser-section" th:if="${not #lists.isEmpty(listing.directories())}" aria-label="Trash directories">
+    <section class="browser-section" th:if="${not #lists.isEmpty(records)}" aria-label="Trash items">
         <header class="section-heading">
-            <h2 th:text="|Directories (${#lists.size(listing.directories())})|">Directories</h2>
+            <h2 th:text="|Items (${#lists.size(records)})|">Items</h2>
         </header>
 
         <div class="table-wrap">
@@ -30,53 +36,51 @@
                 <thead>
                 <tr>
                     <th>Name</th>
-                    <th>Type</th>
-                    <th>Modified</th>
-                </tr>
-                </thead>
-                <tbody>
-                <tr th:each="directory : ${listing.directories()}">
-                    <td class="item-name directory">
-                        <i class="fas fa-folder item-icon" aria-hidden="true"></i>
-                        <span th:text="${directory.name()}">directory</span>
-                    </td>
-                    <td>Directory</td>
-                    <td th:text="${directory.modifiedLabel()}">-</td>
-                </tr>
-                </tbody>
-            </table>
-        </div>
-    </section>
-
-    <section class="browser-section" th:if="${not #lists.isEmpty(listing.files())}" aria-label="Trash files">
-        <header class="section-heading">
-            <h2 th:text="|Files (${#lists.size(listing.files())})|">Files</h2>
-        </header>
-
-        <div class="table-wrap">
-            <table>
-                <thead>
-                <tr>
-                    <th>Name</th>
+                    <th>Original path</th>
                     <th>Type</th>
                     <th>Size</th>
-                    <th>Modified</th>
+                    <th>Deleted</th>
+                    <th>Expires</th>
+                    <th>Actions</th>
                 </tr>
                 </thead>
                 <tbody>
-                <tr th:each="file : ${listing.files()}">
-                    <td class="item-name" th:text="${file.name()}">file</td>
-                    <td th:text="${file.typeLabel()}">File</td>
-                    <td th:text="${file.sizeLabel()}">0 B</td>
-                    <td th:text="${file.modifiedLabel()}">-</td>
+                <tr th:each="record : ${records}">
+                    <td class="item-name">
+                        <i th:class="${record.directory()} ? 'fas fa-folder item-icon' : 'fas fa-file item-icon'" aria-hidden="true"></i>
+                        <span th:text="${record.originalName()}">item</span>
+                    </td>
+                    <td th:text="${record.originalPath()}">path</td>
+                    <td th:text="${record.typeLabel()}">File</td>
+                    <td th:text="${record.sizeLabel()}">0 B</td>
+                    <td th:text="${record.deletedLabel()}">deleted</td>
+                    <td th:text="${record.expiresLabel()}">expires</td>
+                    <td>
+                        <div class="table-actions">
+                            <form class="row-form" method="post" th:action="@{/files/trash/restore}">
+                                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                                <input type="hidden" name="id" th:value="${record.id()}">
+                                <button class="icon-button action-icon" type="submit" title="Restore" aria-label="Restore">
+                                    <i class="fas fa-rotate-left" aria-hidden="true"></i>
+                                </button>
+                            </form>
+                            <form class="row-form" method="post" th:action="@{/files/trash/delete}">
+                                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                                <input type="hidden" name="id" th:value="${record.id()}">
+                                <button class="danger icon-button action-icon" type="submit"
+                                        title="Permanently delete" aria-label="Permanently delete">
+                                    <i class="fas fa-trash-can" aria-hidden="true"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
                 </tr>
                 </tbody>
             </table>
         </div>
     </section>
 
-    <p th:if="${#lists.isEmpty(listing.directories()) and #lists.isEmpty(listing.files())}"
-       class="empty browser-grid-empty">No trash items.</p>
+    <p th:if="${#lists.isEmpty(records)}" class="empty browser-grid-empty">No trash items.</p>
 </main>
 </div>
 </div>
