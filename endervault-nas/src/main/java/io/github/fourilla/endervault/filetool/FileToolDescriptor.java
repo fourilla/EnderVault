@@ -27,6 +27,10 @@ public record FileToolDescriptor(
         return type == FileToolType.PDF;
     }
 
+    public boolean comic() {
+        return type == FileToolType.COMIC;
+    }
+
     public boolean hex() {
         return type == FileToolType.HEX;
     }

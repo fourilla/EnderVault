@@ -24,6 +24,12 @@ nas.browser.default-sort=name
 nas.browser.default-direction=asc
 nas.browser.default-page-size=200
 
+nas.file-tools.text-auto-load-max-bytes=1048576
+nas.file-tools.text-manual-load-max-bytes=20971520
+nas.file-tools.comic-max-pages=5000
+nas.file-tools.comic-page-max-bytes=104857600
+nas.file-tools.comic-info-max-bytes=65536
+
 nas.admin.username=admin
 nas.admin.password={noop}change-me
 

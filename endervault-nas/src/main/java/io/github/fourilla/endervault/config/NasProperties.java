@@ -438,6 +438,16 @@ public class NasProperties {
         @Min(1024)
         private long textManualLoadMaxBytes = 20971520L;
 
+        @Min(1)
+        @Max(50000)
+        private int comicMaxPages = 5000;
+
+        @Min(1024)
+        private long comicPageMaxBytes = 104857600L;
+
+        @Min(1024)
+        private long comicInfoMaxBytes = 65536L;
+
         public long getTextAutoLoadMaxBytes() {
             return textAutoLoadMaxBytes;
         }
@@ -452,6 +462,30 @@ public class NasProperties {
 
         public void setTextManualLoadMaxBytes(long textManualLoadMaxBytes) {
             this.textManualLoadMaxBytes = textManualLoadMaxBytes;
+        }
+
+        public int getComicMaxPages() {
+            return comicMaxPages;
+        }
+
+        public void setComicMaxPages(int comicMaxPages) {
+            this.comicMaxPages = comicMaxPages;
+        }
+
+        public long getComicPageMaxBytes() {
+            return comicPageMaxBytes;
+        }
+
+        public void setComicPageMaxBytes(long comicPageMaxBytes) {
+            this.comicPageMaxBytes = comicPageMaxBytes;
+        }
+
+        public long getComicInfoMaxBytes() {
+            return comicInfoMaxBytes;
+        }
+
+        public void setComicInfoMaxBytes(long comicInfoMaxBytes) {
+            this.comicInfoMaxBytes = comicInfoMaxBytes;
         }
 
         @Deprecated

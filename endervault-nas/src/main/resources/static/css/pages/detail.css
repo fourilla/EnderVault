@@ -100,6 +100,132 @@
     background: var(--panel);
 }
 
+.comic-viewer {
+    display: grid;
+    gap: 12px;
+}
+
+.comic-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.comic-status {
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.comic-actions,
+.comic-page-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.comic-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.comic-page-input {
+    width: 78px;
+    height: 34px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel-muted);
+    color: var(--text);
+    padding: 0 8px;
+    text-align: center;
+}
+
+.comic-actions .is-disabled {
+    opacity: 0.42;
+    pointer-events: none;
+}
+
+.comic-stage {
+    display: grid;
+    min-height: 58vh;
+    place-items: center;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #05070a;
+}
+
+.comic-page-image {
+    display: block;
+    max-width: 100%;
+    max-height: 78vh;
+    object-fit: contain;
+}
+
+.comic-metadata {
+    display: grid;
+    gap: 10px;
+    border-top: 1px solid var(--line);
+    padding-top: 12px;
+}
+
+.comic-metadata h3,
+.comic-metadata p {
+    margin: 0;
+}
+
+.compact-details {
+    margin: 0;
+}
+
+.comic-raw-metadata summary {
+    cursor: pointer;
+    color: var(--muted);
+    font-weight: 700;
+}
+
+.comic-raw-metadata pre {
+    max-height: 220px;
+    overflow: auto;
+    margin: 10px 0 0;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel-muted);
+    padding: 12px;
+    white-space: pre-wrap;
+}
+
+body.is-comic-viewer-fullscreen {
+    overflow: hidden;
+}
+
+.comic-viewer.is-comic-fullscreen {
+    position: fixed;
+    inset: 14px;
+    z-index: 10000;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--panel);
+    padding: 14px;
+    box-shadow: 0 24px 80px rgb(0 0 0 / 55%);
+}
+
+.comic-viewer.is-comic-fullscreen .comic-stage {
+    min-height: 0;
+}
+
+.comic-viewer.is-comic-fullscreen .comic-page-image {
+    max-height: calc(100vh - 112px);
+}
+
+.comic-viewer.is-comic-fullscreen .comic-metadata {
+    display: none;
+}
+
 .text-editor {
     display: grid;
     gap: 10px;
@@ -263,4 +389,3 @@ body.is-text-editor-fullscreen {
 .compact-table table {
     min-width: 720px;
 }
-

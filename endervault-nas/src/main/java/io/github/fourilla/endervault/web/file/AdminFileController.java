@@ -4,6 +4,8 @@ import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.favorite.FavoriteService;
+import io.github.fourilla.endervault.filetool.ComicArchiveManifest;
+import io.github.fourilla.endervault.filetool.ComicArchiveService;
 import io.github.fourilla.endervault.filetool.FileToolDescriptor;
 import io.github.fourilla.endervault.filetool.FileToolService;
 import io.github.fourilla.endervault.filetool.TextFileContent;
@@ -75,6 +77,7 @@ public class AdminFileController {
     private final ShareLinkService shareLinkService;
     private final FavoriteService favoriteService;
     private final FileToolService fileToolService;
+    private final ComicArchiveService comicArchiveService;
     private final RecentService recentService;
     private final ThumbnailService thumbnailService;
     private final TrashService trashService;
@@ -87,6 +90,7 @@ public class AdminFileController {
             ShareLinkService shareLinkService,
             FavoriteService favoriteService,
             FileToolService fileToolService,
+            ComicArchiveService comicArchiveService,
             RecentService recentService,
             ThumbnailService thumbnailService,
             TrashService trashService,
@@ -98,6 +102,7 @@ public class AdminFileController {
         this.shareLinkService = shareLinkService;
         this.favoriteService = favoriteService;
         this.fileToolService = fileToolService;
+        this.comicArchiveService = comicArchiveService;
         this.recentService = recentService;
         this.thumbnailService = thumbnailService;
         this.trashService = trashService;
@@ -186,7 +191,11 @@ public class AdminFileController {
     }
 
     @GetMapping("/files/detail")
-    public String detail(@RequestParam("path") String path, Model model) throws IOException {
+    public String detail(
+            @RequestParam("path") String path,
+            @RequestParam(value = "comicPage", required = false) Integer comicPage,
+            Model model
+    ) throws IOException {
         FileDetail detail = detailForPath(path);
         recentService.recordVaultPath(detail.path());
         FileToolDescriptor fileTool = fileToolService.resolve(detail);
@@ -194,6 +203,16 @@ public class AdminFileController {
         model.addAttribute("fileTool", fileTool);
         if (fileTool.text()) {
             model.addAttribute("textContent", fileToolService.readText(detail, storageService.resolveVaultFile(detail.path())));
+        }
+        if (fileTool.comic()) {
+            ComicArchiveManifest comicManifest = comicArchiveService.manifest(storageService.resolveVaultFile(detail.path()));
+            int comicPageIndex = comicArchiveService.normalizePage(comicManifest, comicPage);
+            int comicPageNumber = comicManifest.empty() ? 0 : comicPageIndex + 1;
+            model.addAttribute("comicManifest", comicManifest);
+            model.addAttribute("comicPageIndex", comicPageIndex);
+            model.addAttribute("comicPageNumber", comicPageNumber);
+            model.addAttribute("comicPreviousPageNumber", Math.max(1, comicPageNumber - 1));
+            model.addAttribute("comicNextPageNumber", Math.min(comicManifest.pageCount(), comicPageNumber + 1));
         }
         model.addAttribute("shares", shareLinkService.listForVaultPath(detail.path()));
         model.addAttribute("shareBaseUrl", shareBaseUrl());

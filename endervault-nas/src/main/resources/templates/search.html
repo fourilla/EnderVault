@@ -104,8 +104,8 @@
                             <i class="fas fa-download" aria-hidden="true"></i>
                         </a>
                         <a class="button-link ghost icon-button action-icon"
-                           th:if="${not item.directory() and item.previewable()}"
-                           th:href="@{/files/detail/preview(path=${item.path()})}"
+                           th:if="${filePreview.previewable(item)}"
+                           th:href="${filePreview.previewUrl(item)}"
                            target="_blank" title="Preview" aria-label="Preview">
                             <i class="fas fa-eye" aria-hidden="true"></i>
                         </a>

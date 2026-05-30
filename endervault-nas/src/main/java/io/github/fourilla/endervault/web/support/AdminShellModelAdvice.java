@@ -30,10 +30,16 @@ public class AdminShellModelAdvice {
 
     private final StorageService storageService;
     private final FavoriteService favoriteService;
+    private final FilePreviewSupport filePreviewSupport;
 
-    public AdminShellModelAdvice(StorageService storageService, FavoriteService favoriteService) {
+    public AdminShellModelAdvice(
+            StorageService storageService,
+            FavoriteService favoriteService,
+            FilePreviewSupport filePreviewSupport
+    ) {
         this.storageService = storageService;
         this.favoriteService = favoriteService;
+        this.filePreviewSupport = filePreviewSupport;
     }
 
     @ModelAttribute("storageUsage")
@@ -48,5 +54,10 @@ public class AdminShellModelAdvice {
         } catch (Exception ex) {
             return List.of();
         }
+    }
+
+    @ModelAttribute("filePreview")
+    public FilePreviewSupport filePreview() {
+        return filePreviewSupport;
     }
 }

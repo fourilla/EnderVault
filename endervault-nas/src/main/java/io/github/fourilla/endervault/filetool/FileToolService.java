@@ -149,6 +149,9 @@ public class FileToolService {
         if (detail.pdf()) {
             return FileToolType.PDF;
         }
+        if ("cbz".equals(extension)) {
+            return FileToolType.COMIC;
+        }
         return FileToolType.HEX;
     }
 

@@ -8,6 +8,10 @@
     white-space: nowrap;
 }
 
+[hidden] {
+    display: none !important;
+}
+
 .icon-button {
     display: inline-flex;
     align-items: center;
@@ -117,4 +121,3 @@ td .action-icon i {
     font-size: 12px;
     font-weight: 700;
 }
-

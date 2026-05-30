@@ -1,0 +1,44 @@
+.comic-preview-page {
+    min-height: 100vh;
+    margin: 0;
+    overflow-x: hidden;
+    background: #000;
+    color: #d8dde6;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+}
+
+.comic-reader {
+    min-height: 100vh;
+    background: #000;
+}
+
+.comic-reader-pages {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+}
+
+.comic-reader-page {
+    display: block;
+    width: 100%;
+    max-width: 100vw;
+    height: auto;
+    object-fit: contain;
+    background: #000;
+    -webkit-user-drag: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+}
+
+.comic-reader-empty {
+    display: grid;
+    min-height: 100vh;
+    place-items: center;
+    margin: 0;
+    color: #8f9aaa;
+    font-weight: 700;
+}

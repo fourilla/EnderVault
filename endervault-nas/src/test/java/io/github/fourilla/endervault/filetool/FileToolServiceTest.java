@@ -129,4 +129,16 @@ class FileToolServiceTest {
         assertThat(descriptor.editable()).isFalse();
         assertThat(descriptor.previewable()).isFalse();
     }
+
+    @Test
+    void resolvesCbzFilesAsComicTool() throws Exception {
+        Files.write(root.resolve("comic.cbz"), new byte[] {1, 2, 3});
+        FileDetail detail = storageService.detail(StorageScope.VAULT, "comic.cbz");
+
+        FileToolDescriptor descriptor = fileToolService.resolve(detail);
+
+        assertThat(descriptor.type()).isEqualTo(FileToolType.COMIC);
+        assertThat(descriptor.editable()).isFalse();
+        assertThat(descriptor.previewable()).isFalse();
+    }
 }

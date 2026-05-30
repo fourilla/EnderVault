@@ -6,6 +6,7 @@ public enum FileToolType {
     VIDEO("video", "Video Preview"),
     TEXT("text", "Text Editor"),
     PDF("pdf", "PDF Preview"),
+    COMIC("comic", "Comic Viewer"),
     HEX("hex", "Hex Viewer");
 
     private final String id;

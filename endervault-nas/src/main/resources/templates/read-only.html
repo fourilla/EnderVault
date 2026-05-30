@@ -108,8 +108,7 @@
         <div class="readonly-file-grid">
             <article class="readonly-file-card" th:each="file : ${filePage.items()}">
                 <a class="readonly-file-link"
-                   th:if="${file.previewable()}"
-                   th:href="@{/files/detail/preview(path=${file.path()})}">
+                   th:href="${filePreview.openUrl(file)}">
                     <span class="readonly-thumb">
                         <img class="thumb-media" th:if="${file.image()}" loading="lazy"
                              th:src="@{/files/detail/preview(path=${file.path()})}"
@@ -121,14 +120,6 @@
                             <span class="thumb-play">Play</span>
                         </span>
                         <span class="thumb-placeholder" th:if="${not file.image() and not file.video()}" th:text="${file.typeLabel()}">File</span>
-                    </span>
-                    <span class="readonly-file-name" th:text="${file.name()}">file</span>
-                </a>
-                <a class="readonly-file-link"
-                   th:unless="${file.previewable()}"
-                   th:href="@{/files/detail/download(path=${file.path()})}">
-                    <span class="readonly-thumb">
-                        <span class="thumb-placeholder" th:text="${file.typeLabel()}">File</span>
                     </span>
                     <span class="readonly-file-name" th:text="${file.name()}">file</span>
                 </a>
