@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.nio.file.Path;
+import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
@@ -30,6 +31,9 @@ public class NasProperties {
 
     @Valid
     private Trash trash = new Trash();
+
+    @Valid
+    private RemoteDownload remoteDownload = new RemoteDownload();
 
     public Storage getStorage() {
         return storage;
@@ -77,6 +81,14 @@ public class NasProperties {
 
     public void setTrash(Trash trash) {
         this.trash = trash;
+    }
+
+    public RemoteDownload getRemoteDownload() {
+        return remoteDownload;
+    }
+
+    public void setRemoteDownload(RemoteDownload remoteDownload) {
+        this.remoteDownload = remoteDownload;
     }
 
     public static class Storage {
@@ -249,6 +261,127 @@ public class NasProperties {
 
         public void setCleanupIntervalMs(long cleanupIntervalMs) {
             this.cleanupIntervalMs = cleanupIntervalMs;
+        }
+    }
+
+    public static class RemoteDownload {
+        private boolean enabled = true;
+
+        private boolean directEnabled = true;
+
+        private boolean extractorEnabled = false;
+
+        private boolean blockPrivateNetworks = true;
+
+        @NotNull
+        private List<Integer> allowedPorts = List.of(80, 443);
+
+        @Min(1)
+        private int connectTimeoutSeconds = 10;
+
+        @Min(1)
+        private int responseTimeoutSeconds = 30;
+
+        @Min(0)
+        private int maxRedirects = 5;
+
+        @Min(0)
+        private long maxFileSizeBytes = 0L;
+
+        @Min(1)
+        @Max(8)
+        private int workerThreads = 2;
+
+        @Min(1)
+        @Max(1000)
+        private int historyLimit = 100;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public boolean isDirectEnabled() {
+            return directEnabled;
+        }
+
+        public void setDirectEnabled(boolean directEnabled) {
+            this.directEnabled = directEnabled;
+        }
+
+        public boolean isExtractorEnabled() {
+            return extractorEnabled;
+        }
+
+        public void setExtractorEnabled(boolean extractorEnabled) {
+            this.extractorEnabled = extractorEnabled;
+        }
+
+        public boolean isBlockPrivateNetworks() {
+            return blockPrivateNetworks;
+        }
+
+        public void setBlockPrivateNetworks(boolean blockPrivateNetworks) {
+            this.blockPrivateNetworks = blockPrivateNetworks;
+        }
+
+        public List<Integer> getAllowedPorts() {
+            return allowedPorts;
+        }
+
+        public void setAllowedPorts(List<Integer> allowedPorts) {
+            this.allowedPorts = allowedPorts;
+        }
+
+        public int getConnectTimeoutSeconds() {
+            return connectTimeoutSeconds;
+        }
+
+        public void setConnectTimeoutSeconds(int connectTimeoutSeconds) {
+            this.connectTimeoutSeconds = connectTimeoutSeconds;
+        }
+
+        public int getResponseTimeoutSeconds() {
+            return responseTimeoutSeconds;
+        }
+
+        public void setResponseTimeoutSeconds(int responseTimeoutSeconds) {
+            this.responseTimeoutSeconds = responseTimeoutSeconds;
+        }
+
+        public int getMaxRedirects() {
+            return maxRedirects;
+        }
+
+        public void setMaxRedirects(int maxRedirects) {
+            this.maxRedirects = maxRedirects;
+        }
+
+        public long getMaxFileSizeBytes() {
+            return maxFileSizeBytes;
+        }
+
+        public void setMaxFileSizeBytes(long maxFileSizeBytes) {
+            this.maxFileSizeBytes = maxFileSizeBytes;
+        }
+
+        public int getWorkerThreads() {
+            return workerThreads;
+        }
+
+        public void setWorkerThreads(int workerThreads) {
+            this.workerThreads = workerThreads;
+        }
+
+        public int getHistoryLimit() {
+            return historyLimit;
+        }
+
+        public void setHistoryLimit(int historyLimit) {
+            this.historyLimit = historyLimit;
         }
     }
 

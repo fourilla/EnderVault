@@ -4,8 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>EnderVault Read-only</title>
-    <link rel="stylesheet" th:href="@{/webjars/fortawesome__fontawesome-free/6.7.2/css/all.min.css}">
-    <link rel="stylesheet" th:href="@{/css/app.css}">
+    <th:block th:replace="~{fragments/assets :: styles(true)}"></th:block>
 </head>
 <body class="readonly-page">
 <main class="workspace readonly-workspace">
@@ -15,7 +14,7 @@
             <nav class="breadcrumbs">
                 <th:block th:each="crumb, iter : ${listing.breadcrumbs()}">
                     <a th:classappend="${iter.last} ? ' current' : ''"
-                       th:href="@{/files/read-only(path=${crumb.path()}, size=${filePage.size()})}"
+                       th:href="@{/files/read-only(path=${crumb.path()}, sort=${sort}, dir=${dir}, size=${filePage.size()})}"
                        th:text="${crumb.label()}">Root</a>
                     <span class="breadcrumb-separator" th:unless="${iter.last}">/</span>
                 </th:block>
@@ -29,6 +28,47 @@
             </a>
         </div>
     </section>
+
+    <details class="readonly-sort-panel">
+        <summary class="readonly-sort-toggle">
+            <span class="readonly-sort-toggle-main">
+                <i class="fas fa-arrow-down-wide-short" aria-hidden="true"></i>
+                <span>Sort</span>
+            </span>
+            <span class="readonly-sort-summary" th:text="|${sort} / ${dir} / ${filePage.size()}|">name / asc / 50</span>
+        </summary>
+        <form class="readonly-sortbar" method="get" th:action="@{/files/read-only}" aria-label="Read-only sorting">
+            <input type="hidden" name="path" th:value="${path}">
+            <label>
+                <span>Sort</span>
+                <select name="sort">
+                    <option value="name" th:selected="${sort == 'name'}">Name</option>
+                    <option value="size" th:selected="${sort == 'size'}">Size</option>
+                    <option value="modified" th:selected="${sort == 'modified'}">Modified</option>
+                    <option value="type" th:selected="${sort == 'type'}">Type</option>
+                </select>
+            </label>
+            <label>
+                <span>Direction</span>
+                <select name="dir">
+                    <option value="asc" th:selected="${dir == 'asc'}">Ascending</option>
+                    <option value="desc" th:selected="${dir == 'desc'}">Descending</option>
+                </select>
+            </label>
+            <label>
+                <span>Page size</span>
+                <select name="size">
+                    <option th:each="pageSize : ${pageSizes}"
+                            th:value="${pageSize}"
+                            th:text="${pageSize}"
+                            th:selected="${pageSize == filePage.size()}">50</option>
+                </select>
+            </label>
+            <button class="icon-button" type="submit" title="Apply sorting" aria-label="Apply sorting">
+                <i class="fas fa-check" aria-hidden="true"></i>
+            </button>
+        </form>
+    </details>
 
     <section class="readonly-section" th:if="${not #lists.isEmpty(listing.directories())}" aria-label="Directories">
         <header class="section-heading">
@@ -46,7 +86,7 @@
                 <tr th:each="directory : ${listing.directories()}">
                     <td>
                         <a class="item-name directory"
-                           th:href="@{/files/read-only(path=${directory.path()}, size=${filePage.size()})}">
+                           th:href="@{/files/read-only(path=${directory.path()}, sort=${sort}, dir=${dir}, size=${filePage.size()})}">
                             <i class="fas fa-folder item-icon" aria-hidden="true"></i>
                             <span th:text="${directory.name()}">directory</span>
                         </a>
@@ -96,17 +136,17 @@
 
         <nav class="pagination" th:if="${filePage.totalPages() > 1}" aria-label="File pages">
             <a class="ghost pagination-link" th:if="${filePage.hasPrevious()}"
-               th:href="@{/files/read-only(path=${path}, page=1, size=${filePage.size()})}">First</a>
+               th:href="@{/files/read-only(path=${path}, sort=${sort}, dir=${dir}, page=1, size=${filePage.size()})}">First</a>
             <span class="ghost pagination-link disabled" th:unless="${filePage.hasPrevious()}">First</span>
             <a class="ghost pagination-link" th:if="${filePage.hasPrevious()}"
-               th:href="@{/files/read-only(path=${path}, page=${filePage.previousPage()}, size=${filePage.size()})}">Previous</a>
+               th:href="@{/files/read-only(path=${path}, sort=${sort}, dir=${dir}, page=${filePage.previousPage()}, size=${filePage.size()})}">Previous</a>
             <span class="ghost pagination-link disabled" th:unless="${filePage.hasPrevious()}">Previous</span>
             <span class="page-status" th:text="|Page ${filePage.page()} of ${filePage.totalPages()}|">Page 1 of 1</span>
             <a class="ghost pagination-link" th:if="${filePage.hasNext()}"
-               th:href="@{/files/read-only(path=${path}, page=${filePage.nextPage()}, size=${filePage.size()})}">Next</a>
+               th:href="@{/files/read-only(path=${path}, sort=${sort}, dir=${dir}, page=${filePage.nextPage()}, size=${filePage.size()})}">Next</a>
             <span class="ghost pagination-link disabled" th:unless="${filePage.hasNext()}">Next</span>
             <a class="ghost pagination-link" th:if="${filePage.hasNext()}"
-               th:href="@{/files/read-only(path=${path}, page=${filePage.totalPages()}, size=${filePage.size()})}">Last</a>
+               th:href="@{/files/read-only(path=${path}, sort=${sort}, dir=${dir}, page=${filePage.totalPages()}, size=${filePage.size()})}">Last</a>
             <span class="ghost pagination-link disabled" th:unless="${filePage.hasNext()}">Last</span>
         </nav>
     </section>

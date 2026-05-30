@@ -146,16 +146,23 @@ public class AdminFileController {
     @GetMapping("/files/read-only")
     public String readOnly(
             @RequestParam(value = "path", required = false) String path,
+            @RequestParam(value = "sort", required = false) String sort,
+            @RequestParam(value = "dir", required = false) String direction,
             @RequestParam(value = "page", required = false) Integer page,
             @RequestParam(value = "size", required = false) Integer size,
             Model model
     ) throws IOException {
+        FileSort fileSort = normalizeSort(sort);
+        SortDirection sortDirection = normalizeDirection(direction);
         int pageSize = size == null ? READ_ONLY_PAGE_SIZE : normalizePageSize(size);
-        DirectoryListing listing = storageService.list(StorageScope.VAULT, path);
+        DirectoryListing listing = storageService.list(StorageScope.VAULT, path, fileSort, sortDirection);
         FilePage filePage = pageFiles(listing.files(), page, pageSize);
 
         model.addAttribute("listing", listing);
         model.addAttribute("path", listing.path());
+        model.addAttribute("sort", fileSort.parameter());
+        model.addAttribute("dir", sortDirection.parameter());
+        model.addAttribute("pageSizes", pageSizeOptions());
         model.addAttribute("filePage", filePage);
         return "read-only";
     }

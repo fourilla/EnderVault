@@ -1,0 +1,120 @@
+﻿.visually-hidden {
+    position: absolute;
+    overflow: hidden;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+}
+
+.icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    min-width: 42px;
+    height: 42px;
+    min-height: 42px;
+    border-radius: 8px;
+    padding: 0;
+}
+
+.icon-button:disabled {
+    border-color: var(--line);
+    background: var(--panel-muted);
+    color: #728093;
+    cursor: not-allowed;
+}
+
+.icon-button:disabled:hover {
+    background: var(--panel-muted);
+}
+
+.icon-button i {
+    font-size: 17px;
+    line-height: 1;
+}
+
+.action-icon {
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    min-height: 36px;
+    border-radius: 8px;
+}
+
+td .action-icon {
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    min-height: 30px;
+}
+
+td .action-icon i {
+    font-size: 14px;
+}
+
+.icon-button:hover {
+    text-decoration: none;
+}
+
+.browser-controls {
+    position: relative;
+}
+
+.settings-menu {
+    position: relative;
+}
+
+.menu-summary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: var(--accent-contrast);
+    cursor: pointer;
+    list-style: none;
+}
+
+.menu-summary::-webkit-details-marker {
+    display: none;
+}
+
+.settings-menu[open] .menu-summary,
+.menu-summary:hover {
+    background: var(--accent-strong);
+}
+
+.settings-panel {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 280px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel-elevated);
+    box-shadow: 0 12px 32px var(--shadow);
+    padding: 12px;
+}
+
+.settings-form {
+    display: grid;
+    gap: 10px;
+}
+
+.settings-form button {
+    width: 100%;
+}
+
+.sort-form label {
+    display: grid;
+    gap: 4px;
+    min-width: 120px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+}
+

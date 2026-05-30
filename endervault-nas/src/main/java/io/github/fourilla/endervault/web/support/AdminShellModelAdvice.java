@@ -5,6 +5,7 @@ import io.github.fourilla.endervault.storage.StorageUsage;
 import io.github.fourilla.endervault.web.dashboard.AdminDashboardController;
 import io.github.fourilla.endervault.web.dashboard.AdminLogController;
 import io.github.fourilla.endervault.web.file.AdminFileController;
+import io.github.fourilla.endervault.web.remote.AdminRemoteDownloadController;
 import io.github.fourilla.endervault.web.share.AdminShareController;
 import io.github.fourilla.endervault.web.trash.AdminTrashController;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
         AdminDashboardController.class,
         AdminFileController.class,
         AdminLogController.class,
+        AdminRemoteDownloadController.class,
         AdminShareController.class,
         AdminTrashController.class
 })

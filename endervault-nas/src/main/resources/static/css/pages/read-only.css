@@ -1,0 +1,225 @@
+﻿.readonly-page {
+    min-height: 100vh;
+}
+
+.readonly-workspace {
+    width: min(920px, calc(100% - 24px));
+    margin-top: 12px;
+    margin-bottom: 18px;
+}
+
+.readonly-workspace .breadcrumb-panel {
+    flex-wrap: nowrap;
+}
+
+.readonly-workspace .breadcrumb-main {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.readonly-workspace .breadcrumbs {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.readonly-workspace .breadcrumbs a {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.readonly-workspace .breadcrumbs a.current {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.readonly-path-actions {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 8px;
+}
+
+.readonly-sort-panel {
+    margin-bottom: 16px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+    overflow: hidden;
+}
+
+.readonly-sort-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    cursor: pointer;
+    color: var(--text);
+    font-weight: 700;
+    list-style: none;
+}
+
+.readonly-sort-toggle::-webkit-details-marker {
+    display: none;
+}
+
+.readonly-sort-toggle::after {
+    content: "\f078";
+    flex: 0 0 auto;
+    color: var(--muted);
+    font-family: "Font Awesome 6 Free";
+    font-size: 12px;
+    font-weight: 900;
+    transition: transform 0.16s ease;
+}
+
+.readonly-sort-panel[open] .readonly-sort-toggle::after {
+    transform: rotate(180deg);
+}
+
+.readonly-sort-toggle-main {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.readonly-sort-summary {
+    min-width: 0;
+    margin-left: auto;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.readonly-sortbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(90px, 120px) auto;
+    gap: 8px;
+    align-items: end;
+    border-top: 1px solid var(--line);
+    padding: 10px;
+}
+
+.readonly-sortbar label {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+}
+
+.readonly-sortbar label span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.readonly-section {
+    margin-top: 18px;
+}
+
+.readonly-table table {
+    min-width: 0;
+}
+
+.readonly-date-col {
+    width: 132px;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.readonly-file-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+}
+
+.readonly-file-card {
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+}
+
+.readonly-file-card:focus-within {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+}
+
+.readonly-file-link {
+    display: grid;
+    color: var(--text);
+}
+
+.readonly-file-link:hover {
+    text-decoration: none;
+}
+
+.readonly-thumb {
+    display: grid;
+    position: relative;
+    aspect-ratio: 1 / 1;
+    place-items: center;
+    overflow: hidden;
+    background: var(--thumb-bg);
+}
+
+.readonly-file-name {
+    min-height: 44px;
+    border-top: 1px solid var(--line);
+    padding: 8px;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.browser-grid-empty {
+    grid-column: 1 / -1;
+    margin-top: 18px;
+    padding: 34px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+}
+
+.pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.pagination-link,
+.page-status {
+    min-height: 36px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 7px 11px;
+}
+
+.pagination-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pagination-link.disabled {
+    color: var(--muted);
+    opacity: 0.58;
+}
+
+.page-status {
+    background: var(--panel);
+    color: var(--muted);
+}
+

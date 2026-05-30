@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title th:text="${title} ?: 'Error'">Error</title>
-    <link rel="stylesheet" th:href="@{/css/app.css}">
+    <th:block th:replace="~{fragments/assets :: styles(false)}"></th:block>
 </head>
 <body>
 <main class="auth-shell">
@@ -17,4 +17,3 @@
 </main>
 </body>
 </html>
-

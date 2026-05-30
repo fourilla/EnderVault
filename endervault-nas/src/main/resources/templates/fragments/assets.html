@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:fragment="styles(fontawesome)">
+    <link rel="stylesheet" th:if="${fontawesome}"
+          th:href="@{/webjars/fortawesome__fontawesome-free/6.7.2/css/all.min.css}">
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</th:block>
+
+<th:block th:fragment="jsOnlyNoscript">
+    <noscript>
+        <style>.js-only { display: none !important; }</style>
+    </noscript>
+</th:block>
+
+<th:block th:fragment="coreScripts">
+    <script defer th:src="@{/js/endervault-core.js}"></script>
+    <script defer th:src="@{/js/notifications.js}"></script>
+</th:block>
+
+<th:block th:fragment="adminActionsScript">
+    <script defer th:src="@{/js/admin-actions.js}"></script>
+</th:block>
+
+<th:block th:fragment="fileToolbarScript">
+    <script defer th:src="@{/js/file-browser-refresh.js}"></script>
+    <script defer th:src="@{/js/file-uploads.js}"></script>
+    <script defer th:src="@{/js/file-selection.js}"></script>
+    <script defer th:src="@{/js/file-actions.js}"></script>
+</th:block>
+
+<th:block th:fragment="remoteDownloadScript">
+    <script defer th:src="@{/js/remote-download.js}"></script>
+</th:block>
+
+<th:block th:fragment="logsScript">
+    <script defer th:src="@{/js/logs.js}"></script>
+</th:block>
+</body>
+</html>

@@ -1,35 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
-    const submitJsonForm = async (form, formData = new FormData(form)) => {
-        const response = await fetch(form.action, {
-            method: form.method || "POST",
-            body: formData,
-            headers: {
-                "Accept": "application/json",
-                "X-Requested-With": "fetch"
-            },
-            credentials: "same-origin"
-        });
-
-        const contentType = response.headers.get("content-type") || "";
-        const body = contentType.includes("application/json") ? await response.json() : null;
-        if (!response.ok || !body || body.ok === false) {
-            const message = body?.notification?.message || "The action failed.";
-            throw new Error(message);
-        }
-        return body;
-    };
-
-    const showNotification = (notification) => {
-        if (!notification || !window.EnderVaultToasts) {
-            return;
-        }
-        window.EnderVaultToasts.show({
-            type: notification.type,
-            message: notification.message,
-            actionLabel: notification.actionLabel || "Copy",
-            actionValue: notification.actionValue || ""
-        });
-    };
+    const { submitJsonForm, showNotification, navigateWithNotification } = window.EnderVault;
 
     const setBusy = (form, busy) => {
         form.querySelectorAll("button, input, select").forEach((control) => {
@@ -43,34 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     };
 
-    const rememberNotification = (notification) => {
-        if (!notification) {
-            return;
-        }
-
-        try {
-            window.sessionStorage.setItem("endervault.pendingToast", JSON.stringify({
-                type: notification.type,
-                message: notification.message,
-                actionLabel: notification.actionLabel || "Copy",
-                actionValue: notification.actionValue || ""
-            }));
-        } catch (error) {
-            // The redirect can still happen; the toast is progressive enhancement.
-        }
-    };
-
-    const navigateWithNotification = (body) => {
-        if (!body.redirectUrl) {
-            return false;
-        }
-
-        rememberNotification(body.notification);
-        window.location.assign(body.redirectUrl);
-        return true;
-    };
-
-    const csrfInput = () => document.querySelector('input[name="_csrf"]')?.cloneNode();
+    const csrfInput = () => window.EnderVault.csrfInput()?.cloneNode();
 
     const appendShareRow = (form, shareLink) => {
         const tableBody = document.querySelector(form.dataset.shareTable);
@@ -196,12 +139,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 const body = await submitJsonForm(form, formData);
                 handleSuccess(form, body);
             } catch (error) {
-                if (window.EnderVaultToasts) {
-                    window.EnderVaultToasts.show({
-                        type: "error",
-                        message: error.message || "The action failed."
-                    });
-                }
+                window.EnderVault.showToast("error", error.message || "The action failed.");
             } finally {
                 setBusy(form, false);
             }

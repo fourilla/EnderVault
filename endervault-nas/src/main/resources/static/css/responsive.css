@@ -1,0 +1,205 @@
+﻿@media (max-width: 720px) {
+    .app-shell {
+        grid-template-columns: 1fr;
+    }
+
+    .sidebar {
+        position: static;
+        height: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+        padding: 14px 12px;
+    }
+
+    .sidebar-nav {
+        display: flex;
+        overflow-x: auto;
+        padding-bottom: 2px;
+    }
+
+    .sidebar-nav a {
+        flex: 0 0 auto;
+    }
+
+    .topbar,
+    .top-actions,
+    .pathbar,
+    .breadcrumb-panel,
+    .toolbar {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .workspace {
+        width: min(100% - 20px, 1180px);
+        margin-top: 12px;
+    }
+
+    .toast-region {
+        top: 12px;
+        right: 10px;
+        left: 10px;
+        width: auto;
+    }
+
+    .drop-upload-overlay {
+        inset: 0;
+    }
+
+    .dashboard-metrics,
+    .dashboard-grid,
+    .logs-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .log-filter-form,
+    .log-heading-actions,
+    .log-file-select-form {
+        justify-content: stretch;
+        width: 100%;
+    }
+
+    .log-file-select-form {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .log-filter-row-primary,
+    .log-filter-row-secondary {
+        grid-template-columns: 1fr;
+    }
+
+    .log-file-select-form label,
+    .log-filter-form label,
+    .log-filter-actions {
+        width: 100%;
+    }
+
+    .log-filter-actions {
+        justify-self: stretch;
+    }
+
+    .upload-activity {
+        right: 10px;
+        bottom: 10px;
+        left: 10px;
+        width: auto;
+    }
+
+    .toolbar-cluster {
+        justify-content: flex-end;
+        width: 100%;
+    }
+
+    .search-form {
+        flex-basis: auto;
+        width: 100%;
+        max-width: none;
+    }
+
+    .tool-form,
+    .bulk-actions,
+    .toolbar-actions,
+    .row-form,
+    .pagination {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    button,
+    .button-link,
+    .primary {
+        width: 100%;
+    }
+
+    .icon-button {
+        width: 42px;
+        min-width: 42px;
+    }
+
+    .toast-copy {
+        width: 32px;
+        min-width: 32px;
+    }
+
+    .toast-close {
+        width: 26px;
+        min-width: 26px;
+    }
+
+    .toolbar-actions,
+    .bulk-actions {
+        flex-direction: row;
+    }
+
+    .share-create-form {
+        grid-template-columns: 1fr;
+    }
+
+    .remote-download-form {
+        grid-template-columns: 1fr;
+    }
+
+    .remote-confirm-details div {
+        grid-template-columns: 1fr;
+        gap: 4px;
+    }
+
+    .table-actions,
+    .table-actions .row-form {
+        align-items: center;
+        flex-direction: row;
+    }
+
+    .action-icon {
+        width: 36px;
+        min-width: 36px;
+    }
+
+    td .action-icon {
+        width: 30px;
+        min-width: 30px;
+    }
+
+    .settings-panel {
+        position: static;
+        width: min(280px, calc(100vw - 44px));
+        margin-top: 8px;
+        box-shadow: none;
+    }
+
+    .details div {
+        grid-template-columns: 1fr;
+    }
+
+    .detail-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .readonly-workspace {
+        width: min(100% - 16px, 920px);
+        margin-top: 8px;
+    }
+
+    .readonly-workspace .breadcrumb-panel {
+        align-items: center;
+        flex-direction: row;
+    }
+
+    .readonly-sortbar {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    }
+
+    .readonly-sortbar label:nth-of-type(3) {
+        grid-column: 1 / 3;
+    }
+
+    .readonly-file-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .readonly-date-col {
+        width: 96px;
+        font-size: 12px;
+    }
+}

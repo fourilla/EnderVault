@@ -1,7 +1,7 @@
 package io.github.fourilla.endervault.web.dashboard;
 
-import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
+import io.github.fourilla.endervault.remote.RemoteDownloadService;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.storage.StorageService;
@@ -24,20 +24,20 @@ public class AdminDashboardController {
     private final TrashService trashService;
     private final ShareLinkService shareLinkService;
     private final ThumbnailService thumbnailService;
-    private final ActivityLogService activityLogService;
+    private final RemoteDownloadService remoteDownloadService;
 
     public AdminDashboardController(
             StorageService storageService,
             TrashService trashService,
             ShareLinkService shareLinkService,
             ThumbnailService thumbnailService,
-            ActivityLogService activityLogService
+            RemoteDownloadService remoteDownloadService
     ) {
         this.storageService = storageService;
         this.trashService = trashService;
         this.shareLinkService = shareLinkService;
         this.thumbnailService = thumbnailService;
-        this.activityLogService = activityLogService;
+        this.remoteDownloadService = remoteDownloadService;
     }
 
     @GetMapping("/files/dashboard")
@@ -52,7 +52,7 @@ public class AdminDashboardController {
                 trashSummary(trashRecords),
                 shareSummary(shareLinks),
                 thumbnailSummary(thumbnailStats),
-                activityLogService.recentCurrentEntries(6)
+                remoteDownloadService.summary(3)
         ));
         return "dashboard";
     }

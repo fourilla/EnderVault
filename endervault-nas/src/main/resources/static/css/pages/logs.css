@@ -1,0 +1,263 @@
+﻿.logs-layout {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.logs-panel {
+    min-width: 0;
+}
+
+.log-panel-heading {
+    align-items: flex-start;
+}
+
+.log-heading-main {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+.log-heading-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.log-file-select-form {
+    display: grid;
+    grid-template-columns: minmax(0, 420px) auto;
+    gap: 8px;
+    align-items: end;
+    width: min(520px, 100%);
+}
+
+.log-file-select-form label {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+}
+
+.log-file-select-form label span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.log-filter-form {
+    display: grid;
+    gap: 10px;
+    margin-bottom: 14px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel-muted);
+    padding: 10px;
+}
+
+.log-filter-row {
+    display: grid;
+    gap: 10px;
+    align-items: end;
+}
+
+.log-filter-row-primary {
+    grid-template-columns: minmax(280px, 2fr) minmax(140px, 1fr) minmax(140px, 1fr) minmax(160px, 1fr);
+}
+
+.log-filter-row-secondary {
+    grid-template-columns: minmax(250px, 1fr) minmax(250px, 1fr) minmax(120px, 160px) minmax(180px, auto);
+}
+
+.log-filter-form label {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+}
+
+.log-filter-form input,
+.log-filter-form select {
+    min-width: 0;
+}
+
+.log-filter-form label span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.log-filter-actions {
+    display: flex;
+    gap: 8px;
+    justify-self: end;
+}
+
+.log-action-button {
+    width: auto;
+    min-width: 86px;
+    gap: 8px;
+    padding: 0 12px;
+}
+
+.log-table-wrap table,
+.log-table {
+    min-width: 1120px;
+}
+
+.log-table th,
+.log-table td {
+    padding: 8px 10px;
+    vertical-align: top;
+}
+
+.log-table code {
+    color: var(--accent-strong);
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.log-time {
+    white-space: nowrap;
+}
+
+.log-message {
+    min-width: 260px;
+    overflow-wrap: anywhere;
+}
+
+.log-message span,
+.log-message small {
+    display: block;
+}
+
+.log-message small {
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.log-details-cell {
+    width: 72px;
+}
+
+.log-detail-modal {
+    width: min(760px, calc(100vw - 32px));
+    max-height: min(78vh, 720px);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel-elevated);
+    color: var(--text);
+    padding: 0;
+}
+
+.log-detail-modal::backdrop {
+    background: rgba(0, 0, 0, 0.62);
+}
+
+.log-detail-modal-card {
+    display: grid;
+    gap: 12px;
+    max-height: inherit;
+    overflow: auto;
+    padding: 16px;
+}
+
+.log-detail-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.log-detail-header h2,
+.log-detail-header p {
+    margin: 0;
+}
+
+.log-detail-header p {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.log-detail-close {
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    min-height: 30px;
+}
+
+.log-detail-close i {
+    font-size: 13px;
+}
+
+.log-detail-line {
+    margin: 0;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+    padding: 10px;
+    overflow-wrap: anywhere;
+    color: var(--text);
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 12px;
+}
+
+.log-detail-grid {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+}
+
+.log-detail-grid div {
+    display: grid;
+    grid-template-columns: 90px minmax(0, 1fr);
+    gap: 10px;
+}
+
+.log-detail-grid dt {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.log-detail-grid dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.log-metadata-item {
+    display: block;
+}
+
+.log-file-list {
+    display: grid;
+    gap: 8px;
+}
+
+.log-file-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel-muted);
+    padding: 10px;
+}
+
+.log-file-row.selected {
+    border-color: var(--accent);
+}
+
+.log-file-row a {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+    color: var(--text);
+}
+
+.log-file-row span {
+    color: var(--muted);
+    font-size: 12px;
+}
+

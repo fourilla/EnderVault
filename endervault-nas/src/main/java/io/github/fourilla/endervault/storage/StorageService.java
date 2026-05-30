@@ -184,6 +184,10 @@ public class StorageService {
         return toFileItem(root, resolveChild(StorageScope.VAULT, directoryPath, itemName, true));
     }
 
+    public Path ensureVaultDirectory(String vaultPath) throws IOException {
+        return resolveDirectory(StorageScope.VAULT, vaultPath);
+    }
+
     public String renameVaultPath(String vaultPath, String newName) throws IOException {
         validateVaultItemPath(vaultPath);
         Path source = resolve(StorageScope.VAULT, vaultPath);
@@ -326,6 +330,21 @@ public class StorageService {
                 Files.deleteIfExists(temporaryFile);
             }
         }
+        return toFileItem(root, target);
+    }
+
+    public Path createUploadTemporaryFile(String prefix, String suffix) throws IOException {
+        Files.createDirectories(uploadTempRoot);
+        return Files.createTempFile(uploadTempRoot, prefix, suffix);
+    }
+
+    public FileItem moveTemporaryFileIntoVault(Path temporaryFile, String directoryPath, String filename)
+            throws IOException {
+        Path target = resolveChild(StorageScope.VAULT, directoryPath, filename, false);
+        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
+            throw new FileAlreadyExistsException(filename);
+        }
+        movePath(temporaryFile, target);
         return toFileItem(root, target);
     }
 

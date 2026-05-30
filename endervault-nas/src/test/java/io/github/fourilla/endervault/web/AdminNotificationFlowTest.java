@@ -90,7 +90,22 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Dashboard")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Task Manager")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Activity Log")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("System Health")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Storage remaining")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("Activity Log"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("Maintenance"))));
+    }
+
+    @Test
+    void remoteDownloadPageRendersFormAndSidebarLink() throws Exception {
+        mockMvc.perform(get("/files/remote-download"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote Download")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"url\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"path\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote download")));
     }
 
     @Test
@@ -102,9 +117,14 @@ class AdminNotificationFlowTest {
                         .param("name", directory))
                 .andExpect(status().is3xxRedirection());
 
-        mockMvc.perform(get("/files/logs"))
+        mockMvc.perform(get("/files/logs")
+                        .param("type", "CREATE_DIRECTORY")
+                        .param("q", directory)
+                        .param("order", "oldest"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("CREATE DIRECTORY")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("CREATE_DIRECTORY")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Apply filters")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("127.0.0.1")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString(directory)));
     }
 

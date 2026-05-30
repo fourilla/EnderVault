@@ -25,6 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -98,9 +99,48 @@ public class ActivityLogService {
         }
     }
 
+    public synchronized void record(
+            String type,
+            String actor,
+            String ip,
+            String path,
+            String targetPath,
+            boolean success,
+            String message,
+            Map<String, String> metadata
+    ) {
+        try {
+            append(type, actor, ip, path, targetPath, success, message, metadata);
+        } catch (IOException ex) {
+            logger.warn("Failed to write activity log entry.", ex);
+        }
+    }
+
     private void append(
             String type,
             HttpServletRequest request,
+            String path,
+            String targetPath,
+            boolean success,
+            String message,
+            Map<String, String> metadata
+    ) throws IOException {
+        append(
+                type,
+                actor(request),
+                ClientIpResolver.resolve(request),
+                path,
+                targetPath,
+                success,
+                message,
+                metadata
+        );
+    }
+
+    private void append(
+            String type,
+            String actor,
+            String ip,
             String path,
             String targetPath,
             boolean success,
@@ -113,8 +153,8 @@ public class ActivityLogService {
                 UUID.randomUUID().toString(),
                 Instant.now(),
                 type,
-                actor(request),
-                ClientIpResolver.resolve(request),
+                blankToDefault(actor, "system"),
+                blankToDefault(ip, "-"),
                 blankToNull(path),
                 blankToNull(targetPath),
                 success,
@@ -133,6 +173,52 @@ public class ActivityLogService {
     }
 
     public synchronized List<ActivityLogEntry> readEntries(String fileName, int limit) throws IOException {
+        List<ActivityLogEntry> entries = readAllEntries(fileName);
+        int safeLimit = Math.max(1, limit);
+        int start = Math.max(0, entries.size() - safeLimit);
+        List<ActivityLogEntry> recentEntries = new ArrayList<>(entries.subList(start, entries.size()));
+        recentEntries.sort(Comparator.comparing(ActivityLogEntry::timestampForSort).reversed());
+        return List.copyOf(recentEntries);
+    }
+
+    public synchronized ActivityLogSearchResult searchEntries(String fileName, ActivityLogQuery query) throws IOException {
+        ActivityLogQuery safeQuery = query == null
+                ? new ActivityLogQuery(null, null, null, null, null, null, 1, ActivityLogQuery.DEFAULT_SIZE)
+                : query;
+        List<ActivityLogEntry> entries = readAllEntries(fileName);
+        List<String> typeOptions = entries.stream()
+                .map(ActivityLogEntry::safeType)
+                .distinct()
+                .sorted()
+                .toList();
+
+        Comparator<ActivityLogEntry> comparator = Comparator.comparing(ActivityLogEntry::timestampForSort);
+        if (safeQuery.newestFirst()) {
+            comparator = comparator.reversed();
+        }
+
+        List<ActivityLogEntry> matchedEntries = entries.stream()
+                .filter(safeQuery::matches)
+                .sorted(comparator)
+                .collect(Collectors.toList());
+        int totalPages = Math.max(1, (int) Math.ceil((double) matchedEntries.size() / safeQuery.size()));
+        int page = Math.min(safeQuery.page(), totalPages);
+        int fromIndex = Math.min((page - 1) * safeQuery.size(), matchedEntries.size());
+        int toIndex = Math.min(fromIndex + safeQuery.size(), matchedEntries.size());
+        List<ActivityLogEntry> pageEntries = matchedEntries.subList(fromIndex, toIndex);
+
+        return new ActivityLogSearchResult(
+                List.copyOf(pageEntries),
+                List.copyOf(typeOptions),
+                entries.size(),
+                matchedEntries.size(),
+                page,
+                safeQuery.size(),
+                totalPages
+        );
+    }
+
+    private List<ActivityLogEntry> readAllEntries(String fileName) throws IOException {
         Path logFile = resolveLogFile(fileName);
         if (!Files.exists(logFile, LinkOption.NOFOLLOW_LINKS)) {
             return List.of();
@@ -140,9 +226,7 @@ public class ActivityLogService {
 
         List<String> lines = Files.readAllLines(logFile, StandardCharsets.UTF_8);
         List<ActivityLogEntry> entries = new ArrayList<>();
-        int start = Math.max(0, lines.size() - Math.max(1, limit));
-        for (int i = lines.size() - 1; i >= start; i--) {
-            String line = lines.get(i);
+        for (String line : lines) {
             if (line == null || line.isBlank()) {
                 continue;
             }
@@ -263,6 +347,10 @@ public class ActivityLogService {
 
     private String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value;
+    }
+
+    private String blankToDefault(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
     }
 
     private Map<String, String> cleanMetadata(Map<String, String> metadata) {

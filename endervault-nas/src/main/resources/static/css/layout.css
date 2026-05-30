@@ -1,0 +1,162 @@
+﻿.app-shell {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    min-height: 100vh;
+}
+
+.sidebar {
+    position: sticky;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    height: 100vh;
+    border-right: 1px solid var(--line);
+    background: var(--panel);
+    padding: 20px 14px;
+}
+
+.sidebar-brand {
+    color: var(--text);
+    font-size: 20px;
+    font-weight: 700;
+    padding: 6px 8px;
+}
+
+.sidebar-brand:hover {
+    text-decoration: none;
+}
+
+.sidebar-nav {
+    display: grid;
+    gap: 6px;
+}
+
+.sidebar-nav a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 40px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    color: var(--text);
+    padding: 0 10px;
+}
+
+.sidebar-nav a:hover,
+.sidebar-nav a.active {
+    border-color: var(--line);
+    background: var(--panel-elevated);
+    text-decoration: none;
+}
+
+.sidebar-nav a.active {
+    color: var(--accent-strong);
+}
+
+.sidebar-nav i {
+    width: 18px;
+    text-align: center;
+}
+
+.sidebar-usage {
+    display: grid;
+    gap: 4px;
+    margin-top: auto;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel-elevated);
+    padding: 12px;
+}
+
+.sidebar-usage p,
+.sidebar-usage span {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.sidebar-usage strong {
+    color: var(--text);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
+.app-main {
+    min-width: 0;
+}
+
+.topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 58px;
+    padding: 0 22px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+}
+
+.app-topbar {
+    justify-content: flex-end;
+}
+
+.brand {
+    color: var(--text);
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.top-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.workspace {
+    position: relative;
+    width: min(1180px, calc(100% - 32px));
+    margin: 22px auto;
+}
+
+.drop-upload-overlay {
+    display: none;
+    position: fixed;
+    z-index: 30;
+    inset: 0 0 0 240px;
+    align-items: center;
+    justify-content: center;
+    border: 2px dashed var(--accent);
+    background: rgba(15, 20, 26, 0.78);
+    pointer-events: none;
+}
+
+.drag-upload-active .drop-upload-overlay {
+    display: flex;
+}
+
+.drop-upload-panel {
+    display: grid;
+    gap: 8px;
+    justify-items: center;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel-elevated);
+    box-shadow: 0 16px 42px var(--shadow);
+    padding: 22px 26px;
+}
+
+.drop-upload-panel i {
+    color: var(--accent-strong);
+    font-size: 34px;
+}
+
+.drop-upload-panel strong {
+    font-size: 18px;
+}
+
+.drop-upload-panel span {
+    color: var(--muted);
+    font-size: 13px;
+}
+

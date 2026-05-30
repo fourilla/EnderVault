@@ -1,0 +1,126 @@
+﻿:root {
+    color-scheme: dark;
+    --bg: #0f141a;
+    --panel: #171d24;
+    --panel-elevated: #1d2530;
+    --panel-muted: #202933;
+    --line: #2f3a47;
+    --text: #edf3f7;
+    --muted: #9ba8b7;
+    --accent: #5bbdb4;
+    --accent-strong: #79d2c8;
+    --accent-contrast: #071617;
+    --danger: #ff7a70;
+    --danger-bg: #321b20;
+    --danger-line: #66313a;
+    --focus: #d6b86b;
+    --shadow: rgba(0, 0, 0, 0.42);
+    --thumb-bg: #25313d;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+.muted {
+    color: var(--muted);
+    overflow-wrap: anywhere;
+}
+
+button,
+input,
+select {
+    font: inherit;
+}
+
+button,
+.primary {
+    min-height: 38px;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    padding: 0 14px;
+    cursor: pointer;
+}
+
+button,
+.button-link,
+.primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+button:hover,
+.button-link:hover,
+.primary:hover {
+    background: var(--accent-strong);
+    text-decoration: none;
+}
+
+button.ghost,
+.button-link.ghost,
+.ghost {
+    border-color: var(--line);
+    background: var(--panel);
+    color: var(--text);
+}
+
+.button-link {
+    min-height: 38px;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    padding: 0 14px;
+}
+
+button.danger {
+    border-color: var(--danger);
+    background: var(--danger-bg);
+    color: var(--danger);
+}
+
+input[type="text"],
+input[type="password"],
+input[type="number"],
+input[type="url"],
+input[type="datetime-local"],
+input:not([type]),
+select {
+    width: 100%;
+    min-height: 38px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--panel-elevated);
+    color: var(--text);
+    padding: 7px 10px;
+}
+
+input:focus,
+select:focus,
+button:focus,
+a:focus {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+}
+

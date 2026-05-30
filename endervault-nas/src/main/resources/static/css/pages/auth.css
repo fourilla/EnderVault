@@ -1,0 +1,47 @@
+﻿.auth-page {
+    background: var(--bg);
+}
+
+.auth-shell {
+    display: grid;
+    min-height: 100vh;
+    place-items: center;
+    padding: 24px;
+}
+
+.auth-panel {
+    width: min(420px, 100%);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+    padding: 28px;
+}
+
+.auth-panel h1 {
+    margin: 0 0 22px;
+    font-size: 32px;
+}
+
+.eyebrow {
+    margin: 0 0 6px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.stack {
+    display: grid;
+    gap: 14px;
+}
+
+.stack label {
+    display: grid;
+    gap: 6px;
+}
+
+.text-link {
+    display: inline-block;
+    margin-top: 18px;
+}
+

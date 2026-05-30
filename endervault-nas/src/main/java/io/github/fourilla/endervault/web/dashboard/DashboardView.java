@@ -1,15 +1,14 @@
 package io.github.fourilla.endervault.web.dashboard;
 
-import io.github.fourilla.endervault.activity.ActivityLogEntry;
+import io.github.fourilla.endervault.remote.RemoteDownloadSummary;
 import io.github.fourilla.endervault.storage.StorageUsage;
-import java.util.List;
 
 public record DashboardView(
         StorageUsage storage,
         TrashSummary trash,
         ShareSummary shares,
         ThumbnailSummary thumbnails,
-        List<ActivityLogEntry> recentActivities
+        RemoteDownloadSummary remoteDownloads
 ) {
 
     public record TrashSummary(

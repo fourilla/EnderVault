@@ -2,242 +2,24 @@ document.addEventListener("DOMContentLoaded", () => {
     const uploadForm = document.getElementById("uploadForm");
     const fileUploadInput = document.getElementById("fileUploadInput");
     const uploadButton = document.getElementById("uploadButton");
-    const bulkActionForm = document.getElementById("bulkActionForm");
-    const deleteSelectedButton = document.getElementById("deleteSelectedButton");
     const dropZone = document.querySelector("[data-file-dropzone]");
     const dropUploadOverlay = document.getElementById("dropUploadOverlay");
-    const selectionButtons = [
-        document.getElementById("downloadSelectedButton"),
-        deleteSelectedButton
-    ].filter(Boolean);
-    const selectableItemSelector = ".browser-card, tbody tr";
-    const longPressDelayMs = 520;
-    const longPressMoveTolerance = 10;
     const uploadState = {
         uploads: new Map(),
         nextId: 1,
         minimized: false,
-        refreshTimer: null,
-        pendingRefreshUrl: null,
         panel: null,
         list: null,
         summary: null,
         toggleButton: null
     };
-    const selectionState = {
-        active: false,
-        longPressTimer: null,
-        longPressItem: null,
-        pointerId: null,
-        pointerStartX: 0,
-        pointerStartY: 0,
-        suppressNextClick: false
-    };
 
-    document.body.classList.add("js-selection-enhanced");
-
-    const selectedItemCheckboxes = () =>
-        Array.from(document.querySelectorAll('input[name="items"][form="bulkActionForm"]'));
-
-    const selectAllCheckboxes = () =>
-        Array.from(document.querySelectorAll("[data-select-all]"));
-
-    const selectPickLabels = () =>
-        Array.from(document.querySelectorAll("[data-select-pick-label]"));
-
-    const checkboxForItem = (item) =>
-        item?.querySelector('input[name="items"][form="bulkActionForm"]') || null;
-
-    const selectableItemFromTarget = (target) => {
-        const item = target.closest(selectableItemSelector);
-        return checkboxForItem(item) ? item : null;
-    };
-
-    const primaryLinkForItem = (item) => item.querySelector("a[href]");
-
-    const isNativeControlTarget = (target) =>
-        Boolean(target.closest("button, input, label, select, textarea, summary"));
-
-    const isSelectionControlTarget = (target) =>
-        Boolean(target.closest('input[name="items"][form="bulkActionForm"], [data-select-all], .select-all-label'));
-
-    const setSelectionMode = (active) => {
-        selectionState.active = active;
-        document.body.classList.toggle("selection-mode-active", active);
-    };
-
-    const clearSelection = () => {
-        selectedItemCheckboxes().forEach((checkbox) => {
-            checkbox.checked = false;
-        });
-    };
-
-    const syncSelectableItemState = () => {
-        selectedItemCheckboxes().forEach((checkbox) => {
-            const item = checkbox.closest(selectableItemSelector);
-            if (!item) {
-                return;
-            }
-            item.classList.toggle("is-selected", checkbox.checked);
-            item.setAttribute("aria-selected", checkbox.checked ? "true" : "false");
-        });
-    };
-
-    const updateSelectionActions = () => {
-        const checkboxes = selectedItemCheckboxes();
-        const selectedCount = checkboxes.filter((checkbox) => checkbox.checked).length;
-        const hasSelection = selectedCount > 0;
-
-        syncSelectableItemState();
-        setSelectionMode(hasSelection);
-
-        selectPickLabels().forEach((label) => {
-            label.hidden = true;
-        });
-
-        selectAllCheckboxes().forEach((checkbox) => {
-            checkbox.disabled = checkboxes.length === 0;
-            checkbox.checked = checkboxes.length > 0 && selectedCount === checkboxes.length;
-            checkbox.indeterminate = selectedCount > 0 && selectedCount < checkboxes.length;
-        });
-
-        selectionButtons.forEach((button) => {
-            button.disabled = !hasSelection;
-            button.title = hasSelection ? button.dataset.readyTitle : "Select items first";
-        });
-    };
-
-    const toggleItemSelection = (item) => {
-        const checkbox = checkboxForItem(item);
-        if (!checkbox) {
-            return;
-        }
-
-        checkbox.checked = !checkbox.checked;
-        updateSelectionActions();
-    };
-
-    const exitSelectionMode = () => {
-        clearSelection();
-        updateSelectionActions();
-    };
-
-    const cancelLongPress = () => {
-        window.clearTimeout(selectionState.longPressTimer);
-        selectionState.longPressTimer = null;
-        selectionState.longPressItem = null;
-        selectionState.pointerId = null;
-    };
-
-    if (uploadForm && fileUploadInput && uploadButton) {
-        uploadButton.dataset.readyTitle = uploadButton.title;
-        uploadButton.addEventListener("click", () => fileUploadInput.click());
-        fileUploadInput.addEventListener("change", () => {
-            if (fileUploadInput.files.length > 0) {
-                startFileUploads(Array.from(fileUploadInput.files));
-                fileUploadInput.value = "";
-            }
-        });
+    if (!uploadForm || !fileUploadInput || !uploadButton) {
+        return;
     }
 
     const showUploadStatus = (message, error = false) => {
-        if (window.EnderVaultToasts) {
-            window.EnderVaultToasts.show({
-                type: error ? "error" : "info",
-                message
-            });
-        }
-    };
-
-    const showActionNotification = (notification) => {
-        if (!notification || !window.EnderVaultToasts) {
-            return;
-        }
-        window.EnderVaultToasts.show({
-            type: notification.type,
-            message: notification.message,
-            actionLabel: notification.actionLabel || "Copy",
-            actionValue: notification.actionValue || ""
-        });
-    };
-
-    const submitFormJson = async (form, action = form.action, method = form.method || "POST") => {
-        const response = await fetch(action, {
-            method: method.toUpperCase(),
-            body: new FormData(form),
-            headers: {
-                "Accept": "application/json",
-                "X-Requested-With": "fetch"
-            },
-            credentials: "same-origin"
-        });
-        const contentType = response.headers.get("content-type") || "";
-        const body = contentType.includes("application/json") ? await response.json() : null;
-        if (!response.ok || !body || body.ok === false) {
-            throw new Error(body?.notification?.message || "The action failed.");
-        }
-        return body;
-    };
-
-    const syncToolbarState = (targetUrl) => {
-        const values = {
-            path: targetUrl.searchParams.get("path") || "",
-            view: targetUrl.searchParams.get("view"),
-            sort: targetUrl.searchParams.get("sort"),
-            dir: targetUrl.searchParams.get("dir"),
-            page: targetUrl.searchParams.get("page") || "1",
-            size: targetUrl.searchParams.get("size")
-        };
-
-        Object.entries(values).forEach(([name, value]) => {
-            if (value === null) {
-                return;
-            }
-            document.querySelectorAll(`input[type="hidden"][name="${name}"]`).forEach((input) => {
-                input.value = value;
-            });
-        });
-    };
-
-    const refreshListing = async (url = window.location.href) => {
-        const targetUrl = new URL(url, window.location.href);
-        const response = await fetch(targetUrl, {
-            headers: { "X-Requested-With": "fetch" },
-            credentials: "same-origin"
-        });
-        if (!response.ok) {
-            return;
-        }
-
-        const documentText = await response.text();
-        const nextDocument = new DOMParser().parseFromString(documentText, "text/html");
-        const currentMain = document.querySelector("main.workspace");
-        const nextMain = nextDocument.querySelector("main.workspace");
-        if (!currentMain || !nextMain) {
-            return;
-        }
-
-        currentMain.querySelectorAll(".browser-section, .browser-grid-empty").forEach((element) => element.remove());
-        const nextNodes = Array.from(nextMain.children)
-                .filter((element) => element.matches(".browser-section, .browser-grid-empty"));
-        nextNodes.forEach((node) => currentMain.append(document.importNode(node, true)));
-        if (targetUrl.href !== window.location.href) {
-            window.history.replaceState({}, "", targetUrl);
-        }
-        syncToolbarState(targetUrl);
-        updateSelectionActions();
-    };
-
-    const requestListingRefresh = (url = window.location.href) => {
-        uploadState.pendingRefreshUrl = url;
-        window.clearTimeout(uploadState.refreshTimer);
-        uploadState.refreshTimer = window.setTimeout(async () => {
-            try {
-                await refreshListing(uploadState.pendingRefreshUrl || window.location.href);
-            } catch (error) {
-                showUploadStatus("Upload finished, but the file list could not be refreshed.", true);
-            }
-        }, 450);
+        window.EnderVault.showToast(error ? "error" : "info", message);
     };
 
     const formatBytes = (bytes) => {
@@ -327,10 +109,6 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     const updateUploadButtonState = () => {
-        if (!uploadButton) {
-            return;
-        }
-
         const activeCount = activeUploads().length;
         uploadButton.classList.toggle("is-busy", activeCount > 0);
         uploadButton.title = activeCount > 0
@@ -401,7 +179,7 @@ document.addEventListener("DOMContentLoaded", () => {
         return item;
     };
 
-    const updateUploadRow = (upload) => {
+    function updateUploadRow(upload) {
         ensureUploadRow(upload);
 
         const percent = upload.status === "complete" ? 100 : uploadPercent(upload);
@@ -419,9 +197,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 "aria-label",
                 upload.cancelRequested ? `Canceling ${upload.file.name}` : `Cancel ${upload.file.name}`
         );
-    };
+    }
 
-    const renderUploadPanel = () => {
+    function renderUploadPanel() {
         ensureUploadPanel();
 
         const uploads = Array.from(uploadState.uploads.values());
@@ -451,7 +229,7 @@ document.addEventListener("DOMContentLoaded", () => {
             updateUploadRow(upload);
         });
         updateUploadButtonState();
-    };
+    }
 
     const uploadFormData = (file) => {
         const formData = new FormData();
@@ -478,7 +256,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (status === "complete") {
             upload.loaded = upload.total || upload.file.size;
             scheduleUploadRemoval(upload, 2600);
-            requestListingRefresh(upload.redirectUrl || window.location.href);
+            window.EnderVaultFileBrowser.requestListingRefresh(upload.redirectUrl || window.location.href);
         } else {
             scheduleUploadRemoval(upload, 6500);
         }
@@ -491,32 +269,6 @@ document.addEventListener("DOMContentLoaded", () => {
         } catch (error) {
             return null;
         }
-    };
-
-    const startFileUploads = (files) => {
-        if (!uploadForm || !fileUploadInput || !uploadButton || files.length === 0) {
-            return;
-        }
-
-        ensureUploadPanel();
-        files.forEach((file) => {
-            const upload = {
-                id: uploadState.nextId,
-                file,
-                loaded: 0,
-                total: file.size,
-                status: "uploading",
-                message: "",
-                xhr: null,
-                redirectUrl: null,
-                removeTimer: null,
-                cancelRequested: false
-            };
-            uploadState.nextId += 1;
-            uploadState.uploads.set(upload.id, upload);
-            sendFileUpload(upload);
-        });
-        renderUploadPanel();
     };
 
     function sendFileUpload(upload) {
@@ -558,7 +310,42 @@ document.addEventListener("DOMContentLoaded", () => {
         xhr.send(uploadFormData(upload.file));
     }
 
-    if (uploadForm && fileUploadInput && uploadButton && dropZone) {
+    const startFileUploads = (files) => {
+        if (files.length === 0) {
+            return;
+        }
+
+        ensureUploadPanel();
+        files.forEach((file) => {
+            const upload = {
+                id: uploadState.nextId,
+                file,
+                loaded: 0,
+                total: file.size,
+                status: "uploading",
+                message: "",
+                xhr: null,
+                redirectUrl: null,
+                removeTimer: null,
+                cancelRequested: false
+            };
+            uploadState.nextId += 1;
+            uploadState.uploads.set(upload.id, upload);
+            sendFileUpload(upload);
+        });
+        renderUploadPanel();
+    };
+
+    uploadButton.dataset.readyTitle = uploadButton.title;
+    uploadButton.addEventListener("click", () => fileUploadInput.click());
+    fileUploadInput.addEventListener("change", () => {
+        if (fileUploadInput.files.length > 0) {
+            startFileUploads(Array.from(fileUploadInput.files));
+            fileUploadInput.value = "";
+        }
+    });
+
+    if (dropZone) {
         let dragDepth = 0;
         let isInternalDrag = false;
         const browserItemSelector = ".browser-card, .table-wrap a, .thumb-media, .video-thumb-wrap, .thumb-placeholder, .thumb-extension";
@@ -720,173 +507,5 @@ document.addEventListener("DOMContentLoaded", () => {
         window.addEventListener("blur", resetDragState);
     }
 
-    document.addEventListener("pointerdown", (event) => {
-        const item = selectableItemFromTarget(event.target);
-        if (!item || event.button !== 0 || isSelectionControlTarget(event.target)) {
-            return;
-        }
-
-        if (event.target.closest(".table-actions, .action-icon")) {
-            return;
-        }
-
-        cancelLongPress();
-        selectionState.longPressItem = item;
-        selectionState.pointerId = event.pointerId;
-        selectionState.pointerStartX = event.clientX;
-        selectionState.pointerStartY = event.clientY;
-        selectionState.longPressTimer = window.setTimeout(() => {
-            selectionState.suppressNextClick = true;
-            toggleItemSelection(item);
-            cancelLongPress();
-        }, longPressDelayMs);
-    });
-
-    document.addEventListener("pointermove", (event) => {
-        if (!selectionState.longPressTimer || selectionState.pointerId !== event.pointerId) {
-            return;
-        }
-
-        const moveX = Math.abs(event.clientX - selectionState.pointerStartX);
-        const moveY = Math.abs(event.clientY - selectionState.pointerStartY);
-        if (moveX > longPressMoveTolerance || moveY > longPressMoveTolerance) {
-            cancelLongPress();
-        }
-    });
-
-    document.addEventListener("pointerup", cancelLongPress);
-    document.addEventListener("pointercancel", cancelLongPress);
-    document.addEventListener("contextmenu", (event) => {
-        if (selectionState.suppressNextClick && selectableItemFromTarget(event.target)) {
-            event.preventDefault();
-        }
-    });
-
-    document.addEventListener("click", (event) => {
-        const item = selectableItemFromTarget(event.target);
-
-        if (selectionState.suppressNextClick) {
-            event.preventDefault();
-            event.stopPropagation();
-            selectionState.suppressNextClick = false;
-            return;
-        }
-
-        if (item) {
-            if (event.target.closest(".select-cell") && !event.target.matches('input[name="items"][form="bulkActionForm"]')) {
-                event.preventDefault();
-                toggleItemSelection(item);
-                return;
-            }
-
-            if (isSelectionControlTarget(event.target)) {
-                return;
-            }
-
-            const selectionClick = selectionState.active || event.ctrlKey || event.metaKey;
-            if (selectionClick) {
-                event.preventDefault();
-                event.stopPropagation();
-                toggleItemSelection(item);
-                return;
-            }
-
-            if (event.target.closest("a[href]")) {
-                return;
-            }
-
-            if (isNativeControlTarget(event.target)) {
-                return;
-            }
-
-            const primaryLink = primaryLinkForItem(item);
-            if (primaryLink) {
-                event.preventDefault();
-                window.location.href = primaryLink.href;
-            }
-            return;
-        }
-
-        if (selectionState.active && !event.target.closest(".toolbar, .upload-activity, .toast-region")) {
-            exitSelectionMode();
-        }
-    });
-
-    const createDirectoryForm = document.getElementById("createDirectoryForm");
-    const directoryNameInput = document.getElementById("newDirectoryNameInput");
-    const createDirectoryButton = document.getElementById("createDirectoryButton");
-
-    if (createDirectoryForm && directoryNameInput && createDirectoryButton) {
-        createDirectoryButton.addEventListener("click", async () => {
-            const directoryName = window.prompt("Directory name");
-            if (!directoryName) {
-                return;
-            }
-
-            const trimmedName = directoryName.trim();
-            if (!trimmedName) {
-                return;
-            }
-
-            directoryNameInput.disabled = false;
-            directoryNameInput.value = trimmedName;
-            createDirectoryButton.disabled = true;
-            try {
-                const body = await submitFormJson(createDirectoryForm);
-                showActionNotification(body.notification);
-                await refreshListing(body.redirectUrl || window.location.href);
-            } catch (error) {
-                showUploadStatus(error.message || "Directory creation failed.", true);
-            } finally {
-                directoryNameInput.value = "";
-                directoryNameInput.disabled = true;
-                createDirectoryButton.disabled = false;
-            }
-        });
-    }
-
-    if (selectionButtons.length > 0 || selectAllCheckboxes().length > 0) {
-        selectionButtons.forEach((button) => {
-            button.dataset.readyTitle = button.title;
-        });
-        document.addEventListener("change", (event) => {
-            if (event.target.matches("[data-select-all]")) {
-                selectedItemCheckboxes().forEach((checkbox) => {
-                    checkbox.checked = event.target.checked;
-                });
-                updateSelectionActions();
-                return;
-            }
-
-            if (event.target.matches('input[name="items"][form="bulkActionForm"]')) {
-                updateSelectionActions();
-            }
-        });
-        updateSelectionActions();
-    }
-
-    if (bulkActionForm && deleteSelectedButton) {
-        deleteSelectedButton.addEventListener("click", async (event) => {
-            if (deleteSelectedButton.disabled) {
-                return;
-            }
-
-            event.preventDefault();
-            deleteSelectedButton.disabled = true;
-            try {
-                const body = await submitFormJson(
-                        bulkActionForm,
-                        deleteSelectedButton.formAction || deleteSelectedButton.getAttribute("formaction"),
-                        deleteSelectedButton.formMethod || deleteSelectedButton.getAttribute("formmethod") || "POST"
-                );
-                showActionNotification(body.notification);
-                await refreshListing(body.redirectUrl || window.location.href);
-            } catch (error) {
-                showUploadStatus(error.message || "Delete failed.", true);
-            } finally {
-                deleteSelectedButton.disabled = false;
-                updateSelectionActions();
-            }
-        });
-    }
+    window.EnderVaultUploads = { startFileUploads };
 });

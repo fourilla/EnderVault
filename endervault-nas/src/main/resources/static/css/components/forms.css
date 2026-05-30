@@ -1,0 +1,8 @@
+﻿.share-create-form {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) minmax(110px, 140px) auto;
+}
+
+.share-create-form label {
+    min-width: 0;
+}

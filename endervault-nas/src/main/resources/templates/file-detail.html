@@ -4,10 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title th:text="${detail.name()}">EnderVault Detail</title>
-    <link rel="stylesheet" th:href="@{/webjars/fortawesome__fontawesome-free/6.7.2/css/all.min.css}">
-    <link rel="stylesheet" th:href="@{/css/app.css}">
-    <script defer th:src="@{/js/notifications.js}"></script>
-    <script defer th:src="@{/js/admin-actions.js}"></script>
+    <th:block th:replace="~{fragments/assets :: styles(true)}"></th:block>
+    <th:block th:replace="~{fragments/assets :: coreScripts}"></th:block>
+    <th:block th:replace="~{fragments/assets :: adminActionsScript}"></th:block>
 </head>
 <body>
 <div class="app-shell">
