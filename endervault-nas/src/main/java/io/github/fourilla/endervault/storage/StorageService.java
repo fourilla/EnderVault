@@ -260,9 +260,9 @@ public class StorageService {
         return mediaType == null ? "application/octet-stream" : mediaType;
     }
 
-    public void upload(String directoryPath, MultipartFile file) throws IOException {
+    public FileItem upload(String directoryPath, MultipartFile file) throws IOException {
         if (file.isEmpty()) {
-            return;
+            return null;
         }
         String filename = safeSubmittedFilename(file);
         Path target = resolveChild(StorageScope.VAULT, directoryPath, filename, false);
@@ -272,6 +272,7 @@ public class StorageService {
         try (InputStream inputStream = file.getInputStream()) {
             Files.copy(inputStream, target);
         }
+        return toFileItem(root, target);
     }
 
     public void createDirectory(String directoryPath, String name) throws IOException {

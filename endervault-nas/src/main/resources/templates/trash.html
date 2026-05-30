@@ -6,12 +6,14 @@
     <title>EnderVault Trash</title>
     <link rel="stylesheet" th:href="@{/webjars/fortawesome__fontawesome-free/6.7.2/css/all.min.css}">
     <link rel="stylesheet" th:href="@{/css/app.css}">
+    <script defer th:src="@{/js/notifications.js}"></script>
 </head>
 <body>
 <div class="app-shell">
 <aside th:replace="~{fragments/admin-shell :: sidebar('trash')}"></aside>
 <div class="app-main">
 <header th:replace="~{fragments/admin-shell :: topbar}"></header>
+<div th:replace="~{fragments/notifications :: toasts}"></div>
 
 <main class="workspace">
     <section class="pathbar">

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="false" th:fragment="toasts">
+    <article th:each="notification : ${notifications}"
+             class="toast"
+             th:classappend="${' toast-' + notification.type()}"
+             th:attr="data-toast='true',data-toast-persistent=${notification.hasAction()}">
+        <i class="toast-icon" th:classappend="${notification.iconClass()}" aria-hidden="true"></i>
+        <div class="toast-content">
+            <p class="toast-message" th:text="${notification.message()}">Notification</p>
+            <div class="toast-action" th:if="${notification.hasAction()}">
+                <input readonly th:value="${notification.actionValue()}">
+                <button class="ghost icon-button toast-copy"
+                        type="button"
+                        th:title="${#strings.isEmpty(notification.actionLabel()) ? 'Copy' : notification.actionLabel()}"
+                        th:attr="aria-label=${#strings.isEmpty(notification.actionLabel()) ? 'Copy' : notification.actionLabel()},data-copy-value=${notification.actionValue()}">
+                    <i class="fas fa-copy" aria-hidden="true"></i>
+                </button>
+            </div>
+        </div>
+        <button class="ghost icon-button toast-close js-only" type="button" title="Dismiss" aria-label="Dismiss">
+            <i class="fas fa-xmark" aria-hidden="true"></i>
+        </button>
+    </article>
+
+    <article class="toast toast-info" th:if="${message}" data-toast="true">
+        <i class="toast-icon fas fa-circle-info" aria-hidden="true"></i>
+        <div class="toast-content">
+            <p class="toast-message" th:text="${message}">Notification</p>
+        </div>
+        <button class="ghost icon-button toast-close js-only" type="button" title="Dismiss" aria-label="Dismiss">
+            <i class="fas fa-xmark" aria-hidden="true"></i>
+        </button>
+    </article>
+
+    <article class="toast toast-info" th:if="${shareUrl}" data-toast="true" data-toast-persistent="true">
+        <i class="toast-icon fas fa-circle-info" aria-hidden="true"></i>
+        <div class="toast-content">
+            <p class="toast-message">Share link created.</p>
+            <div class="toast-action">
+                <input readonly th:value="${shareUrl}">
+                <button class="ghost icon-button toast-copy"
+                        type="button"
+                        title="Copy link"
+                        aria-label="Copy link"
+                        th:attr="data-copy-value=${shareUrl}">
+                    <i class="fas fa-copy" aria-hidden="true"></i>
+                </button>
+            </div>
+        </div>
+        <button class="ghost icon-button toast-close js-only" type="button" title="Dismiss" aria-label="Dismiss">
+            <i class="fas fa-xmark" aria-hidden="true"></i>
+        </button>
+    </article>
+</div>
+</body>
+</html>

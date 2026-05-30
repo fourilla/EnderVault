@@ -6,6 +6,7 @@ import io.github.fourilla.endervault.share.ShareTargetType;
 import io.github.fourilla.endervault.storage.DirectoryListing;
 import io.github.fourilla.endervault.storage.FileItem;
 import io.github.fourilla.endervault.storage.StorageService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
@@ -74,7 +75,7 @@ public class SharedFileController {
     public void downloadZip(
             @PathVariable String token,
             @RequestParam(value = "path", required = false) String path,
-            @RequestParam(value = "items", required = false) List<String> items,
+            HttpServletRequest request,
             HttpServletResponse response
     ) throws IOException {
         ShareLink shareLink = shareLinkService.requireUsable(token);
@@ -84,7 +85,8 @@ public class SharedFileController {
 
         response.setContentType("application/zip");
         response.setHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"shared-files.zip\"");
-        if (items != null && !items.isEmpty()) {
+        List<String> items = SelectedItems.from(request);
+        if (!items.isEmpty()) {
             storageService.writeSharedZip(shareLink.path(), path, items, response.getOutputStream());
         }
     }

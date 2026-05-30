@@ -9,6 +9,7 @@
     <noscript>
         <style>.js-only { display: none !important; }</style>
     </noscript>
+    <script defer th:src="@{/js/notifications.js}"></script>
     <script defer th:src="@{/js/file-toolbar.js}"></script>
 </head>
 <body>
@@ -16,8 +17,17 @@
 <aside th:replace="~{fragments/admin-shell :: sidebar('files')}"></aside>
 <div class="app-main">
 <header th:replace="~{fragments/admin-shell :: topbar}"></header>
+<div th:replace="~{fragments/notifications :: toasts}"></div>
 
-<main class="workspace">
+<main class="workspace" data-file-dropzone>
+    <div class="drop-upload-overlay js-only" id="dropUploadOverlay" aria-hidden="true">
+        <div class="drop-upload-panel">
+            <i class="fas fa-cloud-arrow-up" aria-hidden="true"></i>
+            <strong>Drop files to upload</strong>
+            <span>Directories are not supported yet.</span>
+        </div>
+    </div>
+
     <section class="breadcrumb-panel" aria-label="Current path">
         <div class="breadcrumb-main">
             <p class="breadcrumb-label">Location</p>
@@ -36,12 +46,6 @@
             <i class="fas fa-arrow-up" aria-hidden="true"></i>
         </a>
     </section>
-
-    <p class="alert" th:if="${message}" th:text="${message}"></p>
-    <p class="alert share-link" th:if="${shareUrl}">
-        <span>Share link:</span>
-        <input readonly th:value="${shareUrl}">
-    </p>
 
     <section class="toolbar" aria-label="File tools">
         <form id="bulkActionForm" method="post">

@@ -1,8 +1,12 @@
 package io.github.fourilla.endervault.web;
 
 import io.github.fourilla.endervault.share.ShareLinkService;
+import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.time.Instant;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,25 +34,54 @@ public class AdminShareController {
     }
 
     @PostMapping("/files/shares/revoke")
-    public String revoke(@RequestParam("token") String token, RedirectAttributes redirectAttributes)
+    public Object revoke(
+            @RequestParam("token") String token,
+            HttpServletRequest request,
+            RedirectAttributes redirectAttributes
+    )
             throws IOException {
         shareLinkService.revoke(token);
-        redirectAttributes.addFlashAttribute("message", "Share link revoked.");
+        FlashNotification notification = FlashNotification.success("Share link revoked.");
+        if (wantsJson(request)) {
+            return ResponseEntity.ok(ActionResponse.ok(notification));
+        }
+        FlashNotifications.success(redirectAttributes, notification.message());
         return "redirect:/files/shares";
     }
 
     @PostMapping("/files/shares/delete")
-    public String delete(@RequestParam("token") String token, RedirectAttributes redirectAttributes)
+    public Object delete(
+            @RequestParam("token") String token,
+            HttpServletRequest request,
+            RedirectAttributes redirectAttributes
+    )
             throws IOException {
         shareLinkService.delete(token);
-        redirectAttributes.addFlashAttribute("message", "Share link deleted.");
+        FlashNotification notification = FlashNotification.success("Share link deleted.");
+        if (wantsJson(request)) {
+            return ResponseEntity.ok(ActionResponse.ok(notification));
+        }
+        FlashNotifications.success(redirectAttributes, notification.message());
         return "redirect:/files/shares";
     }
 
     @PostMapping("/files/shares/delete-expired")
-    public String deleteExpired(RedirectAttributes redirectAttributes) throws IOException {
+    public Object deleteExpired(
+            HttpServletRequest request,
+            RedirectAttributes redirectAttributes
+    ) throws IOException {
         int deletedCount = shareLinkService.deleteExpired(Instant.now());
-        redirectAttributes.addFlashAttribute("message", "Deleted %d expired share links.".formatted(deletedCount));
+        FlashNotification notification =
+                FlashNotification.success("Deleted %d expired share links.".formatted(deletedCount));
+        if (wantsJson(request)) {
+            return ResponseEntity.ok(ActionResponse.ok(notification));
+        }
+        FlashNotifications.success(redirectAttributes, notification.message());
         return "redirect:/files/shares";
+    }
+
+    private boolean wantsJson(HttpServletRequest request) {
+        String accept = request.getHeader(HttpHeaders.ACCEPT);
+        return accept != null && accept.contains(MediaType.APPLICATION_JSON_VALUE);
     }
 }

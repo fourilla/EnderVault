@@ -12,6 +12,7 @@ import io.github.fourilla.endervault.storage.StorageScope;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.thumbnail.ThumbnailFile;
 import io.github.fourilla.endervault.thumbnail.ThumbnailService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -151,7 +152,7 @@ public class AdminFileController {
     }
 
     @PostMapping("/files/upload")
-    public String upload(
+    public Object upload(
             @RequestParam(value = "path", required = false) String path,
             @RequestParam("files") MultipartFile[] files,
             @RequestParam(value = "view", required = false) String view,
@@ -159,35 +160,51 @@ public class AdminFileController {
             @RequestParam(value = "dir", required = false) String direction,
             @RequestParam(value = "page", required = false) Integer page,
             @RequestParam(value = "size", required = false) Integer size,
+            HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
+        List<UploadedFilePayload> uploadedFiles = new ArrayList<>();
         for (MultipartFile file : files) {
-            storageService.upload(path, file);
+            FileItem uploadedFile = storageService.upload(path, file);
+            if (uploadedFile != null) {
+                uploadedFiles.add(UploadedFilePayload.from(uploadedFile));
+            }
         }
-        redirectAttributes.addFlashAttribute("message", "Upload complete.");
+        FlashNotification notification = FlashNotification.success("Upload complete.");
+        if (wantsJson(request)) {
+            return ResponseEntity.ok(ActionResponse.ok(notification, uploadedFiles));
+        }
+        FlashNotifications.success(redirectAttributes, notification.message());
         return redirectToFiles(path, view, sort, direction, page, size);
     }
 
     @PostMapping("/files/directories")
-    public String createDirectory(
+    public Object createDirectory(
             @RequestParam(value = "path", required = false) String path,
             @RequestParam("name") String name,
             @RequestParam(value = "view", required = false) String view,
             @RequestParam(value = "sort", required = false) String sort,
             @RequestParam(value = "dir", required = false) String direction,
             @RequestParam(value = "size", required = false) Integer size,
+            HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
         storageService.createDirectory(path, name);
-        redirectAttributes.addFlashAttribute("message", "Directory created.");
-        return redirectToFiles(path, view, sort, direction, 1, size);
+        FlashNotification notification = FlashNotification.success("Directory created.");
+        String redirect = redirectToFiles(path, view, sort, direction, 1, size);
+        if (wantsJson(request)) {
+            return ResponseEntity.ok(ActionResponse.redirect(notification, redirectUrl(redirect)));
+        }
+        FlashNotifications.success(redirectAttributes, notification.message());
+        return redirect;
     }
 
     @PostMapping("/files/rename")
-    public String rename(
+    public Object rename(
             @RequestParam(value = "path", required = false) String path,
             @RequestParam("item") String item,
             @RequestParam("newName") String newName,
+            HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
         FileItem oldItem = storageService.describeVaultChild(path, item);
@@ -199,29 +216,41 @@ public class AdminFileController {
                 newItem.path()
         );
         shareLinkService.moveVaultPath(oldItem.path(), newItem.path());
-        redirectAttributes.addFlashAttribute("message", "Item renamed.");
-        return redirectToFiles(path);
+        FlashNotification notification = FlashNotification.success("Item renamed.");
+        String redirect = redirectToFiles(path);
+        if (wantsJson(request)) {
+            return ResponseEntity.ok(ActionResponse.redirect(notification, redirectUrl(redirect)));
+        }
+        FlashNotifications.success(redirectAttributes, notification.message());
+        return redirect;
     }
 
     @PostMapping("/files/detail/rename")
-    public String renameFromDetail(
+    public Object renameFromDetail(
             @RequestParam("path") String path,
             @RequestParam("newName") String newName,
+            HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
         FileDetail detail = detailForPath(path);
         String newPath = storageService.renameVaultPath(detail.path(), newName);
         thumbnailService.migrateVideoThumbnails(storageService.resolveVaultPath(newPath), detail.path(), newPath);
         shareLinkService.moveVaultPath(detail.path(), newPath);
-        redirectAttributes.addFlashAttribute("message", "Item renamed.");
-        return redirectToDetail(newPath);
+        FlashNotification notification = FlashNotification.success("Item renamed.");
+        String redirect = redirectToDetail(newPath);
+        if (wantsJson(request)) {
+            return ResponseEntity.ok(ActionResponse.redirect(notification, redirectUrl(redirect)));
+        }
+        FlashNotifications.success(redirectAttributes, notification.message());
+        return redirect;
     }
 
     @PostMapping("/files/move")
-    public String move(
+    public Object move(
             @RequestParam(value = "path", required = false) String path,
             @RequestParam("item") String item,
             @RequestParam("targetPath") String targetPath,
+            HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
         FileItem oldItem = storageService.describeVaultChild(path, item);
@@ -233,37 +262,52 @@ public class AdminFileController {
                 newItem.path()
         );
         shareLinkService.moveVaultPath(oldItem.path(), newItem.path());
-        redirectAttributes.addFlashAttribute("message", "Item moved.");
-        return redirectToFiles(path);
+        FlashNotification notification = FlashNotification.success("Item moved.");
+        String redirect = redirectToFiles(path);
+        if (wantsJson(request)) {
+            return ResponseEntity.ok(ActionResponse.redirect(notification, redirectUrl(redirect)));
+        }
+        FlashNotifications.success(redirectAttributes, notification.message());
+        return redirect;
     }
 
     @PostMapping("/files/detail/move")
-    public String moveFromDetail(
+    public Object moveFromDetail(
             @RequestParam("path") String path,
             @RequestParam("targetPath") String targetPath,
+            HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
         FileDetail detail = detailForPath(path);
         String newPath = storageService.moveVaultPath(detail.path(), targetPath);
         thumbnailService.migrateVideoThumbnails(storageService.resolveVaultPath(newPath), detail.path(), newPath);
         shareLinkService.moveVaultPath(detail.path(), newPath);
-        redirectAttributes.addFlashAttribute("message", "Item moved.");
-        return redirectToDetail(newPath);
+        FlashNotification notification = FlashNotification.success("Item moved.");
+        String redirect = redirectToDetail(newPath);
+        if (wantsJson(request)) {
+            return ResponseEntity.ok(ActionResponse.redirect(notification, redirectUrl(redirect)));
+        }
+        FlashNotifications.success(redirectAttributes, notification.message());
+        return redirect;
     }
 
     @PostMapping("/files/delete")
-    public String delete(
+    public Object delete(
             @RequestParam(value = "path", required = false) String path,
-            @RequestParam(value = "items", required = false) List<String> items,
             @RequestParam(value = "view", required = false) String view,
             @RequestParam(value = "sort", required = false) String sort,
             @RequestParam(value = "dir", required = false) String direction,
             @RequestParam(value = "page", required = false) Integer page,
             @RequestParam(value = "size", required = false) Integer size,
+            HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
-        if (items == null || items.isEmpty()) {
-            redirectAttributes.addFlashAttribute("message", "Select at least one item.");
+        List<String> items = SelectedItems.from(request);
+        if (items.isEmpty()) {
+            if (wantsJson(request)) {
+                return ResponseEntity.badRequest().body(ActionResponse.error("Select at least one item."));
+            }
+            FlashNotifications.warning(redirectAttributes, "Select at least one item.");
             return redirectToFiles(path, view, sort, direction, page, size);
         }
         List<FileItem> deletedItems = new ArrayList<>();
@@ -274,70 +318,104 @@ public class AdminFileController {
         for (FileItem item : deletedItems) {
             shareLinkService.revokeVaultPath(item.path());
         }
-        redirectAttributes.addFlashAttribute("message", "Selected items deleted.");
-        return redirectToFiles(path, view, sort, direction, page, size);
+        FlashNotification notification = FlashNotification.success("Selected items deleted.");
+        String redirect = redirectToFiles(path, view, sort, direction, page, size);
+        if (wantsJson(request)) {
+            return ResponseEntity.ok(ActionResponse.redirect(notification, redirectUrl(redirect)));
+        }
+        FlashNotifications.success(redirectAttributes, notification.message());
+        return redirect;
     }
 
     @PostMapping("/files/detail/delete")
-    public String deleteFromDetail(
+    public Object deleteFromDetail(
             @RequestParam("path") String path,
+            HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
         FileDetail detail = detailForPath(path);
         storageService.deleteVaultPath(detail.path());
         shareLinkService.revokeVaultPath(detail.path());
-        redirectAttributes.addFlashAttribute("message", "Item deleted.");
-        return redirectToFiles(detail.parentPath());
+        FlashNotification notification = FlashNotification.success("Item deleted.");
+        String redirect = redirectToFiles(detail.parentPath());
+        if (wantsJson(request)) {
+            return ResponseEntity.ok(ActionResponse.redirect(notification, redirectUrl(redirect)));
+        }
+        FlashNotifications.success(redirectAttributes, notification.message());
+        return redirect;
     }
 
     @PostMapping("/files/share")
-    public String share(
+    public Object share(
             @RequestParam(value = "path", required = false) String path,
             @RequestParam("item") String item,
             @RequestParam(value = "expiresInDays", required = false) Integer expiresInDays,
+            HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
         ShareLink shareLink = shareLinkService.create(path, item, expiresAt(expiresInDays));
+        String shareUrl = shareUrl(shareLink);
+        FlashNotification notification = FlashNotification.info("Share link created.", "Copy link", shareUrl);
 
-        redirectAttributes.addFlashAttribute("message", "Share link created.");
-        redirectAttributes.addFlashAttribute("shareUrl", shareUrl(shareLink));
+        if (wantsJson(request)) {
+            return ResponseEntity.ok(ActionResponse.ok(notification, ShareLinkPayload.from(shareLink, shareUrl)));
+        }
+
+        FlashNotifications.info(redirectAttributes, notification.message(), notification.actionLabel(), shareUrl);
         return redirectToFiles(path);
     }
 
     @PostMapping("/files/detail/share")
-    public String shareFromDetail(
+    public Object shareFromDetail(
             @RequestParam("path") String path,
             @RequestParam(value = "expiresInDays", required = false) Integer expiresInDays,
+            HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
         FileDetail detail = detailForPath(path);
         ShareLink shareLink = shareLinkService.createForVaultPath(detail.path(), expiresAt(expiresInDays));
-        redirectAttributes.addFlashAttribute("message", "Share link created.");
-        redirectAttributes.addFlashAttribute("shareUrl", shareUrl(shareLink));
+        String shareUrl = shareUrl(shareLink);
+        FlashNotification notification = FlashNotification.info("Share link created.", "Copy link", shareUrl);
+
+        if (wantsJson(request)) {
+            return ResponseEntity.ok(ActionResponse.ok(notification, ShareLinkPayload.from(shareLink, shareUrl)));
+        }
+
+        FlashNotifications.info(redirectAttributes, notification.message(), notification.actionLabel(), shareUrl);
         return redirectToDetail(detail.path());
     }
 
     @PostMapping("/files/detail/shares/revoke")
-    public String revokeShareFromDetail(
+    public Object revokeShareFromDetail(
             @RequestParam("path") String path,
             @RequestParam("token") String token,
+            HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
         FileDetail detail = detailForPath(path);
         shareLinkService.revoke(token);
-        redirectAttributes.addFlashAttribute("message", "Share link revoked.");
+        FlashNotification notification = FlashNotification.success("Share link revoked.");
+        if (wantsJson(request)) {
+            return ResponseEntity.ok(ActionResponse.ok(notification));
+        }
+        FlashNotifications.success(redirectAttributes, notification.message());
         return redirectToDetail(detail.path());
     }
 
     @PostMapping("/files/detail/shares/delete")
-    public String deleteShareFromDetail(
+    public Object deleteShareFromDetail(
             @RequestParam("path") String path,
             @RequestParam("token") String token,
+            HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
         FileDetail detail = detailForPath(path);
         shareLinkService.delete(token);
-        redirectAttributes.addFlashAttribute("message", "Share link deleted.");
+        FlashNotification notification = FlashNotification.success("Share link deleted.");
+        if (wantsJson(request)) {
+            return ResponseEntity.ok(ActionResponse.ok(notification));
+        }
+        FlashNotifications.success(redirectAttributes, notification.message());
         return redirectToDetail(detail.path());
     }
 
@@ -375,16 +453,17 @@ public class AdminFileController {
     @GetMapping("/files/download.zip")
     public Object downloadZip(
             @RequestParam(value = "path", required = false) String path,
-            @RequestParam(value = "items", required = false) List<String> items,
             @RequestParam(value = "view", required = false) String view,
             @RequestParam(value = "sort", required = false) String sort,
             @RequestParam(value = "dir", required = false) String direction,
             @RequestParam(value = "page", required = false) Integer page,
             @RequestParam(value = "size", required = false) Integer size,
+            HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
-        if (items == null || items.isEmpty()) {
-            redirectAttributes.addFlashAttribute("message", "Select at least one item.");
+        List<String> items = SelectedItems.from(request);
+        if (items.isEmpty()) {
+            FlashNotifications.warning(redirectAttributes, "Select at least one item.");
             return redirectToFiles(path, view, sort, direction, page, size);
         }
 
@@ -489,6 +568,15 @@ public class AdminFileController {
 
     private String redirectToDetail(String path) {
         return "redirect:/files/detail?path=" + UriUtils.encodeQueryParam(path, StandardCharsets.UTF_8);
+    }
+
+    private String redirectUrl(String redirectViewName) {
+        return redirectViewName.startsWith("redirect:") ? redirectViewName.substring("redirect:".length()) : redirectViewName;
+    }
+
+    private boolean wantsJson(HttpServletRequest request) {
+        String accept = request.getHeader(HttpHeaders.ACCEPT);
+        return accept != null && accept.contains(MediaType.APPLICATION_JSON_VALUE);
     }
 
     private FileDetail detailForPath(String path) throws IOException {

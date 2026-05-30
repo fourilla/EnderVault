@@ -6,12 +6,15 @@
     <title th:text="${detail.name()}">EnderVault Detail</title>
     <link rel="stylesheet" th:href="@{/webjars/fortawesome__fontawesome-free/6.7.2/css/all.min.css}">
     <link rel="stylesheet" th:href="@{/css/app.css}">
+    <script defer th:src="@{/js/notifications.js}"></script>
+    <script defer th:src="@{/js/admin-actions.js}"></script>
 </head>
 <body>
 <div class="app-shell">
 <aside th:replace="~{fragments/admin-shell :: sidebar('files')}"></aside>
 <div class="app-main">
 <header th:replace="~{fragments/admin-shell :: topbar}"></header>
+<div th:replace="~{fragments/notifications :: toasts}"></div>
 
 <main class="workspace">
     <section class="pathbar" aria-label="Current path">
@@ -21,12 +24,6 @@
         </a>
         <span class="muted" th:text="${detail.path()}">path</span>
     </section>
-
-    <p class="alert" th:if="${message}" th:text="${message}"></p>
-    <p class="alert share-link" th:if="${shareUrl}">
-        <span>Share link:</span>
-        <input readonly th:value="${shareUrl}">
-    </p>
 
     <section class="detail-panel" th:if="${not detail.directory() and detail.previewable()}">
         <h2>Preview</h2>
@@ -105,7 +102,7 @@
 
         <aside class="detail-panel">
             <h2>Manage</h2>
-            <form class="stack" method="post" th:action="@{/files/detail/rename}">
+            <form class="stack" method="post" th:action="@{/files/detail/rename}" data-ajax-action="detail-rename">
                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                 <input type="hidden" name="path" th:value="${detail.path()}">
                 <label>
@@ -115,7 +112,7 @@
                 <button type="submit">Rename</button>
             </form>
 
-            <form class="stack" method="post" th:action="@{/files/detail/move}">
+            <form class="stack" method="post" th:action="@{/files/detail/move}" data-ajax-action="detail-move">
                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                 <input type="hidden" name="path" th:value="${detail.path()}">
                 <label>
@@ -125,7 +122,7 @@
                 <button type="submit">Move</button>
             </form>
 
-            <form class="stack" method="post" th:action="@{/files/detail/delete}">
+            <form class="stack" method="post" th:action="@{/files/detail/delete}" data-ajax-action="detail-delete">
                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                 <input type="hidden" name="path" th:value="${detail.path()}">
                 <button class="danger icon-button" type="submit" title="Delete" aria-label="Delete">
@@ -137,7 +134,8 @@
 
     <section class="detail-panel">
         <h2>Share</h2>
-        <form class="tool-form" method="post" th:action="@{/files/detail/share}">
+        <form class="tool-form" method="post" th:action="@{/files/detail/share}"
+              data-ajax-action="share-create" data-share-table="#detailShareRows">
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
             <input type="hidden" name="path" th:value="${detail.path()}">
             <input type="number" min="1" name="expiresInDays" inputmode="numeric" placeholder="Days">
@@ -155,8 +153,9 @@
                     <th>Actions</th>
                 </tr>
                 </thead>
-                <tbody>
-                <tr th:each="share : ${shares}">
+                <tbody id="detailShareRows">
+                <tr th:each="share : ${shares}"
+                    th:attr="data-share-token=${share.token()},data-share-status=${share.statusClass()}">
                     <td><input readonly th:value="${shareBaseUrl + share.token()}"></td>
                     <td th:text="${share.createdLabel()}">created</td>
                     <td th:text="${share.expiresLabel()}">expires</td>
@@ -165,7 +164,8 @@
                     </td>
                     <td>
                         <div class="table-actions">
-                            <form class="row-form" method="post" th:action="@{/files/detail/shares/revoke}" th:if="${share.active()}">
+                            <form class="row-form" method="post" th:action="@{/files/detail/shares/revoke}" th:if="${share.active()}"
+                                  data-ajax-action="share-revoke">
                                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                                 <input type="hidden" name="path" th:value="${detail.path()}">
                                 <input type="hidden" name="token" th:value="${share.token()}">
@@ -173,7 +173,8 @@
                                     <i class="fas fa-link-slash" aria-hidden="true"></i>
                                 </button>
                             </form>
-                            <form class="row-form" method="post" th:action="@{/files/detail/shares/delete}">
+                            <form class="row-form" method="post" th:action="@{/files/detail/shares/delete}"
+                                  data-ajax-action="share-delete">
                                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                                 <input type="hidden" name="path" th:value="${detail.path()}">
                                 <input type="hidden" name="token" th:value="${share.token()}">
@@ -184,7 +185,7 @@
                         </div>
                     </td>
                 </tr>
-                <tr th:if="${#lists.isEmpty(shares)}">
+                <tr class="empty-row" th:if="${#lists.isEmpty(shares)}">
                     <td colspan="5" class="empty">No shared links yet.</td>
                 </tr>
                 </tbody>
