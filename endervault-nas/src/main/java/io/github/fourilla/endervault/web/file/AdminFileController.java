@@ -3,6 +3,8 @@ package io.github.fourilla.endervault.web.file;
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.favorite.FavoriteService;
+import io.github.fourilla.endervault.recent.RecentService;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.storage.DirectoryListing;
@@ -66,6 +68,8 @@ public class AdminFileController {
     private final StorageService storageService;
     private final FileResponseService fileResponseService;
     private final ShareLinkService shareLinkService;
+    private final FavoriteService favoriteService;
+    private final RecentService recentService;
     private final ThumbnailService thumbnailService;
     private final TrashService trashService;
     private final ActivityLogService activityLogService;
@@ -75,6 +79,8 @@ public class AdminFileController {
             StorageService storageService,
             FileResponseService fileResponseService,
             ShareLinkService shareLinkService,
+            FavoriteService favoriteService,
+            RecentService recentService,
             ThumbnailService thumbnailService,
             TrashService trashService,
             ActivityLogService activityLogService
@@ -83,6 +89,8 @@ public class AdminFileController {
         this.storageService = storageService;
         this.fileResponseService = fileResponseService;
         this.shareLinkService = shareLinkService;
+        this.favoriteService = favoriteService;
+        this.recentService = recentService;
         this.thumbnailService = thumbnailService;
         this.trashService = trashService;
         this.activityLogService = activityLogService;
@@ -103,6 +111,7 @@ public class AdminFileController {
         SortDirection sortDirection = normalizeDirection(direction);
         int pageSize = normalizePageSize(size);
         DirectoryListing listing = storageService.list(StorageScope.VAULT, path, fileSort, sortDirection);
+        recentService.recordVaultPath(listing.path());
         FilePage filePage = pageFiles(listing.files(), page, pageSize);
 
         model.addAttribute("listing", listing);
@@ -115,6 +124,7 @@ public class AdminFileController {
         model.addAttribute("dir", sortDirection.parameter());
         model.addAttribute("pageSizes", pageSizeOptions());
         model.addAttribute("filePage", filePage);
+        model.addAttribute("favoritePaths", favoriteService.favoritePaths());
         return "files";
     }
 
@@ -170,9 +180,11 @@ public class AdminFileController {
     @GetMapping("/files/detail")
     public String detail(@RequestParam("path") String path, Model model) throws IOException {
         FileDetail detail = detailForPath(path);
+        recentService.recordVaultPath(detail.path());
         model.addAttribute("detail", detail);
         model.addAttribute("shares", shareLinkService.listForVaultPath(detail.path()));
         model.addAttribute("shareBaseUrl", shareBaseUrl());
+        model.addAttribute("favorite", favoriteService.isFavorite(detail.path()));
         return "file-detail";
     }
 
@@ -251,6 +263,8 @@ public class AdminFileController {
                 newItem.path()
         );
         shareLinkService.moveVaultPath(oldItem.path(), newItem.path());
+        favoriteService.moveVaultPath(oldItem.path(), newItem.path());
+        recentService.moveVaultPath(oldItem.path(), newItem.path());
         activityLogService.record("RENAME", request, oldItem.path(), newItem.path(), "Renamed item to " + newItem.name());
         FlashNotification notification = FlashNotification.success("Item renamed.");
         String redirect = redirectToFiles(path);
@@ -272,6 +286,8 @@ public class AdminFileController {
         String newPath = storageService.renameVaultPath(detail.path(), newName);
         thumbnailService.migrateVideoThumbnails(storageService.resolveVaultPath(newPath), detail.path(), newPath);
         shareLinkService.moveVaultPath(detail.path(), newPath);
+        favoriteService.moveVaultPath(detail.path(), newPath);
+        recentService.moveVaultPath(detail.path(), newPath);
         activityLogService.record("RENAME", request, detail.path(), newPath, "Renamed item to " + newName);
         FlashNotification notification = FlashNotification.success("Item renamed.");
         String redirect = redirectToDetail(newPath);
@@ -299,6 +315,8 @@ public class AdminFileController {
                 newItem.path()
         );
         shareLinkService.moveVaultPath(oldItem.path(), newItem.path());
+        favoriteService.moveVaultPath(oldItem.path(), newItem.path());
+        recentService.moveVaultPath(oldItem.path(), newItem.path());
         activityLogService.record("MOVE", request, oldItem.path(), newItem.path(), "Moved item to " + targetPath);
         FlashNotification notification = FlashNotification.success("Item moved.");
         String redirect = redirectToFiles(path);
@@ -320,6 +338,8 @@ public class AdminFileController {
         String newPath = storageService.moveVaultPath(detail.path(), targetPath);
         thumbnailService.migrateVideoThumbnails(storageService.resolveVaultPath(newPath), detail.path(), newPath);
         shareLinkService.moveVaultPath(detail.path(), newPath);
+        favoriteService.moveVaultPath(detail.path(), newPath);
+        recentService.moveVaultPath(detail.path(), newPath);
         activityLogService.record("MOVE", request, detail.path(), newPath, "Moved item to " + targetPath);
         FlashNotification notification = FlashNotification.success("Item moved.");
         String redirect = redirectToDetail(newPath);
@@ -481,6 +501,7 @@ public class AdminFileController {
             HttpServletRequest request
     ) throws IOException {
         FileItem fileItem = storageService.describeVaultChild(path, item);
+        recentService.recordVaultPath(fileItem.path());
         activityLogService.record("DOWNLOAD", request, fileItem.path(), null, "Downloaded " + fileItem.name());
         Path file = storageService.resolveFile(StorageScope.VAULT, path, item);
         return fileResponseService.attachment(file);
@@ -492,6 +513,7 @@ public class AdminFileController {
             HttpServletRequest request
     ) throws IOException {
         FileDetail detail = detailForPath(path);
+        recentService.recordVaultPath(detail.path());
         activityLogService.record("DOWNLOAD", request, detail.path(), null, "Downloaded " + detail.name());
         Path file = storageService.resolveVaultFile(path);
         return fileResponseService.attachment(file);
@@ -535,6 +557,7 @@ public class AdminFileController {
         if (items.size() == 1) {
             FileItem item = storageService.describeVaultChild(path, items.get(0));
             if (!item.directory()) {
+                recentService.recordVaultPath(item.path());
                 activityLogService.record("DOWNLOAD", request, item.path(), null, "Downloaded " + item.name());
                 Path file = storageService.resolveFile(StorageScope.VAULT, path, item.name());
                 writeAttachment(file, response);
@@ -586,6 +609,7 @@ public class AdminFileController {
             @RequestHeader HttpHeaders headers
     ) throws IOException {
         Path file = storageService.resolveVaultFile(path);
+        recentService.recordVaultPath(path);
         return fileResponseService.inline(file, headers);
     }
 

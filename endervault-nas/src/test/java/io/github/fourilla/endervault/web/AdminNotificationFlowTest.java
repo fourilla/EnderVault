@@ -52,7 +52,16 @@ class AdminNotificationFlowTest {
     void filesPageRendersToastRegion() throws Exception {
         mockMvc.perform(get("/files"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"toastRegion\"")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"toastRegion\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Open read-only mode")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Recent")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Favorites")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("Trash"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("Shared links"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("Remote download"))));
     }
 
     @Test
@@ -91,7 +100,16 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Dashboard")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Task Manager")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("System Health")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Management")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Utils")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Shared links")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Activity logs")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Trash")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote download")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Page archiving")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Storage remaining")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("Quick Actions"))))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("Activity Log"))))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
@@ -99,7 +117,73 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void remoteDownloadPageRendersFormAndSidebarLink() throws Exception {
+    void recentPageRendersVirtualFolderShell() throws Exception {
+        mockMvc.perform(get("/files/recent")
+                        .param("q", "unlikely-recent-query-" + System.nanoTime()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Virtual location")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Search in recent")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("No recent items matched your search.")));
+    }
+
+    @Test
+    void recentPageRecordsDetailAccessAndSearchesRecentItems() throws Exception {
+        String filename = "recent-ui-" + System.nanoTime() + ".txt";
+        Files.writeString(ROOT.resolve(filename), "recent");
+
+        mockMvc.perform(get("/files/detail").param("path", filename))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/files/recent").param("q", "recent-ui"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(filename)))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Accessed")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remove selected from recent")));
+    }
+
+    @Test
+    void favoritesCanBeToggledAndManaged() throws Exception {
+        String filename = "favorite-" + System.nanoTime() + ".txt";
+        Files.writeString(ROOT.resolve(filename), "favorite");
+
+        mockMvc.perform(post("/files/favorites/toggle")
+                        .with(csrf())
+                        .header("Referer", "http://localhost/files")
+                        .param("path", filename))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/files"))
+                .andExpect(flash().attributeExists(FlashNotifications.ATTRIBUTE_NAME));
+
+        mockMvc.perform(get("/files/favorites"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(filename)))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Move up")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remove")));
+
+        mockMvc.perform(get("/files"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("is-favorite")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-favorite-action")));
+    }
+
+    @Test
+    void favoriteToggleCanReturnJsonForEnhancedForms() throws Exception {
+        String filename = "favorite-json-" + System.nanoTime() + ".txt";
+        Files.writeString(ROOT.resolve(filename), "favorite");
+
+        mockMvc.perform(post("/files/favorites/toggle")
+                        .with(csrf())
+                        .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
+                        .param("path", filename))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.active").value(true))
+                .andExpect(jsonPath("$.favorite.path").value(filename))
+                .andExpect(jsonPath("$.notification.type").value("success"));
+    }
+
+    @Test
+    void remoteDownloadPageRendersForm() throws Exception {
         mockMvc.perform(get("/files/remote-download"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote Download")))

@@ -404,6 +404,16 @@ public class StorageService {
         }
     }
 
+    public void writeVaultPathsZip(List<String> vaultPaths, OutputStream outputStream) throws IOException {
+        try (ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream)) {
+            for (String vaultPath : vaultPaths) {
+                validateVaultItemPath(vaultPath);
+                Path item = resolve(StorageScope.VAULT, vaultPath);
+                writeZipEntry(item, toRelativePath(root, item), zipOutputStream);
+            }
+        }
+    }
+
     public void writeSharedZip(String sharedBasePath, String directoryPath, List<String> itemNames,
             OutputStream outputStream) throws IOException {
         Path sharedBase = resolveDirectory(StorageScope.VAULT, sharedBasePath);

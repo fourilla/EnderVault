@@ -35,6 +35,9 @@ public class NasProperties {
     @Valid
     private RemoteDownload remoteDownload = new RemoteDownload();
 
+    @Valid
+    private Recent recent = new Recent();
+
     public Storage getStorage() {
         return storage;
     }
@@ -89,6 +92,14 @@ public class NasProperties {
 
     public void setRemoteDownload(RemoteDownload remoteDownload) {
         this.remoteDownload = remoteDownload;
+    }
+
+    public Recent getRecent() {
+        return recent;
+    }
+
+    public void setRecent(Recent recent) {
+        this.recent = recent;
     }
 
     public static class Storage {
@@ -382,6 +393,30 @@ public class NasProperties {
 
         public void setHistoryLimit(int historyLimit) {
             this.historyLimit = historyLimit;
+        }
+    }
+
+    public static class Recent {
+        @Min(1)
+        @Max(1000)
+        private int maxItems = 200;
+
+        private boolean recordDirectories = true;
+
+        public int getMaxItems() {
+            return maxItems;
+        }
+
+        public void setMaxItems(int maxItems) {
+            this.maxItems = maxItems;
+        }
+
+        public boolean isRecordDirectories() {
+            return recordDirectories;
+        }
+
+        public void setRecordDirectories(boolean recordDirectories) {
+            this.recordDirectories = recordDirectories;
         }
     }
 

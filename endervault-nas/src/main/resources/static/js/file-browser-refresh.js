@@ -6,7 +6,8 @@ document.addEventListener("DOMContentLoaded", () => {
             sort: targetUrl.searchParams.get("sort"),
             dir: targetUrl.searchParams.get("dir"),
             page: targetUrl.searchParams.get("page") || "1",
-            size: targetUrl.searchParams.get("size")
+            size: targetUrl.searchParams.get("size"),
+            q: targetUrl.searchParams.get("q") || ""
         };
 
         Object.entries(values).forEach(([name, value]) => {

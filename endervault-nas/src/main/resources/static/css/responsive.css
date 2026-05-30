@@ -48,8 +48,15 @@
 
     .dashboard-metrics,
     .dashboard-grid,
+    .dashboard-action-grid,
     .logs-layout {
         grid-template-columns: 1fr;
+    }
+
+    .app-topbar {
+        align-items: center;
+        flex-direction: row;
+        justify-content: flex-end;
     }
 
     .log-filter-form,

@@ -118,6 +118,18 @@ input[name="items"][form="bulkActionForm"],
     margin-right: 6px;
 }
 
+.favorite-toggle i {
+    color: var(--text);
+}
+
+.favorite-toggle.is-favorite i {
+    color: var(--focus);
+}
+
+.path-cell {
+    overflow-wrap: anywhere;
+}
+
 .status-badge {
     display: inline-flex;
     align-items: center;

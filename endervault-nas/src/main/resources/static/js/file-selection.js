@@ -19,8 +19,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.body.classList.add("js-selection-enhanced");
 
-    const selectedItemCheckboxes = () =>
-        Array.from(document.querySelectorAll('input[name="items"][form="bulkActionForm"]'));
+    const selectedItemCheckboxes = (scope = document) =>
+        Array.from(scope.querySelectorAll(
+                'input[name="items"][form="bulkActionForm"], input[name="paths"][form="bulkActionForm"]'
+        ));
 
     const selectAllCheckboxes = () =>
         Array.from(document.querySelectorAll("[data-select-all]"));
@@ -28,8 +30,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const selectPickLabels = () =>
         Array.from(document.querySelectorAll("[data-select-pick-label]"));
 
+    const checkboxScopeForSelectAll = (checkbox) => checkbox.closest("table") || document;
+
     const checkboxForItem = (item) =>
-        item?.querySelector('input[name="items"][form="bulkActionForm"]') || null;
+        item?.querySelector(
+                'input[name="items"][form="bulkActionForm"], input[name="paths"][form="bulkActionForm"]'
+        ) || null;
 
     const selectableItemFromTarget = (target) => {
         const item = target.closest(selectableItemSelector);
@@ -42,7 +48,10 @@ document.addEventListener("DOMContentLoaded", () => {
         Boolean(target.closest("button, input, label, select, textarea, summary"));
 
     const isSelectionControlTarget = (target) =>
-        Boolean(target.closest('input[name="items"][form="bulkActionForm"], [data-select-all], .select-all-label'));
+        Boolean(target.closest(
+                'input[name="items"][form="bulkActionForm"], input[name="paths"][form="bulkActionForm"], '
+                + "[data-select-all], .select-all-label"
+        ));
 
     const setSelectionMode = (active) => {
         selectionState.active = active;
@@ -79,9 +88,11 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         selectAllCheckboxes().forEach((checkbox) => {
-            checkbox.disabled = checkboxes.length === 0;
-            checkbox.checked = checkboxes.length > 0 && selectedCount === checkboxes.length;
-            checkbox.indeterminate = selectedCount > 0 && selectedCount < checkboxes.length;
+            const scopedCheckboxes = selectedItemCheckboxes(checkboxScopeForSelectAll(checkbox));
+            const scopedSelectedCount = scopedCheckboxes.filter((itemCheckbox) => itemCheckbox.checked).length;
+            checkbox.disabled = scopedCheckboxes.length === 0;
+            checkbox.checked = scopedCheckboxes.length > 0 && scopedSelectedCount === scopedCheckboxes.length;
+            checkbox.indeterminate = scopedSelectedCount > 0 && scopedSelectedCount < scopedCheckboxes.length;
         });
 
         selectionButtons.forEach((button) => {
@@ -165,7 +176,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         if (item) {
-            if (event.target.closest(".select-cell") && !event.target.matches('input[name="items"][form="bulkActionForm"]')) {
+            if (event.target.closest(".select-cell") && !selectedItemCheckboxes().includes(event.target)) {
                 event.preventDefault();
                 toggleItemSelection(item);
                 return;
@@ -199,21 +210,25 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        if (selectionState.active && !event.target.closest(".toolbar, .upload-activity, .toast-region")) {
+        if (
+            selectionState.active
+            && !isSelectionControlTarget(event.target)
+            && !event.target.closest(".toolbar, .upload-activity, .toast-region")
+        ) {
             exitSelectionMode();
         }
     });
 
     document.addEventListener("change", (event) => {
         if (event.target.matches("[data-select-all]")) {
-            selectedItemCheckboxes().forEach((checkbox) => {
+            selectedItemCheckboxes(checkboxScopeForSelectAll(event.target)).forEach((checkbox) => {
                 checkbox.checked = event.target.checked;
             });
             updateSelectionActions();
             return;
         }
 
-        if (event.target.matches('input[name="items"][form="bulkActionForm"]')) {
+        if (selectedItemCheckboxes().includes(event.target)) {
             updateSelectionActions();
         }
     });

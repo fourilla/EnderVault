@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.favorite.FavoriteService;
+import io.github.fourilla.endervault.recent.RecentService;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.storage.StorageService;
@@ -26,6 +28,8 @@ class TrashServiceTest {
 
     private StorageService storageService;
     private ShareLinkService shareLinkService;
+    private FavoriteService favoriteService;
+    private RecentService recentService;
     private TrashRepository trashRepository;
     private TrashService trashService;
 
@@ -39,15 +43,28 @@ class TrashServiceTest {
         ObjectMapper objectMapper = JsonMapper.builder().findAndAddModules().build();
         shareLinkService = new ShareLinkService(storageService, objectMapper, properties);
         shareLinkService.initialize();
+        favoriteService = new FavoriteService(storageService, objectMapper, properties);
+        favoriteService.initialize();
+        recentService = new RecentService(storageService, objectMapper, properties);
+        recentService.initialize();
         trashRepository = new TrashRepository(objectMapper, properties);
         trashRepository.initialize();
-        trashService = new TrashService(storageService, trashRepository, shareLinkService, properties);
+        trashService = new TrashService(
+                storageService,
+                trashRepository,
+                shareLinkService,
+                favoriteService,
+                recentService,
+                properties
+        );
     }
 
     @Test
-    void movesFileToTrashWithMetadataAndRevokesShareLinks() throws Exception {
+    void movesFileToTrashWithMetadataAndRevokesShareLinksFavoritesAndRecent() throws Exception {
         Files.writeString(root.resolve("note.txt"), "hello");
         ShareLink shareLink = shareLinkService.create("", "note.txt", null);
+        favoriteService.toggle("note.txt");
+        recentService.recordVaultPath("note.txt");
 
         List<TrashRecord> records = trashService.moveToTrash("", List.of("note.txt"));
 
@@ -61,6 +78,8 @@ class TrashServiceTest {
         assertThat(trashService.list()).extracting(TrashRecord::id).containsExactly(record.id());
         assertThatThrownBy(() -> shareLinkService.requireUsable(shareLink.token()))
                 .isInstanceOf(NoSuchFileException.class);
+        assertThat(favoriteService.list()).isEmpty();
+        assertThat(recentService.storedItems()).isEmpty();
     }
 
     @Test

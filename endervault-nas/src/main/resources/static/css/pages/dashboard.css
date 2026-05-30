@@ -149,6 +149,67 @@
     gap: 8px;
 }
 
+.dashboard-action-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+}
+
+.dashboard-action-link {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+    min-height: 86px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel-muted);
+    color: var(--text);
+    padding: 12px;
+}
+
+.dashboard-action-link:hover {
+    border-color: var(--accent);
+    background: var(--panel-elevated);
+    text-decoration: none;
+}
+
+.dashboard-action-link i {
+    display: inline-grid;
+    width: 36px;
+    height: 36px;
+    place-items: center;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--accent-strong);
+}
+
+.dashboard-action-link span {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.dashboard-action-link strong,
+.dashboard-action-link small {
+    overflow-wrap: anywhere;
+}
+
+.dashboard-action-link small {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.dashboard-action-link.is-planned {
+    color: var(--muted);
+    cursor: default;
+}
+
+.dashboard-action-link.is-planned:hover {
+    border-color: var(--line);
+    background: var(--panel-muted);
+}
+
 .activity-list {
     display: grid;
     gap: 10px;
