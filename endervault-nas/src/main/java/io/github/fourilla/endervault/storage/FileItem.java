@@ -53,4 +53,17 @@ public record FileItem(
         }
         return "File";
     }
+
+    public String extensionLabel() {
+        if (directory) {
+            return typeLabel();
+        }
+
+        int extensionIndex = name.lastIndexOf('.');
+        if (extensionIndex <= 0 || extensionIndex == name.length() - 1) {
+            return typeLabel();
+        }
+
+        return name.substring(extensionIndex + 1).toUpperCase();
+    }
 }

@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>EnderVault Dashboard</title>
+    <link rel="stylesheet" th:href="@{/webjars/fortawesome__fontawesome-free/6.7.2/css/all.min.css}">
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+    <script defer th:src="@{/js/notifications.js}"></script>
+</head>
+<body>
+<div class="app-shell">
+<aside th:replace="~{fragments/admin-shell :: sidebar('dashboard')}"></aside>
+<div class="app-main">
+<header th:replace="~{fragments/admin-shell :: topbar}"></header>
+<div th:replace="~{fragments/notifications :: toasts}"></div>
+
+<main class="workspace dashboard-workspace">
+    <section class="pathbar">
+        <h1>Dashboard</h1>
+    </section>
+
+    <section class="dashboard-metrics" aria-label="Dashboard metrics">
+        <article class="dashboard-metric">
+            <i class="fas fa-hard-drive" aria-hidden="true"></i>
+            <div>
+                <span>Storage</span>
+                <strong th:text="|${dashboard.storage().usedPercent()}%|">0%</strong>
+                <p th:text="|${dashboard.storage().usedLabel()} / ${dashboard.storage().totalLabel()}|">0 B / 0 B</p>
+            </div>
+        </article>
+        <article class="dashboard-metric">
+            <i class="fas fa-trash-can" aria-hidden="true"></i>
+            <div>
+                <span>Trash</span>
+                <strong th:text="${dashboard.trash().count()}">0</strong>
+                <p th:text="${dashboard.trash().sizeLabel()}">0 B</p>
+            </div>
+        </article>
+        <article class="dashboard-metric">
+            <i class="fas fa-link" aria-hidden="true"></i>
+            <div>
+                <span>Shared links</span>
+                <strong th:text="${dashboard.shares().active()}">0</strong>
+                <p th:text="|${dashboard.shares().total()} total|">0 total</p>
+            </div>
+        </article>
+        <article class="dashboard-metric">
+            <i class="fas fa-image" aria-hidden="true"></i>
+            <div>
+                <span>Thumbnail cache</span>
+                <strong th:text="${dashboard.thumbnails().cachedFiles()}">0</strong>
+                <p th:text="${dashboard.thumbnails().sizeLabel()}">0 B</p>
+            </div>
+        </article>
+    </section>
+
+    <section class="dashboard-grid" aria-label="Dashboard panels">
+        <article class="dashboard-panel">
+            <header class="section-heading">
+                <h2>Task Manager</h2>
+                <span class="status-badge active" th:if="${dashboard.thumbnails().inProgressCount() > 0}"
+                      th:text="|${dashboard.thumbnails().inProgressCount()} running|">0 running</span>
+                <span class="status-badge expired" th:unless="${dashboard.thumbnails().inProgressCount() > 0}">Idle</span>
+            </header>
+            <ul class="dashboard-list">
+                <li>
+                    <span>Thumbnail queue</span>
+                    <strong th:text="${dashboard.thumbnails().inProgressCount()}">0</strong>
+                </li>
+                <li>
+                    <span>Upload tasks</span>
+                    <strong>Local panel</strong>
+                </li>
+                <li>
+                    <span>Remote download</span>
+                    <strong>Planned</strong>
+                </li>
+                <li>
+                    <span>Page archive</span>
+                    <strong>Planned</strong>
+                </li>
+            </ul>
+        </article>
+
+        <article class="dashboard-panel">
+            <header class="section-heading">
+                <h2>Shared Links</h2>
+                <a class="ghost icon-button" th:href="@{/files/shares}" title="Open shared links" aria-label="Open shared links">
+                    <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                </a>
+            </header>
+            <ul class="dashboard-list">
+                <li>
+                    <span>Active</span>
+                    <strong th:text="${dashboard.shares().active()}">0</strong>
+                </li>
+                <li>
+                    <span>Expired</span>
+                    <strong th:text="${dashboard.shares().expired()}">0</strong>
+                </li>
+                <li>
+                    <span>Revoked</span>
+                    <strong th:text="${dashboard.shares().revoked()}">0</strong>
+                </li>
+            </ul>
+        </article>
+
+        <article class="dashboard-panel">
+            <header class="section-heading">
+                <h2>System Health</h2>
+            </header>
+            <ul class="dashboard-list">
+                <li>
+                    <span>Storage usage</span>
+                    <strong th:text="|${dashboard.storage().usableLabel()} free|">0 B free</strong>
+                </li>
+                <li>
+                    <span>Video thumbnails</span>
+                    <strong th:text="${dashboard.thumbnails().enabledLabel()}">Enabled</strong>
+                </li>
+                <li>
+                    <span>Thumbnail queue</span>
+                    <strong th:text="${dashboard.thumbnails().inProgressCount()}">0</strong>
+                </li>
+            </ul>
+        </article>
+
+        <article class="dashboard-panel">
+            <header class="section-heading">
+                <h2>Activity Log</h2>
+                <a class="ghost icon-button" th:href="@{/files/logs}" title="Open logs" aria-label="Open logs">
+                    <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                </a>
+            </header>
+            <ol class="activity-list compact-activity-list" th:if="${not #lists.isEmpty(dashboard.recentActivities())}">
+                <li th:each="entry : ${dashboard.recentActivities()}">
+                    <span class="activity-time" th:text="${entry.timestampLabel()}">time</span>
+                    <strong th:text="${entry.typeLabel()}">TYPE</strong>
+                    <p th:text="${entry.message()}">message</p>
+                </li>
+            </ol>
+            <p class="dashboard-empty" th:if="${#lists.isEmpty(dashboard.recentActivities())}">No activity entries yet.</p>
+        </article>
+
+        <article class="dashboard-panel dashboard-panel-wide">
+            <header class="section-heading">
+                <h2>Maintenance</h2>
+            </header>
+            <div class="dashboard-actions">
+                <a class="button-link ghost" th:href="@{/files/trash}">
+                    <i class="fas fa-trash-can" aria-hidden="true"></i>
+                    <span>Trash</span>
+                </a>
+                <a class="button-link ghost" th:href="@{/files/shares}">
+                    <i class="fas fa-link" aria-hidden="true"></i>
+                    <span>Shared links</span>
+                </a>
+                <a class="button-link ghost" th:href="@{/files/logs}">
+                    <i class="fas fa-clock-rotate-left" aria-hidden="true"></i>
+                    <span>Logs</span>
+                </a>
+            </div>
+        </article>
+    </section>
+</main>
+</div>
+</div>
+</body>
+</html>

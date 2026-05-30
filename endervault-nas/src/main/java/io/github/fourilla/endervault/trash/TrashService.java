@@ -61,16 +61,18 @@ public class TrashService {
         return moveItemToTrash(item);
     }
 
-    public synchronized void restore(String id) throws IOException {
+    public synchronized TrashRecord restore(String id) throws IOException {
         TrashRecord record = requireRecord(id);
         storageService.restoreTrashItem(record.trashName(), record.originalPath());
         trashRepository.remove(record.id());
+        return record;
     }
 
-    public synchronized void deletePermanently(String id) throws IOException {
+    public synchronized TrashRecord deletePermanently(String id) throws IOException {
         TrashRecord record = requireRecord(id);
         storageService.deleteTrashItemIfExists(record.trashName());
         trashRepository.remove(record.id());
+        return record;
     }
 
     public synchronized int empty() throws IOException {

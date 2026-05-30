@@ -1,5 +1,6 @@
 package io.github.fourilla.endervault.storage;
 
+import io.github.fourilla.endervault.common.ByteSizeFormatter;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import jakarta.annotation.PostConstruct;
@@ -125,8 +126,9 @@ public class StorageService {
                 usedBytes,
                 totalBytes,
                 usableBytes,
-                humanSize(usedBytes),
-                humanSize(totalBytes),
+                ByteSizeFormatter.humanSize(usedBytes),
+                ByteSizeFormatter.humanSize(totalBytes),
+                ByteSizeFormatter.humanSize(usableBytes),
                 usedPercent
         );
     }
@@ -620,7 +622,7 @@ public class StorageService {
                     relativePath,
                     directory,
                     size,
-                    directory ? "-" : humanSize(size),
+                    directory ? "-" : ByteSizeFormatter.humanSize(size),
                     MODIFIED_FORMATTER.format(modified),
                     modified,
                     mediaType,
@@ -644,7 +646,7 @@ public class StorageService {
                 parentPathOf(relativePath).orElse(null),
                 directory,
                 size,
-                directory ? "-" : humanSize(size),
+                directory ? "-" : ByteSizeFormatter.humanSize(size),
                 directory ? childCount(path) : 0L,
                 MODIFIED_FORMATTER.format(attributes.creationTime().toInstant()),
                 MODIFIED_FORMATTER.format(attributes.lastModifiedTime().toInstant()),
@@ -733,20 +735,6 @@ public class StorageService {
                 || mediaType.startsWith("video/")
                 || mediaType.startsWith("text/")
                 || mediaType.equals("application/pdf");
-    }
-
-    private String humanSize(long bytes) {
-        if (bytes < 1024) {
-            return bytes + " B";
-        }
-        double value = bytes;
-        String[] units = {"KB", "MB", "GB", "TB"};
-        int unitIndex = -1;
-        do {
-            value = value / 1024;
-            unitIndex++;
-        } while (value >= 1024 && unitIndex < units.length - 1);
-        return "%.1f %s".formatted(value, units[unitIndex]);
     }
 
     private String safeSubmittedFilename(MultipartFile file) {

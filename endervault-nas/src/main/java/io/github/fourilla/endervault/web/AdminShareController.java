@@ -1,5 +1,6 @@
 package io.github.fourilla.endervault.web;
 
+import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.share.ShareLinkService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
@@ -19,9 +20,11 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 public class AdminShareController {
 
     private final ShareLinkService shareLinkService;
+    private final ActivityLogService activityLogService;
 
-    public AdminShareController(ShareLinkService shareLinkService) {
+    public AdminShareController(ShareLinkService shareLinkService, ActivityLogService activityLogService) {
         this.shareLinkService = shareLinkService;
+        this.activityLogService = activityLogService;
     }
 
     @GetMapping("/files/shares")
@@ -41,6 +44,7 @@ public class AdminShareController {
     )
             throws IOException {
         shareLinkService.revoke(token);
+        activityLogService.record("SHARE_REVOKE", request, null, null, "Revoked share link " + token);
         FlashNotification notification = FlashNotification.success("Share link revoked.");
         if (wantsJson(request)) {
             return ResponseEntity.ok(ActionResponse.ok(notification));
@@ -57,6 +61,7 @@ public class AdminShareController {
     )
             throws IOException {
         shareLinkService.delete(token);
+        activityLogService.record("SHARE_DELETE", request, null, null, "Deleted share link " + token);
         FlashNotification notification = FlashNotification.success("Share link deleted.");
         if (wantsJson(request)) {
             return ResponseEntity.ok(ActionResponse.ok(notification));
@@ -71,6 +76,8 @@ public class AdminShareController {
             RedirectAttributes redirectAttributes
     ) throws IOException {
         int deletedCount = shareLinkService.deleteExpired(Instant.now());
+        activityLogService.record("SHARE_DELETE_EXPIRED", request, null, null,
+                "Deleted " + deletedCount + " expired share links.");
         FlashNotification notification =
                 FlashNotification.success("Deleted %d expired share links.".formatted(deletedCount));
         if (wantsJson(request)) {

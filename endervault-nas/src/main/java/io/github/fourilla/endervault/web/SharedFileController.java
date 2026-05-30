@@ -1,5 +1,6 @@
 package io.github.fourilla.endervault.web;
 
+import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.share.ShareTargetType;
@@ -27,24 +28,29 @@ public class SharedFileController {
     private final ShareLinkService shareLinkService;
     private final StorageService storageService;
     private final FileResponseService fileResponseService;
+    private final ActivityLogService activityLogService;
 
     public SharedFileController(
             ShareLinkService shareLinkService,
             StorageService storageService,
-            FileResponseService fileResponseService
+            FileResponseService fileResponseService,
+            ActivityLogService activityLogService
     ) {
         this.shareLinkService = shareLinkService;
         this.storageService = storageService;
         this.fileResponseService = fileResponseService;
+        this.activityLogService = activityLogService;
     }
 
     @GetMapping("/s/{token}")
     public String shared(
             @PathVariable String token,
             @RequestParam(value = "path", required = false) String path,
+            HttpServletRequest request,
             Model model
     ) throws IOException {
         ShareLink shareLink = shareLinkService.requireUsable(token);
+        activityLogService.record("SHARE_ACCESS", request, shareLink.path(), path, "Accessed share link " + token);
         model.addAttribute("share", shareLink);
         model.addAttribute("token", token);
 
@@ -64,10 +70,12 @@ public class SharedFileController {
     public ResponseEntity<?> download(
             @PathVariable String token,
             @RequestParam(value = "path", required = false) String path,
-            @RequestParam(value = "item", required = false) String item
+            @RequestParam(value = "item", required = false) String item,
+            HttpServletRequest request
     ) throws IOException {
         ShareLink shareLink = shareLinkService.requireUsable(token);
         Path file = resolveSharedDownloadTarget(shareLink, path, item);
+        activityLogService.record("SHARE_DOWNLOAD", request, shareLink.path(), item, "Downloaded from share link " + token);
         return fileResponseService.attachment(file);
     }
 
@@ -87,6 +95,8 @@ public class SharedFileController {
         response.setHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"shared-files.zip\"");
         List<String> items = SelectedItems.from(request);
         if (!items.isEmpty()) {
+            activityLogService.record("SHARE_DOWNLOAD_ZIP", request, shareLink.path(), path,
+                    "Downloaded shared ZIP with " + items.size() + " item(s)");
             storageService.writeSharedZip(shareLink.path(), path, items, response.getOutputStream());
         }
     }

@@ -1,5 +1,6 @@
 package io.github.fourilla.endervault.web;
 
+import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.share.ShareLink;
@@ -13,6 +14,7 @@ import io.github.fourilla.endervault.storage.StorageScope;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.thumbnail.ThumbnailFile;
 import io.github.fourilla.endervault.thumbnail.ThumbnailService;
+import io.github.fourilla.endervault.trash.TrashRecord;
 import io.github.fourilla.endervault.trash.TrashService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -26,6 +28,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.CacheControl;
@@ -35,7 +38,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -59,6 +61,7 @@ public class AdminFileController {
     private final ShareLinkService shareLinkService;
     private final ThumbnailService thumbnailService;
     private final TrashService trashService;
+    private final ActivityLogService activityLogService;
 
     public AdminFileController(
             NasProperties nasProperties,
@@ -66,7 +69,8 @@ public class AdminFileController {
             FileResponseService fileResponseService,
             ShareLinkService shareLinkService,
             ThumbnailService thumbnailService,
-            TrashService trashService
+            TrashService trashService,
+            ActivityLogService activityLogService
     ) {
         this.nasProperties = nasProperties;
         this.storageService = storageService;
@@ -74,6 +78,7 @@ public class AdminFileController {
         this.shareLinkService = shareLinkService;
         this.thumbnailService = thumbnailService;
         this.trashService = trashService;
+        this.activityLogService = activityLogService;
     }
 
     @GetMapping("/files")
@@ -174,6 +179,14 @@ public class AdminFileController {
             FileItem uploadedFile = storageService.upload(path, file);
             if (uploadedFile != null) {
                 uploadedFiles.add(UploadedFilePayload.from(uploadedFile));
+                activityLogService.record(
+                        "UPLOAD",
+                        request,
+                        uploadedFile.path(),
+                        null,
+                        "Uploaded " + uploadedFile.name(),
+                        Map.of("size", uploadedFile.sizeLabel())
+                );
             }
         }
         FlashNotification notification = FlashNotification.success("Upload complete.");
@@ -196,6 +209,8 @@ public class AdminFileController {
             RedirectAttributes redirectAttributes
     ) throws IOException {
         storageService.createDirectory(path, name);
+        FileItem directory = storageService.describeVaultChild(path, name);
+        activityLogService.record("CREATE_DIRECTORY", request, directory.path(), null, "Created directory " + name);
         FlashNotification notification = FlashNotification.success("Directory created.");
         String redirect = redirectToFiles(path, view, sort, direction, 1, size);
         if (wantsJson(request)) {
@@ -222,6 +237,7 @@ public class AdminFileController {
                 newItem.path()
         );
         shareLinkService.moveVaultPath(oldItem.path(), newItem.path());
+        activityLogService.record("RENAME", request, oldItem.path(), newItem.path(), "Renamed item to " + newItem.name());
         FlashNotification notification = FlashNotification.success("Item renamed.");
         String redirect = redirectToFiles(path);
         if (wantsJson(request)) {
@@ -242,6 +258,7 @@ public class AdminFileController {
         String newPath = storageService.renameVaultPath(detail.path(), newName);
         thumbnailService.migrateVideoThumbnails(storageService.resolveVaultPath(newPath), detail.path(), newPath);
         shareLinkService.moveVaultPath(detail.path(), newPath);
+        activityLogService.record("RENAME", request, detail.path(), newPath, "Renamed item to " + newName);
         FlashNotification notification = FlashNotification.success("Item renamed.");
         String redirect = redirectToDetail(newPath);
         if (wantsJson(request)) {
@@ -268,6 +285,7 @@ public class AdminFileController {
                 newItem.path()
         );
         shareLinkService.moveVaultPath(oldItem.path(), newItem.path());
+        activityLogService.record("MOVE", request, oldItem.path(), newItem.path(), "Moved item to " + targetPath);
         FlashNotification notification = FlashNotification.success("Item moved.");
         String redirect = redirectToFiles(path);
         if (wantsJson(request)) {
@@ -288,6 +306,7 @@ public class AdminFileController {
         String newPath = storageService.moveVaultPath(detail.path(), targetPath);
         thumbnailService.migrateVideoThumbnails(storageService.resolveVaultPath(newPath), detail.path(), newPath);
         shareLinkService.moveVaultPath(detail.path(), newPath);
+        activityLogService.record("MOVE", request, detail.path(), newPath, "Moved item to " + targetPath);
         FlashNotification notification = FlashNotification.success("Item moved.");
         String redirect = redirectToDetail(newPath);
         if (wantsJson(request)) {
@@ -316,7 +335,10 @@ public class AdminFileController {
             FlashNotifications.warning(redirectAttributes, "Select at least one item.");
             return redirectToFiles(path, view, sort, direction, page, size);
         }
-        trashService.moveToTrash(path, items);
+        List<TrashRecord> trashRecords = trashService.moveToTrash(path, items);
+        for (TrashRecord record : trashRecords) {
+            activityLogService.record("TRASH_MOVE", request, record.originalPath(), null, "Moved item to trash");
+        }
         FlashNotification notification = FlashNotification.success("Selected items moved to trash.");
         String redirect = redirectToFiles(path, view, sort, direction, page, size);
         if (wantsJson(request)) {
@@ -333,7 +355,8 @@ public class AdminFileController {
             RedirectAttributes redirectAttributes
     ) throws IOException {
         FileDetail detail = detailForPath(path);
-        trashService.moveVaultPathToTrash(detail.path());
+        TrashRecord record = trashService.moveVaultPathToTrash(detail.path());
+        activityLogService.record("TRASH_MOVE", request, record.originalPath(), null, "Moved item to trash");
         FlashNotification notification = FlashNotification.success("Item moved to trash.");
         String redirect = redirectToFiles(detail.parentPath());
         if (wantsJson(request)) {
@@ -354,6 +377,14 @@ public class AdminFileController {
     ) throws IOException {
         ShareLink shareLink = shareLinkService.create(path, item, expiresAt(expiresInDays), customToken);
         String shareUrl = shareUrl(shareLink);
+        activityLogService.record(
+                "SHARE_CREATE",
+                request,
+                shareLink.path(),
+                null,
+                "Created share link " + shareLink.token(),
+                Map.of("token", shareLink.token(), "type", shareLink.type().name())
+        );
         FlashNotification notification = FlashNotification.info("Share link created.", "Copy link", shareUrl);
 
         if (wantsJson(request)) {
@@ -375,6 +406,14 @@ public class AdminFileController {
         FileDetail detail = detailForPath(path);
         ShareLink shareLink = shareLinkService.createForVaultPath(detail.path(), expiresAt(expiresInDays), customToken);
         String shareUrl = shareUrl(shareLink);
+        activityLogService.record(
+                "SHARE_CREATE",
+                request,
+                shareLink.path(),
+                null,
+                "Created share link " + shareLink.token(),
+                Map.of("token", shareLink.token(), "type", shareLink.type().name())
+        );
         FlashNotification notification = FlashNotification.info("Share link created.", "Copy link", shareUrl);
 
         if (wantsJson(request)) {
@@ -394,6 +433,7 @@ public class AdminFileController {
     ) throws IOException {
         FileDetail detail = detailForPath(path);
         shareLinkService.revoke(token);
+        activityLogService.record("SHARE_REVOKE", request, detail.path(), null, "Revoked share link " + token);
         FlashNotification notification = FlashNotification.success("Share link revoked.");
         if (wantsJson(request)) {
             return ResponseEntity.ok(ActionResponse.ok(notification));
@@ -411,6 +451,7 @@ public class AdminFileController {
     ) throws IOException {
         FileDetail detail = detailForPath(path);
         shareLinkService.delete(token);
+        activityLogService.record("SHARE_DELETE", request, detail.path(), null, "Deleted share link " + token);
         FlashNotification notification = FlashNotification.success("Share link deleted.");
         if (wantsJson(request)) {
             return ResponseEntity.ok(ActionResponse.ok(notification));
@@ -422,14 +463,22 @@ public class AdminFileController {
     @GetMapping("/files/download")
     public ResponseEntity<?> download(
             @RequestParam(value = "path", required = false) String path,
-            @RequestParam("item") String item
+            @RequestParam("item") String item,
+            HttpServletRequest request
     ) throws IOException {
+        FileItem fileItem = storageService.describeVaultChild(path, item);
+        activityLogService.record("DOWNLOAD", request, fileItem.path(), null, "Downloaded " + fileItem.name());
         Path file = storageService.resolveFile(StorageScope.VAULT, path, item);
         return fileResponseService.attachment(file);
     }
 
     @GetMapping("/files/detail/download")
-    public ResponseEntity<?> downloadFromDetail(@RequestParam("path") String path) throws IOException {
+    public ResponseEntity<?> downloadFromDetail(
+            @RequestParam("path") String path,
+            HttpServletRequest request
+    ) throws IOException {
+        FileDetail detail = detailForPath(path);
+        activityLogService.record("DOWNLOAD", request, detail.path(), null, "Downloaded " + detail.name());
         Path file = storageService.resolveVaultFile(path);
         return fileResponseService.attachment(file);
     }
@@ -451,7 +500,7 @@ public class AdminFileController {
     }
 
     @GetMapping("/files/download.zip")
-    public Object downloadZip(
+    public void downloadZip(
             @RequestParam(value = "path", required = false) String path,
             @RequestParam(value = "view", required = false) String view,
             @RequestParam(value = "sort", required = false) String sort,
@@ -459,33 +508,36 @@ public class AdminFileController {
             @RequestParam(value = "page", required = false) Integer page,
             @RequestParam(value = "size", required = false) Integer size,
             HttpServletRequest request,
+            HttpServletResponse response,
             RedirectAttributes redirectAttributes
     ) throws IOException {
         List<String> items = SelectedItems.from(request);
         if (items.isEmpty()) {
             FlashNotifications.warning(redirectAttributes, "Select at least one item.");
-            return redirectToFiles(path, view, sort, direction, page, size);
+            response.sendRedirect(redirectUrl(redirectToFiles(path, view, sort, direction, page, size)));
+            return;
         }
 
         if (items.size() == 1) {
             FileItem item = storageService.describeVaultChild(path, items.get(0));
             if (!item.directory()) {
+                activityLogService.record("DOWNLOAD", request, item.path(), null, "Downloaded " + item.name());
                 Path file = storageService.resolveFile(StorageScope.VAULT, path, item.name());
-                return fileResponseService.attachment(file);
+                writeAttachment(file, response);
+                return;
             }
         }
 
-        StreamingResponseBody body = outputStream ->
-                storageService.writeZip(StorageScope.VAULT, path, items, outputStream);
-        return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType("application/zip"))
-                .header(HttpHeaders.CONTENT_DISPOSITION, zipContentDisposition(items))
-                .body(body);
+        activityLogService.record("DOWNLOAD_ZIP", request, path, null, "Downloaded ZIP with " + items.size() + " item(s)");
+        response.setContentType("application/zip");
+        response.setHeader(HttpHeaders.CONTENT_DISPOSITION, zipContentDisposition(items));
+        storageService.writeZip(StorageScope.VAULT, path, items, response.getOutputStream());
     }
 
     @GetMapping("/files/detail/download.zip")
     public void downloadZipFromDetail(
             @RequestParam("path") String path,
+            HttpServletRequest request,
             HttpServletResponse response
     ) throws IOException {
         FileDetail detail = detailForPath(path);
@@ -493,6 +545,7 @@ public class AdminFileController {
             throw new NoSuchFileException(detail.path());
         }
 
+        activityLogService.record("DOWNLOAD_ZIP", request, detail.path(), null, "Downloaded ZIP for " + detail.name());
         response.setContentType("application/zip");
         response.setHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"endervault.zip\"");
         storageService.writeZip(
@@ -605,6 +658,19 @@ public class AdminFileController {
                 .filename(filename, StandardCharsets.UTF_8)
                 .build()
                 .toString();
+    }
+
+    private void writeAttachment(Path file, HttpServletResponse response) throws IOException {
+        response.setContentType(MediaType.APPLICATION_OCTET_STREAM_VALUE);
+        response.setContentLengthLong(Files.size(file));
+        response.setHeader(
+                HttpHeaders.CONTENT_DISPOSITION,
+                ContentDisposition.attachment()
+                        .filename(file.getFileName().toString(), StandardCharsets.UTF_8)
+                        .build()
+                        .toString()
+        );
+        Files.copy(file, response.getOutputStream());
     }
 
     private ResponseEntity<Resource> thumbnailResponse(Path file, String vaultPath) throws IOException {

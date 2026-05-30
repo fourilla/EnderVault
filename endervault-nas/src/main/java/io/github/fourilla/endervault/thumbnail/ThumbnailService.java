@@ -1,5 +1,6 @@
 package io.github.fourilla.endervault.thumbnail;
 
+import io.github.fourilla.endervault.common.ByteSizeFormatter;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import jakarta.annotation.PostConstruct;
@@ -18,8 +19,9 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.Locale;
 import java.util.HexFormat;
+import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -93,6 +95,32 @@ public class ThumbnailService {
 
         scheduleGeneration(videoFile.toAbsolutePath().normalize(), cacheFile);
         return placeholder();
+    }
+
+    public ThumbnailCacheStats cacheStats() throws IOException {
+        long cachedFiles = 0L;
+        long sizeBytes = 0L;
+
+        if (Files.exists(videoCacheRoot)) {
+            try (Stream<Path> paths = Files.walk(videoCacheRoot)) {
+                List<Path> files = paths
+                        .filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))
+                        .filter(path -> !Files.isSymbolicLink(path))
+                        .toList();
+                cachedFiles = files.size();
+                for (Path file : files) {
+                    sizeBytes += Files.size(file);
+                }
+            }
+        }
+
+        return new ThumbnailCacheStats(
+                videoEnabled,
+                cachedFiles,
+                sizeBytes,
+                ByteSizeFormatter.humanSize(sizeBytes),
+                inProgress.size()
+        );
     }
 
     public void migrateVideoThumbnails(Path currentPath, String oldVaultPath, String newVaultPath) {

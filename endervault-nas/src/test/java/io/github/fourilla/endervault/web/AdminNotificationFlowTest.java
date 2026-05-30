@@ -7,14 +7,17 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -48,6 +51,59 @@ class AdminNotificationFlowTest {
         mockMvc.perform(get("/files"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"toastRegion\"")));
+    }
+
+    @Test
+    void directoriesStayTableInGridViewAndExposeEnhancedSelectAll() throws Exception {
+        String directory = "grid-directory-" + System.nanoTime();
+        String filename = "grid-file-" + System.nanoTime() + ".txt";
+        Files.createDirectories(ROOT.resolve(directory));
+        Files.writeString(ROOT.resolve(filename), "grid");
+
+        mockMvc.perform(get("/files").param("view", "grid"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(directory)))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-select-pick-label")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-select-all")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("directory-card"))));
+    }
+
+    @Test
+    void gridFileCardsUseCompactPreviewOnlyActions() throws Exception {
+        String filename = "grid-card-" + System.nanoTime() + ".txt";
+        Files.writeString(ROOT.resolve(filename), "grid");
+
+        mockMvc.perform(get("/files").param("view", "grid"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("thumb-extension")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("card-name")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("card-actions"))));
+    }
+
+    @Test
+    void dashboardPageRendersSummaryPanels() throws Exception {
+        mockMvc.perform(get("/files/dashboard"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Dashboard")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Task Manager")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Activity Log")));
+    }
+
+    @Test
+    void logsPageRendersActivityEntries() throws Exception {
+        String directory = "log-dir-" + System.nanoTime();
+
+        mockMvc.perform(post("/files/directories")
+                        .with(csrf())
+                        .param("name", directory))
+                .andExpect(status().is3xxRedirection());
+
+        mockMvc.perform(get("/files/logs"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("CREATE DIRECTORY")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(directory)));
     }
 
     @Test
@@ -103,6 +159,36 @@ class AdminNotificationFlowTest {
                 .andExpect(jsonPath("$.uploadedFiles[0].name").value(filename));
 
         assertThat(ROOT.resolve(filename)).exists();
+    }
+
+    @Test
+    void selectedSingleFileDownloadReturnsAttachment() throws Exception {
+        String filename = "selected-download-" + System.nanoTime() + ".txt";
+        Files.writeString(ROOT.resolve(filename), "selected download", StandardCharsets.UTF_8);
+
+        mockMvc.perform(get("/files/download.zip")
+                        .param("items", filename))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, Matchers.containsString(filename)))
+                .andExpect(content().bytes("selected download".getBytes(StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    void selectedMultipleFileDownloadStreamsZip() throws Exception {
+        String first = "selected-zip-a-" + System.nanoTime() + ".txt";
+        String second = "selected-zip-b-" + System.nanoTime() + ".txt";
+        Files.writeString(ROOT.resolve(first), "first", StandardCharsets.UTF_8);
+        Files.writeString(ROOT.resolve(second), "second", StandardCharsets.UTF_8);
+
+        MvcResult result = mockMvc.perform(get("/files/download.zip")
+                        .param("items", first)
+                        .param("items", second))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, Matchers.containsString("endervault.zip")))
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE, Matchers.containsString("application/zip")))
+                .andReturn();
+
+        assertThat(result.getResponse().getContentAsByteArray()).isNotEmpty();
     }
 
     @Test

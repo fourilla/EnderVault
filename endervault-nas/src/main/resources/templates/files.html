@@ -175,11 +175,17 @@
             <h2 th:text="|Directories (${#lists.size(listing.directories())})|">Directories</h2>
         </header>
 
-        <div class="table-wrap" th:if="${view == 'table'}">
+        <div class="table-wrap">
             <table>
                 <thead>
                 <tr>
-                    <th class="select-col">Pick</th>
+                    <th class="select-col">
+                        <span data-select-pick-label>Pick</span>
+                        <label class="select-all-label js-only" title="Select all visible items">
+                            <input class="select-all-checkbox" type="checkbox" data-select-all
+                                   aria-label="Select all visible items">
+                        </label>
+                    </th>
                     <th>Name</th>
                     <th>Type</th>
                     <th>Size</th>
@@ -189,7 +195,7 @@
                 </thead>
                 <tbody>
                 <tr th:each="directory : ${listing.directories()}">
-                    <td><input form="bulkActionForm" type="checkbox" name="items" th:value="${directory.name()}"></td>
+                    <td class="select-cell"><input form="bulkActionForm" type="checkbox" name="items" th:value="${directory.name()}"></td>
                     <td><a class="item-name directory"
                            th:href="@{/files(path=${directory.path()}, view=${view}, sort=${sort}, dir=${dir}, size=${filePage.size()})}">
                         <i class="fas fa-folder item-icon" aria-hidden="true"></i>
@@ -209,32 +215,6 @@
                 </tbody>
             </table>
         </div>
-
-        <div class="browser-grid" th:if="${view == 'grid'}">
-            <article class="browser-card directory-card" th:each="directory : ${listing.directories()}">
-                <input form="bulkActionForm" class="card-check" type="checkbox" name="items" th:value="${directory.name()}">
-                <a class="card-thumb directory-thumb"
-                   th:href="@{/files(path=${directory.path()}, view=${view}, sort=${sort}, dir=${dir}, size=${filePage.size()})}">
-                    <span>Directory</span>
-                </a>
-                <div class="card-body">
-                    <a class="card-name"
-                       th:href="@{/files(path=${directory.path()}, view=${view}, sort=${sort}, dir=${dir}, size=${filePage.size()})}"
-                       th:text="${directory.name()}">directory</a>
-                    <p class="card-meta">
-                        <span>Directory</span>
-                        <span th:text="${directory.modifiedLabel()}">modified</span>
-                    </p>
-                    <div class="card-actions">
-                        <a class="button-link ghost icon-button action-icon"
-                           th:href="@{/files/detail(path=${directory.path()})}"
-                           title="Details" aria-label="Details">
-                            <i class="fas fa-circle-info" aria-hidden="true"></i>
-                        </a>
-                    </div>
-                </div>
-            </article>
-        </div>
     </section>
 
     <section class="browser-section" th:if="${filePage.totalItems() > 0}" aria-label="Files">
@@ -247,7 +227,13 @@
             <table>
                 <thead>
                 <tr>
-                    <th class="select-col">Pick</th>
+                    <th class="select-col">
+                        <span data-select-pick-label>Pick</span>
+                        <label class="select-all-label js-only" title="Select all visible items">
+                            <input class="select-all-checkbox" type="checkbox" data-select-all
+                                   aria-label="Select all visible items">
+                        </label>
+                    </th>
                     <th>Name</th>
                     <th>Type</th>
                     <th>Size</th>
@@ -257,7 +243,7 @@
                 </thead>
                 <tbody>
                 <tr th:each="file : ${filePage.items()}">
-                    <td><input form="bulkActionForm" type="checkbox" name="items" th:value="${file.name()}"></td>
+                    <td class="select-cell"><input form="bulkActionForm" type="checkbox" name="items" th:value="${file.name()}"></td>
                     <td><a class="item-name" th:href="@{/files/detail(path=${file.path()})}" th:text="${file.name()}">file</a></td>
                     <td th:text="${file.mediaType()}">type</td>
                     <td th:text="${file.sizeLabel()}">0 B</td>
@@ -293,30 +279,20 @@
                         <img class="thumb-media" loading="lazy"
                              th:src="@{/files/thumbnail(path=${path}, item=${file.name()})}"
                              th:alt="${file.name()}">
-                        <span class="thumb-play">Play</span>
                     </span>
-                    <span class="thumb-placeholder" th:if="${not file.image() and not file.video()}" th:text="${file.typeLabel()}">File</span>
+                    <span class="thumb-extension"
+                          th:classappend="${file.image() or file.video()} ? ' thumb-extension-overlay' : ' thumb-extension-center'"
+                          th:text="${file.extensionLabel()}">FILE</span>
                 </a>
                 <div class="card-body">
-                    <a class="card-name" th:href="@{/files/detail(path=${file.path()})}" th:text="${file.name()}">file</a>
+                    <a class="card-name" th:href="@{/files/detail(path=${file.path()})}"
+                       th:title="${file.name()}"
+                       th:text="${file.name()}">file</a>
                     <p class="card-meta">
                         <span th:text="${file.typeLabel()}">File</span>
                         <span th:text="${file.sizeLabel()}">0 B</span>
                     </p>
                     <p class="card-meta" th:text="${file.modifiedLabel()}">modified</p>
-                    <div class="card-actions">
-                        <a class="button-link ghost icon-button action-icon"
-                           th:href="@{/files/download(path=${path}, item=${file.name()})}"
-                           title="Download" aria-label="Download">
-                            <i class="fas fa-download" aria-hidden="true"></i>
-                        </a>
-                        <a class="button-link ghost icon-button action-icon"
-                           th:if="${file.previewable()}"
-                           th:href="@{/files/preview(path=${path}, item=${file.name()})}"
-                           target="_blank" title="Preview" aria-label="Preview">
-                            <i class="fas fa-eye" aria-hidden="true"></i>
-                        </a>
-                    </div>
                 </div>
             </article>
         </div>

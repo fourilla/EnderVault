@@ -44,6 +44,37 @@ class StorageServiceTest {
     }
 
     @Test
+    void fileItemReportsExtensionLabelForGridBadges() {
+        FileItem archive = new FileItem(
+                "backup.zip",
+                "backup.zip",
+                false,
+                0,
+                "0 B",
+                "-",
+                Instant.EPOCH,
+                "application/zip",
+                false,
+                false
+        );
+        FileItem withoutExtension = new FileItem(
+                "README",
+                "README",
+                false,
+                0,
+                "0 B",
+                "-",
+                Instant.EPOCH,
+                "text/plain",
+                true,
+                false
+        );
+
+        assertThat(archive.extensionLabel()).isEqualTo("ZIP");
+        assertThat(withoutExtension.extensionLabel()).isEqualTo("Text");
+    }
+
+    @Test
     void listsTrashDirectorySeparately() throws Exception {
         Files.writeString(root.resolve(".trash").resolve("deleted.txt"), "deleted");
 

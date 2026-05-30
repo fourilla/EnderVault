@@ -6,6 +6,7 @@ public record StorageUsage(
         long usableBytes,
         String usedLabel,
         String totalLabel,
+        String usableLabel,
         int usedPercent
 ) {
 }

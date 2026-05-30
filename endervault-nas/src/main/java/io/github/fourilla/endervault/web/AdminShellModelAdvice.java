@@ -6,7 +6,9 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
 
 @ControllerAdvice(assignableTypes = {
+        AdminDashboardController.class,
         AdminFileController.class,
+        AdminLogController.class,
         AdminShareController.class,
         AdminTrashController.class
 })
