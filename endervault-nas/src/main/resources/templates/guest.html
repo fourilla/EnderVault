@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>EnderVault Public Files</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<header class="topbar">
+    <a class="brand" th:href="@{/guest}">EnderVault Public</a>
+    <nav class="top-actions">
+        <a th:href="@{/login}">Admin login</a>
+    </nav>
+</header>
+
+<main class="workspace">
+    <section class="pathbar" aria-label="Current path">
+        <nav class="breadcrumbs">
+            <a th:each="crumb : ${listing.breadcrumbs()}"
+               th:href="@{/guest(path=${crumb.path()})}"
+               th:text="${crumb.label()}">Root</a>
+        </nav>
+        <a class="ghost" th:if="${listing.hasParent()}" th:href="@{/guest(path=${listing.parentPath()})}">Up</a>
+    </section>
+
+    <section class="toolbar" aria-label="Download tools">
+        <form id="bulkActionForm" method="get" th:action="@{/guest/download.zip}">
+            <input type="hidden" name="path" th:value="${path}">
+        </form>
+        <button form="bulkActionForm" type="submit">Download selected zip</button>
+    </section>
+
+    <section class="table-wrap" aria-label="Public files">
+        <table>
+            <thead>
+            <tr>
+                <th class="select-col">Pick</th>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Size</th>
+                <th>Modified</th>
+                <th>Actions</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="dir : ${listing.directories()}">
+                <td><input form="bulkActionForm" type="checkbox" name="items" th:value="${dir.name()}"></td>
+                <td><a class="item-name folder" th:href="@{/guest(path=${dir.path()})}" th:text="${dir.name()}">folder</a></td>
+                <td>Folder</td>
+                <td>-</td>
+                <td th:text="${dir.modifiedLabel()}">-</td>
+                <td>-</td>
+            </tr>
+            <tr th:each="file : ${listing.files()}">
+                <td><input form="bulkActionForm" type="checkbox" name="items" th:value="${file.name()}"></td>
+                <td><span class="item-name" th:text="${file.name()}">file</span></td>
+                <td th:text="${file.mediaType()}">type</td>
+                <td th:text="${file.sizeLabel()}">0 B</td>
+                <td th:text="${file.modifiedLabel()}">-</td>
+                <td>
+                    <a th:href="@{/guest/download(path=${path}, item=${file.name()})}">Download</a>
+                    <a th:if="${file.previewable()}" th:href="@{/guest/preview(path=${path}, item=${file.name()})}" target="_blank">Preview</a>
+                </td>
+            </tr>
+            <tr th:if="${#lists.isEmpty(listing.directories()) and #lists.isEmpty(listing.files())}">
+                <td colspan="6" class="empty">No public files yet.</td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+</main>
+</body>
+</html>
+

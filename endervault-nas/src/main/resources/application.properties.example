@@ -1,0 +1,12 @@
+nas.storage.root=D:/Vault
+nas.storage.public-folder=public
+nas.storage.trash-folder=.trash
+nas.storage.metadata-folder=.endervault
+
+nas.admin.username=admin
+nas.admin.password={bcrypt}REPLACE_WITH_BCRYPT_HASH
+
+nas.notifications.telegram.enabled=false
+nas.notifications.telegram.bot-token=
+nas.notifications.telegram.chat-id=
+

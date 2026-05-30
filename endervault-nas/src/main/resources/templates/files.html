@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>EnderVault Files</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<header class="topbar">
+    <a class="brand" th:href="@{/files}">EnderVault</a>
+    <nav class="top-actions">
+        <a th:href="@{/guest}">Guest view</a>
+        <form method="post" th:action="@{/logout}">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <button class="ghost" type="submit">Log out</button>
+        </form>
+    </nav>
+</header>
+
+<main class="workspace">
+    <section class="pathbar" aria-label="Current path">
+        <nav class="breadcrumbs">
+            <a th:each="crumb : ${listing.breadcrumbs()}"
+               th:href="@{/files(path=${crumb.path()})}"
+               th:text="${crumb.label()}">Root</a>
+        </nav>
+        <a class="ghost" th:if="${listing.hasParent()}" th:href="@{/files(path=${listing.parentPath()})}">Up</a>
+    </section>
+
+    <p class="alert" th:if="${message}" th:text="${message}"></p>
+
+    <section class="toolbar" aria-label="File tools">
+        <form class="tool-form" method="post" enctype="multipart/form-data" th:action="@{/files/upload}">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <input type="hidden" name="path" th:value="${path}">
+            <input type="file" name="files" multiple required>
+            <button type="submit">Upload</button>
+        </form>
+
+        <form class="tool-form" method="post" th:action="@{/files/folders}">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <input type="hidden" name="path" th:value="${path}">
+            <input name="name" placeholder="New folder" required>
+            <button type="submit">Create</button>
+        </form>
+
+        <form id="bulkActionForm" method="post">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <input type="hidden" name="path" th:value="${path}">
+        </form>
+
+        <div class="bulk-actions">
+            <button form="bulkActionForm" type="submit" th:formaction="@{/files/download.zip}" formmethod="get">
+                Download zip
+            </button>
+            <button form="bulkActionForm" class="danger" type="submit" th:formaction="@{/files/delete}" formmethod="post">
+                Delete selected
+            </button>
+        </div>
+    </section>
+
+    <section class="table-wrap" aria-label="Files">
+        <table>
+            <thead>
+            <tr>
+                <th class="select-col">Pick</th>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Size</th>
+                <th>Modified</th>
+                <th>Actions</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="dir : ${listing.directories()}">
+                <td><input form="bulkActionForm" type="checkbox" name="items" th:value="${dir.name()}"></td>
+                <td><a class="item-name folder" th:href="@{/files(path=${dir.path()})}" th:text="${dir.name()}">folder</a></td>
+                <td>Folder</td>
+                <td>-</td>
+                <td th:text="${dir.modifiedLabel()}">-</td>
+                <td>
+                    <form class="row-form" method="post" th:action="@{/files/rename}">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                        <input type="hidden" name="path" th:value="${path}">
+                        <input type="hidden" name="item" th:value="${dir.name()}">
+                        <input name="newName" th:value="${dir.name()}" required>
+                        <button type="submit">Rename</button>
+                    </form>
+                    <form class="row-form" method="post" th:action="@{/files/move}">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                        <input type="hidden" name="path" th:value="${path}">
+                        <input type="hidden" name="item" th:value="${dir.name()}">
+                        <input name="targetPath" placeholder="Target path" required>
+                        <button type="submit">Move</button>
+                    </form>
+                </td>
+            </tr>
+            <tr th:each="file : ${listing.files()}">
+                <td><input form="bulkActionForm" type="checkbox" name="items" th:value="${file.name()}"></td>
+                <td><span class="item-name" th:text="${file.name()}">file</span></td>
+                <td th:text="${file.mediaType()}">type</td>
+                <td th:text="${file.sizeLabel()}">0 B</td>
+                <td th:text="${file.modifiedLabel()}">-</td>
+                <td>
+                    <a th:href="@{/files/download(path=${path}, item=${file.name()})}">Download</a>
+                    <a th:if="${file.previewable()}" th:href="@{/files/preview(path=${path}, item=${file.name()})}" target="_blank">Preview</a>
+                    <form class="row-form" method="post" th:action="@{/files/rename}">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                        <input type="hidden" name="path" th:value="${path}">
+                        <input type="hidden" name="item" th:value="${file.name()}">
+                        <input name="newName" th:value="${file.name()}" required>
+                        <button type="submit">Rename</button>
+                    </form>
+                    <form class="row-form" method="post" th:action="@{/files/move}">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                        <input type="hidden" name="path" th:value="${path}">
+                        <input type="hidden" name="item" th:value="${file.name()}">
+                        <input name="targetPath" placeholder="Target path" required>
+                        <button type="submit">Move</button>
+                    </form>
+                </td>
+            </tr>
+            <tr th:if="${#lists.isEmpty(listing.directories()) and #lists.isEmpty(listing.files())}">
+                <td colspan="6" class="empty">This folder is empty.</td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+</main>
+</body>
+</html>
+

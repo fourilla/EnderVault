@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>EnderVault Login</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body class="auth-page">
+<main class="auth-shell">
+    <section class="auth-panel">
+        <p class="eyebrow">Private NAS</p>
+        <h1>EnderVault</h1>
+
+        <p class="alert error" th:if="${param.error}">Login failed. Check your ID and password.</p>
+        <p class="alert" th:if="${param.logout}">You have been logged out.</p>
+
+        <form class="stack" method="post" th:action="@{/login}">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+
+            <label>
+                <span>ID</span>
+                <input name="username" autocomplete="username" required autofocus>
+            </label>
+
+            <label>
+                <span>Password</span>
+                <input name="password" type="password" autocomplete="current-password" required>
+            </label>
+
+            <button class="primary" type="submit">Log in</button>
+        </form>
+
+        <a class="text-link" th:href="@{/guest}">Continue as guest</a>
+    </section>
+</main>
+</body>
+</html>
+
