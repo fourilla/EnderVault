@@ -88,6 +88,7 @@ public class AdminDashboardController {
     private DashboardView.ThumbnailSummary thumbnailSummary(ThumbnailCacheStats stats) {
         return new DashboardView.ThumbnailSummary(
                 stats.videoEnabled(),
+                stats.comicEnabled(),
                 stats.cachedFiles(),
                 stats.sizeBytes(),
                 stats.sizeLabel(),

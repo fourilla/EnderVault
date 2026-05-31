@@ -322,7 +322,7 @@ public class AdminFileController {
         FileItem oldItem = storageService.describeVaultChild(path, item);
         storageService.rename(path, item, newName);
         FileItem newItem = storageService.describeVaultChild(path, newName);
-        thumbnailService.migrateVideoThumbnails(
+        thumbnailService.migrateThumbnails(
                 storageService.resolveVaultPath(newItem.path()),
                 oldItem.path(),
                 newItem.path()
@@ -349,7 +349,7 @@ public class AdminFileController {
     ) throws IOException {
         FileDetail detail = detailForPath(path);
         String newPath = storageService.renameVaultPath(detail.path(), newName);
-        thumbnailService.migrateVideoThumbnails(storageService.resolveVaultPath(newPath), detail.path(), newPath);
+        thumbnailService.migrateThumbnails(storageService.resolveVaultPath(newPath), detail.path(), newPath);
         shareLinkService.moveVaultPath(detail.path(), newPath);
         favoriteService.moveVaultPath(detail.path(), newPath);
         recentService.moveVaultPath(detail.path(), newPath);
@@ -374,7 +374,7 @@ public class AdminFileController {
         FileItem oldItem = storageService.describeVaultChild(path, item);
         storageService.move(path, item, targetPath);
         FileItem newItem = storageService.describeVaultChild(targetPath, item);
-        thumbnailService.migrateVideoThumbnails(
+        thumbnailService.migrateThumbnails(
                 storageService.resolveVaultPath(newItem.path()),
                 oldItem.path(),
                 newItem.path()
@@ -401,7 +401,7 @@ public class AdminFileController {
     ) throws IOException {
         FileDetail detail = detailForPath(path);
         String newPath = storageService.moveVaultPath(detail.path(), targetPath);
-        thumbnailService.migrateVideoThumbnails(storageService.resolveVaultPath(newPath), detail.path(), newPath);
+        thumbnailService.migrateThumbnails(storageService.resolveVaultPath(newPath), detail.path(), newPath);
         shareLinkService.moveVaultPath(detail.path(), newPath);
         favoriteService.moveVaultPath(detail.path(), newPath);
         recentService.moveVaultPath(detail.path(), newPath);
@@ -777,11 +777,11 @@ public class AdminFileController {
     }
 
     private ResponseEntity<Resource> thumbnailResponse(Path file, String vaultPath) throws IOException {
-        if (!storageService.mediaType(file).startsWith("video/")) {
+        if (!thumbnailService.supportsThumbnail(file)) {
             throw new NoSuchFileException(vaultPath);
         }
 
-        ThumbnailFile thumbnail = thumbnailService.videoThumbnail(file, vaultPath);
+        ThumbnailFile thumbnail = thumbnailService.thumbnail(file, vaultPath);
         CacheControl cacheControl = thumbnail.generated()
                 ? CacheControl.maxAge(Duration.ofDays(30)).cachePublic()
                 : CacheControl.noStore();

@@ -3,6 +3,8 @@ package io.github.fourilla.endervault.thumbnail;
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.filetool.ComicArchiveService;
+import io.github.fourilla.endervault.filetool.ComicPageResource;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import java.awt.Color;
@@ -10,11 +12,15 @@ import java.awt.Font;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
+import java.nio.ByteBuffer;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
@@ -30,11 +36,13 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import javax.imageio.ImageIO;
+import org.bytedeco.ffmpeg.global.avutil;
 import org.bytedeco.javacv.FFmpegFrameGrabber;
 import org.bytedeco.javacv.Frame;
 import org.bytedeco.javacv.Java2DFrameConverter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -46,12 +54,17 @@ public class ThumbnailService {
 
     private final Path cacheRoot;
     private final Path videoCacheRoot;
-    private final Path placeholderFile;
+    private final Path comicCacheRoot;
+    private final Path videoPlaceholderFile;
+    private final Path comicPlaceholderFile;
     private final boolean videoEnabled;
+    private final boolean comicEnabled;
     private final ExecutorService executor;
     private final Set<Path> inProgress = ConcurrentHashMap.newKeySet();
+    private final ComicArchiveService comicArchiveService;
 
-    public ThumbnailService(NasProperties nasProperties) {
+    @Autowired
+    public ThumbnailService(NasProperties nasProperties, ComicArchiveService comicArchiveService) {
         NasProperties.Storage storage = nasProperties.getStorage();
         NasProperties.Thumbnails thumbnails = nasProperties.getThumbnails();
         String cacheDirectory = validateDirectoryName(thumbnails.getCacheDirectory());
@@ -62,19 +75,31 @@ public class ThumbnailService {
                 .resolve(storage.getMetadataDirectory())
                 .resolve(cacheDirectory);
         this.videoCacheRoot = cacheRoot.resolve("videos");
-        this.placeholderFile = cacheRoot.resolve("video-placeholder.png");
+        this.comicCacheRoot = cacheRoot.resolve("comics");
+        this.videoPlaceholderFile = cacheRoot.resolve("video-placeholder.png");
+        this.comicPlaceholderFile = cacheRoot.resolve("comic-placeholder.png");
         this.videoEnabled = thumbnails.isVideoEnabled();
+        this.comicEnabled = thumbnails.isComicEnabled();
         this.executor = Executors.newFixedThreadPool(
                 Math.max(1, thumbnails.getGeneratorThreads()),
                 thumbnailThreadFactory()
         );
+        this.comicArchiveService = comicArchiveService;
+    }
+
+    ThumbnailService(NasProperties nasProperties) {
+        this(nasProperties, new ComicArchiveService(nasProperties));
     }
 
     @PostConstruct
     public void initialize() throws IOException {
         Files.createDirectories(videoCacheRoot);
-        if (!Files.exists(placeholderFile)) {
-            writePlaceholder();
+        Files.createDirectories(comicCacheRoot);
+        if (!Files.exists(videoPlaceholderFile)) {
+            writeVideoPlaceholder();
+        }
+        if (!Files.exists(comicPlaceholderFile)) {
+            writeComicPlaceholder();
         }
     }
 
@@ -85,7 +110,7 @@ public class ThumbnailService {
 
     public ThumbnailFile videoThumbnail(Path videoFile, String vaultPath) throws IOException {
         if (!videoEnabled) {
-            return placeholder();
+            return videoPlaceholder();
         }
 
         Path cacheFile = videoCacheFile(videoFile, vaultPath);
@@ -93,21 +118,52 @@ public class ThumbnailService {
             return new ThumbnailFile(cacheFile, "image/jpeg", true);
         }
 
-        scheduleGeneration(videoFile.toAbsolutePath().normalize(), cacheFile);
-        return placeholder();
+        scheduleGeneration(videoFile.toAbsolutePath().normalize(), cacheFile, this::generateVideoThumbnail);
+        return videoPlaceholder();
+    }
+
+    public ThumbnailFile comicThumbnail(Path comicFile, String vaultPath) throws IOException {
+        if (!comicEnabled) {
+            return comicPlaceholder();
+        }
+
+        Path cacheFile = comicCacheFile(comicFile, vaultPath);
+        if (Files.exists(cacheFile)) {
+            return new ThumbnailFile(cacheFile, "image/jpeg", true);
+        }
+
+        scheduleGeneration(comicFile.toAbsolutePath().normalize(), cacheFile, this::generateComicThumbnail);
+        return comicPlaceholder();
+    }
+
+    public ThumbnailFile thumbnail(Path file, String vaultPath) throws IOException {
+        if (isVideoFile(file)) {
+            return videoThumbnail(file, vaultPath);
+        }
+        if (isComicFile(file)) {
+            return comicThumbnail(file, vaultPath);
+        }
+        throw new NoSuchFileException(vaultPath);
+    }
+
+    public boolean supportsThumbnail(Path file) throws IOException {
+        return isVideoFile(file) || isComicFile(file);
     }
 
     public ThumbnailCacheStats cacheStats() throws IOException {
         long cachedFiles = 0L;
         long sizeBytes = 0L;
 
-        if (Files.exists(videoCacheRoot)) {
-            try (Stream<Path> paths = Files.walk(videoCacheRoot)) {
+        for (Path thumbnailRoot : List.of(videoCacheRoot, comicCacheRoot)) {
+            if (!Files.exists(thumbnailRoot)) {
+                continue;
+            }
+            try (Stream<Path> paths = Files.walk(thumbnailRoot)) {
                 List<Path> files = paths
                         .filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))
                         .filter(path -> !Files.isSymbolicLink(path))
                         .toList();
-                cachedFiles = files.size();
+                cachedFiles += files.size();
                 for (Path file : files) {
                     sizeBytes += Files.size(file);
                 }
@@ -116,6 +172,7 @@ public class ThumbnailService {
 
         return new ThumbnailCacheStats(
                 videoEnabled,
+                comicEnabled,
                 cachedFiles,
                 sizeBytes,
                 ByteSizeFormatter.humanSize(sizeBytes),
@@ -123,8 +180,11 @@ public class ThumbnailService {
         );
     }
 
-    public void migrateVideoThumbnails(Path currentPath, String oldVaultPath, String newVaultPath) {
-        if (!videoEnabled || oldVaultPath == null || newVaultPath == null || oldVaultPath.equals(newVaultPath)) {
+    public void migrateThumbnails(Path currentPath, String oldVaultPath, String newVaultPath) {
+        if ((!videoEnabled && !comicEnabled)
+                || oldVaultPath == null
+                || newVaultPath == null
+                || oldVaultPath.equals(newVaultPath)) {
             return;
         }
 
@@ -134,7 +194,7 @@ public class ThumbnailService {
                 return;
             }
             if (Files.isRegularFile(normalizedPath, LinkOption.NOFOLLOW_LINKS)) {
-                migrateSingleVideoThumbnail(normalizedPath, oldVaultPath, newVaultPath);
+                migrateSingleThumbnail(normalizedPath, oldVaultPath, newVaultPath);
                 return;
             }
             if (!Files.isDirectory(normalizedPath, LinkOption.NOFOLLOW_LINKS)) {
@@ -148,46 +208,67 @@ public class ThumbnailService {
                         .toList()) {
                     Path relativePath = normalizedPath.relativize(path);
                     try {
-                        migrateSingleVideoThumbnail(
+                        migrateSingleThumbnail(
                                 path,
                                 childVaultPath(oldVaultPath, relativePath),
                                 childVaultPath(newVaultPath, relativePath)
                         );
                     } catch (IOException ex) {
-                        logger.warn("Failed to migrate video thumbnail for {}", path, ex);
+                        logger.warn("Failed to migrate thumbnail for {}", path, ex);
                     }
                 }
             }
         } catch (IOException ex) {
-            logger.warn("Failed to migrate video thumbnails from {} to {}", oldVaultPath, newVaultPath, ex);
+            logger.warn("Failed to migrate thumbnails from {} to {}", oldVaultPath, newVaultPath, ex);
         }
     }
 
-    private ThumbnailFile placeholder() {
-        return new ThumbnailFile(placeholderFile, "image/png", false);
+    public void migrateVideoThumbnails(Path currentPath, String oldVaultPath, String newVaultPath) {
+        migrateThumbnails(currentPath, oldVaultPath, newVaultPath);
+    }
+
+    private ThumbnailFile videoPlaceholder() {
+        return new ThumbnailFile(videoPlaceholderFile, "image/png", false);
+    }
+
+    private ThumbnailFile comicPlaceholder() {
+        return new ThumbnailFile(comicPlaceholderFile, "image/png", false);
     }
 
     Path videoCacheFile(Path videoFile, String vaultPath) throws IOException {
-        String key = "%s|%d|%d".formatted(
-                vaultPath,
-                Files.size(videoFile),
-                Files.getLastModifiedTime(videoFile).toMillis()
-        );
-        return videoCacheRoot.resolve(sha256(key) + ".jpg");
+        return cacheFile(videoCacheRoot, videoFile, vaultPath);
     }
 
-    private void migrateSingleVideoThumbnail(Path currentVideoFile, String oldVaultPath, String newVaultPath)
+    Path comicCacheFile(Path comicFile, String vaultPath) throws IOException {
+        return cacheFile(comicCacheRoot, comicFile, vaultPath);
+    }
+
+    private Path cacheFile(Path root, Path file, String vaultPath) throws IOException {
+        String key = "%s|%d|%d".formatted(
+                vaultPath,
+                Files.size(file),
+                Files.getLastModifiedTime(file).toMillis()
+        );
+        return root.resolve(sha256(key) + ".jpg");
+    }
+
+    private void migrateSingleThumbnail(Path currentFile, String oldVaultPath, String newVaultPath)
             throws IOException {
-        if (!isVideoFile(currentVideoFile)) {
+        Path cacheRootForFile;
+        if (isVideoFile(currentFile)) {
+            cacheRootForFile = videoCacheRoot;
+        } else if (isComicFile(currentFile)) {
+            cacheRootForFile = comicCacheRoot;
+        } else {
             return;
         }
 
-        Path oldCacheFile = videoCacheFile(currentVideoFile, oldVaultPath);
+        Path oldCacheFile = cacheFile(cacheRootForFile, currentFile, oldVaultPath);
         if (!Files.exists(oldCacheFile)) {
             return;
         }
 
-        Path newCacheFile = videoCacheFile(currentVideoFile, newVaultPath);
+        Path newCacheFile = cacheFile(cacheRootForFile, currentFile, newVaultPath);
         if (oldCacheFile.equals(newCacheFile)) {
             return;
         }
@@ -230,16 +311,20 @@ public class ThumbnailService {
                 || name.endsWith(".avi");
     }
 
-    private void scheduleGeneration(Path videoFile, Path cacheFile) {
+    private boolean isComicFile(Path file) {
+        return file.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".cbz");
+    }
+
+    private void scheduleGeneration(Path sourceFile, Path cacheFile, ThumbnailGeneration generation) {
         if (!inProgress.add(cacheFile)) {
             return;
         }
 
         executor.submit(() -> {
             try {
-                generateVideoThumbnail(videoFile, cacheFile);
+                generation.generate(sourceFile, cacheFile);
             } catch (Exception ex) {
-                logger.warn("Failed to generate video thumbnail for {}", videoFile, ex);
+                logger.warn("Failed to generate thumbnail for {}", sourceFile, ex);
             } finally {
                 inProgress.remove(cacheFile);
             }
@@ -280,6 +365,125 @@ public class ThumbnailService {
                 logger.debug("Failed to release FFmpegFrameGrabber.", ex);
             }
         }
+    }
+
+    private void generateComicThumbnail(Path comicFile, Path cacheFile) throws IOException {
+        if (!Files.exists(comicFile) || Files.exists(cacheFile)) {
+            return;
+        }
+
+        Files.createDirectories(cacheFile.getParent());
+        Path tempFile = cacheFile.resolveSibling(cacheFile.getFileName() + ".tmp");
+        try {
+            ComicPageResource firstPage = comicArchiveService.openPage(comicFile, 0);
+            BufferedImage thumbnail;
+            try (InputStream inputStream = firstPage.resource().getInputStream()) {
+                thumbnail = decodeComicPage(inputStream.readAllBytes(), firstPage.filename());
+            }
+            if (thumbnail == null) {
+                throw new IOException("No readable image page could be read from " + comicFile);
+            }
+
+            ImageIO.write(scaleForThumbnail(thumbnail), "jpg", tempFile.toFile());
+            moveIntoPlace(tempFile, cacheFile);
+        } catch (Exception ex) {
+            Files.deleteIfExists(tempFile);
+            throw new IOException("Failed to generate comic thumbnail.", ex);
+        }
+    }
+
+    private BufferedImage decodeComicPage(byte[] imageBytes, String filename) throws IOException {
+        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(imageBytes)) {
+            BufferedImage image = ImageIO.read(inputStream);
+            if (image != null) {
+                return image;
+            }
+        }
+        return decodeImageWithFfmpeg(imageBytes, filename);
+    }
+
+    private BufferedImage decodeImageWithFfmpeg(byte[] imageBytes, String filename) throws IOException {
+        Path tempImage = Files.createTempFile("endervault-comic-page-", extensionSuffix(filename));
+        try {
+            Files.write(tempImage, imageBytes);
+            return decodeImageFileWithFfmpeg(tempImage);
+        } finally {
+            Files.deleteIfExists(tempImage);
+        }
+    }
+
+    private BufferedImage decodeImageFileWithFfmpeg(Path imageFile) throws IOException {
+        FFmpegFrameGrabber grabber = new FFmpegFrameGrabber(imageFile.toFile());
+        try {
+            grabber.setPixelFormat(avutil.AV_PIX_FMT_BGR24);
+            grabber.start();
+            return grabFfmpegImageFrame(grabber);
+        } catch (Exception ex) {
+            throw new IOException("Failed to decode image with FFmpeg.", ex);
+        } finally {
+            try {
+                grabber.stop();
+            } catch (Exception ex) {
+                logger.debug("Failed to stop image FFmpegFrameGrabber.", ex);
+            }
+            try {
+                grabber.release();
+            } catch (Exception ex) {
+                logger.debug("Failed to release image FFmpegFrameGrabber.", ex);
+            }
+        }
+    }
+
+    private BufferedImage grabFfmpegImageFrame(FFmpegFrameGrabber grabber) throws Exception {
+        for (int i = 0; i < 10; i++) {
+            Frame frame = grabber.grabImage();
+            if (frame != null && frame.image != null) {
+                BufferedImage image = bgrFrameToImage(frame);
+                if (image != null) {
+                    return image;
+                }
+            }
+        }
+        return null;
+    }
+
+    private BufferedImage bgrFrameToImage(Frame frame) {
+        if (frame.image.length == 0
+                || !(frame.image[0] instanceof ByteBuffer source)
+                || frame.imageWidth <= 0
+                || frame.imageHeight <= 0
+                || frame.imageStride < frame.imageWidth * 3) {
+            return null;
+        }
+
+        ByteBuffer buffer = source.duplicate();
+        BufferedImage image = new BufferedImage(frame.imageWidth, frame.imageHeight, BufferedImage.TYPE_INT_RGB);
+        for (int y = 0; y < frame.imageHeight; y++) {
+            int rowStart = y * frame.imageStride;
+            for (int x = 0; x < frame.imageWidth; x++) {
+                int index = rowStart + (x * 3);
+                int blue = buffer.get(index) & 0xff;
+                int green = buffer.get(index + 1) & 0xff;
+                int red = buffer.get(index + 2) & 0xff;
+                image.setRGB(x, y, (red << 16) | (green << 8) | blue);
+            }
+        }
+        return image;
+    }
+
+    private String extensionSuffix(String filename) {
+        if (filename == null) {
+            return ".img";
+        }
+        int index = filename.lastIndexOf('.');
+        if (index < 0 || index == filename.length() - 1) {
+            return ".img";
+        }
+        String extension = filename.substring(index + 1).toLowerCase(Locale.ROOT);
+        if (!extension.matches("[a-z0-9]{1,10}")) {
+            return ".img";
+        }
+        return "." + extension;
     }
 
     private void seekToPreviewPoint(FFmpegFrameGrabber grabber) throws Exception {
@@ -352,7 +556,7 @@ public class ThumbnailService {
         }
     }
 
-    private void writePlaceholder() throws IOException {
+    private void writeVideoPlaceholder() throws IOException {
         Files.createDirectories(cacheRoot);
         BufferedImage image = new BufferedImage(MAX_WIDTH, MAX_HEIGHT, BufferedImage.TYPE_INT_RGB);
         Graphics2D graphics = image.createGraphics();
@@ -371,7 +575,30 @@ public class ThumbnailService {
         } finally {
             graphics.dispose();
         }
-        ImageIO.write(image, "png", placeholderFile.toFile());
+        ImageIO.write(image, "png", videoPlaceholderFile.toFile());
+    }
+
+    private void writeComicPlaceholder() throws IOException {
+        Files.createDirectories(cacheRoot);
+        BufferedImage image = new BufferedImage(MAX_WIDTH, MAX_HEIGHT, BufferedImage.TYPE_INT_RGB);
+        Graphics2D graphics = image.createGraphics();
+        try {
+            graphics.setColor(new Color(238, 242, 245));
+            graphics.fillRect(0, 0, MAX_WIDTH, MAX_HEIGHT);
+            graphics.setColor(new Color(82, 67, 170));
+            graphics.fillRoundRect(162, 62, 156, 116, 14, 14);
+            graphics.setColor(new Color(210, 205, 255));
+            graphics.fillRect(186, 84, 108, 70);
+            graphics.setColor(Color.WHITE);
+            graphics.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 34));
+            graphics.drawString("CBZ", 200, 132);
+            graphics.setColor(new Color(101, 113, 132));
+            graphics.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 18));
+            graphics.drawString("Preparing thumbnail", 146, 212);
+        } finally {
+            graphics.dispose();
+        }
+        ImageIO.write(image, "png", comicPlaceholderFile.toFile());
     }
 
     private void moveIntoPlace(Path tempFile, Path cacheFile) throws IOException {
@@ -409,5 +636,10 @@ public class ThumbnailService {
             throw new StorageAccessException("Invalid thumbnail cache directory: " + directoryName);
         }
         return directoryName;
+    }
+
+    @FunctionalInterface
+    private interface ThumbnailGeneration {
+        void generate(Path sourceFile, Path cacheFile) throws IOException;
     }
 }

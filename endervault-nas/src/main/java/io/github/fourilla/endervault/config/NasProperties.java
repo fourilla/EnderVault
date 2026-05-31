@@ -175,6 +175,8 @@ public class NasProperties {
     public static class Thumbnails {
         private boolean videoEnabled = true;
 
+        private boolean comicEnabled = true;
+
         @NotBlank
         private String cacheDirectory = "thumbnails";
 
@@ -186,6 +188,14 @@ public class NasProperties {
 
         public void setVideoEnabled(boolean videoEnabled) {
             this.videoEnabled = videoEnabled;
+        }
+
+        public boolean isComicEnabled() {
+            return comicEnabled;
+        }
+
+        public void setComicEnabled(boolean comicEnabled) {
+            this.comicEnabled = comicEnabled;
         }
 
         public String getCacheDirectory() {

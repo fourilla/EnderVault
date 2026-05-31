@@ -176,14 +176,19 @@
 }
 
 .readonly-file-name {
+    display: -webkit-box;
     min-height: 44px;
+    min-width: 0;
     border-top: 1px solid var(--line);
     padding: 8px;
     color: var(--text);
     font-size: 13px;
     font-weight: 700;
     line-height: 1.35;
-    overflow-wrap: anywhere;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow-wrap: break-word;
 }
 
 .browser-grid-empty {
@@ -227,4 +232,3 @@
     background: var(--panel);
     color: var(--muted);
 }
-

@@ -34,6 +34,14 @@ public class FilePreviewSupport {
         return previewUrl(detail.name(), detail.path());
     }
 
+    public String sharedFilePreviewUrl(String token, FileItem item) {
+        return sharedPreviewUrl(token, item.name(), null, null);
+    }
+
+    public String sharedDirectoryPreviewUrl(String token, FileItem item) {
+        return sharedPreviewUrl(token, item.name(), item.parentPath(), item.name());
+    }
+
     public String openUrl(FileItem item) {
         return previewable(item) ? previewUrl(item) : downloadUrl(item.path());
     }
@@ -49,6 +57,18 @@ public class FilePreviewSupport {
                 .build()
                 .encode()
                 .toUriString();
+    }
+
+    private String sharedPreviewUrl(String token, String name, String path, String item) {
+        String endpoint = comic(name) ? "/s/{token}/comic/preview" : "/s/{token}/preview";
+        UriComponentsBuilder builder = UriComponentsBuilder.fromPath(endpoint);
+        if (path != null && !path.isBlank()) {
+            builder.queryParam("path", path);
+        }
+        if (item != null && !item.isBlank()) {
+            builder.queryParam("item", item);
+        }
+        return builder.buildAndExpand(token).encode().toUriString();
     }
 
     private String downloadUrl(String path) {

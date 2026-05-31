@@ -3,18 +3,18 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title th:text="|${detail.name()} Preview|">Comic Preview</title>
+    <title th:text="|${comicTitle} Preview|">Comic Preview</title>
     <th:block th:replace="~{fragments/assets :: styles(false)}"></th:block>
 </head>
 <body class="comic-preview-page">
-<main class="comic-reader" th:attr="aria-label=|${detail.name()} preview|">
-    <h1 class="visually-hidden" th:text="${detail.name()}">Comic Preview</h1>
+<main class="comic-reader" th:attr="aria-label=|${comicTitle} preview|">
+    <h1 class="visually-hidden" th:text="${comicTitle}">Comic Preview</h1>
     <p class="comic-reader-empty" th:if="${comicManifest.empty()}">No image pages found.</p>
     <div class="comic-reader-pages" th:if="${not comicManifest.empty()}">
         <img class="comic-reader-page"
              th:each="page : ${comicManifest.pages()}"
-             th:src="@{/files/detail/comic/page(path=${detail.path()}, page=${page.index()})}"
-             th:alt="|${detail.name()} page ${page.number()}|"
+             th:src="${comicPageUrlPrefix + page.index()}"
+             th:alt="|${comicTitle} page ${page.number()}|"
              th:attr="loading=${page.index() == 0 ? 'eager' : 'lazy'},
                       fetchpriority=${page.index() == 0 ? 'high' : 'auto'}"
              decoding="async"

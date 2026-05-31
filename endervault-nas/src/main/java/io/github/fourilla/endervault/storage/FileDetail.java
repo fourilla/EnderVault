@@ -35,4 +35,8 @@ public record FileDetail(
     public boolean pdf() {
         return mediaType.equals("application/pdf");
     }
+
+    public boolean comic() {
+        return "cbz".equalsIgnoreCase(extension);
+    }
 }

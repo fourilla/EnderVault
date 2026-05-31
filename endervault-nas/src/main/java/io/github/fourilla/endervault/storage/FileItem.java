@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.storage;
 
 import java.time.Instant;
+import java.util.Locale;
 
 public record FileItem(
         String name,
@@ -30,6 +31,10 @@ public record FileItem(
         return mediaType.equals("application/pdf");
     }
 
+    public boolean comic() {
+        return name.toLowerCase(Locale.ROOT).endsWith(".cbz");
+    }
+
     public String parentPath() {
         int index = path.lastIndexOf('/');
         return index < 0 ? "" : path.substring(0, index);
@@ -50,6 +55,9 @@ public record FileItem(
         }
         if (pdf()) {
             return "PDF";
+        }
+        if (comic()) {
+            return "Comic";
         }
         return "File";
     }

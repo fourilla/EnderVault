@@ -21,6 +21,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.util.UriComponentsBuilder;
 
 @Controller
 public class AdminComicController {
@@ -51,6 +52,8 @@ public class AdminComicController {
 
         recentService.recordVaultPath(detail.path());
         Path cbzFile = storageService.resolveVaultFile(detail.path());
+        model.addAttribute("comicTitle", detail.name());
+        model.addAttribute("comicPageUrlPrefix", comicPageUrlPrefix(detail.path()));
         model.addAttribute("detail", detail);
         model.addAttribute("comicManifest", comicArchiveService.manifest(cbzFile));
         return "comic-preview";
@@ -82,5 +85,14 @@ public class AdminComicController {
         }
 
         return builder.body(pageResource.resource());
+    }
+
+    private String comicPageUrlPrefix(String path) {
+        String baseUrl = UriComponentsBuilder.fromPath("/files/detail/comic/page")
+                .queryParam("path", path)
+                .build()
+                .encode()
+                .toUriString();
+        return baseUrl + "&page=";
     }
 }
