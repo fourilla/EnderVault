@@ -12,13 +12,19 @@
 </header>
 
 <main class="workspace">
-    <section class="pathbar" aria-label="Current path">
-        <nav class="breadcrumbs">
-            <a th:each="crumb : ${listing.breadcrumbs()}"
-               th:href="@{/s/{token}(token=${token}, path=${crumb.path()})}"
-               th:text="${crumb.label()}">Root</a>
-        </nav>
-        <a class="button-link ghost icon-button" th:if="${listing.hasParent()}" th:href="@{/s/{token}(token=${token}, path=${listing.parentPath()})}"
+    <section class="breadcrumb-panel" aria-label="Current path">
+        <div class="breadcrumb-main">
+            <p class="breadcrumb-label">Shared location</p>
+            <nav class="breadcrumbs">
+                <th:block th:each="crumb, iter : ${listing.breadcrumbs()}">
+                    <a th:classappend="${iter.last} ? ' current' : ''"
+                       th:href="@{/s/{token}(token=${token}, path=${crumb.path()})}"
+                       th:text="${crumb.label()}">Root</a>
+                    <span class="breadcrumb-separator" th:unless="${iter.last}">/</span>
+                </th:block>
+            </nav>
+        </div>
+        <a class="button-link ghost breadcrumb-up" th:if="${listing.hasParent()}" th:href="@{/s/{token}(token=${token}, path=${listing.parentPath()})}"
            title="Up" aria-label="Up">
             <i class="fas fa-arrow-up" aria-hidden="true"></i>
         </a>

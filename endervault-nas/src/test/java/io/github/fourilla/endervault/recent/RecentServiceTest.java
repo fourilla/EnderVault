@@ -118,4 +118,16 @@ class RecentServiceTest {
                 .extracting(RecentListItem::path)
                 .containsExactly("docs/note.txt");
     }
+
+    @Test
+    void exposesComicMetadataForRecentGridCards() throws Exception {
+        Files.writeString(root.resolve("book.cbz"), "comic");
+        recentService.recordVaultPath("book.cbz");
+
+        RecentListItem item = recentService.list("", RecentSort.RECENT, SortDirection.DESC).getFirst();
+
+        assertThat(item.comic()).isTrue();
+        assertThat(item.typeLabel()).isEqualTo("Comic");
+        assertThat(item.extensionLabel()).isEqualTo("CBZ");
+    }
 }

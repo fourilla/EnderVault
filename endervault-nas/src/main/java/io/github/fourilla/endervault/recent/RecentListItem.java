@@ -60,6 +60,10 @@ public record RecentListItem(
         return item.video();
     }
 
+    public boolean comic() {
+        return item.comic();
+    }
+
     public boolean text() {
         return item.text();
     }
