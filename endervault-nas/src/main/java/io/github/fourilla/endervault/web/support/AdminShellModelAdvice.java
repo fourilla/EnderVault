@@ -6,6 +6,7 @@ import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.storage.StorageUsage;
 import io.github.fourilla.endervault.web.dashboard.AdminDashboardController;
 import io.github.fourilla.endervault.web.dashboard.AdminLogController;
+import io.github.fourilla.endervault.web.auth.AdminPasskeyController;
 import io.github.fourilla.endervault.web.file.AdminFavoriteController;
 import io.github.fourilla.endervault.web.file.AdminFileController;
 import io.github.fourilla.endervault.web.file.AdminRecentController;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 
 @ControllerAdvice(assignableTypes = {
         AdminDashboardController.class,
+        AdminPasskeyController.class,
         AdminFileController.class,
         AdminFavoriteController.class,
         AdminRecentController.class,

@@ -24,6 +24,9 @@ public class NasProperties {
     private Admin admin = new Admin();
 
     @Valid
+    private Passkeys passkeys = new Passkeys();
+
+    @Valid
     private Notifications notifications = new Notifications();
 
     @Valid
@@ -66,6 +69,14 @@ public class NasProperties {
 
     public void setAdmin(Admin admin) {
         this.admin = admin;
+    }
+
+    public Passkeys getPasskeys() {
+        return passkeys;
+    }
+
+    public void setPasskeys(Passkeys passkeys) {
+        this.passkeys = passkeys;
     }
 
     public Notifications getNotifications() {
@@ -192,6 +203,61 @@ public class NasProperties {
 
         public void setPassword(String password) {
             this.password = password;
+        }
+    }
+
+    public static class Passkeys {
+        private boolean enabled = true;
+
+        @NotBlank
+        private String rpId = "localhost";
+
+        @NotBlank
+        private String rpName = "EnderVault";
+
+        @NotNull
+        private List<String> allowedOrigins = List.of("http://localhost:8080");
+
+        private boolean passwordLoginEnabled = true;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public String getRpId() {
+            return rpId;
+        }
+
+        public void setRpId(String rpId) {
+            this.rpId = rpId;
+        }
+
+        public String getRpName() {
+            return rpName;
+        }
+
+        public void setRpName(String rpName) {
+            this.rpName = rpName;
+        }
+
+        public List<String> getAllowedOrigins() {
+            return allowedOrigins;
+        }
+
+        public void setAllowedOrigins(List<String> allowedOrigins) {
+            this.allowedOrigins = allowedOrigins;
+        }
+
+        public boolean isPasswordLoginEnabled() {
+            return passwordLoginEnabled;
+        }
+
+        public void setPasswordLoginEnabled(boolean passwordLoginEnabled) {
+            this.passwordLoginEnabled = passwordLoginEnabled;
         }
     }
 

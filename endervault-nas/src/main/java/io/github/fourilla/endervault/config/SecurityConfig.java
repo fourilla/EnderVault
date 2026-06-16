@@ -2,6 +2,7 @@ package io.github.fourilla.endervault.config;
 
 import io.github.fourilla.endervault.auth.LoginFailureAlertHandler;
 import io.github.fourilla.endervault.auth.LoginSuccessAlertHandler;
+import java.util.UUID;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -26,6 +27,7 @@ public class SecurityConfig {
         http.authorizeHttpRequests(auth -> auth
                         .requestMatchers("/css/**", "/js/**", "/webjars/**", "/favicon.ico").permitAll()
                         .requestMatchers(HttpMethod.GET, "/", "/login", "/s/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/login/passkey/**").permitAll()
                         .requestMatchers("/files/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
@@ -57,8 +59,11 @@ public class SecurityConfig {
 
     @Bean
     UserDetailsService userDetailsService(NasProperties nasProperties) {
+        String password = nasProperties.getPasskeys().isPasswordLoginEnabled()
+                ? nasProperties.getAdmin().getPassword()
+                : "{noop}" + UUID.randomUUID();
         UserDetails admin = User.withUsername(nasProperties.getAdmin().getUsername())
-                .password(nasProperties.getAdmin().getPassword())
+                .password(password)
                 .roles("ADMIN")
                 .build();
 
