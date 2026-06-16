@@ -21,7 +21,7 @@
             <nav class="breadcrumbs">
                 <th:block th:each="crumb, iter : ${listing.breadcrumbs()}">
                     <a th:classappend="${iter.last} ? ' current' : ''"
-                       th:href="@{/files/search(path=${crumb.path()}, q=${query}, size=${resultPage.size()})}"
+                       th:href="@{/files/search(path=${crumb.path()}, q=${query})}"
                        th:text="${crumb.label()}">Root</a>
                     <span class="breadcrumb-separator" th:unless="${iter.last}">/</span>
                 </th:block>
@@ -123,17 +123,17 @@
 
     <nav class="pagination" th:if="${searchPerformed and resultPage.totalPages() > 1}" aria-label="Search result pages">
         <a class="ghost pagination-link" th:if="${resultPage.hasPrevious()}"
-           th:href="@{/files/search(path=${path}, q=${query}, page=1, size=${resultPage.size()})}">First</a>
+           th:href="@{/files/search(path=${path}, q=${query}, page=1)}">First</a>
         <span class="ghost pagination-link disabled" th:unless="${resultPage.hasPrevious()}">First</span>
         <a class="ghost pagination-link" th:if="${resultPage.hasPrevious()}"
-           th:href="@{/files/search(path=${path}, q=${query}, page=${resultPage.previousPage()}, size=${resultPage.size()})}">Previous</a>
+           th:href="@{/files/search(path=${path}, q=${query}, page=${resultPage.previousPage()})}">Previous</a>
         <span class="ghost pagination-link disabled" th:unless="${resultPage.hasPrevious()}">Previous</span>
         <span class="page-status" th:text="|Page ${resultPage.page()} of ${resultPage.totalPages()}|">Page 1 of 1</span>
         <a class="ghost pagination-link" th:if="${resultPage.hasNext()}"
-           th:href="@{/files/search(path=${path}, q=${query}, page=${resultPage.nextPage()}, size=${resultPage.size()})}">Next</a>
+           th:href="@{/files/search(path=${path}, q=${query}, page=${resultPage.nextPage()})}">Next</a>
         <span class="ghost pagination-link disabled" th:unless="${resultPage.hasNext()}">Next</span>
         <a class="ghost pagination-link" th:if="${resultPage.hasNext()}"
-           th:href="@{/files/search(path=${path}, q=${query}, page=${resultPage.totalPages()}, size=${resultPage.size()})}">Last</a>
+           th:href="@{/files/search(path=${path}, q=${query}, page=${resultPage.totalPages()})}">Last</a>
         <span class="ghost pagination-link disabled" th:unless="${resultPage.hasNext()}">Last</span>
     </nav>
 </main>

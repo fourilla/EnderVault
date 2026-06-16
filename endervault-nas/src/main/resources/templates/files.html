@@ -31,7 +31,7 @@
             <nav class="breadcrumbs">
                 <th:block th:each="crumb, iter : ${listing.breadcrumbs()}">
                     <a th:classappend="${iter.last} ? ' current' : ''"
-                       th:href="@{/files(path=${crumb.path()}, view=${view}, sort=${sort}, dir=${dir}, size=${filePage.size()})}"
+                       th:href="@{/files(path=${crumb.path()})}"
                        th:text="${crumb.label()}">Root</a>
                     <span class="breadcrumb-separator" th:unless="${iter.last}">/</span>
                 </th:block>
@@ -39,7 +39,7 @@
         </div>
         <a class="button-link ghost breadcrumb-up" th:if="${listing.hasParent()}"
            title="Up" aria-label="Up"
-           th:href="@{/files(path=${listing.parentPath()}, view=${view}, sort=${sort}, dir=${dir}, size=${filePage.size()})}">
+           th:href="@{/files(path=${listing.parentPath()})}">
             <i class="fas fa-arrow-up" aria-hidden="true"></i>
         </a>
     </section>
@@ -48,16 +48,11 @@
         <form class="bulk-action-anchor" id="bulkActionForm" method="post">
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
             <input type="hidden" name="path" th:value="${path}">
-            <input type="hidden" name="view" th:value="${view}">
-            <input type="hidden" name="sort" th:value="${sort}">
-            <input type="hidden" name="dir" th:value="${dir}">
             <input type="hidden" name="page" th:value="${filePage.page()}">
-            <input type="hidden" name="size" th:value="${filePage.size()}">
         </form>
 
         <form class="search-form" method="get" th:action="@{/files/search}">
             <input type="hidden" name="path" th:value="${path}">
-            <input type="hidden" name="size" th:value="${filePage.size()}">
             <label class="search-field">
                 <span class="visually-hidden">Search keyword</span>
                 <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
@@ -73,11 +68,7 @@
                 <form class="icon-form" id="uploadForm" method="post" enctype="multipart/form-data" th:action="@{/files/upload}">
                     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                     <input type="hidden" name="path" th:value="${path}">
-                    <input type="hidden" name="view" th:value="${view}">
-                    <input type="hidden" name="sort" th:value="${sort}">
-                    <input type="hidden" name="dir" th:value="${dir}">
                     <input type="hidden" name="page" th:value="${filePage.page()}">
-                    <input type="hidden" name="size" th:value="${filePage.size()}">
                     <input class="visually-hidden" id="fileUploadInput" type="file" name="files" multiple>
                     <button class="icon-button js-only" id="uploadButton" type="button" title="Upload files" aria-label="Upload files">
                         <i class="fas fa-upload" aria-hidden="true"></i>
@@ -91,10 +82,6 @@
                 <form class="icon-form" id="createDirectoryForm" method="post" th:action="@{/files/directories}">
                     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                     <input type="hidden" name="path" th:value="${path}">
-                    <input type="hidden" name="view" th:value="${view}">
-                    <input type="hidden" name="sort" th:value="${sort}">
-                    <input type="hidden" name="dir" th:value="${dir}">
-                    <input type="hidden" name="size" th:value="${filePage.size()}">
                     <input id="newDirectoryNameInput" type="hidden" name="name" disabled>
                     <button class="icon-button js-only" id="createDirectoryButton" type="button" title="Create directory" aria-label="Create directory">
                         <i class="fas fa-folder-plus" aria-hidden="true"></i>
@@ -119,7 +106,7 @@
 
             <div class="toolbar-actions browser-controls" aria-label="View and sorting controls">
                 <a class="button-link ghost icon-button"
-                   th:href="@{/files(path=${path}, view=${nextView}, sort=${sort}, dir=${dir}, page=${filePage.page()}, size=${filePage.size()})}"
+                   th:href="@{/files(path=${path}, view=${nextView}, page=${filePage.page()})}"
                    th:title="${viewToggleLabel}"
                    th:attr="aria-label=${viewToggleLabel}">
                     <i th:class="${viewToggleIcon}" aria-hidden="true"></i>
@@ -132,7 +119,6 @@
                     <div class="settings-panel">
                         <form class="settings-form sort-form" method="get" th:action="@{/files}">
                             <input type="hidden" name="path" th:value="${path}">
-                            <input type="hidden" name="view" th:value="${view}">
                             <input type="hidden" name="page" value="1">
                             <label>
                                 Sort
@@ -160,6 +146,15 @@
                                 </select>
                             </label>
                             <button type="submit">Apply</button>
+                        </form>
+                        <form class="settings-reset-form" method="post" th:action="@{/files/preferences/reset}">
+                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                            <input type="hidden" name="target" value="files">
+                            <input type="hidden" name="path" th:value="${path}">
+                            <button class="ghost" type="submit">
+                                <i class="fas fa-rotate-left" aria-hidden="true"></i>
+                                Reset to defaults
+                            </button>
                         </form>
                     </div>
                 </details>
@@ -194,7 +189,7 @@
                 <tr th:each="directory : ${listing.directories()}">
                     <td class="select-cell"><input form="bulkActionForm" type="checkbox" name="items" th:value="${directory.name()}"></td>
                     <td><a class="item-name directory"
-                           th:href="@{/files(path=${directory.path()}, view=${view}, sort=${sort}, dir=${dir}, size=${filePage.size()})}">
+                           th:href="@{/files(path=${directory.path()})}">
                         <i class="fas fa-folder item-icon" aria-hidden="true"></i>
                         <span th:text="${directory.name()}">directory</span>
                     </a></td>
@@ -320,17 +315,17 @@
 
         <nav class="pagination" th:if="${filePage.totalPages() > 1}" aria-label="File pages">
             <a class="ghost pagination-link" th:if="${filePage.hasPrevious()}"
-               th:href="@{/files(path=${path}, view=${view}, sort=${sort}, dir=${dir}, page=1, size=${filePage.size()})}">First</a>
+               th:href="@{/files(path=${path}, page=1)}">First</a>
             <span class="ghost pagination-link disabled" th:unless="${filePage.hasPrevious()}">First</span>
             <a class="ghost pagination-link" th:if="${filePage.hasPrevious()}"
-               th:href="@{/files(path=${path}, view=${view}, sort=${sort}, dir=${dir}, page=${filePage.previousPage()}, size=${filePage.size()})}">Previous</a>
+               th:href="@{/files(path=${path}, page=${filePage.previousPage()})}">Previous</a>
             <span class="ghost pagination-link disabled" th:unless="${filePage.hasPrevious()}">Previous</span>
             <span class="page-status" th:text="|Page ${filePage.page()} of ${filePage.totalPages()}|">Page 1 of 1</span>
             <a class="ghost pagination-link" th:if="${filePage.hasNext()}"
-               th:href="@{/files(path=${path}, view=${view}, sort=${sort}, dir=${dir}, page=${filePage.nextPage()}, size=${filePage.size()})}">Next</a>
+               th:href="@{/files(path=${path}, page=${filePage.nextPage()})}">Next</a>
             <span class="ghost pagination-link disabled" th:unless="${filePage.hasNext()}">Next</span>
             <a class="ghost pagination-link" th:if="${filePage.hasNext()}"
-               th:href="@{/files(path=${path}, view=${view}, sort=${sort}, dir=${dir}, page=${filePage.totalPages()}, size=${filePage.size()})}">Last</a>
+               th:href="@{/files(path=${path}, page=${filePage.totalPages()})}">Last</a>
             <span class="ghost pagination-link disabled" th:unless="${filePage.hasNext()}">Last</span>
         </nav>
     </section>

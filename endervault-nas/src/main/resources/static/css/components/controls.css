@@ -113,6 +113,20 @@ td .action-icon i {
     width: 100%;
 }
 
+.settings-reset-form {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+}
+
+.settings-reset-form button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+}
+
 .sort-form label {
     display: grid;
     gap: 4px;

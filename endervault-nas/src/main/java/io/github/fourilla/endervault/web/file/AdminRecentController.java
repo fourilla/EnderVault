@@ -9,6 +9,7 @@ import io.github.fourilla.endervault.recent.RecentSort;
 import io.github.fourilla.endervault.storage.SortDirection;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.web.support.ActionResponse;
+import io.github.fourilla.endervault.web.support.BrowserPreferenceCookies;
 import io.github.fourilla.endervault.web.support.FlashNotification;
 import io.github.fourilla.endervault.web.support.FlashNotifications;
 import jakarta.servlet.http.HttpServletRequest;
@@ -67,12 +68,14 @@ public class AdminRecentController {
             @RequestParam(value = "dir", required = false) String direction,
             @RequestParam(value = "page", required = false) Integer page,
             @RequestParam(value = "size", required = false) Integer size,
+            HttpServletRequest request,
+            HttpServletResponse response,
             Model model
     ) throws IOException {
-        String normalizedView = normalizeView(view);
-        RecentSort recentSort = normalizeSort(sort);
-        SortDirection sortDirection = normalizeDirection(direction, recentSort);
-        int pageSize = normalizePageSize(size);
+        String normalizedView = recentView(request, response, view);
+        RecentSort recentSort = recentSort(request, response, sort);
+        SortDirection sortDirection = recentDirection(request, response, direction, recentSort);
+        int pageSize = recentPageSize(request, response, size);
         String normalizedQuery = normalizeQuery(query);
 
         List<RecentListItem> items = recentService.list(normalizedQuery, recentSort, sortDirection);
@@ -207,6 +210,53 @@ public class AdminRecentController {
         return "table";
     }
 
+    private String recentView(HttpServletRequest request, HttpServletResponse response, String view) {
+        return BrowserPreferenceCookies.value(
+                request,
+                response,
+                BrowserPreferenceCookies.RECENT.viewCookie(),
+                view,
+                this::normalizeView
+        );
+    }
+
+    private RecentSort recentSort(HttpServletRequest request, HttpServletResponse response, String sort) {
+        String normalizedSort = BrowserPreferenceCookies.value(
+                request,
+                response,
+                BrowserPreferenceCookies.RECENT.sortCookie(),
+                sort,
+                value -> normalizeSort(value).parameter()
+        );
+        return RecentSort.from(normalizedSort);
+    }
+
+    private SortDirection recentDirection(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            String direction,
+            RecentSort sort
+    ) {
+        String normalizedDirection = BrowserPreferenceCookies.value(
+                request,
+                response,
+                BrowserPreferenceCookies.RECENT.directionCookie(),
+                direction,
+                value -> normalizeDirection(value, sort).parameter()
+        );
+        return SortDirection.from(normalizedDirection);
+    }
+
+    private int recentPageSize(HttpServletRequest request, HttpServletResponse response, Integer size) {
+        return BrowserPreferenceCookies.intValue(
+                request,
+                response,
+                BrowserPreferenceCookies.RECENT.pageSizeCookie(),
+                size,
+                this::normalizePageSize
+        );
+    }
+
     private RecentSort normalizeSort(String sort) {
         return RecentSort.from(sort);
     }
@@ -257,24 +307,9 @@ public class AdminRecentController {
         if (query != null && !query.isBlank()) {
             builder.queryParam("q", query);
         }
-        if ("grid".equalsIgnoreCase(view)) {
-            builder.queryParam("view", "grid");
-        }
-        if (sort != null && !sort.isBlank() && !"recent".equalsIgnoreCase(sort)) {
-            builder.queryParam("sort", RecentSort.from(sort).parameter());
-        }
-        RecentSort recentSort = RecentSort.from(sort);
-        SortDirection sortDirection = normalizeDirection(direction, recentSort);
-        if (sortDirection != (recentSort == RecentSort.RECENT ? SortDirection.DESC : SortDirection.ASC)) {
-            builder.queryParam("dir", sortDirection.parameter());
-        }
         int pageNumber = page == null ? 1 : Math.max(1, page);
         if (pageNumber > 1) {
             builder.queryParam("page", pageNumber);
-        }
-        int pageSize = normalizePageSize(size);
-        if (pageSize != defaultPageSize()) {
-            builder.queryParam("size", pageSize);
         }
         return "redirect:" + builder.build().encode().toUriString();
     }

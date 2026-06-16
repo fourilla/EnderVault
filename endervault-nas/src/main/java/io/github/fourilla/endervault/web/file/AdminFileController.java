@@ -24,6 +24,7 @@ import io.github.fourilla.endervault.thumbnail.ThumbnailService;
 import io.github.fourilla.endervault.trash.TrashRecord;
 import io.github.fourilla.endervault.trash.TrashService;
 import io.github.fourilla.endervault.web.support.ActionResponse;
+import io.github.fourilla.endervault.web.support.BrowserPreferenceCookies;
 import io.github.fourilla.endervault.web.support.FileResponseService;
 import io.github.fourilla.endervault.web.support.FlashNotification;
 import io.github.fourilla.endervault.web.support.FlashNotifications;
@@ -117,12 +118,14 @@ public class AdminFileController {
             @RequestParam(value = "dir", required = false) String direction,
             @RequestParam(value = "page", required = false) Integer page,
             @RequestParam(value = "size", required = false) Integer size,
+            HttpServletRequest request,
+            HttpServletResponse response,
             Model model
     ) throws IOException {
-        String normalizedView = normalizeView(view);
-        FileSort fileSort = normalizeSort(sort);
-        SortDirection sortDirection = normalizeDirection(direction);
-        int pageSize = normalizePageSize(size);
+        String normalizedView = fileBrowserView(request, response, view);
+        FileSort fileSort = fileBrowserSort(request, response, sort);
+        SortDirection sortDirection = fileBrowserDirection(request, response, direction);
+        int pageSize = fileBrowserPageSize(request, response, size);
         DirectoryListing listing = storageService.list(StorageScope.VAULT, path, fileSort, sortDirection);
         recentService.recordVaultPath(listing.path());
         FilePage filePage = pageFiles(listing.files(), page, pageSize);
@@ -147,9 +150,11 @@ public class AdminFileController {
             @RequestParam(value = "q", required = false) String query,
             @RequestParam(value = "page", required = false) Integer page,
             @RequestParam(value = "size", required = false) Integer size,
+            HttpServletRequest request,
+            HttpServletResponse response,
             Model model
     ) throws IOException {
-        int pageSize = normalizePageSize(size);
+        int pageSize = fileBrowserPageSize(request, response, size);
         String normalizedQuery = normalizeSearchQuery(query);
         DirectoryListing listing = storageService.list(StorageScope.VAULT, path);
         List<FileItem> results = normalizedQuery.isEmpty()
@@ -173,11 +178,13 @@ public class AdminFileController {
             @RequestParam(value = "dir", required = false) String direction,
             @RequestParam(value = "page", required = false) Integer page,
             @RequestParam(value = "size", required = false) Integer size,
+            HttpServletRequest request,
+            HttpServletResponse response,
             Model model
     ) throws IOException {
-        FileSort fileSort = normalizeSort(sort);
-        SortDirection sortDirection = normalizeDirection(direction);
-        int pageSize = size == null ? READ_ONLY_PAGE_SIZE : normalizePageSize(size);
+        FileSort fileSort = readOnlySort(request, response, sort);
+        SortDirection sortDirection = readOnlyDirection(request, response, direction);
+        int pageSize = readOnlyPageSize(request, response, size);
         DirectoryListing listing = storageService.list(StorageScope.VAULT, path, fileSort, sortDirection);
         FilePage filePage = pageFiles(listing.files(), page, pageSize);
 
@@ -188,6 +195,31 @@ public class AdminFileController {
         model.addAttribute("pageSizes", pageSizeOptions());
         model.addAttribute("filePage", filePage);
         return "read-only";
+    }
+
+    @PostMapping("/files/preferences/reset")
+    public String resetBrowserPreferences(
+            @RequestParam(value = "target", required = false) String target,
+            @RequestParam(value = "path", required = false) String path,
+            @RequestParam(value = "q", required = false) String query,
+            HttpServletResponse response,
+            RedirectAttributes redirectAttributes
+    ) {
+        if ("read-only".equalsIgnoreCase(target)) {
+            BrowserPreferenceCookies.clear(response, BrowserPreferenceCookies.READ_ONLY);
+            FlashNotifications.success(redirectAttributes, "Read-only preferences reset.");
+            return redirectToReadOnly(path);
+        }
+
+        if ("recent".equalsIgnoreCase(target)) {
+            BrowserPreferenceCookies.clear(response, BrowserPreferenceCookies.RECENT);
+            FlashNotifications.success(redirectAttributes, "Recent preferences reset.");
+            return redirectToRecent(query);
+        }
+
+        BrowserPreferenceCookies.clear(response, BrowserPreferenceCookies.FILES);
+        FlashNotifications.success(redirectAttributes, "File browser preferences reset.");
+        return redirectToFiles(path);
     }
 
     @GetMapping("/files/detail")
@@ -694,30 +726,30 @@ public class AdminFileController {
             Integer page,
             Integer size
     ) {
-        String normalizedView = normalizeView(view);
-        FileSort fileSort = normalizeSort(sort);
-        SortDirection sortDirection = normalizeDirection(direction);
-        int pageSize = normalizePageSize(size);
         int pageNumber = page == null ? 1 : Math.max(1, page);
 
         UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/files");
         if (path != null && !path.isBlank()) {
             builder.queryParam("path", path);
         }
-        if (!normalizedView.equals(defaultView())) {
-            builder.queryParam("view", normalizedView);
-        }
-        if (fileSort != defaultSort()) {
-            builder.queryParam("sort", fileSort.parameter());
-        }
-        if (sortDirection != defaultDirection()) {
-            builder.queryParam("dir", sortDirection.parameter());
-        }
         if (pageNumber > 1) {
             builder.queryParam("page", pageNumber);
         }
-        if (pageSize != defaultPageSize()) {
-            builder.queryParam("size", pageSize);
+        return "redirect:" + builder.build().encode().toUriString();
+    }
+
+    private String redirectToRecent(String query) {
+        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/files/recent");
+        if (query != null && !query.isBlank()) {
+            builder.queryParam("q", query);
+        }
+        return "redirect:" + builder.build().encode().toUriString();
+    }
+
+    private String redirectToReadOnly(String path) {
+        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/files/read-only");
+        if (path != null && !path.isBlank()) {
+            builder.queryParam("path", path);
         }
         return "redirect:" + builder.build().encode().toUriString();
     }
@@ -839,6 +871,80 @@ public class AdminFileController {
 
     private String viewToggleIcon(String view) {
         return "grid".equals(view) ? "fas fa-bars" : "fas fa-border-all";
+    }
+
+    private String fileBrowserView(HttpServletRequest request, HttpServletResponse response, String view) {
+        return BrowserPreferenceCookies.value(
+                request,
+                response,
+                BrowserPreferenceCookies.FILES.viewCookie(),
+                view,
+                this::normalizeView
+        );
+    }
+
+    private FileSort fileBrowserSort(HttpServletRequest request, HttpServletResponse response, String sort) {
+        String normalizedSort = BrowserPreferenceCookies.value(
+                request,
+                response,
+                BrowserPreferenceCookies.FILES.sortCookie(),
+                sort,
+                value -> normalizeSort(value).parameter()
+        );
+        return FileSort.from(normalizedSort);
+    }
+
+    private SortDirection fileBrowserDirection(HttpServletRequest request, HttpServletResponse response, String direction) {
+        String normalizedDirection = BrowserPreferenceCookies.value(
+                request,
+                response,
+                BrowserPreferenceCookies.FILES.directionCookie(),
+                direction,
+                value -> normalizeDirection(value).parameter()
+        );
+        return SortDirection.from(normalizedDirection);
+    }
+
+    private int fileBrowserPageSize(HttpServletRequest request, HttpServletResponse response, Integer size) {
+        return BrowserPreferenceCookies.intValue(
+                request,
+                response,
+                BrowserPreferenceCookies.FILES.pageSizeCookie(),
+                size,
+                this::normalizePageSize
+        );
+    }
+
+    private FileSort readOnlySort(HttpServletRequest request, HttpServletResponse response, String sort) {
+        String normalizedSort = BrowserPreferenceCookies.value(
+                request,
+                response,
+                BrowserPreferenceCookies.READ_ONLY.sortCookie(),
+                sort,
+                value -> normalizeSort(value).parameter()
+        );
+        return FileSort.from(normalizedSort);
+    }
+
+    private SortDirection readOnlyDirection(HttpServletRequest request, HttpServletResponse response, String direction) {
+        String normalizedDirection = BrowserPreferenceCookies.value(
+                request,
+                response,
+                BrowserPreferenceCookies.READ_ONLY.directionCookie(),
+                direction,
+                value -> normalizeDirection(value).parameter()
+        );
+        return SortDirection.from(normalizedDirection);
+    }
+
+    private int readOnlyPageSize(HttpServletRequest request, HttpServletResponse response, Integer size) {
+        return BrowserPreferenceCookies.intValue(
+                request,
+                response,
+                BrowserPreferenceCookies.READ_ONLY.pageSizeCookie(),
+                size,
+                value -> value == null ? READ_ONLY_PAGE_SIZE : normalizePageSize(value)
+        );
     }
 
     private FileSort normalizeSort(String sort) {

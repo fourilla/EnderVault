@@ -160,10 +160,16 @@
     flex-wrap: nowrap;
 }
 
+.icon-form noscript {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 8px;
+}
+
 .tool-form {
     padding: 10px;
     border: 1px solid var(--line);
     border-radius: 8px;
     background: var(--panel);
 }
-

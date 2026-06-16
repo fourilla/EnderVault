@@ -88,6 +88,53 @@
         return true;
     };
 
+    const closeDetails = (details) => {
+        if (!details.open) {
+            return;
+        }
+
+        details.open = false;
+    };
+
+    const enhanceDismissibleDetails = () => {
+        const menus = Array.from(document.querySelectorAll("details.settings-menu"));
+        if (menus.length === 0) {
+            return;
+        }
+
+        menus.forEach((menu) => {
+            menu.addEventListener("toggle", () => {
+                if (!menu.open) {
+                    return;
+                }
+
+                menus.forEach((otherMenu) => {
+                    if (otherMenu !== menu) {
+                        closeDetails(otherMenu);
+                    }
+                });
+            });
+        });
+
+        document.addEventListener("click", (event) => {
+            menus.forEach((menu) => {
+                if (menu.open && !menu.contains(event.target)) {
+                    closeDetails(menu);
+                }
+            });
+        });
+
+        document.addEventListener("keydown", (event) => {
+            if (event.key !== "Escape") {
+                return;
+            }
+
+            menus.forEach((menu) => closeDetails(menu));
+        });
+    };
+
+    document.addEventListener("DOMContentLoaded", enhanceDismissibleDetails);
+
     window.EnderVault = {
         requestJson,
         submitJsonForm,
