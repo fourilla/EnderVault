@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>EnderVault Bookmarks</title>
+    <th:block th:replace="~{fragments/assets :: styles(true)}"></th:block>
+    <th:block th:replace="~{fragments/assets :: jsOnlyNoscript}"></th:block>
+    <th:block th:replace="~{fragments/assets :: coreScripts}"></th:block>
+    <th:block th:replace="~{fragments/assets :: selectionScript}"></th:block>
+</head>
+<body>
+<div class="app-shell">
+<aside th:replace="~{fragments/admin-shell :: sidebar('bookmarks')}"></aside>
+<div class="app-main">
+<header th:replace="~{fragments/admin-shell :: topbar}"></header>
+<div th:replace="~{fragments/notifications :: toasts}"></div>
+
+<main class="workspace">
+    <section class="breadcrumb-panel" aria-label="Current path">
+        <div class="breadcrumb-main">
+            <p class="breadcrumb-label">Virtual location</p>
+            <nav class="breadcrumbs">
+                <th:block th:each="crumb, iter : ${bookmarkBreadcrumbs}">
+                    <a th:href="${crumb.root()} ? @{/files/bookmarks} : @{/files/bookmarks(folder=${crumb.id()})}"
+                       th:classappend="${iter.last} ? ' current' : ''"
+                       th:text="${crumb.label()}">Bookmarks</a>
+                    <span class="breadcrumb-separator" th:if="${!iter.last}">/</span>
+                </th:block>
+            </nav>
+        </div>
+    </section>
+
+    <section class="toolbar" aria-label="Bookmark tools">
+        <form class="bulk-action-anchor" id="bulkActionForm" method="post">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <input type="hidden" name="parentId" th:value="${currentBookmarkFolderId}">
+            <input type="hidden" name="q" th:value="${query}">
+        </form>
+
+        <form class="search-form" method="get" th:action="@{/files/bookmarks}">
+            <input type="hidden" name="folder" th:value="${currentBookmarkFolderId}">
+            <label class="search-field">
+                <span class="visually-hidden">Search bookmarks</span>
+                <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
+                <input name="q" th:value="${query}" placeholder="Search bookmarks" autocomplete="off">
+            </label>
+            <button class="icon-button" type="submit" title="Search bookmarks" aria-label="Search bookmarks">
+                <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
+            </button>
+        </form>
+
+        <div class="toolbar-cluster" aria-label="Bookmark controls">
+            <div class="toolbar-actions file-actions bookmark-actions" aria-label="Bookmark actions">
+                <details class="settings-menu bookmark-tool-menu">
+                    <summary class="icon-button menu-summary" title="Create directory" aria-label="Create directory">
+                        <i class="fas fa-folder-plus" aria-hidden="true"></i>
+                    </summary>
+                    <div class="settings-panel bookmark-form-panel">
+                        <form class="settings-form bookmark-create-form" method="post" th:action="@{/files/bookmarks/folders}">
+                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                            <input type="hidden" name="parentId" th:value="${currentBookmarkFolderId}">
+                            <label>
+                                Directory name
+                                <input type="text" name="title" maxlength="200" required>
+                            </label>
+                            <button type="submit">Create</button>
+                        </form>
+                    </div>
+                </details>
+
+                <details class="settings-menu bookmark-tool-menu">
+                    <summary class="icon-button menu-summary" title="Create link" aria-label="Create link">
+                        <i class="fas fa-link" aria-hidden="true"></i>
+                    </summary>
+                    <div class="settings-panel bookmark-form-panel bookmark-link-panel">
+                        <form class="settings-form bookmark-create-form" method="post" th:action="@{/files/bookmarks/links}">
+                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                            <input type="hidden" name="parentId" th:value="${currentBookmarkFolderId}">
+                            <label>
+                                Title
+                                <input type="text" name="title" maxlength="200" required>
+                            </label>
+                            <label>
+                                URL
+                                <input type="text" name="url" maxlength="4096" placeholder="https://example.com or /files" required>
+                            </label>
+                            <button type="submit">Create</button>
+                        </form>
+                    </div>
+                </details>
+
+                <details class="settings-menu bookmark-tool-menu">
+                    <summary class="icon-button menu-summary" title="Bulk add links" aria-label="Bulk add links">
+                        <i class="fas fa-list-ul" aria-hidden="true"></i>
+                    </summary>
+                    <div class="settings-panel bookmark-form-panel bookmark-bulk-panel">
+                        <form class="settings-form bookmark-create-form" method="post" th:action="@{/files/bookmarks/bulk}">
+                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                            <input type="hidden" name="parentId" th:value="${currentBookmarkFolderId}">
+                            <label>
+                                Title / URL pairs
+                                <textarea name="bulkText" rows="12"
+                                          placeholder="Title one&#10;https://example.com/one&#10;Title two&#10;https://example.com/two"
+                                          required></textarea>
+                            </label>
+                            <button type="submit">Add links</button>
+                        </form>
+                    </div>
+                </details>
+                <button class="icon-button danger" id="deleteSelectedButton" form="bulkActionForm" type="submit"
+                        th:formaction="@{/files/bookmarks/delete-selected}" formmethod="post"
+                        title="Delete selected" aria-label="Delete selected">
+                    <i class="fas fa-trash-can" aria-hidden="true"></i>
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <section class="dashboard-panel bookmark-edit-card" th:if="${editingBookmark != null}" aria-label="Edit bookmark">
+        <header class="section-heading">
+            <h2 th:text="|Edit ${editingBookmark.typeLabel()}|">Edit Bookmark</h2>
+            <a class="button-link ghost" th:href="@{/files/bookmarks(folder=${currentBookmarkFolderId}, q=${query})}">
+                <i class="fas fa-xmark" aria-hidden="true"></i>
+                Close
+            </a>
+        </header>
+        <form th:if="${editingBookmark.folder()}" class="bookmark-edit-form" method="post"
+              th:action="@{/files/bookmarks/folders/update}">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <input type="hidden" name="id" th:value="${editingBookmark.id()}">
+            <input type="hidden" name="parentId" th:value="${currentBookmarkFolderId}">
+            <input type="hidden" name="q" th:value="${query}">
+            <label>
+                <span>Name</span>
+                <input type="text" name="title" maxlength="200" th:value="${editingBookmark.title()}" required>
+            </label>
+            <button class="primary icon-button" type="submit" title="Save" aria-label="Save">
+                <i class="fas fa-floppy-disk" aria-hidden="true"></i>
+            </button>
+        </form>
+        <form th:if="${editingBookmark.link()}" class="bookmark-edit-form" method="post"
+              th:action="@{/files/bookmarks/links/update}">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <input type="hidden" name="id" th:value="${editingBookmark.id()}">
+            <input type="hidden" name="parentId" th:value="${currentBookmarkFolderId}">
+            <input type="hidden" name="q" th:value="${query}">
+            <label>
+                <span>Title</span>
+                <input type="text" name="title" maxlength="200" th:value="${editingBookmark.title()}" required>
+            </label>
+            <label>
+                <span>URL</span>
+                <input type="text" name="url" maxlength="4096" th:value="${editingBookmark.safeUrl()}" required>
+            </label>
+            <button class="primary icon-button" type="submit" title="Save" aria-label="Save">
+                <i class="fas fa-floppy-disk" aria-hidden="true"></i>
+            </button>
+        </form>
+    </section>
+
+    <section class="browser-section bookmarks-panel" th:if="${not #lists.isEmpty(bookmarkFolders)}" aria-label="Bookmark directories">
+        <header class="section-heading">
+            <h2 th:text="|Directories (${#lists.size(bookmarkFolders)})|">Directories</h2>
+        </header>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th class="select-col">
+                        <span data-select-pick-label>Pick</span>
+                        <label class="select-all-label js-only" title="Select all bookmark directories in this table">
+                            <input class="select-all-checkbox" type="checkbox" data-select-all
+                                   aria-label="Select all bookmark directories in this table">
+                        </label>
+                    </th>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Updated</th>
+                    <th>Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="folder : ${bookmarkFolders}">
+                    <td class="select-cell">
+                        <input form="bulkActionForm" type="checkbox" name="bookmarkIds" th:value="${folder.id()}">
+                    </td>
+                    <td>
+                        <a class="item-name directory"
+                           th:href="@{/files/bookmarks(folder=${folder.id()})}"
+                           th:title="${folder.title()}">
+                            <i th:class="${folder.iconClass()} + ' item-icon'" aria-hidden="true"></i>
+                            <span th:text="${folder.title()}">directory</span>
+                        </a>
+                    </td>
+                    <td th:text="${folder.typeLabel()}">Directory</td>
+                    <td th:text="${folder.updatedLabel()}">updated</td>
+                    <td>
+                        <div class="table-actions">
+                            <a class="ghost icon-button action-icon"
+                               th:href="@{/files/bookmarks(folder=${folder.id()})}" title="Open directory" aria-label="Open directory">
+                                <i class="fas fa-folder-open" aria-hidden="true"></i>
+                            </a>
+                            <a class="ghost icon-button action-icon"
+                               th:href="@{/files/bookmarks(folder=${currentBookmarkFolderId}, q=${query}, edit=${folder.id()})}"
+                               title="Edit" aria-label="Edit">
+                                <i class="fas fa-pen-to-square" aria-hidden="true"></i>
+                            </a>
+                            <form class="row-form" method="post" th:action="@{/files/bookmarks/delete}"
+                                  onsubmit="return confirm('Delete this bookmark item?');">
+                                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                                <input type="hidden" name="id" th:value="${folder.id()}">
+                                <input type="hidden" name="parentId" th:value="${currentBookmarkFolderId}">
+                                <input type="hidden" name="q" th:value="${query}">
+                                <button class="ghost icon-button action-icon" type="submit" title="Delete" aria-label="Delete">
+                                    <i class="fas fa-trash-can" aria-hidden="true"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="browser-section bookmarks-panel" th:if="${not #lists.isEmpty(bookmarkLinks)}" aria-label="Bookmark links">
+        <header class="section-heading">
+            <h2 th:text="|Links (${#lists.size(bookmarkLinks)})|">Links</h2>
+        </header>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th class="select-col">
+                        <span data-select-pick-label>Pick</span>
+                        <label class="select-all-label js-only" title="Select all bookmark links in this table">
+                            <input class="select-all-checkbox" type="checkbox" data-select-all
+                                   aria-label="Select all bookmark links in this table">
+                        </label>
+                    </th>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>URL</th>
+                    <th>Updated</th>
+                    <th>Last opened</th>
+                    <th>Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="link : ${bookmarkLinks}">
+                    <td class="select-cell">
+                        <input form="bulkActionForm" type="checkbox" name="bookmarkIds" th:value="${link.id()}">
+                    </td>
+                    <td>
+                        <a class="item-name"
+                           th:href="@{/files/bookmarks/open(id=${link.id()})}"
+                           th:title="${link.safeUrl()}" target="_blank" rel="noopener noreferrer">
+                            <i th:class="${link.iconClass()} + ' item-icon'" aria-hidden="true"></i>
+                            <span th:text="${link.title()}">link</span>
+                        </a>
+                    </td>
+                    <td th:text="${link.typeLabel()}">Link</td>
+                    <td class="bookmark-url-cell">
+                        <div class="bookmark-url-content">
+                            <span class="path-cell" th:title="${link.safeUrl()}" th:text="${link.safeUrl()}">url</span>
+                        </div>
+                    </td>
+                    <td th:text="${link.updatedLabel()}">updated</td>
+                    <td th:text="${link.lastOpenedLabel()}">last opened</td>
+                    <td>
+                        <div class="table-actions">
+                            <a class="ghost icon-button action-icon"
+                               th:href="@{/files/bookmarks/open(id=${link.id()})}" target="_blank" rel="noopener noreferrer"
+                               title="Open link" aria-label="Open link">
+                                <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                            </a>
+                            <a class="ghost icon-button action-icon"
+                               th:href="@{/files/bookmarks(folder=${currentBookmarkFolderId}, q=${query}, edit=${link.id()})}"
+                               title="Edit" aria-label="Edit">
+                                <i class="fas fa-pen-to-square" aria-hidden="true"></i>
+                            </a>
+                            <form class="row-form" method="post" th:action="@{/files/bookmarks/delete}"
+                                  onsubmit="return confirm('Delete this bookmark item?');">
+                                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                                <input type="hidden" name="id" th:value="${link.id()}">
+                                <input type="hidden" name="parentId" th:value="${currentBookmarkFolderId}">
+                                <input type="hidden" name="q" th:value="${query}">
+                                <button class="ghost icon-button action-icon" type="submit" title="Delete" aria-label="Delete">
+                                    <i class="fas fa-trash-can" aria-hidden="true"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="browser-section" th:if="${#lists.isEmpty(bookmarkFolders) and #lists.isEmpty(bookmarkLinks)}" aria-label="Empty bookmarks">
+        <div class="table-wrap">
+            <table>
+                <tbody>
+                <tr class="empty-row">
+                    <td class="empty">No bookmarks found.</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+</div>
+</div>
+</body>
+</html>

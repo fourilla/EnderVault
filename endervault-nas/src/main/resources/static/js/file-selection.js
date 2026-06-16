@@ -1,4 +1,9 @@
 document.addEventListener("DOMContentLoaded", () => {
+    const selectableCheckboxSelector = [
+        'input[name="items"][form="bulkActionForm"]',
+        'input[name="paths"][form="bulkActionForm"]',
+        'input[name="bookmarkIds"][form="bulkActionForm"]'
+    ].join(", ");
     const deleteSelectedButton = document.getElementById("deleteSelectedButton");
     const selectionButtons = [
         document.getElementById("downloadSelectedButton"),
@@ -20,9 +25,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.body.classList.add("js-selection-enhanced");
 
     const selectedItemCheckboxes = (scope = document) =>
-        Array.from(scope.querySelectorAll(
-                'input[name="items"][form="bulkActionForm"], input[name="paths"][form="bulkActionForm"]'
-        ));
+        Array.from(scope.querySelectorAll(selectableCheckboxSelector));
 
     const selectAllCheckboxes = () =>
         Array.from(document.querySelectorAll("[data-select-all]"));
@@ -33,9 +36,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const checkboxScopeForSelectAll = (checkbox) => checkbox.closest("table") || document;
 
     const checkboxForItem = (item) =>
-        item?.querySelector(
-                'input[name="items"][form="bulkActionForm"], input[name="paths"][form="bulkActionForm"]'
-        ) || null;
+        item?.querySelector(selectableCheckboxSelector) || null;
 
     const selectableItemFromTarget = (target) => {
         const item = target.closest(selectableItemSelector);
@@ -44,12 +45,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const primaryLinkForItem = (item) => item.querySelector("a[href]");
 
+    const openPrimaryLink = (link) => {
+        const target = link.getAttribute("target");
+        if (target && target.toLowerCase() === "_blank") {
+            window.open(link.href, "_blank", "noopener");
+            return;
+        }
+        window.location.href = link.href;
+    };
+
     const isNativeControlTarget = (target) =>
         Boolean(target.closest("button, input, label, select, textarea, summary"));
 
     const isSelectionControlTarget = (target) =>
         Boolean(target.closest(
-                'input[name="items"][form="bulkActionForm"], input[name="paths"][form="bulkActionForm"], '
+                selectableCheckboxSelector + ", "
                 + "[data-select-all], .select-all-label"
         ));
 
@@ -205,7 +215,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const primaryLink = primaryLinkForItem(item);
             if (primaryLink) {
                 event.preventDefault();
-                window.location.href = primaryLink.href;
+                openPrimaryLink(primaryLink);
             }
             return;
         }

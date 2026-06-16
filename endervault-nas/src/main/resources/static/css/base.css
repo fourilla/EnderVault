@@ -101,6 +101,7 @@ button.danger {
 }
 
 input[type="text"],
+input[type="search"],
 input[type="password"],
 input[type="number"],
 input[type="url"],
@@ -117,10 +118,10 @@ select {
 }
 
 input:focus,
+textarea:focus,
 select:focus,
 button:focus,
 a:focus {
     outline: 2px solid var(--focus);
     outline-offset: 2px;
 }
-
