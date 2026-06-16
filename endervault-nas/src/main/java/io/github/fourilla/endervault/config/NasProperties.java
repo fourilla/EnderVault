@@ -18,6 +18,9 @@ public class NasProperties {
     private Storage storage = new Storage();
 
     @Valid
+    private Setup setup = new Setup();
+
+    @Valid
     private Admin admin = new Admin();
 
     @Valid
@@ -47,6 +50,14 @@ public class NasProperties {
 
     public void setStorage(Storage storage) {
         this.storage = storage;
+    }
+
+    public Setup getSetup() {
+        return setup;
+    }
+
+    public void setSetup(Setup setup) {
+        this.setup = setup;
     }
 
     public Admin getAdmin() {
@@ -145,6 +156,18 @@ public class NasProperties {
 
         public void setMetadataDirectory(String metadataDirectory) {
             this.metadataDirectory = metadataDirectory;
+        }
+    }
+
+    public static class Setup {
+        private boolean accepted = false;
+
+        public boolean isAccepted() {
+            return accepted;
+        }
+
+        public void setAccepted(boolean accepted) {
+            this.accepted = accepted;
         }
     }
 

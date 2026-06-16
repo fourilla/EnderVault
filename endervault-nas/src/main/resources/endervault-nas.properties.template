@@ -1,6 +1,6 @@
-# Copy the keys you need into ./endervault-nas.properties next to the jar,
-# or into ${user.home}/.endervault-nas/application.properties.
-# Those external files are for machine-specific paths and secrets.
+# EnderVault generated this file because no local endervault-nas.properties file existed.
+# Review every value, especially storage paths and secrets, then set nas.setup.accepted=true.
+# Keep the copied file out of git because it contains local paths and secrets.
 
 spring.servlet.multipart.max-file-size=20GB
 spring.servlet.multipart.max-request-size=20GB
@@ -10,6 +10,8 @@ spring.servlet.multipart.max-request-size=20GB
 nas.storage.root=/mnt/external_drive
 nas.storage.trash-directory=.trash
 nas.storage.metadata-directory=.endervault
+
+nas.setup.accepted=false
 
 nas.trash.retention-days=30
 nas.trash.cleanup-on-startup=true
@@ -25,11 +27,26 @@ nas.browser.default-sort=name
 nas.browser.default-direction=asc
 nas.browser.default-page-size=200
 
+nas.recent.max-items=200
+nas.recent.record-directories=true
+
 nas.file-tools.text-auto-load-max-bytes=1048576
 nas.file-tools.text-manual-load-max-bytes=20971520
 nas.file-tools.comic-max-pages=5000
 nas.file-tools.comic-page-max-bytes=104857600
 nas.file-tools.comic-info-max-bytes=65536
+
+nas.remote-download.enabled=true
+nas.remote-download.direct-enabled=true
+nas.remote-download.extractor-enabled=false
+nas.remote-download.block-private-networks=true
+nas.remote-download.allowed-ports=80,443
+nas.remote-download.connect-timeout-seconds=10
+nas.remote-download.response-timeout-seconds=30
+nas.remote-download.max-redirects=5
+nas.remote-download.max-file-size-bytes=0
+nas.remote-download.worker-threads=2
+nas.remote-download.history-limit=100
 
 nas.admin.username=admin
 nas.admin.password={noop}change-me
