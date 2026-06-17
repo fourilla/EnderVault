@@ -35,6 +35,22 @@ class FilePreviewSupportTest {
                 .isEqualTo("/s/guest/preview?path=series&item=cover.jpg");
     }
 
+    @Test
+    void sharedDirectoryFileUrlKeepsDirectoryContextForLandingPage() {
+        FileItem item = item("cover.jpg", "series/cover.jpg", "image/jpeg", true);
+
+        assertThat(filePreviewSupport.sharedDirectoryFileUrl("guest", item))
+                .isEqualTo("/s/guest/file?item=cover.jpg&path=series");
+    }
+
+    @Test
+    void sharedDownloadUrlIncludesFilenameForCommandLineClients() {
+        FileItem item = item("demo file, 01.mp4", "series/demo file, 01.mp4", "video/mp4", true);
+
+        assertThat(filePreviewSupport.sharedDirectoryDownloadUrl("guest", item))
+                .isEqualTo("/s/guest/download/demo%20file,%2001.mp4?path=series&item=demo%20file,%2001.mp4");
+    }
+
     private FileItem item(String name, String path, String mediaType, boolean previewable) {
         return new FileItem(
                 name,

@@ -42,6 +42,23 @@ public class FilePreviewSupport {
         return sharedPreviewUrl(token, item.name(), item.parentPath(), item.name());
     }
 
+    public String sharedDirectoryFileUrl(String token, FileItem item) {
+        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/s/{token}/file")
+                .queryParam("item", item.name());
+        if (item.parentPath() != null && !item.parentPath().isBlank()) {
+            builder.queryParam("path", item.parentPath());
+        }
+        return builder.buildAndExpand(token).encode().toUriString();
+    }
+
+    public String sharedFileDownloadUrl(String token, FileItem item) {
+        return sharedDownloadUrl(token, item.name(), null, null);
+    }
+
+    public String sharedDirectoryDownloadUrl(String token, FileItem item) {
+        return sharedDownloadUrl(token, item.name(), item.parentPath(), item.name());
+    }
+
     public String openUrl(FileItem item) {
         return previewable(item) ? previewUrl(item) : downloadUrl(item.path());
     }
@@ -69,6 +86,18 @@ public class FilePreviewSupport {
             builder.queryParam("item", item);
         }
         return builder.buildAndExpand(token).encode().toUriString();
+    }
+
+    private String sharedDownloadUrl(String token, String name, String path, String item) {
+        UriComponentsBuilder builder = UriComponentsBuilder.newInstance()
+                .pathSegment("s", token, "download", name);
+        if (path != null && !path.isBlank()) {
+            builder.queryParam("path", path);
+        }
+        if (item != null && !item.isBlank()) {
+            builder.queryParam("item", item);
+        }
+        return builder.build().encode().toUriString();
     }
 
     private String downloadUrl(String path) {

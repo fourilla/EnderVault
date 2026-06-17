@@ -13,10 +13,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import io.github.fourilla.endervault.share.ShareLink;
+import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.web.support.FlashNotification;
 import io.github.fourilla.endervault.web.support.FlashNotifications;
 import org.hamcrest.Matchers;
@@ -42,6 +45,9 @@ class AdminNotificationFlowTest {
 
     @Autowired
     MockMvc mockMvc;
+
+    @Autowired
+    ShareLinkService shareLinkService;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -285,6 +291,112 @@ class AdminNotificationFlowTest {
                 .andExpect(jsonPath("$.notification.type").value("info"))
                 .andExpect(jsonPath("$.notification.actionValue").exists())
                 .andExpect(jsonPath("$.shareLink.token").exists());
+    }
+
+    @Test
+    void sharedDownloadSupportsFilenamePathForCommandLineClients() throws Exception {
+        String filename = "wget sample, " + System.nanoTime() + ".txt";
+        Files.writeString(ROOT.resolve(filename), "shared download", StandardCharsets.UTF_8);
+        ShareLink shareLink = shareLinkService.create("", filename, null);
+        String encodedFilename = filename.replace(" ", "%20");
+        String contentDispositionFilename = encodedFilename.replace(",", "%2C");
+
+        mockMvc.perform(get("/s/{token}", shareLink.token()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString(
+                        "/s/" + shareLink.token() + "/download/" + encodedFilename)));
+
+        mockMvc.perform(get(URI.create("/s/" + shareLink.token() + "/download/" + encodedFilename)))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION,
+                        Matchers.containsString("filename*=UTF-8''" + contentDispositionFilename)))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(content().bytes("shared download".getBytes(StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    void sharedFileLandingRendersImagePreviewInline() throws Exception {
+        String filename = "shared-image-" + System.nanoTime() + ".jpg";
+        Files.write(ROOT.resolve(filename), new byte[] {(byte) 0xff, (byte) 0xd8, (byte) 0xff, (byte) 0xd9});
+        ShareLink shareLink = shareLinkService.create("", filename, null);
+
+        mockMvc.perform(get("/s/{token}", shareLink.token()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("shared-preview-panel")))
+                .andExpect(content().string(Matchers.containsString("<img class=\"preview-media\"")))
+                .andExpect(content().string(Matchers.containsString("/s/" + shareLink.token() + "/preview")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("fa-eye"))))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("target=\"_blank\""))));
+    }
+
+    @Test
+    void sharedFileLandingRendersTextPreviewEscaped() throws Exception {
+        String filename = "shared-text-" + System.nanoTime() + ".html";
+        Files.writeString(ROOT.resolve(filename), "<script>alert(1)</script>", StandardCharsets.UTF_8);
+        ShareLink shareLink = shareLinkService.create("", filename, null);
+
+        MvcResult result = mockMvc.perform(get("/s/{token}", shareLink.token()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("/webjars/codemirror/5.65.19/lib/codemirror.js")))
+                .andExpect(content().string(Matchers.containsString("/webjars/codemirror/5.65.19/addon/mode/simple.js")))
+                .andExpect(content().string(Matchers.containsString("/js/file-tools.js")))
+                .andExpect(content().string(Matchers.containsString("data-shared-text-preview")))
+                .andExpect(content().string(Matchers.containsString("data-text-extension=\"html\"")))
+                .andExpect(content().string(Matchers.containsString("Text Preview")))
+                .andExpect(content().string(Matchers.containsString("shared-download-button")))
+                .andExpect(content().string(Matchers.containsString("<span>Download</span>")))
+                .andExpect(content().string(Matchers.containsString("shared-file-details")))
+                .andExpect(content().string(Matchers.containsString("data-shared-text-source")))
+                .andExpect(content().string(Matchers.containsString("readonly")))
+                .andExpect(content().string(Matchers.containsString("&lt;script&gt;alert(1)&lt;/script&gt;")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("<script>alert"))))
+                .andReturn();
+        String body = result.getResponse().getContentAsString();
+        assertThat(body.indexOf("/webjars/codemirror/5.65.19/addon/mode/simple.js"))
+                .isLessThan(body.indexOf("/webjars/codemirror/5.65.19/mode/rust/rust.js"));
+    }
+
+    @Test
+    void sharedDirectoryPreviewActionUsesFileLandingPage() throws Exception {
+        String directory = "shared-directory-" + System.nanoTime();
+        String subdirectory = "series";
+        String filename = "chapter.txt";
+        Files.createDirectories(ROOT.resolve(directory).resolve(subdirectory));
+        Files.writeString(ROOT.resolve(directory).resolve(subdirectory).resolve(filename), "chapter text", StandardCharsets.UTF_8);
+        ShareLink shareLink = shareLinkService.create("", directory, null);
+
+        mockMvc.perform(get("/s/{token}", shareLink.token()).param("path", subdirectory))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("/js/file-selection.js")))
+                .andExpect(content().string(Matchers.containsString("data-select-pick-label")))
+                .andExpect(content().string(Matchers.containsString("data-select-all")))
+                .andExpect(content().string(Matchers.containsString("class=\"select-cell\"")))
+                .andExpect(content().string(Matchers.containsString("Download selected file")))
+                .andExpect(content().string(Matchers.containsString(
+                        "/s/" + shareLink.token() + "/file?item=chapter.txt&amp;path=series")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("target=\"_blank\""))));
+
+        mockMvc.perform(get("/s/{token}/file", shareLink.token())
+                        .param("path", subdirectory)
+                        .param("item", filename))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("Text Preview")))
+                .andExpect(content().string(Matchers.containsString("chapter text")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString(
+                        "/s/" + shareLink.token() + "/preview?path=series&amp;item=chapter.txt"))));
+    }
+
+    @Test
+    void sharedDirectoryDownloadZipRedirectsWhenNothingSelected() throws Exception {
+        String directory = "shared-empty-download-" + System.nanoTime();
+        String subdirectory = "series";
+        Files.createDirectories(ROOT.resolve(directory).resolve(subdirectory));
+        ShareLink shareLink = shareLinkService.create("", directory, null);
+
+        mockMvc.perform(get("/s/{token}/download.zip", shareLink.token())
+                        .param("path", subdirectory))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/s/" + shareLink.token() + "?path=series"));
     }
 
     @Test

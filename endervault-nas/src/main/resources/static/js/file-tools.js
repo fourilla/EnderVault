@@ -2,6 +2,9 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll("form[data-text-editor]").forEach((form) => {
         initializeTextEditor(form);
     });
+    document.querySelectorAll("[data-shared-text-preview]").forEach((preview) => {
+        initializeSharedTextPreview(preview);
+    });
     document.querySelectorAll("[data-comic-page-url]").forEach((viewer) => {
         initializeComicViewer(viewer);
     });
@@ -265,6 +268,41 @@ const enhanceWithCodeMirror = (form, textarea) => {
     attachEditorControls(form, editor, mode, lineWrapping, fontSize);
     window.setTimeout(() => editor.refresh(), 0);
     return editor;
+};
+
+const initializeSharedTextPreview = (preview) => {
+    if (!window.CodeMirror || preview.dataset.sharedTextPreviewBound === "true") {
+        return;
+    }
+
+    const textarea = preview.querySelector("textarea[data-shared-text-source]");
+    if (!textarea) {
+        return;
+    }
+
+    preview.dataset.sharedTextPreviewBound = "true";
+
+    try {
+        const editor = window.CodeMirror.fromTextArea(textarea, {
+            mode: modeFor(preview.dataset.textExtension, preview.dataset.textName),
+            theme: "material-darker",
+            lineNumbers: true,
+            lineWrapping: preferredLineWrapping(),
+            readOnly: true,
+            styleActiveLine: false,
+            matchBrackets: true,
+            tabSize: 4,
+            indentUnit: 4,
+            viewportMargin: 80
+        });
+
+        preview.classList.add("is-codemirror-enhanced");
+        applyFontSize(editor, preferredFontSize());
+        window.setTimeout(() => editor.refresh(), 0);
+    } catch (error) {
+        preview.dataset.sharedTextPreviewBound = "false";
+        console.warn("Shared text CodeMirror preview failed.", error);
+    }
 };
 
 const attachEditorControls = (form, editor, mode, lineWrapping, fontSize) => {

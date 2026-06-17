@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title th:text="${item.name()}">Shared File</title>
     <th:block th:replace="~{fragments/assets :: styles(true)}"></th:block>
+    <th:block th:if="${fileTool.text()}">
+        <th:block th:replace="~{fragments/assets :: fileToolsScript}"></th:block>
+    </th:block>
 </head>
 <body>
 <header class="topbar">
@@ -13,9 +16,53 @@
 
 <main class="workspace">
     <section class="shared-summary">
-        <p class="eyebrow">Shared file</p>
-        <h1 th:text="${item.name()}">file</h1>
-        <dl class="details">
+        <header class="shared-file-header">
+            <div class="shared-file-title">
+                <p class="eyebrow">Shared file</p>
+                <h1 th:text="${item.name()}">file</h1>
+            </div>
+            <a class="button-link shared-download-button" th:href="${sharedDownloadUrl}"
+               title="Download" aria-label="Download">
+                <i class="fas fa-download" aria-hidden="true"></i>
+                <span>Download</span>
+            </a>
+        </header>
+
+        <section class="shared-preview-panel" aria-label="Preview">
+            <header class="section-heading">
+                <h2>Preview</h2>
+                <span class="status-badge" th:text="${fileTool.text() ? 'Text Preview' : fileTool.label()}">Preview</span>
+            </header>
+
+            <div class="preview-surface" th:if="${fileTool.image() or fileTool.video()}">
+                <img class="preview-media" th:if="${fileTool.image()}"
+                     th:src="${sharedPreviewUrl}"
+                     th:alt="${item.name()}">
+                <video class="preview-media" th:if="${fileTool.video()}" controls
+                       th:src="${sharedPreviewUrl}"></video>
+            </div>
+
+            <div class="shared-text-preview" th:if="${fileTool.text()}"
+                 th:data-text-extension="${detail.extension()}"
+                 th:data-text-name="${detail.name()}"
+                 data-shared-text-preview>
+                <textarea class="shared-text-fallback text-editor-area"
+                          th:if="${textContent.loaded()}"
+                          data-shared-text-source
+                          readonly
+                          spellcheck="false"
+                          th:text="${textContent.content()}">text</textarea>
+                <div class="tool-message" th:unless="${textContent.loaded()}">
+                    <p th:text="${textContent.message()}">Text preview unavailable.</p>
+                </div>
+            </div>
+
+            <div class="tool-message" th:unless="${fileTool.image() or fileTool.video() or fileTool.text()}">
+                <p>Preview is not available for this file yet.</p>
+            </div>
+        </section>
+
+        <dl class="details shared-file-details">
             <div>
                 <dt>Type</dt>
                 <dd th:text="${item.mediaType()}">type</dd>
@@ -29,17 +76,6 @@
                 <dd th:text="${item.modifiedLabel()}">modified</dd>
             </div>
         </dl>
-        <div class="bulk-actions">
-            <a class="button-link icon-button" th:href="@{/s/{token}/download(token=${token})}"
-               title="Download" aria-label="Download">
-                <i class="fas fa-download" aria-hidden="true"></i>
-            </a>
-            <a class="button-link ghost icon-button" th:if="${filePreview.previewable(item)}"
-               th:href="${filePreview.sharedFilePreviewUrl(token, item)}" target="_blank"
-               title="Preview" aria-label="Preview">
-                <i class="fas fa-eye" aria-hidden="true"></i>
-            </a>
-        </div>
     </section>
 </main>
 </body>

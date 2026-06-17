@@ -305,6 +305,12 @@ public class StorageService {
         return file;
     }
 
+    public FileItem describeSharedFile(String sharedBasePath, String requestedPath, String fileName) throws IOException {
+        Path sharedBase = resolveDirectory(StorageScope.VAULT, sharedBasePath);
+        Path file = resolveSharedFile(sharedBasePath, requestedPath, fileName);
+        return toFileItem(sharedBase, file);
+    }
+
     public String mediaType(Path file) throws IOException {
         String mediaType = Files.probeContentType(file);
         return mediaType == null ? "application/octet-stream" : mediaType;

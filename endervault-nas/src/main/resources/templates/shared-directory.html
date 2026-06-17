@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Shared Directory</title>
     <th:block th:replace="~{fragments/assets :: styles(true)}"></th:block>
+    <th:block th:replace="~{fragments/assets :: jsOnlyNoscript}"></th:block>
+    <th:block th:replace="~{fragments/assets :: selectionScript}"></th:block>
 </head>
 <body>
 <header class="topbar">
@@ -34,8 +36,10 @@
         <form id="bulkActionForm" method="get" th:action="@{/s/{token}/download.zip(token=${token})}">
             <input type="hidden" name="path" th:value="${path}">
         </form>
-        <button class="icon-button" form="bulkActionForm" type="submit" title="Download selected zip" aria-label="Download selected zip">
-            <i class="fas fa-file-zipper" aria-hidden="true"></i>
+        <button class="button-link shared-download-button" id="downloadSelectedButton" form="bulkActionForm"
+                type="submit" title="Download selected file" aria-label="Download selected file">
+            <i class="fas fa-download" aria-hidden="true"></i>
+            <span>Download selected file</span>
         </button>
     </section>
 
@@ -43,7 +47,13 @@
         <table>
             <thead>
             <tr>
-                <th class="select-col">Pick</th>
+                <th class="select-col">
+                    <span data-select-pick-label>Pick</span>
+                    <label class="select-all-label js-only" title="Select all items in this table">
+                        <input class="select-all-checkbox" type="checkbox" data-select-all
+                               aria-label="Select all items in this table">
+                    </label>
+                </th>
                 <th>Name</th>
                 <th>Type</th>
                 <th>Size</th>
@@ -53,7 +63,7 @@
             </thead>
             <tbody>
             <tr th:each="dir : ${listing.directories()}">
-                <td><input form="bulkActionForm" type="checkbox" name="items" th:value="${dir.name()}"></td>
+                <td class="select-cell"><input form="bulkActionForm" type="checkbox" name="items" th:value="${dir.name()}"></td>
                 <td><a class="item-name directory" th:href="@{/s/{token}(token=${token}, path=${dir.path()})}">
                     <i class="fas fa-folder item-icon" aria-hidden="true"></i>
                     <span th:text="${dir.name()}">directory</span>
@@ -64,21 +74,22 @@
                 <td>-</td>
             </tr>
             <tr th:each="file : ${listing.files()}">
-                <td><input form="bulkActionForm" type="checkbox" name="items" th:value="${file.name()}"></td>
-                <td><span class="item-name" th:text="${file.name()}">file</span></td>
+                <td class="select-cell"><input form="bulkActionForm" type="checkbox" name="items" th:value="${file.name()}"></td>
+                <td><a class="item-name" th:href="${filePreview.sharedDirectoryFileUrl(token, file)}"
+                       th:text="${file.name()}">file</a></td>
                 <td th:text="${file.mediaType()}">type</td>
                 <td th:text="${file.sizeLabel()}">0 B</td>
                 <td th:text="${file.modifiedLabel()}">-</td>
                 <td>
                     <div class="table-actions">
                         <a class="button-link ghost icon-button action-icon"
-                           th:href="@{/s/{token}/download(token=${token}, path=${path}, item=${file.name()})}"
+                           th:href="${filePreview.sharedDirectoryDownloadUrl(token, file)}"
                            title="Download" aria-label="Download">
                             <i class="fas fa-download" aria-hidden="true"></i>
                         </a>
                         <a class="button-link ghost icon-button action-icon"
                            th:if="${filePreview.previewable(file)}"
-                           th:href="${filePreview.sharedDirectoryPreviewUrl(token, file)}" target="_blank"
+                           th:href="${filePreview.sharedDirectoryFileUrl(token, file)}"
                            title="Preview" aria-label="Preview">
                             <i class="fas fa-eye" aria-hidden="true"></i>
                         </a>

@@ -5,15 +5,96 @@
     padding: 24px;
 }
 
+.shared-file-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.shared-file-title {
+    min-width: 0;
+}
+
+.shared-download-button {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 42px;
+    white-space: nowrap;
+}
+
+button.shared-download-button:disabled {
+    border-color: var(--line);
+    background: var(--panel-muted);
+    color: var(--muted);
+    cursor: not-allowed;
+}
+
+button.shared-download-button:disabled:hover {
+    background: var(--panel-muted);
+    color: var(--muted);
+}
+
 .shared-summary h1 {
-    margin: 0 0 18px;
+    margin: 0;
     overflow-wrap: anywhere;
+}
+
+.shared-preview-panel {
+    display: grid;
+    gap: 12px;
+    margin-top: 18px;
+}
+
+.shared-preview-panel .section-heading {
+    margin: 0;
+}
+
+.shared-text-fallback {
+    max-height: 70vh;
+    margin: 0;
+    overflow: auto;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel-muted);
+    padding: 16px;
+    color: var(--text);
+    font-family: "Consolas", "Cascadia Mono", monospace;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.shared-text-preview.is-codemirror-enhanced .shared-text-fallback {
+    display: none;
+}
+
+.shared-text-preview .CodeMirror {
+    height: 70vh;
+    min-height: 420px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-family: "Consolas", "Cascadia Mono", monospace;
+    line-height: 1.45;
+}
+
+.shared-text-preview .CodeMirror-code {
+    caret-color: transparent;
 }
 
 .details {
     display: grid;
     gap: 10px;
     margin: 0 0 22px;
+}
+
+.details.shared-file-details {
+    margin: 12px 0 0;
+    border-top: 1px solid var(--line);
+    padding-top: 12px;
 }
 
 .details div {

@@ -7,6 +7,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import org.springframework.core.io.AbstractResource;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -21,6 +23,16 @@ import org.springframework.stereotype.Service;
 @Service
 public class FileResponseService {
 
+    private static final String X_CONTENT_TYPE_OPTIONS = "X-Content-Type-Options";
+    private static final String NOSNIFF = "nosniff";
+    private static final Set<MediaType> ACTIVE_INLINE_TYPES = Set.of(
+            MediaType.TEXT_HTML,
+            MediaType.TEXT_XML,
+            MediaType.APPLICATION_XML,
+            MediaType.APPLICATION_XHTML_XML,
+            MediaType.parseMediaType("image/svg+xml")
+    );
+
     private final StorageService storageService;
 
     public FileResponseService(StorageService storageService) {
@@ -33,6 +45,7 @@ public class FileResponseService {
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .contentLength(Files.size(file))
                 .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition("attachment", file))
+                .header(X_CONTENT_TYPE_OPTIONS, NOSNIFF)
                 .body(resource);
     }
 
@@ -62,6 +75,7 @@ public class FileResponseService {
                     .header(HttpHeaders.ACCEPT_RANGES, "bytes")
                     .header(HttpHeaders.CONTENT_RANGE, "bytes %d-%d/%d".formatted(start, end, fileSize))
                     .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition("inline", file))
+                    .header(X_CONTENT_TYPE_OPTIONS, NOSNIFF)
                     .body(rangeResource);
         }
 
@@ -70,6 +84,7 @@ public class FileResponseService {
                 .contentLength(fileSize)
                 .header(HttpHeaders.ACCEPT_RANGES, "bytes")
                 .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition("inline", file))
+                .header(X_CONTENT_TYPE_OPTIONS, NOSNIFF)
                 .body(resource);
     }
 
@@ -82,10 +97,20 @@ public class FileResponseService {
 
     private MediaType inlineMediaType(Path file) throws IOException {
         MediaType mediaType = MediaType.parseMediaType(storageService.mediaType(file));
+        if (unsafeInlineMediaType(mediaType)) {
+            return new MediaType(MediaType.TEXT_PLAIN, StandardCharsets.UTF_8);
+        }
         if ("text".equalsIgnoreCase(mediaType.getType()) && mediaType.getCharset() == null) {
             return new MediaType(mediaType, StandardCharsets.UTF_8);
         }
         return mediaType;
+    }
+
+    private boolean unsafeInlineMediaType(MediaType mediaType) {
+        String subtype = mediaType.getSubtype().toLowerCase(Locale.ROOT);
+        return ACTIVE_INLINE_TYPES.stream().anyMatch(unsafeType -> unsafeType.includes(mediaType))
+                || "xml".equals(subtype)
+                || subtype.endsWith("+xml");
     }
 
     private static class RangeResource extends AbstractResource {

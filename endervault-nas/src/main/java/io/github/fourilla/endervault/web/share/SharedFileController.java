@@ -3,11 +3,15 @@ package io.github.fourilla.endervault.web.share;
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.filetool.ComicArchiveService;
 import io.github.fourilla.endervault.filetool.ComicPageResource;
+import io.github.fourilla.endervault.filetool.FileToolDescriptor;
+import io.github.fourilla.endervault.filetool.FileToolService;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.share.ShareTargetType;
 import io.github.fourilla.endervault.storage.DirectoryListing;
+import io.github.fourilla.endervault.storage.FileDetail;
 import io.github.fourilla.endervault.storage.FileItem;
+import io.github.fourilla.endervault.storage.StorageScope;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.web.support.FileResponseService;
 import io.github.fourilla.endervault.web.support.FilePreviewSupport;
@@ -45,6 +49,7 @@ public class SharedFileController {
     private final ActivityLogService activityLogService;
     private final ComicArchiveService comicArchiveService;
     private final FilePreviewSupport filePreviewSupport;
+    private final FileToolService fileToolService;
 
     public SharedFileController(
             ShareLinkService shareLinkService,
@@ -52,7 +57,8 @@ public class SharedFileController {
             FileResponseService fileResponseService,
             ActivityLogService activityLogService,
             ComicArchiveService comicArchiveService,
-            FilePreviewSupport filePreviewSupport
+            FilePreviewSupport filePreviewSupport,
+            FileToolService fileToolService
     ) {
         this.shareLinkService = shareLinkService;
         this.storageService = storageService;
@@ -60,6 +66,7 @@ public class SharedFileController {
         this.activityLogService = activityLogService;
         this.comicArchiveService = comicArchiveService;
         this.filePreviewSupport = filePreviewSupport;
+        this.fileToolService = fileToolService;
     }
 
     @ModelAttribute("filePreview")
@@ -81,8 +88,14 @@ public class SharedFileController {
 
         if (shareLink.type() == ShareTargetType.FILE) {
             FileItem item = storageService.describeVaultPath(shareLink.path());
-            model.addAttribute("item", item);
-            return "shared-file";
+            FileDetail detail = storageService.detail(StorageScope.VAULT, shareLink.path());
+            return sharedFileView(
+                    model,
+                    item,
+                    detail,
+                    filePreviewSupport.sharedFileDownloadUrl(token, item),
+                    filePreviewSupport.sharedFilePreviewUrl(token, item)
+            );
         }
 
         DirectoryListing listing = storageService.listSharedDirectory(shareLink.path(), path);
@@ -91,16 +104,47 @@ public class SharedFileController {
         return "shared-directory";
     }
 
-    @GetMapping("/s/{token}/download")
+    @GetMapping("/s/{token}/file")
+    public String sharedDirectoryFile(
+            @PathVariable String token,
+            @RequestParam(value = "path", required = false) String path,
+            @RequestParam("item") String itemName,
+            HttpServletRequest request,
+            Model model
+    ) throws IOException {
+        ShareLink shareLink = shareLinkService.requireUsable(token);
+        if (shareLink.type() != ShareTargetType.DIRECTORY) {
+            throw new NoSuchFileException(token);
+        }
+
+        FileItem item = storageService.describeSharedFile(shareLink.path(), path, itemName);
+        String vaultPath = sharedItemVaultPath(shareLink.path(), path, itemName);
+        FileDetail detail = storageService.detail(StorageScope.VAULT, vaultPath);
+        activityLogService.record("SHARE_ACCESS", request, shareLink.path(), item.path(),
+                "Accessed shared file " + item.name() + " from share link " + token);
+        model.addAttribute("share", shareLink);
+        model.addAttribute("token", token);
+        return sharedFileView(
+                model,
+                item,
+                detail,
+                filePreviewSupport.sharedDirectoryDownloadUrl(token, item),
+                filePreviewSupport.sharedDirectoryPreviewUrl(token, item)
+        );
+    }
+
+    @GetMapping({"/s/{token}/download", "/s/{token}/download/{filename}"})
     public ResponseEntity<?> download(
             @PathVariable String token,
+            @PathVariable(value = "filename", required = false) String filename,
             @RequestParam(value = "path", required = false) String path,
             @RequestParam(value = "item", required = false) String item,
             HttpServletRequest request
     ) throws IOException {
         ShareLink shareLink = shareLinkService.requireUsable(token);
         Path file = resolveSharedDownloadTarget(shareLink, path, item);
-        activityLogService.record("SHARE_DOWNLOAD", request, shareLink.path(), item, "Downloaded from share link " + token);
+        activityLogService.record("SHARE_DOWNLOAD", request, shareLink.path(), item,
+                "Downloaded from share link " + token);
         return fileResponseService.attachment(file);
     }
 
@@ -116,14 +160,17 @@ public class SharedFileController {
             throw new NoSuchFileException(token);
         }
 
+        List<String> items = SelectedItems.from(request);
+        if (items.isEmpty()) {
+            response.sendRedirect(sharedDirectoryUrl(token, path));
+            return;
+        }
+
         response.setContentType("application/zip");
         response.setHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"shared-files.zip\"");
-        List<String> items = SelectedItems.from(request);
-        if (!items.isEmpty()) {
-            activityLogService.record("SHARE_DOWNLOAD_ZIP", request, shareLink.path(), path,
-                    "Downloaded shared ZIP with " + items.size() + " item(s)");
-            storageService.writeSharedZip(shareLink.path(), path, items, response.getOutputStream());
-        }
+        activityLogService.record("SHARE_DOWNLOAD_ZIP", request, shareLink.path(), path,
+                "Downloaded shared ZIP with " + items.size() + " item(s)");
+        storageService.writeSharedZip(shareLink.path(), path, items, response.getOutputStream());
     }
 
     @GetMapping("/s/{token}/preview")
@@ -199,6 +246,53 @@ public class SharedFileController {
         return storageService.resolveSharedFile(shareLink.path(), path, item);
     }
 
+    private String sharedFileView(
+            Model model,
+            FileItem item,
+            FileDetail detail,
+            String downloadUrl,
+            String previewUrl
+    ) throws IOException {
+        FileToolDescriptor fileTool = fileToolService.resolve(detail);
+        model.addAttribute("item", item);
+        model.addAttribute("detail", detail);
+        model.addAttribute("fileTool", fileTool);
+        model.addAttribute("sharedDownloadUrl", downloadUrl);
+        model.addAttribute("sharedPreviewUrl", previewUrl);
+        if (fileTool.text()) {
+            model.addAttribute("textContent", fileToolService.readText(detail, storageService.resolveVaultFile(detail.path())));
+        }
+        return "shared-file";
+    }
+
+    private String sharedItemVaultPath(String sharedBasePath, String path, String item) {
+        StringBuilder builder = new StringBuilder();
+        appendVaultPathSegment(builder, sharedBasePath);
+        appendVaultPathSegment(builder, path);
+        appendVaultPathSegment(builder, item);
+        return builder.toString();
+    }
+
+    private void appendVaultPathSegment(StringBuilder builder, String segment) {
+        if (segment == null || segment.isBlank()) {
+            return;
+        }
+        String cleaned = segment.replace('\\', '/');
+        while (cleaned.startsWith("/")) {
+            cleaned = cleaned.substring(1);
+        }
+        while (cleaned.endsWith("/")) {
+            cleaned = cleaned.substring(0, cleaned.length() - 1);
+        }
+        if (cleaned.isBlank()) {
+            return;
+        }
+        if (!builder.isEmpty()) {
+            builder.append('/');
+        }
+        builder.append(cleaned);
+    }
+
     private String sharedComicPageUrlPrefix(String token, String path, String item) {
         UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/s/{token}/comic/page");
         if (path != null && !path.isBlank()) {
@@ -211,6 +305,16 @@ public class SharedFileController {
                 .encode()
                 .toUriString();
         return baseUrl + (baseUrl.contains("?") ? "&" : "?") + "page=";
+    }
+
+    private String sharedDirectoryUrl(String token, String path) {
+        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/s/{token}");
+        if (path != null && !path.isBlank()) {
+            builder.queryParam("path", path);
+        }
+        return builder.buildAndExpand(token)
+                .encode()
+                .toUriString();
     }
 
     private boolean isComic(Path file) {

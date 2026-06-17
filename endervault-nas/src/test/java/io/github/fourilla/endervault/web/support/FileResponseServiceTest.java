@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.core.io.Resource;
 
@@ -56,6 +57,31 @@ class FileResponseServiceTest {
         ResponseEntity<?> response = fileResponseService.inline(file, new HttpHeaders());
 
         assertThat(response.getHeaders().getContentType().getCharset()).isEqualTo(StandardCharsets.UTF_8);
+    }
+
+    @Test
+    void inlineServesActiveContentAsPlainTextWithNosniff() throws Exception {
+        Path file = root.resolve("page.html");
+        Files.writeString(file, "<script>alert(1)</script>", StandardCharsets.UTF_8);
+
+        ResponseEntity<?> response = fileResponseService.inline(file, new HttpHeaders());
+
+        assertThat(response.getHeaders().getContentType().isCompatibleWith(MediaType.TEXT_PLAIN)).isTrue();
+        assertThat(response.getHeaders().getContentType().getCharset()).isEqualTo(StandardCharsets.UTF_8);
+        assertThat(response.getHeaders().getFirst("X-Content-Type-Options")).isEqualTo("nosniff");
+    }
+
+    @Test
+    void attachmentIncludesNosniffAndFilename() throws Exception {
+        Path file = root.resolve("report.txt");
+        Files.writeString(file, "report", StandardCharsets.UTF_8);
+
+        ResponseEntity<Resource> response = fileResponseService.attachment(file);
+
+        assertThat(response.getHeaders().getFirst("X-Content-Type-Options")).isEqualTo("nosniff");
+        assertThat(response.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
+                .contains("attachment")
+                .contains("report.txt");
     }
 
     @Test
