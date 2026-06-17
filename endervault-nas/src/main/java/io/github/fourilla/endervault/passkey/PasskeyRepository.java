@@ -1,5 +1,6 @@
 package io.github.fourilla.endervault.passkey;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yubico.webauthn.CredentialRepository;
 import com.yubico.webauthn.RegisteredCredential;
@@ -7,15 +8,11 @@ import com.yubico.webauthn.data.AuthenticatorTransport;
 import com.yubico.webauthn.data.ByteArray;
 import com.yubico.webauthn.data.PublicKeyCredentialDescriptor;
 import com.yubico.webauthn.data.exception.Base64UrlException;
+import io.github.fourilla.endervault.common.JsonRegistry;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.Files;
-import java.nio.file.LinkOption;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Comparator;
@@ -31,26 +28,32 @@ public class PasskeyRepository implements CredentialRepository {
 
     private static final String STORE_FILE_NAME = "passkeys.json";
     private static final int USER_HANDLE_BYTES = 32;
+    private static final TypeReference<PasskeyStore> PASSKEY_STORE = new TypeReference<>() {
+    };
 
-    private final ObjectMapper objectMapper;
+    private final JsonRegistry<PasskeyStore> registry;
     private final SecureRandom secureRandom = new SecureRandom();
     private final String adminUsername;
-    private final Path storeFile;
 
     public PasskeyRepository(ObjectMapper objectMapper, NasProperties nasProperties) {
-        this.objectMapper = objectMapper;
         this.adminUsername = nasProperties.getAdmin().getUsername();
         NasProperties.Storage storage = nasProperties.getStorage();
-        this.storeFile = storage.getRoot()
-                .toAbsolutePath()
-                .normalize()
-                .resolve(storage.getMetadataDirectory())
-                .resolve(STORE_FILE_NAME);
+        this.registry = new JsonRegistry<>(
+                objectMapper,
+                storage.getRoot()
+                        .toAbsolutePath()
+                        .normalize()
+                        .resolve(storage.getMetadataDirectory())
+                        .resolve(STORE_FILE_NAME),
+                PASSKEY_STORE,
+                PasskeyStore::new,
+                JsonRegistry.CorruptionPolicy.BACKUP_AND_THROW
+        );
     }
 
     @PostConstruct
     public void initialize() throws IOException {
-        Files.createDirectories(storeFile.getParent());
+        registry.initialize();
     }
 
     public synchronized List<PasskeyCredential> list() {
@@ -233,11 +236,8 @@ public class PasskeyRepository implements CredentialRepository {
     }
 
     private PasskeyStore readStore() {
-        if (!Files.exists(storeFile, LinkOption.NOFOLLOW_LINKS)) {
-            return new PasskeyStore();
-        }
         try {
-            return objectMapper.readValue(storeFile.toFile(), PasskeyStore.class);
+            return registry.read();
         } catch (IOException ex) {
             throw new StorageAccessException("Failed to read passkey store.", ex);
         }
@@ -245,14 +245,7 @@ public class PasskeyRepository implements CredentialRepository {
 
     private void writeStore(PasskeyStore store) {
         try {
-            Files.createDirectories(storeFile.getParent());
-            Path tempFile = storeFile.resolveSibling(storeFile.getFileName() + ".tmp");
-            objectMapper.writerWithDefaultPrettyPrinter().writeValue(tempFile.toFile(), store);
-            try {
-                Files.move(tempFile, storeFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException ex) {
-                Files.move(tempFile, storeFile, StandardCopyOption.REPLACE_EXISTING);
-            }
+            registry.write(store);
         } catch (IOException ex) {
             throw new StorageAccessException("Failed to write passkey store.", ex);
         }

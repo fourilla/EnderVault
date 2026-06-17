@@ -75,6 +75,7 @@ class JsonRegistryTest {
                 .isInstanceOf(IOException.class)
                 .hasMessageContaining("Invalid JSON registry");
         assertThat(backupFiles()).hasSize(1);
+        assertThat(Files.readString(registryFile)).contains("not-json");
     }
 
     private JsonRegistry<List<SampleItem>> resettableRegistry(Path registryFile) {

@@ -55,7 +55,7 @@ public class JsonRegistry<T> {
         try {
             return objectMapper.readValue(registryFile.toFile(), typeReference);
         } catch (JsonProcessingException ex) {
-            Path backupFile = backupCorruptFile();
+            Path backupFile = backupCorruptFile(corruptionPolicy == CorruptionPolicy.BACKUP_AND_RESET);
             if (corruptionPolicy == CorruptionPolicy.BACKUP_AND_RESET) {
                 T defaultValue = defaultValue();
                 write(defaultValue);
@@ -89,7 +89,7 @@ public class JsonRegistry<T> {
         return defaultValueSupplier.get();
     }
 
-    private Path backupCorruptFile() throws IOException {
+    private Path backupCorruptFile(boolean removeOriginal) throws IOException {
         Files.createDirectories(registryFile.getParent());
         Path backupFile = registryFile.resolveSibling(
                 registryFile.getFileName()
@@ -97,7 +97,11 @@ public class JsonRegistry<T> {
                         + BACKUP_TIMESTAMP_FORMATTER.format(Instant.now())
                         + ".bak"
         );
-        moveReplacing(registryFile, backupFile);
+        if (removeOriginal) {
+            moveReplacing(registryFile, backupFile);
+        } else {
+            Files.copy(registryFile, backupFile, StandardCopyOption.REPLACE_EXISTING);
+        }
         return backupFile;
     }
 

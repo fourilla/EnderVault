@@ -1,13 +1,18 @@
 package io.github.fourilla.endervault.passkey;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.yubico.webauthn.data.ByteArray;
+import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -78,5 +83,25 @@ class PasskeyRepositoryTest {
                 .extracting(PasskeyCredential::id)
                 .isEqualTo(saved.id());
         assertThat(repository.hasCredentials()).isFalse();
+    }
+
+    @Test
+    void corruptStoreIsBackedUpAndRejected() throws Exception {
+        Path storeFile = root.resolve(".endervault").resolve("passkeys.json");
+        Files.writeString(storeFile, "{not-json");
+
+        assertThatThrownBy(repository::hasCredentials)
+                .isInstanceOf(StorageAccessException.class)
+                .hasMessageContaining("Failed to read passkey store");
+        assertThat(corruptBackups()).hasSize(1);
+        assertThat(Files.readString(storeFile)).contains("not-json");
+    }
+
+    private List<Path> corruptBackups() throws IOException {
+        try (Stream<Path> stream = Files.list(root.resolve(".endervault"))) {
+            return stream
+                    .filter(path -> path.getFileName().toString().contains("passkeys.json.corrupt-"))
+                    .toList();
+        }
     }
 }

@@ -2,13 +2,10 @@ package io.github.fourilla.endervault.trash;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.fourilla.endervault.common.JsonRegistry;
 import io.github.fourilla.endervault.config.NasProperties;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -22,24 +19,25 @@ public class TrashRepository {
     private static final TypeReference<List<TrashRecord>> TRASH_RECORD_LIST = new TypeReference<>() {
     };
 
-    private final ObjectMapper objectMapper;
-    private final Path registryFile;
+    private final JsonRegistry<List<TrashRecord>> registry;
 
     public TrashRepository(ObjectMapper objectMapper, NasProperties nasProperties) {
-        this.objectMapper = objectMapper;
-        this.registryFile = nasProperties.getStorage().getRoot()
-                .toAbsolutePath()
-                .normalize()
-                .resolve(nasProperties.getStorage().getMetadataDirectory())
-                .resolve("trash-records.json");
+        this.registry = new JsonRegistry<>(
+                objectMapper,
+                nasProperties.getStorage().getRoot()
+                        .toAbsolutePath()
+                        .normalize()
+                        .resolve(nasProperties.getStorage().getMetadataDirectory())
+                        .resolve("trash-records.json"),
+                TRASH_RECORD_LIST,
+                List::of,
+                JsonRegistry.CorruptionPolicy.BACKUP_AND_RESET
+        );
     }
 
     @PostConstruct
     public synchronized void initialize() throws IOException {
-        Files.createDirectories(registryFile.getParent());
-        if (!Files.exists(registryFile)) {
-            writeAll(List.of());
-        }
+        registry.initialize();
     }
 
     public synchronized List<TrashRecord> list() throws IOException {
@@ -83,20 +81,10 @@ public class TrashRepository {
     }
 
     private List<TrashRecord> readAllMutable() throws IOException {
-        if (!Files.exists(registryFile) || Files.size(registryFile) == 0L) {
-            return new ArrayList<>();
-        }
-        return new ArrayList<>(objectMapper.readValue(registryFile.toFile(), TRASH_RECORD_LIST));
+        return new ArrayList<>(registry.read());
     }
 
     private void writeAll(List<TrashRecord> records) throws IOException {
-        Files.createDirectories(registryFile.getParent());
-        Path tempFile = registryFile.resolveSibling(registryFile.getFileName() + ".tmp");
-        objectMapper.writerWithDefaultPrettyPrinter().writeValue(tempFile.toFile(), records);
-        try {
-            Files.move(tempFile, registryFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (AtomicMoveNotSupportedException ex) {
-            Files.move(tempFile, registryFile, StandardCopyOption.REPLACE_EXISTING);
-        }
+        registry.write(List.copyOf(records));
     }
 }
