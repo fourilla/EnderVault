@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -46,9 +47,20 @@ public class ActivityLogService {
     private final ObjectMapper objectMapper;
     private final Path logDirectory;
     private final Path currentLogFile;
+    private final ActivityLogNotifier activityLogNotifier;
 
     public ActivityLogService(ObjectMapper objectMapper, NasProperties nasProperties) {
+        this(objectMapper, nasProperties, ActivityLogNotifier.NOOP);
+    }
+
+    @Autowired
+    public ActivityLogService(
+            ObjectMapper objectMapper,
+            NasProperties nasProperties,
+            ActivityLogNotifier activityLogNotifier
+    ) {
         this.objectMapper = objectMapper;
+        this.activityLogNotifier = activityLogNotifier == null ? ActivityLogNotifier.NOOP : activityLogNotifier;
         NasProperties.Storage storage = nasProperties.getStorage();
         this.logDirectory = storage.getRoot()
                 .toAbsolutePath()
@@ -63,7 +75,7 @@ public class ActivityLogService {
         Files.createDirectories(logDirectory);
     }
 
-    public synchronized void record(
+    public void record(
             String type,
             HttpServletRequest request,
             String path,
@@ -73,7 +85,7 @@ public class ActivityLogService {
         record(type, request, path, targetPath, true, message, Map.of());
     }
 
-    public synchronized void record(
+    public void record(
             String type,
             HttpServletRequest request,
             String path,
@@ -84,7 +96,7 @@ public class ActivityLogService {
         record(type, request, path, targetPath, true, message, metadata);
     }
 
-    public synchronized void record(
+    public void record(
             String type,
             HttpServletRequest request,
             String path,
@@ -93,14 +105,16 @@ public class ActivityLogService {
             String message,
             Map<String, String> metadata
     ) {
+        ActivityLogEntry entry = null;
         try {
-            append(type, request, path, targetPath, success, message, metadata);
+            entry = append(type, request, path, targetPath, success, message, metadata);
         } catch (IOException ex) {
             logger.warn("Failed to write activity log entry.", ex);
         }
+        notifyActivity(entry);
     }
 
-    public synchronized void record(
+    public void record(
             String type,
             String actor,
             String ip,
@@ -110,14 +124,16 @@ public class ActivityLogService {
             String message,
             Map<String, String> metadata
     ) {
+        ActivityLogEntry entry = null;
         try {
-            append(type, actor, ip, path, targetPath, success, message, metadata);
+            entry = append(type, actor, ip, path, targetPath, success, message, metadata);
         } catch (IOException ex) {
             logger.warn("Failed to write activity log entry.", ex);
         }
+        notifyActivity(entry);
     }
 
-    private void append(
+    private ActivityLogEntry append(
             String type,
             HttpServletRequest request,
             String path,
@@ -126,7 +142,7 @@ public class ActivityLogService {
             String message,
             Map<String, String> metadata
     ) throws IOException {
-        append(
+        return append(
                 type,
                 actor(request),
                 ClientIpResolver.resolve(request),
@@ -138,7 +154,7 @@ public class ActivityLogService {
         );
     }
 
-    private void append(
+    private synchronized ActivityLogEntry append(
             String type,
             String actor,
             String ip,
@@ -167,6 +183,18 @@ public class ActivityLogService {
                 .getBytes(StandardCharsets.UTF_8);
         rollIfNeeded(line.length);
         Files.write(currentLogFile, line, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        return entry;
+    }
+
+    private void notifyActivity(ActivityLogEntry entry) {
+        if (entry == null) {
+            return;
+        }
+        try {
+            activityLogNotifier.notify(entry);
+        } catch (RuntimeException ex) {
+            logger.warn("Failed to notify activity log entry.", ex);
+        }
     }
 
     public synchronized List<ActivityLogEntry> recentCurrentEntries(int limit) throws IOException {

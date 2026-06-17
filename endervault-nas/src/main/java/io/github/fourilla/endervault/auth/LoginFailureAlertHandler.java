@@ -1,7 +1,6 @@
 package io.github.fourilla.endervault.auth;
 
 import io.github.fourilla.endervault.activity.ActivityLogService;
-import io.github.fourilla.endervault.notification.TelegramNotificationService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -15,14 +14,9 @@ import org.springframework.stereotype.Component;
 public class LoginFailureAlertHandler implements AuthenticationFailureHandler {
 
     private final ActivityLogService activityLogService;
-    private final TelegramNotificationService telegramNotificationService;
 
-    public LoginFailureAlertHandler(
-            ActivityLogService activityLogService,
-            TelegramNotificationService telegramNotificationService
-    ) {
+    public LoginFailureAlertHandler(ActivityLogService activityLogService) {
         this.activityLogService = activityLogService;
-        this.telegramNotificationService = telegramNotificationService;
     }
 
     @Override
@@ -41,23 +35,9 @@ public class LoginFailureAlertHandler implements AuthenticationFailureHandler {
                 null,
                 false,
                 "Login failed for " + username,
-                Map.of("username", username, "reason", reason)
+                Map.of("username", username, "reason", reason, "authMethod", "password")
         );
-        telegramNotificationService.send(buildMessage(request, exception));
         response.sendRedirect("/login?error");
-    }
-
-    private String buildMessage(HttpServletRequest request, AuthenticationException exception) {
-        return """
-                NAS login failed
-                user: %s
-                ip: %s
-                reason: %s
-                """.formatted(
-                usernameFrom(request),
-                ClientIpResolver.resolve(request),
-                reason(exception)
-        );
     }
 
     private String usernameFrom(HttpServletRequest request) {

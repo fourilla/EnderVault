@@ -2,6 +2,7 @@ package io.github.fourilla.endervault.notification;
 
 import io.github.fourilla.endervault.config.NasProperties;
 import java.net.URI;
+import java.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.web.client.RestTemplateBuilder;
@@ -24,7 +25,10 @@ public class TelegramNotificationService {
 
     public TelegramNotificationService(NasProperties nasProperties, RestTemplateBuilder restTemplateBuilder) {
         this.nasProperties = nasProperties;
-        this.restTemplate = restTemplateBuilder.build();
+        this.restTemplate = restTemplateBuilder
+                .setConnectTimeout(Duration.ofSeconds(5))
+                .setReadTimeout(Duration.ofSeconds(10))
+                .build();
     }
 
     public void send(String message) {
@@ -49,7 +53,7 @@ public class TelegramNotificationService {
         try {
             restTemplate.postForEntity(uri, new HttpEntity<>(body, headers), String.class);
         } catch (RestClientException ex) {
-            log.warn("Failed to send Telegram notification.", ex);
+            log.warn("Failed to send Telegram notification: {}", ex.getClass().getSimpleName());
         }
     }
 }

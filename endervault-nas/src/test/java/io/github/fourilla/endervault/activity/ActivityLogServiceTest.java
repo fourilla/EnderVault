@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,6 +45,22 @@ class ActivityLogServiceTest {
 
         assertThat(entries).extracting(ActivityLogEntry::type).containsExactly("RENAME", "UPLOAD");
         assertThat(entries.get(0).displayMessage()).contains("RENAME");
+    }
+
+    @Test
+    void notifiesAfterWritingActivityLogEntry() throws Exception {
+        NasProperties properties = new NasProperties();
+        properties.getStorage().setRoot(root);
+        ObjectMapper objectMapper = JsonMapper.builder().findAndAddModules().build();
+        List<ActivityLogEntry> notifiedEntries = new ArrayList<>();
+        ActivityLogService service = new ActivityLogService(objectMapper, properties, notifiedEntries::add);
+        service.initialize();
+
+        service.record("LOGIN_SUCCESS", "admin", "127.0.0.1", null, null, true, "Login succeeded", Map.of());
+
+        assertThat(service.recentCurrentEntries(10)).extracting(ActivityLogEntry::type).contains("LOGIN_SUCCESS");
+        assertThat(notifiedEntries).hasSize(1);
+        assertThat(notifiedEntries.get(0).type()).isEqualTo("LOGIN_SUCCESS");
     }
 
     @Test

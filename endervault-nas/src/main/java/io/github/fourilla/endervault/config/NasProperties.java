@@ -6,7 +6,10 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
@@ -617,6 +620,8 @@ public class NasProperties {
         private String botToken = "";
         private String chatId = "";
 
+        private Map<String, Boolean> activity = defaultActivity();
+
         public boolean isEnabled() {
             return enabled;
         }
@@ -639,6 +644,77 @@ public class NasProperties {
 
         public void setChatId(String chatId) {
             this.chatId = chatId;
+        }
+
+        public Map<String, Boolean> getActivity() {
+            return activity;
+        }
+
+        public void setActivity(Map<String, Boolean> activity) {
+            Map<String, Boolean> merged = defaultActivity();
+            if (activity != null) {
+                activity.forEach((key, value) -> {
+                    if (key != null && value != null) {
+                        merged.put(key, value);
+                    }
+                });
+            }
+            this.activity = merged;
+        }
+
+        public boolean isActivityEnabled(String type) {
+            String normalizedType = normalizeActivityKey(type);
+            return activity.entrySet().stream()
+                    .filter(entry -> Boolean.TRUE.equals(entry.getValue()))
+                    .map(Map.Entry::getKey)
+                    .map(this::normalizeActivityKey)
+                    .anyMatch(normalizedType::equals);
+        }
+
+        private static Map<String, Boolean> defaultActivity() {
+            Map<String, Boolean> defaults = new LinkedHashMap<>();
+            defaults.put("login-success", true);
+            defaults.put("login-failure", true);
+            defaults.put("passkey-register", false);
+            defaults.put("passkey-delete", false);
+            defaults.put("upload", false);
+            defaults.put("create-directory", false);
+            defaults.put("text-save", false);
+            defaults.put("rename", false);
+            defaults.put("move", false);
+            defaults.put("download", false);
+            defaults.put("download-zip", false);
+            defaults.put("trash-move", false);
+            defaults.put("trash-restore", false);
+            defaults.put("trash-delete", false);
+            defaults.put("trash-empty", false);
+            defaults.put("share-create", false);
+            defaults.put("share-revoke", false);
+            defaults.put("share-delete", false);
+            defaults.put("share-delete-expired", false);
+            defaults.put("share-access", false);
+            defaults.put("share-preview", false);
+            defaults.put("share-download", false);
+            defaults.put("share-download-zip", false);
+            defaults.put("remote-download-queued", false);
+            defaults.put("remote-download-complete", false);
+            defaults.put("remote-download-failed", false);
+            defaults.put("remote-download-canceled", false);
+            defaults.put("bookmark-directory-create", false);
+            defaults.put("bookmark-link-create", false);
+            defaults.put("bookmark-bulk-create", false);
+            defaults.put("bookmark-update", false);
+            defaults.put("bookmark-delete", false);
+            defaults.put("bookmark-delete-selected", false);
+            defaults.put("bookmark-open", false);
+            defaults.put("recent-clear", false);
+            return defaults;
+        }
+
+        private String normalizeActivityKey(String value) {
+            return value == null
+                    ? ""
+                    : value.trim().toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]", "");
         }
     }
 }

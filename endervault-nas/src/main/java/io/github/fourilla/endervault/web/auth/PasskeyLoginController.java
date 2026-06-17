@@ -95,7 +95,7 @@ public class PasskeyLoginController {
                     null,
                     false,
                     "Passkey login failed.",
-                    Map.of("authMethod", "passkey", "reason", ex.getMessage())
+                    Map.of("authMethod", "passkey", "reason", cleanReason(ex))
             );
             return ResponseEntity.badRequest().body(ActionResponse.error("Passkey login failed. Try again."));
         }
@@ -126,5 +126,10 @@ public class PasskeyLoginController {
                     .contentType(MediaType.APPLICATION_JSON)
                     .body("{\"ok\":false}");
         }
+    }
+
+    private String cleanReason(Exception ex) {
+        String message = ex.getMessage();
+        return message == null || message.isBlank() ? ex.getClass().getSimpleName() : message;
     }
 }
