@@ -9,26 +9,7 @@
 </head>
 <body class="readonly-page">
 <main class="workspace readonly-workspace">
-    <section class="breadcrumb-panel" aria-label="Current path">
-        <div class="breadcrumb-main">
-            <p class="breadcrumb-label">Read-only location</p>
-            <nav class="breadcrumbs">
-                <th:block th:each="crumb, iter : ${listing.breadcrumbs()}">
-                    <a th:classappend="${iter.last} ? ' current' : ''"
-                       th:href="@{/files/read-only(path=${crumb.path()})}"
-                       th:text="${crumb.label()}">Root</a>
-                    <span class="breadcrumb-separator" th:unless="${iter.last}">/</span>
-                </th:block>
-            </nav>
-        </div>
-        <div class="readonly-path-actions">
-            <a class="button-link ghost icon-button"
-               th:href="@{/files(path=${path})}"
-               title="Open full file manager" aria-label="Open full file manager">
-                <i class="fas fa-desktop" aria-hidden="true"></i>
-            </a>
-        </div>
-    </section>
+    <section th:replace="~{fragments/breadcrumbs :: readOnly(${listing}, ${path})}"></section>
 
     <details class="readonly-sort-panel">
         <summary class="readonly-sort-toggle">

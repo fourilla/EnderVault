@@ -15,23 +15,7 @@
 <div th:replace="~{fragments/notifications :: toasts}"></div>
 
 <main class="workspace">
-    <section class="breadcrumb-panel" aria-label="Search root">
-        <div class="breadcrumb-main">
-            <p class="breadcrumb-label">Search in</p>
-            <nav class="breadcrumbs">
-                <th:block th:each="crumb, iter : ${listing.breadcrumbs()}">
-                    <a th:classappend="${iter.last} ? ' current' : ''"
-                       th:href="@{/files/search(path=${crumb.path()}, q=${query})}"
-                       th:text="${crumb.label()}">Root</a>
-                    <span class="breadcrumb-separator" th:unless="${iter.last}">/</span>
-                </th:block>
-            </nav>
-        </div>
-        <a class="button-link ghost icon-button" th:href="@{/files(path=${path})}"
-           title="Back to files" aria-label="Back to files">
-            <i class="fas fa-folder-open" aria-hidden="true"></i>
-        </a>
-    </section>
+    <section th:replace="~{fragments/breadcrumbs :: search(${listing}, ${path}, ${query})}"></section>
 
     <section class="toolbar" aria-label="Search tools">
         <form class="search-form" method="get" th:action="@{/files/search}">
@@ -60,46 +44,48 @@
         </div>
     </section>
 
-    <section class="table-wrap" th:if="${searchPerformed}" aria-label="Search results">
-        <table>
-            <thead>
-            <tr>
-                <th>Name</th>
-                <th>Location</th>
-                <th>Type</th>
-                <th>Size</th>
-                <th>Modified</th>
-                <th>Actions</th>
-            </tr>
-            </thead>
-            <tbody>
-            <tr th:each="item : ${resultPage.items()}">
-                <td>
-                    <a class="item-name directory" th:if="${item.directory()}" th:href="@{/files(path=${item.path()})}">
-                        <i class="fas fa-folder item-icon" aria-hidden="true"></i>
-                        <span th:text="${item.name()}">directory</span>
-                    </a>
-                    <a class="item-name" th:unless="${item.directory()}" th:href="@{/files/detail(path=${item.path()})}"
-                       th:text="${item.name()}">file</a>
-                </td>
-                <td>
-                    <a class="muted" th:href="@{/files(path=${item.parentPath()})}"
-                       th:text="${#strings.isEmpty(item.parentPath()) ? 'Root' : item.parentPath()}">Root</a>
-                </td>
-                <td th:text="${item.typeLabel()}">File</td>
-                <td th:text="${item.sizeLabel()}">0 B</td>
-                <td th:text="${item.modifiedLabel()}">-</td>
-                <td>
-                    <div class="table-actions">
-                        <th:block th:replace="~{fragments/file-actions :: links(${fileActions.searchActions(item)})}"></th:block>
-                    </div>
-                </td>
-            </tr>
-            <tr th:if="${resultPage.totalItems() == 0}">
-                <td colspan="6" class="empty">No matching items.</td>
-            </tr>
-            </tbody>
-        </table>
+    <section class="browser-section" th:if="${searchPerformed}" aria-label="Search results">
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Location</th>
+                    <th>Type</th>
+                    <th>Size</th>
+                    <th>Modified</th>
+                    <th>Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="item : ${resultPage.items()}">
+                    <td>
+                        <a class="item-name directory" th:if="${item.directory()}" th:href="@{/files(path=${item.path()})}">
+                            <i class="fas fa-folder item-icon" aria-hidden="true"></i>
+                            <span th:text="${item.name()}">directory</span>
+                        </a>
+                        <a class="item-name" th:unless="${item.directory()}" th:href="@{/files/detail(path=${item.path()})}"
+                           th:text="${item.name()}">file</a>
+                    </td>
+                    <td>
+                        <a class="muted" th:href="@{/files(path=${item.parentPath()})}"
+                           th:text="${#strings.isEmpty(item.parentPath()) ? 'Root' : item.parentPath()}">Root</a>
+                    </td>
+                    <td th:text="${item.typeLabel()}">File</td>
+                    <td th:text="${item.sizeLabel()}">0 B</td>
+                    <td th:text="${item.modifiedLabel()}">-</td>
+                    <td>
+                        <div class="table-actions">
+                            <th:block th:replace="~{fragments/file-actions :: links(${fileActions.searchActions(item)})}"></th:block>
+                        </div>
+                    </td>
+                </tr>
+                <tr th:if="${resultPage.totalItems() == 0}">
+                    <td colspan="6" class="empty">No matching items.</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
     </section>
 
     <p th:unless="${searchPerformed}" class="empty browser-grid-empty">Enter a keyword to search this directory.</p>

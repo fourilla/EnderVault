@@ -17,19 +17,7 @@
 <div th:replace="~{fragments/notifications :: toasts}"></div>
 
 <main class="workspace">
-    <section class="breadcrumb-panel" aria-label="Current path">
-        <div class="breadcrumb-main">
-            <p class="breadcrumb-label">Virtual location</p>
-            <nav class="breadcrumbs">
-                <th:block th:each="crumb, iter : ${bookmarkBreadcrumbs}">
-                    <a th:href="${crumb.root()} ? @{/files/bookmarks} : @{/files/bookmarks(directory=${crumb.id()})}"
-                       th:classappend="${iter.last} ? ' current' : ''"
-                       th:text="${crumb.label()}">Bookmarks</a>
-                    <span class="breadcrumb-separator" th:if="${!iter.last}">/</span>
-                </th:block>
-            </nav>
-        </div>
-    </section>
+    <section th:replace="~{fragments/breadcrumbs :: bookmarks(${bookmarkBreadcrumbs})}"></section>
 
     <section class="toolbar" aria-label="Bookmark tools">
         <form class="bulk-action-anchor" id="bulkActionForm" method="post">
@@ -168,13 +156,7 @@
             <table>
                 <thead>
                 <tr>
-                    <th class="select-col">
-                        <span data-select-pick-label>Pick</span>
-                        <label class="select-all-label js-only" title="Select all bookmark directories in this table">
-                            <input class="select-all-checkbox" type="checkbox" data-select-all
-                                   aria-label="Select all bookmark directories in this table">
-                        </label>
-                    </th>
+                    <th th:replace="~{fragments/tables :: selectHeader('Select all bookmark directories in this table')}"></th>
                     <th>Name</th>
                     <th>Type</th>
                     <th>Updated</th>
@@ -234,13 +216,7 @@
             <table>
                 <thead>
                 <tr>
-                    <th class="select-col">
-                        <span data-select-pick-label>Pick</span>
-                        <label class="select-all-label js-only" title="Select all bookmark links in this table">
-                            <input class="select-all-checkbox" type="checkbox" data-select-all
-                                   aria-label="Select all bookmark links in this table">
-                        </label>
-                    </th>
+                    <th th:replace="~{fragments/tables :: selectHeader('Select all bookmark links in this table')}"></th>
                     <th>Name</th>
                     <th>Type</th>
                     <th>URL</th>

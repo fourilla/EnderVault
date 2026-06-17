@@ -14,23 +14,7 @@
 </header>
 
 <main class="workspace">
-    <section class="breadcrumb-panel" aria-label="Current path">
-        <div class="breadcrumb-main">
-            <p class="breadcrumb-label">Shared location</p>
-            <nav class="breadcrumbs">
-                <th:block th:each="crumb, iter : ${listing.breadcrumbs()}">
-                    <a th:classappend="${iter.last} ? ' current' : ''"
-                       th:href="@{/s/{token}(token=${token}, path=${crumb.path()})}"
-                       th:text="${crumb.label()}">Root</a>
-                    <span class="breadcrumb-separator" th:unless="${iter.last}">/</span>
-                </th:block>
-            </nav>
-        </div>
-        <a class="button-link ghost breadcrumb-up" th:if="${listing.hasParent()}" th:href="@{/s/{token}(token=${token}, path=${listing.parentPath()})}"
-           title="Up" aria-label="Up">
-            <i class="fas fa-arrow-up" aria-hidden="true"></i>
-        </a>
-    </section>
+    <section th:replace="~{fragments/breadcrumbs :: shared(${listing}, ${token})}"></section>
 
     <section class="toolbar" aria-label="Download tools">
         <form id="bulkActionForm" method="get" th:action="@{/s/{token}/download.zip(token=${token})}">
@@ -43,54 +27,50 @@
         </button>
     </section>
 
-    <section class="table-wrap" aria-label="Shared directory">
-        <table>
-            <thead>
-            <tr>
-                <th class="select-col">
-                    <span data-select-pick-label>Pick</span>
-                    <label class="select-all-label js-only" title="Select all items in this table">
-                        <input class="select-all-checkbox" type="checkbox" data-select-all
-                               aria-label="Select all items in this table">
-                    </label>
-                </th>
-                <th>Name</th>
-                <th>Type</th>
-                <th>Size</th>
-                <th>Modified</th>
-                <th>Actions</th>
-            </tr>
-            </thead>
-            <tbody>
-            <tr th:each="dir : ${listing.directories()}">
-                <td class="select-cell"><input form="bulkActionForm" type="checkbox" name="items" th:value="${dir.name()}"></td>
-                <td><a class="item-name directory" th:href="@{/s/{token}(token=${token}, path=${dir.path()})}">
-                    <i class="fas fa-folder item-icon" aria-hidden="true"></i>
-                    <span th:text="${dir.name()}">directory</span>
-                </a></td>
-                <td>Directory</td>
-                <td>-</td>
-                <td th:text="${dir.modifiedLabel()}">-</td>
-                <td>-</td>
-            </tr>
-            <tr th:each="file : ${listing.files()}">
-                <td class="select-cell"><input form="bulkActionForm" type="checkbox" name="items" th:value="${file.name()}"></td>
-                <td><a class="item-name" th:href="${filePreview.sharedDirectoryFileUrl(token, file)}"
-                       th:text="${file.name()}">file</a></td>
-                <td th:text="${file.mediaType()}">type</td>
-                <td th:text="${file.sizeLabel()}">0 B</td>
-                <td th:text="${file.modifiedLabel()}">-</td>
-                <td>
-                    <div class="table-actions">
-                        <th:block th:replace="~{fragments/file-actions :: links(${fileActions.sharedDirectoryActions(token, file)})}"></th:block>
-                    </div>
-                </td>
-            </tr>
-            <tr th:if="${#lists.isEmpty(listing.directories()) and #lists.isEmpty(listing.files())}">
-                <td colspan="6" class="empty">This shared directory is empty.</td>
-            </tr>
-            </tbody>
-        </table>
+    <section class="browser-section" aria-label="Shared directory">
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th th:replace="~{fragments/tables :: selectHeader('Select all items in this table')}"></th>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Size</th>
+                    <th>Modified</th>
+                    <th>Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="dir : ${listing.directories()}">
+                    <td class="select-cell"><input form="bulkActionForm" type="checkbox" name="items" th:value="${dir.name()}"></td>
+                    <td><a class="item-name directory" th:href="@{/s/{token}(token=${token}, path=${dir.path()})}">
+                        <i class="fas fa-folder item-icon" aria-hidden="true"></i>
+                        <span th:text="${dir.name()}">directory</span>
+                    </a></td>
+                    <td>Directory</td>
+                    <td>-</td>
+                    <td th:text="${dir.modifiedLabel()}">-</td>
+                    <td>-</td>
+                </tr>
+                <tr th:each="file : ${listing.files()}">
+                    <td class="select-cell"><input form="bulkActionForm" type="checkbox" name="items" th:value="${file.name()}"></td>
+                    <td><a class="item-name" th:href="${filePreview.sharedDirectoryFileUrl(token, file)}"
+                           th:text="${file.name()}">file</a></td>
+                    <td th:text="${file.mediaType()}">type</td>
+                    <td th:text="${file.sizeLabel()}">0 B</td>
+                    <td th:text="${file.modifiedLabel()}">-</td>
+                    <td>
+                        <div class="table-actions">
+                            <th:block th:replace="~{fragments/file-actions :: links(${fileActions.sharedDirectoryActions(token, file)})}"></th:block>
+                        </div>
+                    </td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(listing.directories()) and #lists.isEmpty(listing.files())}">
+                    <td colspan="6" class="empty">This shared directory is empty.</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
     </section>
 </main>
 </body>

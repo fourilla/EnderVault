@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<section class="breadcrumb-panel" th:fragment="vault(label, listing)" aria-label="Current path">
+    <div class="breadcrumb-main">
+        <p class="breadcrumb-label" th:text="${label}">Location</p>
+        <nav class="breadcrumbs">
+            <th:block th:each="crumb, iter : ${listing.breadcrumbs()}">
+                <a th:classappend="${iter.last} ? ' current' : ''"
+                   th:href="@{/files(path=${crumb.path()})}"
+                   th:text="${crumb.label()}">Root</a>
+                <span class="breadcrumb-separator" th:unless="${iter.last}">/</span>
+            </th:block>
+        </nav>
+    </div>
+    <a class="button-link ghost breadcrumb-up" th:if="${listing.hasParent()}"
+       title="Up" aria-label="Up"
+       th:href="@{/files(path=${listing.parentPath()})}">
+        <i class="fas fa-arrow-up" aria-hidden="true"></i>
+    </a>
+</section>
+
+<section class="breadcrumb-panel" th:fragment="recent" aria-label="Current path">
+    <div class="breadcrumb-main">
+        <p class="breadcrumb-label">Virtual location</p>
+        <nav class="breadcrumbs">
+            <a class="current" th:href="@{/files/recent}">Recent</a>
+        </nav>
+    </div>
+</section>
+
+<section class="breadcrumb-panel" th:fragment="bookmarks(crumbs)" aria-label="Current path">
+    <div class="breadcrumb-main">
+        <p class="breadcrumb-label">Virtual location</p>
+        <nav class="breadcrumbs">
+            <th:block th:each="crumb, iter : ${crumbs}">
+                <a th:href="${crumb.root()} ? @{/files/bookmarks} : @{/files/bookmarks(directory=${crumb.id()})}"
+                   th:classappend="${iter.last} ? ' current' : ''"
+                   th:text="${crumb.label()}">Bookmarks</a>
+                <span class="breadcrumb-separator" th:unless="${iter.last}">/</span>
+            </th:block>
+        </nav>
+    </div>
+</section>
+
+<section class="breadcrumb-panel" th:fragment="search(listing, path, query)" aria-label="Search root">
+    <div class="breadcrumb-main">
+        <p class="breadcrumb-label">Search in</p>
+        <nav class="breadcrumbs">
+            <th:block th:each="crumb, iter : ${listing.breadcrumbs()}">
+                <a th:classappend="${iter.last} ? ' current' : ''"
+                   th:href="@{/files/search(path=${crumb.path()}, q=${query})}"
+                   th:text="${crumb.label()}">Root</a>
+                <span class="breadcrumb-separator" th:unless="${iter.last}">/</span>
+            </th:block>
+        </nav>
+    </div>
+    <a class="button-link ghost icon-button" th:href="@{/files(path=${path})}"
+       title="Back to files" aria-label="Back to files">
+        <i class="fas fa-folder-open" aria-hidden="true"></i>
+    </a>
+</section>
+
+<section class="breadcrumb-panel" th:fragment="readOnly(listing, path)" aria-label="Current path">
+    <div class="breadcrumb-main">
+        <p class="breadcrumb-label">Read-only location</p>
+        <nav class="breadcrumbs">
+            <th:block th:each="crumb, iter : ${listing.breadcrumbs()}">
+                <a th:classappend="${iter.last} ? ' current' : ''"
+                   th:href="@{/files/read-only(path=${crumb.path()})}"
+                   th:text="${crumb.label()}">Root</a>
+                <span class="breadcrumb-separator" th:unless="${iter.last}">/</span>
+            </th:block>
+        </nav>
+    </div>
+    <div class="readonly-path-actions">
+        <a class="button-link ghost icon-button"
+           th:href="@{/files(path=${path})}"
+           title="Open full file manager" aria-label="Open full file manager">
+            <i class="fas fa-desktop" aria-hidden="true"></i>
+        </a>
+    </div>
+</section>
+
+<section class="breadcrumb-panel" th:fragment="shared(listing, token)" aria-label="Current path">
+    <div class="breadcrumb-main">
+        <p class="breadcrumb-label">Shared location</p>
+        <nav class="breadcrumbs">
+            <th:block th:each="crumb, iter : ${listing.breadcrumbs()}">
+                <a th:classappend="${iter.last} ? ' current' : ''"
+                   th:href="@{/s/{token}(token=${token}, path=${crumb.path()})}"
+                   th:text="${crumb.label()}">Root</a>
+                <span class="breadcrumb-separator" th:unless="${iter.last}">/</span>
+            </th:block>
+        </nav>
+    </div>
+    <a class="button-link ghost breadcrumb-up" th:if="${listing.hasParent()}"
+       th:href="@{/s/{token}(token=${token}, path=${listing.parentPath()})}"
+       title="Up" aria-label="Up">
+        <i class="fas fa-arrow-up" aria-hidden="true"></i>
+    </a>
+</section>
+</body>
+</html>

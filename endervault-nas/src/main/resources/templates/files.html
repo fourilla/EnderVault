@@ -25,24 +25,7 @@
         </div>
     </div>
 
-    <section class="breadcrumb-panel" aria-label="Current path">
-        <div class="breadcrumb-main">
-            <p class="breadcrumb-label">Location</p>
-            <nav class="breadcrumbs">
-                <th:block th:each="crumb, iter : ${listing.breadcrumbs()}">
-                    <a th:classappend="${iter.last} ? ' current' : ''"
-                       th:href="@{/files(path=${crumb.path()})}"
-                       th:text="${crumb.label()}">Root</a>
-                    <span class="breadcrumb-separator" th:unless="${iter.last}">/</span>
-                </th:block>
-            </nav>
-        </div>
-        <a class="button-link ghost breadcrumb-up" th:if="${listing.hasParent()}"
-           title="Up" aria-label="Up"
-           th:href="@{/files(path=${listing.parentPath()})}">
-            <i class="fas fa-arrow-up" aria-hidden="true"></i>
-        </a>
-    </section>
+    <section th:replace="~{fragments/breadcrumbs :: vault('Location', ${listing})}"></section>
 
     <section class="toolbar" aria-label="File tools">
         <form class="bulk-action-anchor" id="bulkActionForm" method="post">
@@ -171,13 +154,7 @@
             <table>
                 <thead>
                 <tr>
-                    <th class="select-col">
-                        <span data-select-pick-label>Pick</span>
-                        <label class="select-all-label js-only" title="Select all directories in this table">
-                            <input class="select-all-checkbox" type="checkbox" data-select-all
-                                   aria-label="Select all directories in this table">
-                        </label>
-                    </th>
+                    <th th:replace="~{fragments/tables :: selectHeader('Select all directories in this table')}"></th>
                     <th>Name</th>
                     <th>Type</th>
                     <th>Size</th>
@@ -228,13 +205,7 @@
             <table>
                 <thead>
                 <tr>
-                    <th class="select-col">
-                        <span data-select-pick-label>Pick</span>
-                        <label class="select-all-label js-only" title="Select all files in this table">
-                            <input class="select-all-checkbox" type="checkbox" data-select-all
-                                   aria-label="Select all files in this table">
-                        </label>
-                    </th>
+                    <th th:replace="~{fragments/tables :: selectHeader('Select all files in this table')}"></th>
                     <th>Name</th>
                     <th>Type</th>
                     <th>Size</th>

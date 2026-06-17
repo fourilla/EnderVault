@@ -17,14 +17,7 @@
 <div th:replace="~{fragments/notifications :: toasts}"></div>
 
 <main class="workspace recent-workspace">
-    <section class="breadcrumb-panel" aria-label="Current path">
-        <div class="breadcrumb-main">
-            <p class="breadcrumb-label">Virtual location</p>
-            <nav class="breadcrumbs">
-                <a class="current" th:href="@{/files/recent}">Recent</a>
-            </nav>
-        </div>
-    </section>
+    <section th:replace="~{fragments/breadcrumbs :: recent}"></section>
 
     <section class="toolbar" aria-label="Recent tools">
         <form class="bulk-action-anchor" id="bulkActionForm" method="post">
@@ -133,13 +126,7 @@
             <table>
                 <thead>
                 <tr>
-                    <th class="select-col">
-                        <span data-select-pick-label>Pick</span>
-                        <label class="select-all-label js-only" title="Select all directories in this table">
-                            <input class="select-all-checkbox" type="checkbox" data-select-all
-                                   aria-label="Select all directories in this table">
-                        </label>
-                    </th>
+                    <th th:replace="~{fragments/tables :: selectHeader('Select all directories in this table')}"></th>
                     <th>Name</th>
                     <th>Type</th>
                     <th>Accessed</th>
@@ -192,13 +179,7 @@
             <table>
                 <thead>
                 <tr>
-                    <th class="select-col">
-                        <span data-select-pick-label>Pick</span>
-                        <label class="select-all-label js-only" title="Select all files in this table">
-                            <input class="select-all-checkbox" type="checkbox" data-select-all
-                                   aria-label="Select all files in this table">
-                        </label>
-                    </th>
+                    <th th:replace="~{fragments/tables :: selectHeader('Select all files in this table')}"></th>
                     <th>Name</th>
                     <th>Type</th>
                     <th>Size</th>
