@@ -3,6 +3,7 @@ package io.github.fourilla.endervault.storage;
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.filetool.FileActionRegistry;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.io.InputStream;
@@ -27,6 +28,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -42,8 +44,14 @@ public class StorageService {
     private final Path uploadTempRoot;
     private final String trashDirectoryName;
     private final String metadataDirectoryName;
+    private final FileActionRegistry fileActionRegistry;
 
     public StorageService(NasProperties nasProperties) {
+        this(nasProperties, new FileActionRegistry());
+    }
+
+    @Autowired
+    public StorageService(NasProperties nasProperties, FileActionRegistry fileActionRegistry) {
         NasProperties.Storage storage = nasProperties.getStorage();
         this.root = storage.getRoot().toAbsolutePath().normalize();
         this.trashDirectoryName = validateConfiguredDirectory(storage.getTrashDirectory());
@@ -51,6 +59,7 @@ public class StorageService {
         this.trashRoot = root.resolve(trashDirectoryName).normalize();
         this.metadataRoot = root.resolve(metadataDirectoryName).normalize();
         this.uploadTempRoot = metadataRoot.resolve("uploads").normalize();
+        this.fileActionRegistry = fileActionRegistry;
     }
 
     @PostConstruct
@@ -652,6 +661,7 @@ public class StorageService {
             long size = directory ? 0L : Files.size(path);
             String relativePath = toRelativePath(relativeBase, path);
             Instant modified = Files.getLastModifiedTime(path).toInstant();
+            String extension = extensionOf(path, directory);
             return new FileItem(
                     path.getFileName().toString(),
                     relativePath,
@@ -661,7 +671,7 @@ public class StorageService {
                     MODIFIED_FORMATTER.format(modified),
                     modified,
                     mediaType,
-                    isPreviewable(mediaType),
+                    fileActionRegistry.previewPageAvailable(path.getFileName().toString(), directory, mediaType, extension),
                     mediaType.startsWith("video/")
             );
         } catch (IOException ex) {
@@ -675,6 +685,7 @@ public class StorageService {
         long size = directory ? 0L : Files.size(path);
         String relativePath = toRelativePath(relativeBase, path);
         BasicFileAttributes attributes = Files.readAttributes(path, BasicFileAttributes.class);
+        String extension = extensionOf(path, directory);
         return new FileDetail(
                 path.getFileName().toString(),
                 relativePath,
@@ -687,8 +698,8 @@ public class StorageService {
                 MODIFIED_FORMATTER.format(attributes.lastModifiedTime().toInstant()),
                 MODIFIED_FORMATTER.format(attributes.lastAccessTime().toInstant()),
                 mediaType,
-                extensionOf(path, directory),
-                isPreviewable(mediaType),
+                extension,
+                fileActionRegistry.previewPageAvailable(path.getFileName().toString(), directory, mediaType, extension),
                 mediaType.startsWith("video/")
         );
     }
@@ -763,13 +774,6 @@ public class StorageService {
             return false;
         }
         return isVaultSystemPath(path.toRealPath());
-    }
-
-    private boolean isPreviewable(String mediaType) {
-        return mediaType.startsWith("image/")
-                || mediaType.startsWith("video/")
-                || mediaType.startsWith("text/")
-                || mediaType.equals("application/pdf");
     }
 
     private String safeSubmittedFilename(MultipartFile file) {

@@ -1,0 +1,67 @@
+package io.github.fourilla.endervault.filetool;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import org.junit.jupiter.api.Test;
+
+class FileActionRegistryTest {
+
+    private final FileActionRegistry registry = new FileActionRegistry();
+
+    @Test
+    void codeExtensionsUseTextToolEvenWhenMediaTypeIsGeneric() {
+        FileToolDescriptor descriptor = registry.resolve(
+                "Example.java",
+                false,
+                "application/octet-stream",
+                "java"
+        );
+
+        assertThat(descriptor.type()).isEqualTo(FileToolType.TEXT);
+        assertThat(descriptor.editable()).isTrue();
+        assertThat(descriptor.previewable()).isFalse();
+        assertThat(registry.previewPageAvailable(descriptor.type())).isTrue();
+    }
+
+    @Test
+    void activeWebDocumentsUseTextToolInsteadOfInlinePreview() {
+        FileToolDescriptor descriptor = registry.resolve(
+                "index.html",
+                false,
+                "text/html",
+                "html"
+        );
+
+        assertThat(descriptor.type()).isEqualTo(FileToolType.TEXT);
+        assertThat(descriptor.previewable()).isFalse();
+        assertThat(registry.previewPageAvailable(descriptor.type())).isTrue();
+    }
+
+    @Test
+    void comicFilesHavePreviewPageButNoInlineDetailPreview() {
+        FileToolDescriptor descriptor = registry.resolve(
+                "book.cbz",
+                false,
+                "application/octet-stream",
+                "cbz"
+        );
+
+        assertThat(descriptor.type()).isEqualTo(FileToolType.COMIC);
+        assertThat(descriptor.previewable()).isFalse();
+        assertThat(registry.previewPageAvailable(descriptor.type())).isTrue();
+    }
+
+    @Test
+    void unknownBinaryFilesUseHexFallbackWithoutPreviewPage() {
+        FileToolDescriptor descriptor = registry.resolve(
+                "blob.bin",
+                false,
+                "application/octet-stream",
+                "bin"
+        );
+
+        assertThat(descriptor.type()).isEqualTo(FileToolType.HEX);
+        assertThat(descriptor.editable()).isFalse();
+        assertThat(registry.previewPageAvailable(descriptor.type())).isFalse();
+    }
+}

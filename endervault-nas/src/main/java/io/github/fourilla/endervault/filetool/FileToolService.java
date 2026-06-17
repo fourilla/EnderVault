@@ -10,41 +10,27 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.Locale;
-import java.util.Set;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
 public class FileToolService {
 
-    private static final Set<String> TEXT_EXTENSIONS = Set.of(
-            "txt", "text", "md", "markdown", "log",
-            "csv", "tsv", "json", "jsonl", "xml", "html", "htm", "css",
-            "js", "mjs", "cjs", "ts", "tsx", "jsx",
-            "java", "c", "h", "cpp", "hpp", "cc", "cs",
-            "py", "rb", "go", "rs", "php",
-            "sh", "bash", "zsh", "bat", "cmd", "ps1",
-            "sql", "properties", "conf", "cfg", "ini", "yml", "yaml", "toml"
-    );
-    private static final Set<String> TEXT_FILENAMES = Set.of(
-            "dockerfile", "makefile", ".env", ".gitignore", ".gitattributes"
-    );
-
     private final NasProperties.FileTools fileTools;
+    private final FileActionRegistry fileActionRegistry;
 
     public FileToolService(NasProperties nasProperties) {
+        this(nasProperties, new FileActionRegistry());
+    }
+
+    @Autowired
+    public FileToolService(NasProperties nasProperties, FileActionRegistry fileActionRegistry) {
         this.fileTools = nasProperties.getFileTools();
+        this.fileActionRegistry = fileActionRegistry;
     }
 
     public FileToolDescriptor resolve(FileDetail detail) {
-        FileToolType type = typeFor(detail);
-        return new FileToolDescriptor(
-                type,
-                type.id(),
-                type.label(),
-                type == FileToolType.IMAGE || type == FileToolType.VIDEO || type == FileToolType.PDF,
-                type == FileToolType.TEXT
-        );
+        return fileActionRegistry.resolve(detail);
     }
 
     public TextFileContent readText(FileDetail detail, Path file) throws IOException {
@@ -126,33 +112,9 @@ public class FileToolService {
     }
 
     private void requireTextTool(FileDetail detail) {
-        if (typeFor(detail) != FileToolType.TEXT) {
+        if (fileActionRegistry.typeFor(detail) != FileToolType.TEXT) {
             throw new StorageAccessException("This file is not editable as text.");
         }
-    }
-
-    private FileToolType typeFor(FileDetail detail) {
-        if (detail.directory()) {
-            return FileToolType.DIRECTORY;
-        }
-        String name = detail.name() == null ? "" : detail.name().toLowerCase(Locale.ROOT);
-        String extension = detail.extension() == null ? "" : detail.extension().toLowerCase(Locale.ROOT);
-        if (TEXT_EXTENSIONS.contains(extension) || TEXT_FILENAMES.contains(name)) {
-            return FileToolType.TEXT;
-        }
-        if (detail.image()) {
-            return FileToolType.IMAGE;
-        }
-        if (detail.video()) {
-            return FileToolType.VIDEO;
-        }
-        if (detail.pdf()) {
-            return FileToolType.PDF;
-        }
-        if ("cbz".equals(extension)) {
-            return FileToolType.COMIC;
-        }
-        return FileToolType.HEX;
     }
 
     private long textAutoLoadMaxBytes() {
