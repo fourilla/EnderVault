@@ -2,6 +2,7 @@ package io.github.fourilla.endervault.recent;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.fourilla.endervault.common.JsonRegistry;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.storage.FileItem;
@@ -9,10 +10,6 @@ import io.github.fourilla.endervault.storage.SortDirection;
 import io.github.fourilla.endervault.storage.StorageService;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -27,27 +24,28 @@ public class RecentService {
     };
 
     private final StorageService storageService;
-    private final ObjectMapper objectMapper;
-    private final Path registryFile;
+    private final JsonRegistry<List<RecentItem>> registry;
     private final NasProperties.Recent recentProperties;
 
     public RecentService(StorageService storageService, ObjectMapper objectMapper, NasProperties nasProperties) {
         this.storageService = storageService;
-        this.objectMapper = objectMapper;
         this.recentProperties = nasProperties.getRecent();
-        this.registryFile = nasProperties.getStorage().getRoot()
-                .toAbsolutePath()
-                .normalize()
-                .resolve(nasProperties.getStorage().getMetadataDirectory())
-                .resolve("recent-items.json");
+        this.registry = new JsonRegistry<>(
+                objectMapper,
+                nasProperties.getStorage().getRoot()
+                        .toAbsolutePath()
+                        .normalize()
+                        .resolve(nasProperties.getStorage().getMetadataDirectory())
+                        .resolve("recent-items.json"),
+                RECENT_LIST,
+                List::of,
+                JsonRegistry.CorruptionPolicy.BACKUP_AND_RESET
+        );
     }
 
     @PostConstruct
     public synchronized void initialize() throws IOException {
-        Files.createDirectories(registryFile.getParent());
-        if (!Files.exists(registryFile)) {
-            writeAll(List.of());
-        }
+        registry.initialize();
     }
 
     public synchronized void recordVaultPath(String vaultPath) {
@@ -167,21 +165,11 @@ public class RecentService {
     }
 
     private List<RecentItem> readAllMutable() throws IOException {
-        if (!Files.exists(registryFile) || Files.size(registryFile) == 0L) {
-            return new ArrayList<>();
-        }
-        return new ArrayList<>(objectMapper.readValue(registryFile.toFile(), RECENT_LIST));
+        return new ArrayList<>(registry.read());
     }
 
     private void writeAll(List<RecentItem> records) throws IOException {
-        Files.createDirectories(registryFile.getParent());
-        Path tempFile = registryFile.resolveSibling(registryFile.getFileName() + ".tmp");
-        objectMapper.writerWithDefaultPrettyPrinter().writeValue(tempFile.toFile(), records);
-        try {
-            Files.move(tempFile, registryFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (AtomicMoveNotSupportedException ex) {
-            Files.move(tempFile, registryFile, StandardCopyOption.REPLACE_EXISTING);
-        }
+        registry.write(List.copyOf(records));
     }
 
     private Comparator<RecentListItem> comparator(RecentSort sort) {

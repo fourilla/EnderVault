@@ -2,16 +2,13 @@ package io.github.fourilla.endervault.favorite;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.fourilla.endervault.common.JsonRegistry;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.storage.FileItem;
 import io.github.fourilla.endervault.storage.StorageService;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -26,25 +23,26 @@ public class FavoriteService {
     };
 
     private final StorageService storageService;
-    private final ObjectMapper objectMapper;
-    private final Path registryFile;
+    private final JsonRegistry<List<FavoriteItem>> registry;
 
     public FavoriteService(StorageService storageService, ObjectMapper objectMapper, NasProperties nasProperties) {
         this.storageService = storageService;
-        this.objectMapper = objectMapper;
-        this.registryFile = nasProperties.getStorage().getRoot()
-                .toAbsolutePath()
-                .normalize()
-                .resolve(nasProperties.getStorage().getMetadataDirectory())
-                .resolve("favorites.json");
+        this.registry = new JsonRegistry<>(
+                objectMapper,
+                nasProperties.getStorage().getRoot()
+                        .toAbsolutePath()
+                        .normalize()
+                        .resolve(nasProperties.getStorage().getMetadataDirectory())
+                        .resolve("favorites.json"),
+                FAVORITE_LIST,
+                List::of,
+                JsonRegistry.CorruptionPolicy.BACKUP_AND_RESET
+        );
     }
 
     @PostConstruct
     public synchronized void initialize() throws IOException {
-        Files.createDirectories(registryFile.getParent());
-        if (!Files.exists(registryFile)) {
-            writeAll(List.of());
-        }
+        registry.initialize();
     }
 
     public synchronized List<FavoriteItem> list() throws IOException {
@@ -167,21 +165,11 @@ public class FavoriteService {
     }
 
     private List<FavoriteItem> readAllMutable() throws IOException {
-        if (!Files.exists(registryFile) || Files.size(registryFile) == 0L) {
-            return new ArrayList<>();
-        }
-        return new ArrayList<>(objectMapper.readValue(registryFile.toFile(), FAVORITE_LIST));
+        return new ArrayList<>(registry.read());
     }
 
     private void writeAll(List<FavoriteItem> favorites) throws IOException {
-        Files.createDirectories(registryFile.getParent());
-        Path tempFile = registryFile.resolveSibling(registryFile.getFileName() + ".tmp");
-        objectMapper.writerWithDefaultPrettyPrinter().writeValue(tempFile.toFile(), favorites);
-        try {
-            Files.move(tempFile, registryFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (AtomicMoveNotSupportedException ex) {
-            Files.move(tempFile, registryFile, StandardCopyOption.REPLACE_EXISTING);
-        }
+        registry.write(List.copyOf(favorites));
     }
 
     private boolean matchesPathOrDescendant(String candidatePath, String basePath) {

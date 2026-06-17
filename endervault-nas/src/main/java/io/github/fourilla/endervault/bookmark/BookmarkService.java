@@ -2,16 +2,13 @@ package io.github.fourilla.endervault.bookmark;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.fourilla.endervault.common.JsonRegistry;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -32,25 +29,26 @@ public class BookmarkService {
     private static final int MAX_NOTE_LENGTH = 1000;
     private static final int MAX_BULK_LINKS = 1000;
 
-    private final ObjectMapper objectMapper;
-    private final Path registryFile;
+    private final JsonRegistry<List<BookmarkItem>> registry;
 
     public BookmarkService(ObjectMapper objectMapper, NasProperties nasProperties) {
-        this.objectMapper = objectMapper;
         NasProperties.Storage storage = nasProperties.getStorage();
-        this.registryFile = storage.getRoot()
-                .toAbsolutePath()
-                .normalize()
-                .resolve(storage.getMetadataDirectory())
-                .resolve("bookmarks.json");
+        this.registry = new JsonRegistry<>(
+                objectMapper,
+                storage.getRoot()
+                        .toAbsolutePath()
+                        .normalize()
+                        .resolve(storage.getMetadataDirectory())
+                        .resolve("bookmarks.json"),
+                BOOKMARK_LIST,
+                List::of,
+                JsonRegistry.CorruptionPolicy.BACKUP_AND_RESET
+        );
     }
 
     @PostConstruct
     public synchronized void initialize() throws IOException {
-        Files.createDirectories(registryFile.getParent());
-        if (!Files.exists(registryFile)) {
-            writeAll(List.of());
-        }
+        registry.initialize();
     }
 
     public synchronized List<BookmarkItem> list(String parentId, String query) throws IOException {
@@ -451,20 +449,10 @@ public class BookmarkService {
     }
 
     private List<BookmarkItem> readAllMutable() throws IOException {
-        if (!Files.exists(registryFile) || Files.size(registryFile) == 0L) {
-            return new ArrayList<>();
-        }
-        return new ArrayList<>(objectMapper.readValue(registryFile.toFile(), BOOKMARK_LIST));
+        return new ArrayList<>(registry.read());
     }
 
     private void writeAll(List<BookmarkItem> bookmarks) throws IOException {
-        Files.createDirectories(registryFile.getParent());
-        Path tempFile = registryFile.resolveSibling(registryFile.getFileName() + ".tmp");
-        objectMapper.writerWithDefaultPrettyPrinter().writeValue(tempFile.toFile(), bookmarks);
-        try {
-            Files.move(tempFile, registryFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (AtomicMoveNotSupportedException ex) {
-            Files.move(tempFile, registryFile, StandardCopyOption.REPLACE_EXISTING);
-        }
+        registry.write(List.copyOf(bookmarks));
     }
 }
