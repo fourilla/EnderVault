@@ -160,7 +160,7 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void recentPageRendersVirtualFolderShell() throws Exception {
+    void recentPageRendersVirtualDirectoryShell() throws Exception {
         mockMvc.perform(get("/files/recent")
                         .param("q", "unlikely-recent-query-" + System.nanoTime()))
                 .andExpect(status().isOk())
