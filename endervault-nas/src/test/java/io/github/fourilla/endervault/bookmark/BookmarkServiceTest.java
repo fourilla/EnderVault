@@ -30,37 +30,37 @@ class BookmarkServiceTest {
     }
 
     @Test
-    void createsFolderAndLinkInMetadataRegistry() throws Exception {
-        BookmarkItem folder = bookmarkService.createFolder(null, "Docs");
-        BookmarkItem link = bookmarkService.createLink(folder.id(), "Project", "https://example.com/project", "notes");
+    void createsDirectoryAndLinkInMetadataRegistry() throws Exception {
+        BookmarkItem directory = bookmarkService.createDirectory(null, "Docs");
+        BookmarkItem link = bookmarkService.createLink(directory.id(), "Project", "https://example.com/project", "notes");
 
         assertThat(bookmarkService.list(null, ""))
                 .extracting(BookmarkItem::title)
                 .containsExactly("Docs");
-        assertThat(bookmarkService.list(folder.id(), ""))
+        assertThat(bookmarkService.list(directory.id(), ""))
                 .extracting(BookmarkItem::id)
                 .containsExactly(link.id());
         assertThat(root.resolve(".endervault").resolve("bookmarks.json")).exists();
     }
 
     @Test
-    void searchesDescendantsFromCurrentFolder() throws Exception {
-        BookmarkItem folder = bookmarkService.createFolder(null, "Docs");
-        BookmarkItem childFolder = bookmarkService.createFolder(folder.id(), "Nested");
-        bookmarkService.createLink(childFolder.id(), "Spring Docs", "https://spring.io", "");
+    void searchesDescendantsFromCurrentDirectory() throws Exception {
+        BookmarkItem directory = bookmarkService.createDirectory(null, "Docs");
+        BookmarkItem childDirectory = bookmarkService.createDirectory(directory.id(), "Nested");
+        bookmarkService.createLink(childDirectory.id(), "Spring Docs", "https://spring.io", "");
 
-        assertThat(bookmarkService.list(folder.id(), "spring"))
+        assertThat(bookmarkService.list(directory.id(), "spring"))
                 .extracting(BookmarkItem::title)
                 .containsExactly("Spring Docs");
     }
 
     @Test
-    void deletesFolderWithDescendants() throws Exception {
-        BookmarkItem folder = bookmarkService.createFolder(null, "Docs");
-        BookmarkItem childFolder = bookmarkService.createFolder(folder.id(), "Nested");
-        bookmarkService.createLink(childFolder.id(), "Spring Docs", "https://spring.io", "");
+    void deletesDirectoryWithDescendants() throws Exception {
+        BookmarkItem directory = bookmarkService.createDirectory(null, "Docs");
+        BookmarkItem childDirectory = bookmarkService.createDirectory(directory.id(), "Nested");
+        bookmarkService.createLink(childDirectory.id(), "Spring Docs", "https://spring.io", "");
 
-        bookmarkService.delete(folder.id());
+        bookmarkService.delete(directory.id());
 
         assertThat(bookmarkService.list(null, "")).isEmpty();
         assertThat(bookmarkService.list(null, "spring")).isEmpty();
@@ -68,11 +68,11 @@ class BookmarkServiceTest {
 
     @Test
     void bulkDeletesSelectedItemsAndDescendants() throws Exception {
-        BookmarkItem folder = bookmarkService.createFolder(null, "Docs");
-        BookmarkItem link = bookmarkService.createLink(folder.id(), "Spring Docs", "https://spring.io", "");
+        BookmarkItem directory = bookmarkService.createDirectory(null, "Docs");
+        BookmarkItem link = bookmarkService.createLink(directory.id(), "Spring Docs", "https://spring.io", "");
         BookmarkItem other = bookmarkService.createLink(null, "Example", "https://example.com", "");
 
-        int deletedCount = bookmarkService.deleteAll(List.of(folder.id(), link.id()));
+        int deletedCount = bookmarkService.deleteAll(List.of(directory.id(), link.id()));
 
         assertThat(deletedCount).isEqualTo(2);
         assertThat(bookmarkService.list(null, ""))

@@ -30,41 +30,42 @@ public class AdminBookmarkController {
 
     @GetMapping("/files/bookmarks")
     public String bookmarks(
-            @RequestParam(value = "folder", required = false) String folderId,
+            @RequestParam(value = "directory", required = false) String directoryId,
             @RequestParam(value = "q", required = false) String query,
             @RequestParam(value = "edit", required = false) String editId,
             Model model
     ) throws IOException {
+        String currentDirectoryId = normalizeId(directoryId);
         String normalizedQuery = normalizeQuery(query);
-        List<BookmarkItem> bookmarkItems = bookmarkService.list(folderId, normalizedQuery);
+        List<BookmarkItem> bookmarkItems = bookmarkService.list(currentDirectoryId, normalizedQuery);
         model.addAttribute("bookmarkItems", bookmarkItems);
-        model.addAttribute("bookmarkFolders", bookmarkItems.stream().filter(BookmarkItem::folder).toList());
+        model.addAttribute("bookmarkDirectories", bookmarkItems.stream().filter(BookmarkItem::directory).toList());
         model.addAttribute("bookmarkLinks", bookmarkItems.stream().filter(BookmarkItem::link).toList());
-        model.addAttribute("bookmarkBreadcrumbs", bookmarkService.breadcrumbs(folderId));
-        model.addAttribute("currentBookmarkFolder", bookmarkService.currentFolder(folderId));
-        model.addAttribute("currentBookmarkFolderId", normalizeId(folderId));
+        model.addAttribute("bookmarkBreadcrumbs", bookmarkService.breadcrumbs(currentDirectoryId));
+        model.addAttribute("currentBookmarkDirectory", bookmarkService.currentDirectory(currentDirectoryId));
+        model.addAttribute("currentBookmarkDirectoryId", normalizeId(currentDirectoryId));
         model.addAttribute("editingBookmark", bookmarkService.find(editId));
         model.addAttribute("query", normalizedQuery);
         model.addAttribute("searchPerformed", !normalizedQuery.isBlank());
         return "bookmarks";
     }
 
-    @PostMapping("/files/bookmarks/folders")
-    public String createFolder(
+    @PostMapping("/files/bookmarks/directories")
+    public String createDirectory(
             @RequestParam(value = "parentId", required = false) String parentId,
             @RequestParam("title") String title,
             HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
         try {
-            BookmarkItem folder = bookmarkService.createFolder(parentId, title);
+            BookmarkItem directory = bookmarkService.createDirectory(parentId, title);
             activityLogService.record(
                     "BOOKMARK_DIRECTORY_CREATE",
                     request,
                     null,
                     null,
-                    "Created bookmark directory " + folder.title(),
-                    Map.of("bookmarkId", folder.id())
+                    "Created bookmark directory " + directory.title(),
+                    Map.of("bookmarkId", directory.id())
             );
             FlashNotifications.success(redirectAttributes, "Bookmark directory created.");
         } catch (StorageAccessException ex) {
@@ -123,8 +124,8 @@ public class AdminBookmarkController {
         return redirectToBookmarks(parentId, null);
     }
 
-    @PostMapping("/files/bookmarks/folders/update")
-    public String updateFolder(
+    @PostMapping("/files/bookmarks/directories/update")
+    public String updateDirectory(
             @RequestParam("id") String id,
             @RequestParam(value = "parentId", required = false) String parentId,
             @RequestParam("title") String title,
@@ -133,14 +134,14 @@ public class AdminBookmarkController {
             RedirectAttributes redirectAttributes
     ) throws IOException {
         try {
-            BookmarkItem folder = bookmarkService.updateFolder(id, title);
+            BookmarkItem directory = bookmarkService.updateDirectory(id, title);
             activityLogService.record(
                     "BOOKMARK_UPDATE",
                     request,
                     null,
                     null,
-                    "Updated bookmark directory " + folder.title(),
-                    Map.of("bookmarkId", folder.id(), "type", "directory")
+                    "Updated bookmark directory " + directory.title(),
+                    Map.of("bookmarkId", directory.id(), "type", "directory")
             );
             FlashNotifications.success(redirectAttributes, "Bookmark directory updated.");
         } catch (StorageAccessException ex) {
@@ -250,11 +251,11 @@ public class AdminBookmarkController {
         return "redirect:" + link.url();
     }
 
-    private String redirectToBookmarks(String folderId, String query) {
+    private String redirectToBookmarks(String directoryId, String query) {
         UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/files/bookmarks");
-        String normalizedFolderId = normalizeId(folderId);
-        if (normalizedFolderId != null) {
-            builder.queryParam("folder", normalizedFolderId);
+        String normalizedDirectoryId = normalizeId(directoryId);
+        if (normalizedDirectoryId != null) {
+            builder.queryParam("directory", normalizedDirectoryId);
         }
         String normalizedQuery = normalizeQuery(query);
         if (!normalizedQuery.isBlank()) {

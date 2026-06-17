@@ -18,8 +18,8 @@ public record BookmarkItem(
     private static final DateTimeFormatter LABEL_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
 
-    public boolean folder() {
-        return type == BookmarkItemType.FOLDER;
+    public boolean directory() {
+        return type == BookmarkItemType.DIRECTORY;
     }
 
     public boolean link() {
@@ -27,11 +27,11 @@ public record BookmarkItem(
     }
 
     public String typeLabel() {
-        return folder() ? "Directory" : "Link";
+        return directory() ? "Directory" : "Link";
     }
 
     public String iconClass() {
-        return folder() ? "fas fa-folder" : "fas fa-link";
+        return directory() ? "fas fa-folder" : "fas fa-link";
     }
 
     public String safeUrl() {
