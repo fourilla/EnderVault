@@ -45,15 +45,18 @@ public class AdminShellModelAdvice {
     private final StorageService storageService;
     private final FavoriteService favoriteService;
     private final FilePreviewSupport filePreviewSupport;
+    private final FileActionViewSupport fileActionViewSupport;
 
     public AdminShellModelAdvice(
             StorageService storageService,
             FavoriteService favoriteService,
-            FilePreviewSupport filePreviewSupport
+            FilePreviewSupport filePreviewSupport,
+            FileActionViewSupport fileActionViewSupport
     ) {
         this.storageService = storageService;
         this.favoriteService = favoriteService;
         this.filePreviewSupport = filePreviewSupport;
+        this.fileActionViewSupport = fileActionViewSupport;
     }
 
     @ModelAttribute("storageUsage")
@@ -73,5 +76,10 @@ public class AdminShellModelAdvice {
     @ModelAttribute("filePreview")
     public FilePreviewSupport filePreview() {
         return filePreviewSupport;
+    }
+
+    @ModelAttribute("fileActions")
+    public FileActionViewSupport fileActions() {
+        return fileActionViewSupport;
     }
 }

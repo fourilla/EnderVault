@@ -64,4 +64,22 @@ class FileActionRegistryTest {
         assertThat(descriptor.editable()).isFalse();
         assertThat(registry.previewPageAvailable(descriptor.type())).isFalse();
     }
+
+    @Test
+    void browserActionsExposeDetailsForDirectories() {
+        assertThat(registry.browserActions("Photos", true, "", ""))
+                .containsExactly(FileActionKind.DETAILS);
+    }
+
+    @Test
+    void browserActionsExposeDownloadAndPreviewForPreviewableFiles() {
+        assertThat(registry.browserActions("clip.mp4", false, "video/mp4", "mp4"))
+                .containsExactly(FileActionKind.DOWNLOAD, FileActionKind.PREVIEW);
+    }
+
+    @Test
+    void browserActionsExposeDownloadOnlyForUnknownBinaryFiles() {
+        assertThat(registry.browserActions("archive.bin", false, "application/octet-stream", "bin"))
+                .containsExactly(FileActionKind.DOWNLOAD);
+    }
 }

@@ -13,8 +13,9 @@ import io.github.fourilla.endervault.storage.FileDetail;
 import io.github.fourilla.endervault.storage.FileItem;
 import io.github.fourilla.endervault.storage.StorageScope;
 import io.github.fourilla.endervault.storage.StorageService;
-import io.github.fourilla.endervault.web.support.FileResponseService;
+import io.github.fourilla.endervault.web.support.FileActionViewSupport;
 import io.github.fourilla.endervault.web.support.FilePreviewSupport;
+import io.github.fourilla.endervault.web.support.FileResponseService;
 import io.github.fourilla.endervault.web.support.SelectedItems;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -49,6 +50,7 @@ public class SharedFileController {
     private final ActivityLogService activityLogService;
     private final ComicArchiveService comicArchiveService;
     private final FilePreviewSupport filePreviewSupport;
+    private final FileActionViewSupport fileActionViewSupport;
     private final FileToolService fileToolService;
 
     public SharedFileController(
@@ -58,6 +60,7 @@ public class SharedFileController {
             ActivityLogService activityLogService,
             ComicArchiveService comicArchiveService,
             FilePreviewSupport filePreviewSupport,
+            FileActionViewSupport fileActionViewSupport,
             FileToolService fileToolService
     ) {
         this.shareLinkService = shareLinkService;
@@ -66,12 +69,18 @@ public class SharedFileController {
         this.activityLogService = activityLogService;
         this.comicArchiveService = comicArchiveService;
         this.filePreviewSupport = filePreviewSupport;
+        this.fileActionViewSupport = fileActionViewSupport;
         this.fileToolService = fileToolService;
     }
 
     @ModelAttribute("filePreview")
     public FilePreviewSupport filePreview() {
         return filePreviewSupport;
+    }
+
+    @ModelAttribute("fileActions")
+    public FileActionViewSupport fileActions() {
+        return fileActionViewSupport;
     }
 
     @GetMapping("/s/{token}")

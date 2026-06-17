@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:fragment="links(actions)">
+    <a th:each="action : ${actions}"
+       class="button-link ghost icon-button action-icon"
+       th:href="${action.href()}"
+       th:title="${action.label()}"
+       th:attr="aria-label=${action.label()},target=${action.target()},rel=${action.rel()}">
+        <i th:class="${action.icon()}" aria-hidden="true"></i>
+    </a>
+</th:block>
+</body>
+</html>
