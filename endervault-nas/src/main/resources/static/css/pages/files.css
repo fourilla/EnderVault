@@ -92,7 +92,15 @@ tr:last-child td {
     text-align: center;
 }
 
-input[name="items"][form="bulkActionForm"],
+.select-cell input[type="checkbox"][form="bulkActionForm"] {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+    vertical-align: middle;
+}
+
 .select-all-checkbox {
     width: 16px;
     height: 16px;
@@ -190,6 +198,10 @@ input[name="items"][form="bulkActionForm"],
     left: 10px;
     width: 18px;
     height: 18px;
+    margin: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.65));
 }
 
 .card-thumb {
@@ -299,10 +311,6 @@ input[name="items"][form="bulkActionForm"],
     cursor: pointer;
 }
 
-.js-selection-enhanced .browser-card .card-check {
-    display: none;
-}
-
 .browser-card.is-selected {
     border-color: var(--accent);
     background: #173636;
@@ -328,4 +336,3 @@ tbody tr.is-selected td {
 tbody tr.is-selected .item-name {
     color: var(--accent-strong);
 }
-
