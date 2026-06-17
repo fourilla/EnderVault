@@ -9,6 +9,7 @@ import io.github.fourilla.endervault.passkey.PasskeyService;
 import io.github.fourilla.endervault.web.support.ActionResponse;
 import io.github.fourilla.endervault.web.support.FlashNotification;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import java.util.Map;
 import org.springframework.http.MediaType;
@@ -19,7 +20,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
-import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -31,17 +33,23 @@ public class PasskeyLoginController {
     private final ObjectMapper objectMapper;
     private final UserDetailsService userDetailsService;
     private final ActivityLogService activityLogService;
+    private final SecurityContextRepository securityContextRepository;
+    private final SessionAuthenticationStrategy sessionAuthenticationStrategy;
 
     public PasskeyLoginController(
             PasskeyService passkeyService,
             ObjectMapper objectMapper,
             UserDetailsService userDetailsService,
-            ActivityLogService activityLogService
+            ActivityLogService activityLogService,
+            SecurityContextRepository securityContextRepository,
+            SessionAuthenticationStrategy sessionAuthenticationStrategy
     ) {
         this.passkeyService = passkeyService;
         this.objectMapper = objectMapper;
         this.userDetailsService = userDetailsService;
         this.activityLogService = activityLogService;
+        this.securityContextRepository = securityContextRepository;
+        this.sessionAuthenticationStrategy = sessionAuthenticationStrategy;
     }
 
     @PostMapping(value = "/login/passkey/options", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -59,14 +67,15 @@ public class PasskeyLoginController {
     public ResponseEntity<ActionResponse> finish(
             @RequestBody PasskeyCredentialPayload payload,
             HttpSession session,
-            HttpServletRequest request
+            HttpServletRequest request,
+            HttpServletResponse response
     ) {
         try {
             PasskeyLoginResult result = passkeyService.finishLogin(
                     session,
                     objectMapper.writeValueAsString(payload.credential())
             );
-            authenticate(result.username(), request);
+            authenticate(result.username(), request, response);
             activityLogService.record(
                     "LOGIN_SUCCESS",
                     result.username(),
@@ -101,19 +110,18 @@ public class PasskeyLoginController {
         }
     }
 
-    private void authenticate(String username, HttpServletRequest request) {
+    private void authenticate(String username, HttpServletRequest request, HttpServletResponse response) {
         UserDetails userDetails = userDetailsService.loadUserByUsername(username);
         UsernamePasswordAuthenticationToken authentication =
                 new UsernamePasswordAuthenticationToken(userDetails, "passkey", userDetails.getAuthorities());
         authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
+        sessionAuthenticationStrategy.onAuthentication(authentication, request, response);
+
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(authentication);
         SecurityContextHolder.setContext(context);
-        request.getSession(true).setAttribute(
-                HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
-                context
-        );
+        securityContextRepository.saveContext(context, request, response);
     }
 
     private ResponseEntity<String> jsonError(String message) {
