@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import io.github.fourilla.endervault.activity.ActivityLogService;
+import io.github.fourilla.endervault.auth.ClientIpResolver;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.storage.StorageService;
 import java.io.IOException;
@@ -46,6 +47,7 @@ class RemoteDownloadServiceTest {
                 properties,
                 storageService,
                 activityLogService,
+                new ClientIpResolver(properties),
                 validator
         );
     }

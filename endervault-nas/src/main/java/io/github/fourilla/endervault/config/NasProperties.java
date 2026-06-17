@@ -23,6 +23,9 @@ public class NasProperties {
     private Setup setup = new Setup();
 
     @Valid
+    private Security security = new Security();
+
+    @Valid
     private Admin admin = new Admin();
 
     @Valid
@@ -63,6 +66,14 @@ public class NasProperties {
 
     public void setSetup(Setup setup) {
         this.setup = setup;
+    }
+
+    public Security getSecurity() {
+        return security;
+    }
+
+    public void setSecurity(Security security) {
+        this.security = security;
     }
 
     public Admin getAdmin() {
@@ -181,6 +192,19 @@ public class NasProperties {
 
         public void setAccepted(boolean accepted) {
             this.accepted = accepted;
+        }
+    }
+
+    public static class Security {
+        @NotNull
+        private List<String> trustedProxies = List.of("127.0.0.1", "::1", "0:0:0:0:0:0:0:1");
+
+        public List<String> getTrustedProxies() {
+            return trustedProxies;
+        }
+
+        public void setTrustedProxies(List<String> trustedProxies) {
+            this.trustedProxies = trustedProxies == null ? List.of() : trustedProxies;
         }
     }
 

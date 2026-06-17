@@ -14,9 +14,11 @@ import org.springframework.stereotype.Component;
 public class LoginFailureAlertHandler implements AuthenticationFailureHandler {
 
     private final ActivityLogService activityLogService;
+    private final ClientIpResolver clientIpResolver;
 
-    public LoginFailureAlertHandler(ActivityLogService activityLogService) {
+    public LoginFailureAlertHandler(ActivityLogService activityLogService, ClientIpResolver clientIpResolver) {
         this.activityLogService = activityLogService;
+        this.clientIpResolver = clientIpResolver;
     }
 
     @Override
@@ -30,7 +32,7 @@ public class LoginFailureAlertHandler implements AuthenticationFailureHandler {
         activityLogService.record(
                 "LOGIN_FAILURE",
                 username,
-                ClientIpResolver.resolve(request),
+                clientIpResolver.resolve(request),
                 null,
                 null,
                 false,

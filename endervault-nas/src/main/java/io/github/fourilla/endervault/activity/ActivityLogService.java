@@ -48,19 +48,30 @@ public class ActivityLogService {
     private final Path logDirectory;
     private final Path currentLogFile;
     private final ActivityLogNotifier activityLogNotifier;
+    private final ClientIpResolver clientIpResolver;
 
     public ActivityLogService(ObjectMapper objectMapper, NasProperties nasProperties) {
-        this(objectMapper, nasProperties, ActivityLogNotifier.NOOP);
+        this(objectMapper, nasProperties, ActivityLogNotifier.NOOP, new ClientIpResolver(nasProperties));
+    }
+
+    public ActivityLogService(
+            ObjectMapper objectMapper,
+            NasProperties nasProperties,
+            ActivityLogNotifier activityLogNotifier
+    ) {
+        this(objectMapper, nasProperties, activityLogNotifier, new ClientIpResolver(nasProperties));
     }
 
     @Autowired
     public ActivityLogService(
             ObjectMapper objectMapper,
             NasProperties nasProperties,
-            ActivityLogNotifier activityLogNotifier
+            ActivityLogNotifier activityLogNotifier,
+            ClientIpResolver clientIpResolver
     ) {
         this.objectMapper = objectMapper;
         this.activityLogNotifier = activityLogNotifier == null ? ActivityLogNotifier.NOOP : activityLogNotifier;
+        this.clientIpResolver = clientIpResolver == null ? new ClientIpResolver(nasProperties) : clientIpResolver;
         NasProperties.Storage storage = nasProperties.getStorage();
         this.logDirectory = storage.getRoot()
                 .toAbsolutePath()
@@ -145,7 +156,7 @@ public class ActivityLogService {
         return append(
                 type,
                 actor(request),
-                ClientIpResolver.resolve(request),
+                clientIpResolver.resolve(request),
                 path,
                 targetPath,
                 success,

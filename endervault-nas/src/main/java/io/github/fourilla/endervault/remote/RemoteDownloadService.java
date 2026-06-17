@@ -46,6 +46,7 @@ public class RemoteDownloadService {
     private final NasProperties nasProperties;
     private final StorageService storageService;
     private final ActivityLogService activityLogService;
+    private final ClientIpResolver clientIpResolver;
     private final RemoteDownloadValidator validator;
     private final ExecutorService executorService;
     private final HttpClient httpClient;
@@ -56,11 +57,13 @@ public class RemoteDownloadService {
             NasProperties nasProperties,
             StorageService storageService,
             ActivityLogService activityLogService,
+            ClientIpResolver clientIpResolver,
             RemoteDownloadValidator validator
     ) {
         this.nasProperties = nasProperties;
         this.storageService = storageService;
         this.activityLogService = activityLogService;
+        this.clientIpResolver = clientIpResolver;
         this.validator = validator;
         this.executorService = Executors.newFixedThreadPool(nasProperties.getRemoteDownload().getWorkerThreads());
         this.httpClient = HttpClient.newBuilder()
@@ -85,7 +88,7 @@ public class RemoteDownloadService {
                 sourceUri.toString(),
                 safeTargetDirectory,
                 actor(request),
-                ClientIpResolver.resolve(request)
+                clientIpResolver.resolve(request)
         );
         tasks.put(task.id(), task);
         trimHistory();

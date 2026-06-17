@@ -33,6 +33,7 @@ public class PasskeyLoginController {
     private final ObjectMapper objectMapper;
     private final UserDetailsService userDetailsService;
     private final ActivityLogService activityLogService;
+    private final ClientIpResolver clientIpResolver;
     private final SecurityContextRepository securityContextRepository;
     private final SessionAuthenticationStrategy sessionAuthenticationStrategy;
 
@@ -41,6 +42,7 @@ public class PasskeyLoginController {
             ObjectMapper objectMapper,
             UserDetailsService userDetailsService,
             ActivityLogService activityLogService,
+            ClientIpResolver clientIpResolver,
             SecurityContextRepository securityContextRepository,
             SessionAuthenticationStrategy sessionAuthenticationStrategy
     ) {
@@ -48,6 +50,7 @@ public class PasskeyLoginController {
         this.objectMapper = objectMapper;
         this.userDetailsService = userDetailsService;
         this.activityLogService = activityLogService;
+        this.clientIpResolver = clientIpResolver;
         this.securityContextRepository = securityContextRepository;
         this.sessionAuthenticationStrategy = sessionAuthenticationStrategy;
     }
@@ -79,7 +82,7 @@ public class PasskeyLoginController {
             activityLogService.record(
                     "LOGIN_SUCCESS",
                     result.username(),
-                    ClientIpResolver.resolve(request),
+                    clientIpResolver.resolve(request),
                     null,
                     null,
                     true,
@@ -99,7 +102,7 @@ public class PasskeyLoginController {
             activityLogService.record(
                     "LOGIN_FAILURE",
                     "unknown",
-                    ClientIpResolver.resolve(request),
+                    clientIpResolver.resolve(request),
                     null,
                     null,
                     false,

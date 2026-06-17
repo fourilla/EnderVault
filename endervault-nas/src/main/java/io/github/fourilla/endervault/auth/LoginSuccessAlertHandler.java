@@ -13,9 +13,11 @@ import org.springframework.stereotype.Component;
 public class LoginSuccessAlertHandler implements AuthenticationSuccessHandler {
 
     private final ActivityLogService activityLogService;
+    private final ClientIpResolver clientIpResolver;
 
-    public LoginSuccessAlertHandler(ActivityLogService activityLogService) {
+    public LoginSuccessAlertHandler(ActivityLogService activityLogService, ClientIpResolver clientIpResolver) {
         this.activityLogService = activityLogService;
+        this.clientIpResolver = clientIpResolver;
     }
 
     @Override
@@ -28,7 +30,7 @@ public class LoginSuccessAlertHandler implements AuthenticationSuccessHandler {
         activityLogService.record(
                 "LOGIN_SUCCESS",
                 username,
-                ClientIpResolver.resolve(request),
+                clientIpResolver.resolve(request),
                 null,
                 null,
                 true,

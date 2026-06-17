@@ -11,6 +11,8 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import io.github.fourilla.endervault.activity.ActivityLogService;
+import io.github.fourilla.endervault.auth.ClientIpResolver;
+import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.passkey.PasskeyLoginResult;
 import io.github.fourilla.endervault.passkey.PasskeyService;
 import io.github.fourilla.endervault.web.support.ActionResponse;
@@ -61,6 +63,7 @@ class PasskeyLoginControllerTest {
                 objectMapper,
                 userDetailsService,
                 activityLogService,
+                new ClientIpResolver(new NasProperties()),
                 securityContextRepository,
                 sessionAuthenticationStrategy
         );

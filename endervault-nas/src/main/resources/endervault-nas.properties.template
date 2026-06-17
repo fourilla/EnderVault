@@ -29,6 +29,14 @@ nas.storage.metadata-directory=.endervault
 nas.setup.accepted=false
 
 # ---------------------------------------------------------------------------
+# Security / reverse proxy
+# ---------------------------------------------------------------------------
+# X-Forwarded-For is trusted only when the direct remote address is listed here.
+# Use IP literals or CIDR ranges for your reverse proxy, for example 127.0.0.1
+# for local Nginx or 172.16.0.0/12 for a Docker/internal proxy network.
+nas.security.trusted-proxies=127.0.0.1,::1,0:0:0:0:0:0:0:1
+
+# ---------------------------------------------------------------------------
 # Trash
 # ---------------------------------------------------------------------------
 # Deleted files are moved into trash first, then permanently removed after the
