@@ -11,6 +11,10 @@ import io.github.fourilla.endervault.web.auth.AdminPasskeyController;
 import io.github.fourilla.endervault.web.file.AdminBookmarkController;
 import io.github.fourilla.endervault.web.file.AdminFavoriteController;
 import io.github.fourilla.endervault.web.file.AdminFileController;
+import io.github.fourilla.endervault.web.file.AdminFileDetailController;
+import io.github.fourilla.endervault.web.file.AdminFileMutationController;
+import io.github.fourilla.endervault.web.file.AdminFileShareController;
+import io.github.fourilla.endervault.web.file.AdminFileTransferController;
 import io.github.fourilla.endervault.web.file.AdminRecentController;
 import io.github.fourilla.endervault.web.remote.AdminRemoteDownloadController;
 import io.github.fourilla.endervault.web.share.AdminShareController;
@@ -25,6 +29,10 @@ import org.springframework.web.bind.annotation.ModelAttribute;
         AdminPasskeyController.class,
         AdminBookmarkController.class,
         AdminFileController.class,
+        AdminFileDetailController.class,
+        AdminFileMutationController.class,
+        AdminFileShareController.class,
+        AdminFileTransferController.class,
         AdminFavoriteController.class,
         AdminRecentController.class,
         AdminLogController.class,
