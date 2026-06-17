@@ -36,7 +36,7 @@ public final class FlashNotifications {
         add(redirectAttributes, FlashNotification.error(message));
     }
 
-    private static void add(RedirectAttributes redirectAttributes, FlashNotification notification) {
+    public static void add(RedirectAttributes redirectAttributes, FlashNotification notification) {
         List<FlashNotification> notifications = existingNotifications(redirectAttributes);
         notifications.add(notification);
         redirectAttributes.addFlashAttribute(ATTRIBUTE_NAME, notifications);

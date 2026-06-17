@@ -8,10 +8,9 @@ import io.github.fourilla.endervault.recent.RecentService;
 import io.github.fourilla.endervault.recent.RecentSort;
 import io.github.fourilla.endervault.storage.SortDirection;
 import io.github.fourilla.endervault.storage.StorageService;
-import io.github.fourilla.endervault.web.support.ActionResponse;
+import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.BrowserPreferenceCookies;
 import io.github.fourilla.endervault.web.support.FlashNotification;
-import io.github.fourilla.endervault.web.support.FlashNotifications;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -25,7 +24,6 @@ import java.util.Map;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -113,21 +111,18 @@ public class AdminRecentController {
     ) throws IOException {
         List<String> selectedPaths = safePaths(paths);
         if (selectedPaths.isEmpty()) {
-            if (wantsJson(request)) {
-                return ResponseEntity.badRequest().body(ActionResponse.error("Select at least one recent item."));
-            }
-            FlashNotifications.warning(redirectAttributes, "Select at least one recent item.");
-            return redirectToRecent(query, view, sort, direction, page, size);
+            return ActionResponseSupport.badRequest(
+                    request,
+                    redirectAttributes,
+                    FlashNotification.warning("Select at least one recent item."),
+                    redirectToRecent(query, view, sort, direction, page, size)
+            );
         }
 
         recentService.removeAll(selectedPaths);
         FlashNotification notification = FlashNotification.success("Selected recent items removed.");
         String redirect = redirectToRecent(query, view, sort, direction, page, size);
-        if (wantsJson(request)) {
-            return ResponseEntity.ok(ActionResponse.redirect(notification, redirectUrl(redirect)));
-        }
-        FlashNotifications.success(redirectAttributes, notification.message());
-        return redirect;
+        return ActionResponseSupport.redirect(request, redirectAttributes, notification, redirect);
     }
 
     @PostMapping("/files/recent/clear")
@@ -138,11 +133,7 @@ public class AdminRecentController {
         recentService.clear();
         FlashNotification notification = FlashNotification.success("Recent history cleared.");
         activityLogService.record("RECENT_CLEAR", request, null, null, "Cleared recent history");
-        if (wantsJson(request)) {
-            return ResponseEntity.ok(ActionResponse.redirect(notification, "/files/recent"));
-        }
-        FlashNotifications.success(redirectAttributes, notification.message());
-        return "redirect:/files/recent";
+        return ActionResponseSupport.redirect(request, redirectAttributes, notification, "redirect:/files/recent");
     }
 
     @GetMapping("/files/recent/download.zip")
@@ -312,15 +303,6 @@ public class AdminRecentController {
             builder.queryParam("page", pageNumber);
         }
         return "redirect:" + builder.build().encode().toUriString();
-    }
-
-    private String redirectUrl(String redirectViewName) {
-        return redirectViewName.startsWith("redirect:") ? redirectViewName.substring("redirect:".length()) : redirectViewName;
-    }
-
-    private boolean wantsJson(HttpServletRequest request) {
-        String accept = request.getHeader(HttpHeaders.ACCEPT);
-        return accept != null && accept.contains(MediaType.APPLICATION_JSON_VALUE);
     }
 
     private String nextView(String view) {

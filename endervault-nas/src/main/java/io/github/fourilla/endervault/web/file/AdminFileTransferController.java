@@ -8,6 +8,7 @@ import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.thumbnail.ThumbnailFile;
 import io.github.fourilla.endervault.thumbnail.ThumbnailService;
 import io.github.fourilla.endervault.recent.RecentService;
+import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.FileResponseService;
 import io.github.fourilla.endervault.web.support.FlashNotifications;
 import io.github.fourilla.endervault.web.support.SelectedItems;
@@ -113,7 +114,7 @@ public class AdminFileTransferController {
         List<String> items = SelectedItems.from(request);
         if (items.isEmpty()) {
             FlashNotifications.warning(redirectAttributes, "Select at least one item.");
-            response.sendRedirect(redirectUrl(redirectToFiles(path, view, sort, direction, page, size)));
+            response.sendRedirect(ActionResponseSupport.redirectUrl(redirectToFiles(path, view, sort, direction, page, size)));
             return;
         }
 
@@ -201,10 +202,6 @@ public class AdminFileTransferController {
             builder.queryParam("page", pageNumber);
         }
         return "redirect:" + builder.build().encode().toUriString();
-    }
-
-    private String redirectUrl(String redirectViewName) {
-        return redirectViewName.startsWith("redirect:") ? redirectViewName.substring("redirect:".length()) : redirectViewName;
     }
 
     private String zipContentDisposition(List<String> items) {

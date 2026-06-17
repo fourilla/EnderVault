@@ -13,9 +13,8 @@ import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.storage.FileDetail;
 import io.github.fourilla.endervault.storage.StorageScope;
 import io.github.fourilla.endervault.storage.StorageService;
-import io.github.fourilla.endervault.web.support.ActionResponse;
+import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.FlashNotification;
-import io.github.fourilla.endervault.web.support.FlashNotifications;
 import io.github.fourilla.endervault.web.support.TextFileLoadResponse;
 import io.github.fourilla.endervault.web.support.TextFilePayload;
 import jakarta.servlet.http.HttpServletRequest;
@@ -23,7 +22,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -107,11 +105,7 @@ public class AdminFileDetailController {
         recentService.recordVaultPath(detail.path());
         activityLogService.record("TEXT_SAVE", request, detail.path(), null, "Saved text file " + detail.name());
         FlashNotification notification = FlashNotification.success("Text file saved.");
-        if (wantsJson(request)) {
-            return ResponseEntity.ok(ActionResponse.ok(notification));
-        }
-        FlashNotifications.success(redirectAttributes, notification.message());
-        return redirectToDetail(detail.path());
+        return ActionResponseSupport.ok(request, redirectAttributes, notification, redirectToDetail(detail.path()));
     }
 
     @GetMapping("/files/detail/text/load")
@@ -144,8 +138,4 @@ public class AdminFileDetailController {
         return "redirect:/files/detail?path=" + UriUtils.encodeQueryParam(path, StandardCharsets.UTF_8);
     }
 
-    private boolean wantsJson(HttpServletRequest request) {
-        String accept = request.getHeader(HttpHeaders.ACCEPT);
-        return accept != null && accept.contains(MediaType.APPLICATION_JSON_VALUE);
-    }
 }

@@ -3,13 +3,11 @@ package io.github.fourilla.endervault.web.remote;
 import io.github.fourilla.endervault.remote.RemoteDownloadProbe;
 import io.github.fourilla.endervault.remote.RemoteDownloadService;
 import io.github.fourilla.endervault.remote.RemoteDownloadTask;
-import io.github.fourilla.endervault.web.support.ActionResponse;
+import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.FlashNotification;
-import io.github.fourilla.endervault.web.support.FlashNotifications;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.util.List;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -43,7 +41,7 @@ public class AdminRemoteDownloadController {
             Model model
     ) throws IOException {
         RemoteDownloadProbe probe = remoteDownloadService.inspect(url, path);
-        if (wantsJson(request)) {
+        if (ActionResponseSupport.wantsJson(request)) {
             return ResponseEntity.ok(RemoteDownloadInspectResponse.ok(RemoteDownloadProbePayload.from(probe)));
         }
 
@@ -62,11 +60,13 @@ public class AdminRemoteDownloadController {
     ) throws IOException {
         RemoteDownloadTask task = remoteDownloadService.start(url, path, request);
         FlashNotification notification = FlashNotification.success("Remote download queued (" + task.shortId() + ").");
-        if (wantsJson(request)) {
-            return ResponseEntity.ok(RemoteDownloadActionResponse.ok(notification, RemoteDownloadTaskPayload.from(task)));
-        }
-        FlashNotifications.success(redirectAttributes, notification.message());
-        return "redirect:/files/remote-download";
+        return ActionResponseSupport.ok(
+                request,
+                redirectAttributes,
+                notification,
+                "redirect:/files/remote-download",
+                RemoteDownloadActionResponse.ok(notification, RemoteDownloadTaskPayload.from(task))
+        );
     }
 
     @PostMapping("/files/remote-download/cancel")
@@ -77,11 +77,7 @@ public class AdminRemoteDownloadController {
     ) {
         RemoteDownloadTask task = remoteDownloadService.cancel(id);
         FlashNotification notification = FlashNotification.success("Remote download canceled (" + task.shortId() + ").");
-        if (wantsJson(request)) {
-            return ResponseEntity.ok(ActionResponse.ok(notification));
-        }
-        FlashNotifications.success(redirectAttributes, notification.message());
-        return "redirect:/files/remote-download";
+        return ActionResponseSupport.ok(request, redirectAttributes, notification, "redirect:/files/remote-download");
     }
 
     @PostMapping("/files/remote-download/delete")
@@ -92,11 +88,7 @@ public class AdminRemoteDownloadController {
     ) {
         remoteDownloadService.deleteTask(id);
         FlashNotification notification = FlashNotification.success("Remote download task removed.");
-        if (wantsJson(request)) {
-            return ResponseEntity.ok(ActionResponse.ok(notification));
-        }
-        FlashNotifications.success(redirectAttributes, notification.message());
-        return "redirect:/files/remote-download";
+        return ActionResponseSupport.ok(request, redirectAttributes, notification, "redirect:/files/remote-download");
     }
 
     @GetMapping(value = "/files/remote-download/tasks", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -107,8 +99,4 @@ public class AdminRemoteDownloadController {
                 .toList();
     }
 
-    private boolean wantsJson(HttpServletRequest request) {
-        String accept = request.getHeader(HttpHeaders.ACCEPT);
-        return accept != null && accept.contains(MediaType.APPLICATION_JSON_VALUE);
-    }
 }

@@ -12,8 +12,8 @@ import io.github.fourilla.endervault.thumbnail.ThumbnailService;
 import io.github.fourilla.endervault.trash.TrashRecord;
 import io.github.fourilla.endervault.trash.TrashService;
 import io.github.fourilla.endervault.web.support.ActionResponse;
+import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.FlashNotification;
-import io.github.fourilla.endervault.web.support.FlashNotifications;
 import io.github.fourilla.endervault.web.support.SelectedItems;
 import io.github.fourilla.endervault.web.support.UploadedFilePayload;
 import jakarta.servlet.http.HttpServletRequest;
@@ -23,9 +23,6 @@ import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -91,11 +88,13 @@ public class AdminFileMutationController {
             }
         }
         FlashNotification notification = FlashNotification.success("Upload complete.");
-        if (wantsJson(request)) {
-            return ResponseEntity.ok(ActionResponse.ok(notification, uploadedFiles));
-        }
-        FlashNotifications.success(redirectAttributes, notification.message());
-        return redirectToFiles(path, view, sort, direction, page, size);
+        return ActionResponseSupport.ok(
+                request,
+                redirectAttributes,
+                notification,
+                redirectToFiles(path, view, sort, direction, page, size),
+                ActionResponse.ok(notification, uploadedFiles)
+        );
     }
 
     @PostMapping("/files/directories")
@@ -114,11 +113,7 @@ public class AdminFileMutationController {
         activityLogService.record("CREATE_DIRECTORY", request, directory.path(), null, "Created directory " + name);
         FlashNotification notification = FlashNotification.success("Directory created.");
         String redirect = redirectToFiles(path, view, sort, direction, 1, size);
-        if (wantsJson(request)) {
-            return ResponseEntity.ok(ActionResponse.redirect(notification, redirectUrl(redirect)));
-        }
-        FlashNotifications.success(redirectAttributes, notification.message());
-        return redirect;
+        return ActionResponseSupport.redirect(request, redirectAttributes, notification, redirect);
     }
 
     @PostMapping("/files/rename")
@@ -143,11 +138,7 @@ public class AdminFileMutationController {
         activityLogService.record("RENAME", request, oldItem.path(), newItem.path(), "Renamed item to " + newItem.name());
         FlashNotification notification = FlashNotification.success("Item renamed.");
         String redirect = redirectToFiles(path);
-        if (wantsJson(request)) {
-            return ResponseEntity.ok(ActionResponse.redirect(notification, redirectUrl(redirect)));
-        }
-        FlashNotifications.success(redirectAttributes, notification.message());
-        return redirect;
+        return ActionResponseSupport.redirect(request, redirectAttributes, notification, redirect);
     }
 
     @PostMapping("/files/detail/rename")
@@ -166,11 +157,7 @@ public class AdminFileMutationController {
         activityLogService.record("RENAME", request, detail.path(), newPath, "Renamed item to " + newName);
         FlashNotification notification = FlashNotification.success("Item renamed.");
         String redirect = redirectToDetail(newPath);
-        if (wantsJson(request)) {
-            return ResponseEntity.ok(ActionResponse.redirect(notification, redirectUrl(redirect)));
-        }
-        FlashNotifications.success(redirectAttributes, notification.message());
-        return redirect;
+        return ActionResponseSupport.redirect(request, redirectAttributes, notification, redirect);
     }
 
     @PostMapping("/files/move")
@@ -195,11 +182,7 @@ public class AdminFileMutationController {
         activityLogService.record("MOVE", request, oldItem.path(), newItem.path(), "Moved item to " + targetPath);
         FlashNotification notification = FlashNotification.success("Item moved.");
         String redirect = redirectToFiles(path);
-        if (wantsJson(request)) {
-            return ResponseEntity.ok(ActionResponse.redirect(notification, redirectUrl(redirect)));
-        }
-        FlashNotifications.success(redirectAttributes, notification.message());
-        return redirect;
+        return ActionResponseSupport.redirect(request, redirectAttributes, notification, redirect);
     }
 
     @PostMapping("/files/detail/move")
@@ -218,11 +201,7 @@ public class AdminFileMutationController {
         activityLogService.record("MOVE", request, detail.path(), newPath, "Moved item to " + targetPath);
         FlashNotification notification = FlashNotification.success("Item moved.");
         String redirect = redirectToDetail(newPath);
-        if (wantsJson(request)) {
-            return ResponseEntity.ok(ActionResponse.redirect(notification, redirectUrl(redirect)));
-        }
-        FlashNotifications.success(redirectAttributes, notification.message());
-        return redirect;
+        return ActionResponseSupport.redirect(request, redirectAttributes, notification, redirect);
     }
 
     @PostMapping("/files/delete")
@@ -238,11 +217,12 @@ public class AdminFileMutationController {
     ) throws IOException {
         List<String> items = SelectedItems.from(request);
         if (items.isEmpty()) {
-            if (wantsJson(request)) {
-                return ResponseEntity.badRequest().body(ActionResponse.error("Select at least one item."));
-            }
-            FlashNotifications.warning(redirectAttributes, "Select at least one item.");
-            return redirectToFiles(path, view, sort, direction, page, size);
+            return ActionResponseSupport.badRequest(
+                    request,
+                    redirectAttributes,
+                    FlashNotification.warning("Select at least one item."),
+                    redirectToFiles(path, view, sort, direction, page, size)
+            );
         }
         List<TrashRecord> trashRecords = trashService.moveToTrash(path, items);
         for (TrashRecord record : trashRecords) {
@@ -250,11 +230,7 @@ public class AdminFileMutationController {
         }
         FlashNotification notification = FlashNotification.success("Selected items moved to trash.");
         String redirect = redirectToFiles(path, view, sort, direction, page, size);
-        if (wantsJson(request)) {
-            return ResponseEntity.ok(ActionResponse.redirect(notification, redirectUrl(redirect)));
-        }
-        FlashNotifications.success(redirectAttributes, notification.message());
-        return redirect;
+        return ActionResponseSupport.redirect(request, redirectAttributes, notification, redirect);
     }
 
     @PostMapping("/files/detail/delete")
@@ -268,11 +244,7 @@ public class AdminFileMutationController {
         activityLogService.record("TRASH_MOVE", request, record.originalPath(), null, "Moved item to trash");
         FlashNotification notification = FlashNotification.success("Item moved to trash.");
         String redirect = redirectToFiles(detail.parentPath());
-        if (wantsJson(request)) {
-            return ResponseEntity.ok(ActionResponse.redirect(notification, redirectUrl(redirect)));
-        }
-        FlashNotifications.success(redirectAttributes, notification.message());
-        return redirect;
+        return ActionResponseSupport.redirect(request, redirectAttributes, notification, redirect);
     }
 
     private FileDetail detailForPath(String path) throws IOException {
@@ -314,12 +286,4 @@ public class AdminFileMutationController {
         return "redirect:/files/detail?path=" + UriUtils.encodeQueryParam(path, StandardCharsets.UTF_8);
     }
 
-    private String redirectUrl(String redirectViewName) {
-        return redirectViewName.startsWith("redirect:") ? redirectViewName.substring("redirect:".length()) : redirectViewName;
-    }
-
-    private boolean wantsJson(HttpServletRequest request) {
-        String accept = request.getHeader(HttpHeaders.ACCEPT);
-        return accept != null && accept.contains(MediaType.APPLICATION_JSON_VALUE);
-    }
 }

@@ -1,14 +1,11 @@
 package io.github.fourilla.endervault.web.dashboard;
 
 import io.github.fourilla.endervault.notification.TelegramSettingsService;
-import io.github.fourilla.endervault.web.support.ActionResponse;
+import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.FlashNotification;
-import io.github.fourilla.endervault.web.support.FlashNotifications;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.util.MultiValueMap;
@@ -41,23 +38,24 @@ public class AdminTelegramSettingsController {
         try {
             telegramSettingsService.save(telegramSettingsService.updateFrom(parameters));
             FlashNotification notification = FlashNotification.success("Telegram alert settings saved.");
-            if (wantsJson(request)) {
-                return ResponseEntity.ok(ActionResponse.ok(notification));
-            }
-            FlashNotifications.success(redirectAttributes, notification.message());
+            return ActionResponseSupport.ok(request, redirectAttributes, notification, "redirect:/files/telegram-alerts");
         } catch (IllegalArgumentException ex) {
-            if (wantsJson(request)) {
-                return ResponseEntity.badRequest().body(ActionResponse.error(ex.getMessage()));
-            }
-            FlashNotifications.error(redirectAttributes, ex.getMessage());
+            return ActionResponseSupport.badRequest(
+                    request,
+                    redirectAttributes,
+                    FlashNotification.error(ex.getMessage()),
+                    "redirect:/files/telegram-alerts"
+            );
         } catch (IOException ex) {
             String message = "Telegram settings could not be saved.";
-            if (wantsJson(request)) {
-                return ResponseEntity.internalServerError().body(ActionResponse.error(message));
-            }
-            FlashNotifications.error(redirectAttributes, message);
+            return ActionResponseSupport.error(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    request,
+                    redirectAttributes,
+                    FlashNotification.error(message),
+                    "redirect:/files/telegram-alerts"
+            );
         }
-        return "redirect:/files/telegram-alerts";
     }
 
     @PostMapping("/files/telegram-alerts/test")
@@ -74,31 +72,16 @@ public class AdminTelegramSettingsController {
             } else {
                 notification = FlashNotification.error("Telegram test message failed.");
             }
-            if (wantsJson(request)) {
-                return sent
-                        ? ResponseEntity.ok(ActionResponse.ok(notification))
-                        : ResponseEntity.badRequest().body(ActionResponse.error(notification.message()));
-            }
-            addFlash(redirectAttributes, notification);
+            return sent
+                    ? ActionResponseSupport.ok(request, redirectAttributes, notification, "redirect:/files/telegram-alerts")
+                    : ActionResponseSupport.badRequest(request, redirectAttributes, notification, "redirect:/files/telegram-alerts");
         } catch (IllegalArgumentException ex) {
-            if (wantsJson(request)) {
-                return ResponseEntity.badRequest().body(ActionResponse.error(ex.getMessage()));
-            }
-            FlashNotifications.error(redirectAttributes, ex.getMessage());
+            return ActionResponseSupport.badRequest(
+                    request,
+                    redirectAttributes,
+                    FlashNotification.error(ex.getMessage()),
+                    "redirect:/files/telegram-alerts"
+            );
         }
-        return "redirect:/files/telegram-alerts";
-    }
-
-    private boolean wantsJson(HttpServletRequest request) {
-        String accept = request.getHeader(HttpHeaders.ACCEPT);
-        return accept != null && accept.contains(MediaType.APPLICATION_JSON_VALUE);
-    }
-
-    private void addFlash(RedirectAttributes redirectAttributes, FlashNotification notification) {
-        if ("error".equals(notification.type())) {
-            FlashNotifications.error(redirectAttributes, notification.message());
-            return;
-        }
-        FlashNotifications.success(redirectAttributes, notification.message());
     }
 }

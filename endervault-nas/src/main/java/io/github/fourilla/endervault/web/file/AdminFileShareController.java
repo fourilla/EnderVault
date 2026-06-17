@@ -8,8 +8,8 @@ import io.github.fourilla.endervault.storage.FileDetail;
 import io.github.fourilla.endervault.storage.StorageScope;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.web.support.ActionResponse;
+import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.FlashNotification;
-import io.github.fourilla.endervault.web.support.FlashNotifications;
 import io.github.fourilla.endervault.web.support.ShareLinkPayload;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
@@ -19,9 +19,6 @@ import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -66,13 +63,13 @@ public class AdminFileShareController {
                 Map.of("token", shareLink.token(), "type", shareLink.type().name())
         );
         FlashNotification notification = FlashNotification.info("Share link created.", "Copy link", shareUrl);
-
-        if (wantsJson(request)) {
-            return ResponseEntity.ok(ActionResponse.ok(notification, ShareLinkPayload.from(shareLink, shareUrl)));
-        }
-
-        FlashNotifications.info(redirectAttributes, notification.message(), notification.actionLabel(), shareUrl);
-        return redirectToFiles(path);
+        return ActionResponseSupport.ok(
+                request,
+                redirectAttributes,
+                notification,
+                redirectToFiles(path),
+                ActionResponse.ok(notification, ShareLinkPayload.from(shareLink, shareUrl))
+        );
     }
 
     @PostMapping("/files/detail/share")
@@ -95,13 +92,13 @@ public class AdminFileShareController {
                 Map.of("token", shareLink.token(), "type", shareLink.type().name())
         );
         FlashNotification notification = FlashNotification.info("Share link created.", "Copy link", shareUrl);
-
-        if (wantsJson(request)) {
-            return ResponseEntity.ok(ActionResponse.ok(notification, ShareLinkPayload.from(shareLink, shareUrl)));
-        }
-
-        FlashNotifications.info(redirectAttributes, notification.message(), notification.actionLabel(), shareUrl);
-        return redirectToDetail(detail.path());
+        return ActionResponseSupport.ok(
+                request,
+                redirectAttributes,
+                notification,
+                redirectToDetail(detail.path()),
+                ActionResponse.ok(notification, ShareLinkPayload.from(shareLink, shareUrl))
+        );
     }
 
     @PostMapping("/files/detail/shares/revoke")
@@ -115,11 +112,7 @@ public class AdminFileShareController {
         shareLinkService.revoke(token);
         activityLogService.record("SHARE_REVOKE", request, detail.path(), null, "Revoked share link " + token);
         FlashNotification notification = FlashNotification.success("Share link revoked.");
-        if (wantsJson(request)) {
-            return ResponseEntity.ok(ActionResponse.ok(notification));
-        }
-        FlashNotifications.success(redirectAttributes, notification.message());
-        return redirectToDetail(detail.path());
+        return ActionResponseSupport.ok(request, redirectAttributes, notification, redirectToDetail(detail.path()));
     }
 
     @PostMapping("/files/detail/shares/delete")
@@ -133,11 +126,7 @@ public class AdminFileShareController {
         shareLinkService.delete(token);
         activityLogService.record("SHARE_DELETE", request, detail.path(), null, "Deleted share link " + token);
         FlashNotification notification = FlashNotification.success("Share link deleted.");
-        if (wantsJson(request)) {
-            return ResponseEntity.ok(ActionResponse.ok(notification));
-        }
-        FlashNotifications.success(redirectAttributes, notification.message());
-        return redirectToDetail(detail.path());
+        return ActionResponseSupport.ok(request, redirectAttributes, notification, redirectToDetail(detail.path()));
     }
 
     private FileDetail detailForPath(String path) throws IOException {
@@ -188,8 +177,4 @@ public class AdminFileShareController {
         return "redirect:/files/detail?path=" + UriUtils.encodeQueryParam(path, StandardCharsets.UTF_8);
     }
 
-    private boolean wantsJson(HttpServletRequest request) {
-        String accept = request.getHeader(HttpHeaders.ACCEPT);
-        return accept != null && accept.contains(MediaType.APPLICATION_JSON_VALUE);
-    }
 }

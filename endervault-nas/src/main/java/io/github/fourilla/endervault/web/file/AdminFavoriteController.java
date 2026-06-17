@@ -2,6 +2,7 @@ package io.github.fourilla.endervault.web.file;
 
 import io.github.fourilla.endervault.favorite.FavoriteItem;
 import io.github.fourilla.endervault.favorite.FavoriteService;
+import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.FavoriteActionResponse;
 import io.github.fourilla.endervault.web.support.FavoritePayload;
 import io.github.fourilla.endervault.web.support.FlashNotification;
@@ -10,8 +11,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.net.URI;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -44,15 +43,16 @@ public class AdminFavoriteController {
         FlashNotification notification = favorite == null
                 ? FlashNotification.success("Removed from favorites.")
                 : FlashNotification.success("Added to favorites.");
-
-        if (wantsJson(request)) {
-            return favorite == null
-                    ? ResponseEntity.ok(FavoriteActionResponse.removed(notification, path))
-                    : ResponseEntity.ok(FavoriteActionResponse.added(notification, FavoritePayload.from(favorite)));
-        }
-
-        FlashNotifications.success(redirectAttributes, notification.message());
-        return redirectBack(request, "redirect:/files/favorites");
+        Object jsonBody = favorite == null
+                ? FavoriteActionResponse.removed(notification, path)
+                : FavoriteActionResponse.added(notification, FavoritePayload.from(favorite));
+        return ActionResponseSupport.ok(
+                request,
+                redirectAttributes,
+                notification,
+                redirectBack(request, "redirect:/files/favorites"),
+                jsonBody
+        );
     }
 
     @PostMapping("/files/favorites/remove")
@@ -63,13 +63,13 @@ public class AdminFavoriteController {
     ) throws IOException {
         favoriteService.remove(path);
         FlashNotification notification = FlashNotification.success("Removed from favorites.");
-
-        if (wantsJson(request)) {
-            return ResponseEntity.ok(FavoriteActionResponse.removed(notification, path));
-        }
-
-        FlashNotifications.success(redirectAttributes, notification.message());
-        return redirectBack(request, "redirect:/files/favorites");
+        return ActionResponseSupport.ok(
+                request,
+                redirectAttributes,
+                notification,
+                redirectBack(request, "redirect:/files/favorites"),
+                FavoriteActionResponse.removed(notification, path)
+        );
     }
 
     @PostMapping("/files/favorites/move")
@@ -81,11 +81,6 @@ public class AdminFavoriteController {
         favoriteService.move(path, direction);
         FlashNotifications.success(redirectAttributes, "Favorite order updated.");
         return "redirect:/files/favorites";
-    }
-
-    private boolean wantsJson(HttpServletRequest request) {
-        String accept = request.getHeader(HttpHeaders.ACCEPT);
-        return accept != null && accept.contains(MediaType.APPLICATION_JSON_VALUE);
     }
 
     private String redirectBack(HttpServletRequest request, String fallback) {

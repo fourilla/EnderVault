@@ -7,9 +7,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -86,7 +84,7 @@ public class WebExceptionHandler {
             String message
     ) {
         String cleanMessage = cleanMessage(message, title);
-        if (wantsJson(request)) {
+        if (ActionResponseSupport.wantsJson(request)) {
             return ResponseEntity.status(status).body(ActionResponse.error(cleanMessage));
         }
 
@@ -99,11 +97,6 @@ public class WebExceptionHandler {
         model.addAttribute("title", title);
         model.addAttribute("message", cleanMessage);
         return "error";
-    }
-
-    private boolean wantsJson(HttpServletRequest request) {
-        String accept = request.getHeader(HttpHeaders.ACCEPT);
-        return accept != null && accept.contains(MediaType.APPLICATION_JSON_VALUE);
     }
 
     private boolean shouldRedirectWithToast(HttpServletRequest request) {
