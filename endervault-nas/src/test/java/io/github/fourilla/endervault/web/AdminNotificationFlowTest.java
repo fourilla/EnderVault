@@ -121,15 +121,36 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Shared links")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Activity logs")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Trash")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Telegram alerts")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote download")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Page archiving")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Storage remaining")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("Enable Telegram alerts"))))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("Quick Actions"))))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("Activity Log"))))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("Maintenance"))));
+    }
+
+    @Test
+    void telegramAlertsPageRendersSettingsForm() throws Exception {
+        mockMvc.perform(get("/files/telegram-alerts"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Telegram Alerts")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Enable Telegram alerts")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Bot token")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Chat ID")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("LOGIN_SUCCESS")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Save and Apply")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Send Test Message")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-password-toggle")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Show bot token")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/admin-actions.js")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"telegram-settings-save\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"telegram-settings-test\"")));
     }
 
     @Test

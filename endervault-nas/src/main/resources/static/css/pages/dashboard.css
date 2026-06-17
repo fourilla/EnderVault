@@ -151,7 +151,7 @@
 
 .dashboard-action-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: 1fr;
     gap: 12px;
 }
 
@@ -257,3 +257,219 @@
     color: var(--muted);
 }
 
+.telegram-settings-panel {
+    display: grid;
+    gap: 16px;
+}
+
+.telegram-settings-workspace {
+    max-width: 1080px;
+}
+
+.telegram-settings-panel .section-heading p {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+    overflow-wrap: anywhere;
+}
+
+.telegram-settings-form {
+    display: grid;
+    gap: 20px;
+}
+
+.telegram-settings-section {
+    display: grid;
+    gap: 12px;
+}
+
+.telegram-settings-section + .telegram-settings-section {
+    border-top: 1px solid var(--line);
+    padding-top: 18px;
+}
+
+.telegram-actions-top {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 16px;
+}
+
+.telegram-settings-form .icon-text-button {
+    gap: 10px;
+}
+
+.telegram-subsection-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.telegram-subsection-heading h3 {
+    margin: 0;
+    font-size: 16px;
+}
+
+.telegram-subsection-heading p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+    text-align: right;
+}
+
+.telegram-settings-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    align-items: stretch;
+}
+
+.telegram-settings-grid label,
+.telegram-field {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+}
+
+.telegram-settings-grid label > span,
+.telegram-field > label {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.password-field {
+    position: relative;
+    display: grid;
+}
+
+.password-field input {
+    padding-right: 44px;
+}
+
+.password-field .password-toggle {
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    width: 30px;
+    height: 30px;
+    min-height: 30px;
+    transform: translateY(-50%);
+    color: var(--muted);
+}
+
+.password-field .password-toggle:hover {
+    color: var(--text);
+}
+
+.telegram-connection-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.telegram-master-toggle,
+.telegram-activity-toggle {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel-muted);
+}
+
+.telegram-master-toggle {
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+    min-height: 56px;
+    padding: 10px 12px;
+}
+
+.telegram-master-toggle input,
+.telegram-activity-toggle input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent);
+}
+
+.telegram-master-toggle span {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.telegram-master-toggle strong {
+    color: var(--text);
+    font-size: 14px;
+}
+
+.telegram-master-toggle small,
+.telegram-activity-toggle small {
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.telegram-activity-settings {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 16px;
+}
+
+.telegram-activity-group {
+    display: grid;
+    align-content: start;
+    align-self: stretch;
+    gap: 10px;
+    min-width: 0;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel-muted);
+    padding: 12px;
+}
+
+.telegram-activity-group h4 {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.telegram-activity-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    align-content: start;
+    gap: 8px;
+}
+
+.telegram-activity-toggle {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 8px;
+    align-items: center;
+    height: 54px;
+    min-height: 54px;
+    border-color: #3a4653;
+    background: var(--panel);
+    padding: 8px 10px;
+}
+
+.telegram-activity-toggle span {
+    display: grid;
+    gap: 1px;
+    min-width: 0;
+}
+
+.telegram-activity-toggle strong {
+    overflow: hidden;
+    color: var(--text);
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.telegram-activity-toggle small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.telegram-actions {
+    justify-content: flex-end;
+}

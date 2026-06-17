@@ -31,29 +31,34 @@ public class TelegramNotificationService {
                 .build();
     }
 
-    public void send(String message) {
+    public boolean send(String message) {
         NasProperties.Telegram telegram = nasProperties.getNotifications().getTelegram();
         if (!telegram.isEnabled()) {
-            return;
+            return false;
         }
         String botToken = telegram.getBotToken().trim();
         String chatId = telegram.getChatId().trim();
+        return send(botToken, chatId, message);
+    }
+
+    public boolean send(String botToken, String chatId, String message) {
         if (botToken.isBlank() || chatId.isBlank()) {
             log.warn("Telegram notification is enabled, but bot token or chat id is blank.");
-            return;
+            return false;
         }
 
-        URI uri = URI.create("https://api.telegram.org/bot" + botToken + "/sendMessage");
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-        MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
-        body.add("chat_id", chatId);
-        body.add("text", message);
-
         try {
+            URI uri = URI.create("https://api.telegram.org/bot" + botToken + "/sendMessage");
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+            MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+            body.add("chat_id", chatId);
+            body.add("text", message);
             restTemplate.postForEntity(uri, new HttpEntity<>(body, headers), String.class);
-        } catch (RestClientException ex) {
+            return true;
+        } catch (IllegalArgumentException | RestClientException ex) {
             log.warn("Failed to send Telegram notification: {}", ex.getClass().getSimpleName());
+            return false;
         }
     }
 }

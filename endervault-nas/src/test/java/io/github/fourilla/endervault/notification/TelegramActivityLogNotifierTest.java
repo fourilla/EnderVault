@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.notification;
 
 import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.timeout;
@@ -56,6 +57,37 @@ class TelegramActivityLogNotifierTest {
             notifier.notify(entry("UPLOAD"));
 
             verify(telegram, timeout(1000)).send(startsWith("EnderVault activity"));
+        } finally {
+            notifier.shutdown();
+        }
+    }
+
+    @Test
+    void redactsSensitiveMetadataBeforeSendingToTelegram() {
+        NasProperties properties = properties(true);
+        properties.getNotifications().getTelegram().getActivity().put("passkey-register", true);
+        TelegramNotificationService telegram = mock(TelegramNotificationService.class);
+        TelegramActivityLogNotifier notifier = new TelegramActivityLogNotifier(properties, telegram);
+
+        try {
+            notifier.notify(new ActivityLogEntry(
+                    "id",
+                    Instant.parse("2026-06-17T00:00:00Z"),
+                    "PASSKEY_REGISTER",
+                    "admin",
+                    "127.0.0.1",
+                    null,
+                    null,
+                    true,
+                    "Passkey registered.",
+                    Map.of("credentialId", "credential-secret-value", "label", "laptop")
+            ));
+
+            verify(telegram, timeout(1000)).send(argThat(message ->
+                    message.contains("credentialId=cred...alue [redacted]")
+                            && message.contains("label=laptop")
+                            && !message.contains("credential-secret-value")
+            ));
         } finally {
             notifier.shutdown();
         }

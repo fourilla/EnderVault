@@ -2,7 +2,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const { submitJsonForm, showNotification, navigateWithNotification } = window.EnderVault;
 
     const setBusy = (form, busy) => {
-        form.querySelectorAll("button, input, select").forEach((control) => {
+        form.querySelectorAll("button, input, select, textarea").forEach((control) => {
             if (control.tagName === "BUTTON") {
                 control.disabled = busy;
                 return;
@@ -12,6 +12,14 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
     };
+
+    const ajaxAction = (form, submitter = null) =>
+        submitter?.dataset?.ajaxAction || form.dataset.ajaxAction || "";
+
+    const submitAction = (form, submitter = null) => ({
+        url: submitter?.getAttribute("formaction") || form.getAttribute("action") || form.action,
+        method: submitter?.getAttribute("formmethod") || form.getAttribute("method") || form.method || "POST"
+    });
 
     const csrfInput = () => window.EnderVault.csrfInput()?.cloneNode();
 
@@ -98,15 +106,56 @@ document.addEventListener("DOMContentLoaded", () => {
         document.querySelectorAll('tr[data-share-status="expired"]').forEach((row) => row.remove());
     };
 
-    const handleSuccess = (form, body) => {
-        if (["detail-rename", "detail-move", "detail-delete"].includes(form.dataset.ajaxAction)
+    const updateTelegramStatus = (form) => {
+        const status = document.querySelector("[data-telegram-status]");
+        const enabled = form.querySelector('input[name="enabled"]')?.checked === true;
+        if (!status) {
+            return;
+        }
+        status.textContent = enabled ? "Enabled" : "Disabled";
+        status.classList.toggle("active", enabled);
+        status.classList.toggle("expired", !enabled);
+    };
+
+    const enhancePasswordToggles = () => {
+        document.querySelectorAll("[data-password-toggle]").forEach((button) => {
+            if (button.dataset.passwordToggleBound === "true") {
+                return;
+            }
+
+            const input = button.closest(".password-field")?.querySelector("[data-password-toggle-input]");
+            const icon = button.querySelector("i");
+            if (!input) {
+                return;
+            }
+
+            const setVisible = (visible) => {
+                input.type = visible ? "text" : "password";
+                button.setAttribute("aria-pressed", String(visible));
+                button.setAttribute("title", visible ? "Hide bot token" : "Show bot token");
+                button.setAttribute("aria-label", visible ? "Hide bot token" : "Show bot token");
+                icon?.classList.toggle("fa-eye", !visible);
+                icon?.classList.toggle("fa-eye-slash", visible);
+            };
+
+            button.dataset.passwordToggleBound = "true";
+            setVisible(input.type === "text");
+            button.addEventListener("click", () => {
+                setVisible(input.type !== "text");
+                input.focus({ preventScroll: true });
+            });
+        });
+    };
+
+    const handleSuccess = (form, body, action = ajaxAction(form)) => {
+        if (["detail-rename", "detail-move", "detail-delete"].includes(action)
                 && navigateWithNotification(body)) {
             return;
         }
 
         showNotification(body.notification);
 
-        switch (form.dataset.ajaxAction) {
+        switch (action) {
             case "share-create":
                 appendShareRow(form, body.shareLink);
                 form.reset();
@@ -119,6 +168,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 break;
             case "share-delete-expired":
                 removeExpiredShareRows();
+                break;
+            case "telegram-settings-save":
+                updateTelegramStatus(form);
                 break;
             default:
                 break;
@@ -133,11 +185,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
         form.addEventListener("submit", async (event) => {
             event.preventDefault();
+            const submitter = event.submitter;
+            const action = ajaxAction(form, submitter);
+            const target = submitAction(form, submitter);
             const formData = new FormData(form);
             setBusy(form, true);
             try {
-                const body = await submitJsonForm(form, formData);
-                handleSuccess(form, body);
+                const body = await submitJsonForm(form, formData, target.url, target.method);
+                handleSuccess(form, body, action);
             } catch (error) {
                 window.EnderVault.showToast("error", error.message || "The action failed.");
             } finally {
@@ -147,5 +202,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     document.querySelectorAll("form[data-ajax-action]").forEach(bindAjaxForm);
+    enhancePasswordToggles();
     window.EnderVaultActions = { submitJsonForm, showNotification };
 });
