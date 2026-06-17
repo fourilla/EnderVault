@@ -48,7 +48,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const openPrimaryLink = (link) => {
         const target = link.getAttribute("target");
         if (target && target.toLowerCase() === "_blank") {
-            window.open(link.href, "_blank", "noopener");
+            window.open(link.href, "_blank", "noopener,noreferrer");
             return;
         }
         window.location.href = link.href;

@@ -181,7 +181,7 @@
                    title="Download" aria-label="Download">
                     <i class="fas fa-download" aria-hidden="true"></i>
                 </a>
-                <a class="button-link ghost icon-button" th:if="${filePreview.previewable(detail)}" th:href="${filePreview.previewUrl(detail)}" target="_blank"
+                <a class="button-link ghost icon-button" th:if="${filePreview.previewable(detail)}" th:href="${filePreview.previewUrl(detail)}" target="_blank" rel="noopener noreferrer"
                    title="Preview" aria-label="Preview">
                     <i class="fas fa-eye" aria-hidden="true"></i>
                 </a>

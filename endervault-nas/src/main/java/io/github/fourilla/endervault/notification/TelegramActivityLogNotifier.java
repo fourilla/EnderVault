@@ -52,7 +52,7 @@ public class TelegramActivityLogNotifier implements ActivityLogNotifier {
             try {
                 telegramNotificationService.send(messageFor(entry));
             } catch (RuntimeException ex) {
-                logger.warn("Failed to send Telegram activity notification.", ex);
+                logger.warn("Failed to send Telegram activity notification: {}", ex.getClass().getSimpleName());
             }
         });
     }

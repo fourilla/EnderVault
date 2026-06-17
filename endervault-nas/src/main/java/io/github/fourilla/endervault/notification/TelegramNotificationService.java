@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 
 @Service
@@ -56,7 +57,15 @@ public class TelegramNotificationService {
             body.add("text", message);
             restTemplate.postForEntity(uri, new HttpEntity<>(body, headers), String.class);
             return true;
+        } catch (RestClientResponseException ex) {
+            log.warn("Failed to send Telegram notification: {} status={}",
+                    ex.getClass().getSimpleName(),
+                    ex.getStatusCode().value());
+            return false;
         } catch (IllegalArgumentException | RestClientException ex) {
+            log.warn("Failed to send Telegram notification: {}", ex.getClass().getSimpleName());
+            return false;
+        } catch (RuntimeException ex) {
             log.warn("Failed to send Telegram notification: {}", ex.getClass().getSimpleName());
             return false;
         }

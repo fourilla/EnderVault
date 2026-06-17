@@ -1,12 +1,15 @@
 package io.github.fourilla.endervault.filetool;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.fourilla.endervault.config.NasProperties;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import org.junit.jupiter.api.BeforeEach;
@@ -70,6 +73,30 @@ class ComicArchiveServiceTest {
         }
     }
 
+    @Test
+    void openPageEnforcesConfiguredLimitWhileStreaming() throws Exception {
+        NasProperties properties = new NasProperties();
+        properties.getFileTools().setComicPageMaxBytes(1024);
+        ComicArchiveService service = new ComicArchiveService(properties);
+
+        Path cbz = root.resolve("oversized-page.cbz");
+        byte[] content = new byte[2048];
+        Arrays.fill(content, (byte) 'x');
+        writeCbz(cbz, entry("1.jpg", new String(content, StandardCharsets.UTF_8)));
+        rewriteCentralDirectoryUncompressedSize(cbz, "1.jpg", 8);
+
+        ComicPageResource page = service.openPage(cbz, 0);
+
+        assertThat(page.contentLength()).isEqualTo(8);
+        assertThatThrownBy(() -> {
+            try (InputStream inputStream = page.resource().getInputStream()) {
+                inputStream.readAllBytes();
+            }
+        })
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("configured size limit");
+    }
+
     private void writeCbz(Path target, TestEntry... entries) throws Exception {
         try (ZipOutputStream outputStream = new ZipOutputStream(Files.newOutputStream(target))) {
             for (TestEntry entry : entries) {
@@ -78,6 +105,54 @@ class ComicArchiveServiceTest {
                 outputStream.closeEntry();
             }
         }
+    }
+
+    private void rewriteCentralDirectoryUncompressedSize(Path zipFile, String entryName, long size) throws Exception {
+        byte[] zipBytes = Files.readAllBytes(zipFile);
+        byte[] entryNameBytes = entryName.getBytes(StandardCharsets.UTF_8);
+        boolean replaced = false;
+        for (int index = 0; index <= zipBytes.length - 46; index++) {
+            if (littleEndianInt(zipBytes, index) != 0x02014b50) {
+                continue;
+            }
+
+            int nameLength = littleEndianUnsignedShort(zipBytes, index + 28);
+            int extraLength = littleEndianUnsignedShort(zipBytes, index + 30);
+            int commentLength = littleEndianUnsignedShort(zipBytes, index + 32);
+            int nameStart = index + 46;
+            if (nameStart + nameLength > zipBytes.length) {
+                break;
+            }
+
+            byte[] candidateName = Arrays.copyOfRange(zipBytes, nameStart, nameStart + nameLength);
+            if (Arrays.equals(candidateName, entryNameBytes)) {
+                writeLittleEndianUnsignedInt(zipBytes, index + 24, size);
+                replaced = true;
+                break;
+            }
+            index = nameStart + nameLength + extraLength + commentLength - 1;
+        }
+
+        assertThat(replaced).isTrue();
+        Files.write(zipFile, zipBytes);
+    }
+
+    private int littleEndianInt(byte[] bytes, int offset) {
+        return (bytes[offset] & 0xff)
+                | ((bytes[offset + 1] & 0xff) << 8)
+                | ((bytes[offset + 2] & 0xff) << 16)
+                | ((bytes[offset + 3] & 0xff) << 24);
+    }
+
+    private int littleEndianUnsignedShort(byte[] bytes, int offset) {
+        return (bytes[offset] & 0xff) | ((bytes[offset + 1] & 0xff) << 8);
+    }
+
+    private void writeLittleEndianUnsignedInt(byte[] bytes, int offset, long value) {
+        bytes[offset] = (byte) (value & 0xff);
+        bytes[offset + 1] = (byte) ((value >>> 8) & 0xff);
+        bytes[offset + 2] = (byte) ((value >>> 16) & 0xff);
+        bytes[offset + 3] = (byte) ((value >>> 24) & 0xff);
     }
 
     private TestEntry entry(String name, String content) {
