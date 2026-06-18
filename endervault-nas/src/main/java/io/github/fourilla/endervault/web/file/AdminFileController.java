@@ -9,6 +9,7 @@ import io.github.fourilla.endervault.storage.FileSort;
 import io.github.fourilla.endervault.storage.SortDirection;
 import io.github.fourilla.endervault.storage.StorageScope;
 import io.github.fourilla.endervault.storage.StorageService;
+import io.github.fourilla.endervault.transfer.TransferBufferService;
 import io.github.fourilla.endervault.web.support.BrowserPreferenceCookies;
 import io.github.fourilla.endervault.web.support.FlashNotifications;
 import jakarta.servlet.http.HttpServletRequest;
@@ -35,17 +36,20 @@ public class AdminFileController {
     private final StorageService storageService;
     private final FavoriteService favoriteService;
     private final RecentService recentService;
+    private final TransferBufferService transferBufferService;
 
     public AdminFileController(
             NasProperties nasProperties,
             StorageService storageService,
             FavoriteService favoriteService,
-            RecentService recentService
+            RecentService recentService,
+            TransferBufferService transferBufferService
     ) {
         this.nasProperties = nasProperties;
         this.storageService = storageService;
         this.favoriteService = favoriteService;
         this.recentService = recentService;
+        this.transferBufferService = transferBufferService;
     }
 
     @GetMapping("/files")
@@ -79,6 +83,7 @@ public class AdminFileController {
         model.addAttribute("pageSizes", pageSizeOptions());
         model.addAttribute("filePage", filePage);
         model.addAttribute("favoritePaths", favoriteService.favoritePaths());
+        model.addAttribute("transferBuffer", transferBufferService.current(request.getSession(false)));
         return "files";
     }
 

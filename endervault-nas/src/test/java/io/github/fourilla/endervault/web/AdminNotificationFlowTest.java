@@ -33,6 +33,7 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -97,6 +98,163 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("card-name")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("card-actions"))));
+    }
+
+    @Test
+    void filesPageRendersTransferControls() throws Exception {
+        mockMvc.perform(get("/files"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"addToTransferBufferButton\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-transfer-action=\"transfer-buffer-add\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-selection-required")));
+    }
+
+    @Test
+    void selectedItemsCanBeMovedThroughTransferBuffer() throws Exception {
+        String source = "transfer-source-" + System.nanoTime();
+        String target = "transfer-target-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(source));
+        Files.createDirectories(ROOT.resolve(target));
+        Files.writeString(ROOT.resolve(source).resolve("note.txt"), "move me");
+        MockHttpSession session = new MockHttpSession();
+
+        mockMvc.perform(post("/files/transfer/buffer")
+                        .session(session)
+                        .with(csrf())
+                        .param("path", source)
+                        .param("items", "note.txt"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/files?path=" + source));
+
+        mockMvc.perform(post("/files/transfer/paste")
+                        .session(session)
+                        .with(csrf())
+                        .param("path", target)
+                        .param("operation", "move"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/files?path=" + target));
+
+        assertThat(ROOT.resolve(source).resolve("note.txt")).doesNotExist();
+        assertThat(Files.readString(ROOT.resolve(target).resolve("note.txt"))).isEqualTo("move me");
+    }
+
+    @Test
+    void transferPasteProcessesValidItemsAndKeepsFailedItemsInBuffer() throws Exception {
+        String source = "transfer-partial-source-" + System.nanoTime();
+        String target = "transfer-partial-target-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(source));
+        Files.createDirectories(ROOT.resolve(target));
+        Files.writeString(ROOT.resolve(source).resolve("ok.txt"), "move me");
+        Files.writeString(ROOT.resolve(source).resolve("stale.txt"), "gone");
+        MockHttpSession session = new MockHttpSession();
+
+        mockMvc.perform(post("/files/transfer/buffer")
+                        .session(session)
+                        .with(csrf())
+                        .param("path", source)
+                        .param("items", "ok.txt")
+                        .param("items", "stale.txt"))
+                .andExpect(status().is3xxRedirection());
+
+        Files.delete(ROOT.resolve(source).resolve("stale.txt"));
+
+        mockMvc.perform(post("/files/transfer/paste")
+                        .session(session)
+                        .with(csrf())
+                        .param("path", target)
+                        .param("operation", "move"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/files?path=" + target))
+                .andExpect(flash().attributeExists(FlashNotifications.ATTRIBUTE_NAME));
+
+        assertThat(ROOT.resolve(source).resolve("ok.txt")).doesNotExist();
+        assertThat(Files.readString(ROOT.resolve(target).resolve("ok.txt"))).isEqualTo("move me");
+
+        mockMvc.perform(get("/files")
+                        .session(session)
+                        .param("path", target))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Transfer buffer")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("stale.txt")));
+    }
+
+    @Test
+    void transferBufferCanBeUpdatedWithAjax() throws Exception {
+        String source = "transfer-ajax-source-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(source));
+        Files.writeString(ROOT.resolve(source).resolve("note.txt"), "ajax");
+        MockHttpSession session = new MockHttpSession();
+
+        mockMvc.perform(post("/files/transfer/buffer")
+                        .session(session)
+                        .with(csrf())
+                        .header("X-Requested-With", "fetch")
+                        .accept(MediaType.APPLICATION_JSON)
+                        .param("path", source)
+                        .param("items", "note.txt"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.transferBuffer.active").value(true))
+                .andExpect(jsonPath("$.transferBuffer.count").value(1))
+                .andExpect(jsonPath("$.transferBuffer.items[0].name").value("note.txt"));
+
+        mockMvc.perform(post("/files/transfer/remove")
+                        .session(session)
+                        .with(csrf())
+                        .header("X-Requested-With", "fetch")
+                        .accept(MediaType.APPLICATION_JSON)
+                        .param("path", source)
+                        .param("itemPath", source + "/note.txt"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.transferBuffer.active").value(false));
+
+        mockMvc.perform(post("/files/transfer/buffer")
+                        .session(session)
+                        .with(csrf())
+                        .header("X-Requested-With", "fetch")
+                        .accept(MediaType.APPLICATION_JSON)
+                        .param("path", source)
+                        .param("items", "note.txt"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.transferBuffer.active").value(true));
+
+        mockMvc.perform(post("/files/transfer/clear")
+                        .session(session)
+                        .with(csrf())
+                        .header("X-Requested-With", "fetch")
+                        .accept(MediaType.APPLICATION_JSON)
+                        .param("path", source))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.transferBuffer.active").value(false));
+    }
+
+    @Test
+    void selectedItemsCanBeCopiedThroughTransferBuffer() throws Exception {
+        String source = "transfer-copy-source-" + System.nanoTime();
+        String target = "transfer-copy-target-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(source));
+        Files.createDirectories(ROOT.resolve(target));
+        Files.writeString(ROOT.resolve(source).resolve("note.txt"), "copy me");
+        MockHttpSession session = new MockHttpSession();
+
+        mockMvc.perform(post("/files/transfer/buffer")
+                        .session(session)
+                        .with(csrf())
+                        .param("path", source)
+                        .param("items", "note.txt"))
+                .andExpect(status().is3xxRedirection());
+
+        mockMvc.perform(post("/files/transfer/paste")
+                        .session(session)
+                        .with(csrf())
+                        .param("path", target)
+                        .param("operation", "copy"))
+                .andExpect(status().is3xxRedirection());
+
+        assertThat(Files.readString(ROOT.resolve(source).resolve("note.txt"))).isEqualTo("copy me");
+        assertThat(Files.readString(ROOT.resolve(target).resolve("note.txt"))).isEqualTo("copy me");
     }
 
     @Test

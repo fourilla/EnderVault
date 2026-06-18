@@ -17,6 +17,7 @@ public final class ActivityTypeCatalog {
             new ActivityTypeOption("text-save", "TEXT_SAVE", "Text save", "File management", false),
             new ActivityTypeOption("rename", "RENAME", "Rename", "File management", false),
             new ActivityTypeOption("move", "MOVE", "Move", "File management", false),
+            new ActivityTypeOption("copy", "COPY", "Copy", "File management", false),
             new ActivityTypeOption("download", "DOWNLOAD", "Download", "File management", false),
             new ActivityTypeOption("download-zip", "DOWNLOAD_ZIP", "Download ZIP", "File management", false),
             new ActivityTypeOption("trash-move", "TRASH_MOVE", "Trash move", "Trash", false),

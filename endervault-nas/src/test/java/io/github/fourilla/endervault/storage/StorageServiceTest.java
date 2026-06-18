@@ -271,6 +271,39 @@ class StorageServiceTest {
     }
 
     @Test
+    void copiesVaultFileToTargetDirectory() throws Exception {
+        Files.createDirectories(root.resolve("target"));
+        Files.writeString(root.resolve("note.txt"), "hello");
+
+        String copiedPath = storageService.copyVaultPath("note.txt", "target");
+
+        assertThat(copiedPath).isEqualTo("target/note.txt");
+        assertThat(Files.readString(root.resolve("note.txt"))).isEqualTo("hello");
+        assertThat(Files.readString(root.resolve("target").resolve("note.txt"))).isEqualTo("hello");
+    }
+
+    @Test
+    void copiesVaultDirectoryRecursivelyToTargetDirectory() throws Exception {
+        Files.createDirectories(root.resolve("docs").resolve("nested"));
+        Files.createDirectories(root.resolve("target"));
+        Files.writeString(root.resolve("docs").resolve("nested").resolve("note.txt"), "hello");
+
+        String copiedPath = storageService.copyVaultPath("docs", "target");
+
+        assertThat(copiedPath).isEqualTo("target/docs");
+        assertThat(Files.readString(root.resolve("target").resolve("docs").resolve("nested").resolve("note.txt")))
+                .isEqualTo("hello");
+    }
+
+    @Test
+    void refusesToCopyDirectoryIntoItself() throws Exception {
+        Files.createDirectories(root.resolve("docs").resolve("nested"));
+
+        assertThatThrownBy(() -> storageService.copyVaultPath("docs", "docs/nested"))
+                .isInstanceOf(StorageAccessException.class);
+    }
+
+    @Test
     void refusesToDeleteVaultRoot() {
         assertThatThrownBy(() -> storageService.deleteVaultPath(""))
                 .isInstanceOf(StorageAccessException.class);

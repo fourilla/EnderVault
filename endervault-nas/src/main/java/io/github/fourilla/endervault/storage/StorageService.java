@@ -10,10 +10,12 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
@@ -227,6 +229,28 @@ public class StorageService {
         return toRelativePath(root, target);
     }
 
+    public String copyVaultPath(String vaultPath, String targetDirectoryPath) throws IOException {
+        validateVaultItemPath(vaultPath);
+        Path source = resolve(StorageScope.VAULT, vaultPath);
+        Path targetDirectory = resolveDirectory(StorageScope.VAULT, targetDirectoryPath);
+        Path target = targetDirectory.resolve(source.getFileName()).normalize();
+        ensureInsideBase(StorageScope.VAULT, target);
+        if (Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS) && targetDirectory.startsWith(source)) {
+            throw new StorageAccessException("A directory cannot be copied into itself.");
+        }
+        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
+            throw new FileAlreadyExistsException(target.getFileName().toString());
+        }
+
+        rejectSymbolicLink(source);
+        if (Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS)) {
+            copyDirectory(source, target);
+        } else {
+            Files.copy(source, target);
+        }
+        return toRelativePath(root, target);
+    }
+
     public void deleteVaultPath(String vaultPath) throws IOException {
         validateVaultItemPath(vaultPath);
         Path path = resolve(StorageScope.VAULT, vaultPath);
@@ -372,6 +396,44 @@ public class StorageService {
             Files.move(source, target, StandardCopyOption.ATOMIC_MOVE);
         } catch (AtomicMoveNotSupportedException ex) {
             Files.move(source, target);
+        }
+    }
+
+    private void copyDirectory(Path source, Path target) throws IOException {
+        try {
+            Files.walkFileTree(source, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult preVisitDirectory(Path directory, BasicFileAttributes attributes)
+                        throws IOException {
+                    rejectSymbolicLink(directory);
+                    Path relative = source.relativize(directory);
+                    Path targetDirectory = target.resolve(relative).normalize();
+                    ensureInsideBase(StorageScope.VAULT, targetDirectory);
+                    Files.createDirectory(targetDirectory);
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) throws IOException {
+                    rejectSymbolicLink(file);
+                    Path relative = source.relativize(file);
+                    Path targetFile = target.resolve(relative).normalize();
+                    ensureInsideBase(StorageScope.VAULT, targetFile);
+                    Files.copy(file, targetFile);
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        } catch (IOException | RuntimeException ex) {
+            if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
+                deleteRecursively(target);
+            }
+            throw ex;
+        }
+    }
+
+    private void rejectSymbolicLink(Path path) {
+        if (Files.isSymbolicLink(path)) {
+            throw new StorageAccessException("Symbolic links cannot be copied.");
         }
     }
 

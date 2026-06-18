@@ -164,6 +164,22 @@
         grid-template-columns: 1fr;
     }
 
+    .transfer-buffer-panel {
+        grid-template-columns: 1fr;
+    }
+
+    .transfer-buffer-dock-enabled [data-transfer-buffer-region] {
+        right: 10px;
+        bottom: 10px;
+        left: 10px;
+        width: auto;
+    }
+
+    .transfer-buffer-remove {
+        width: 20px;
+        min-width: 20px;
+    }
+
     .remote-confirm-details div {
         grid-template-columns: 1fr;
         gap: var(--space-xs);

@@ -5,10 +5,15 @@ document.addEventListener("DOMContentLoaded", () => {
         'input[name="bookmarkIds"][form="bulkActionForm"]'
     ].join(", ");
     const deleteSelectedButton = document.getElementById("deleteSelectedButton");
-    const selectionButtons = [
+    const selectionButtons = Array.from(document.querySelectorAll("[data-selection-required]"));
+    [
         document.getElementById("downloadSelectedButton"),
         deleteSelectedButton
-    ].filter(Boolean);
+    ].filter(Boolean).forEach((button) => {
+        if (!selectionButtons.includes(button)) {
+            selectionButtons.push(button);
+        }
+    });
     const selectableItemSelector = ".browser-card, tbody tr";
     const longPressDelayMs = 520;
     const longPressMoveTolerance = 10;
