@@ -13,8 +13,10 @@ import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.storage.FileDetail;
 import io.github.fourilla.endervault.storage.StorageScope;
 import io.github.fourilla.endervault.storage.StorageService;
+import io.github.fourilla.endervault.transfer.TransferBufferService;
 import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.FlashNotification;
+import io.github.fourilla.endervault.web.support.ShareLinkView;
 import io.github.fourilla.endervault.web.support.TextFileLoadResponse;
 import io.github.fourilla.endervault.web.support.TextFilePayload;
 import jakarta.servlet.http.HttpServletRequest;
@@ -43,6 +45,7 @@ public class AdminFileDetailController {
     private final ComicArchiveService comicArchiveService;
     private final RecentService recentService;
     private final ActivityLogService activityLogService;
+    private final TransferBufferService transferBufferService;
 
     public AdminFileDetailController(
             StorageService storageService,
@@ -51,7 +54,8 @@ public class AdminFileDetailController {
             FileToolService fileToolService,
             ComicArchiveService comicArchiveService,
             RecentService recentService,
-            ActivityLogService activityLogService
+            ActivityLogService activityLogService,
+            TransferBufferService transferBufferService
     ) {
         this.storageService = storageService;
         this.shareLinkService = shareLinkService;
@@ -60,12 +64,14 @@ public class AdminFileDetailController {
         this.comicArchiveService = comicArchiveService;
         this.recentService = recentService;
         this.activityLogService = activityLogService;
+        this.transferBufferService = transferBufferService;
     }
 
     @GetMapping("/files/detail")
     public String detail(
             @RequestParam("path") String path,
             @RequestParam(value = "comicPage", required = false) Integer comicPage,
+            HttpServletRequest request,
             Model model
     ) throws IOException {
         FileDetail detail = detailForPath(path);
@@ -86,9 +92,13 @@ public class AdminFileDetailController {
             model.addAttribute("comicPreviousPageNumber", Math.max(1, comicPageNumber - 1));
             model.addAttribute("comicNextPageNumber", Math.min(comicManifest.pageCount(), comicPageNumber + 1));
         }
-        model.addAttribute("shares", shareLinkService.listForVaultPath(detail.path()));
-        model.addAttribute("shareBaseUrl", shareBaseUrl());
+        String shareBaseUrl = shareBaseUrl();
+        model.addAttribute("shares", shareLinkService.listForVaultPath(detail.path())
+                .stream()
+                .map(shareLink -> ShareLinkView.from(shareLink, shareBaseUrl))
+                .toList());
         model.addAttribute("favorite", favoriteService.isFavorite(detail.path()));
+        model.addAttribute("transferBuffer", transferBufferService.current(request.getSession(false)));
         return "file-detail";
     }
 

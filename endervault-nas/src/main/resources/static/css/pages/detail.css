@@ -117,7 +117,12 @@ button.shared-download-button:disabled:hover {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
     gap: var(--space-3xl);
-    align-items: start;
+    align-items: stretch;
+    margin-bottom: 16px;
+}
+
+.detail-layout > .detail-panel {
+    margin-bottom: 0;
 }
 
 .detail-panel {
@@ -156,6 +161,39 @@ button.shared-download-button:disabled:hover {
 
 .detail-panel .stack:last-child {
     margin-bottom: 0;
+}
+
+.detail-manage {
+    display: flex;
+    flex-direction: column;
+}
+
+.manage-stack {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: var(--space-xl);
+}
+
+.detail-manage .stack {
+    margin-bottom: 0;
+}
+
+.manage-form {
+    display: grid;
+    gap: var(--space-md);
+}
+
+.manage-form button {
+    gap: var(--space-md);
+}
+
+.manage-delete {
+    display: grid;
+    gap: var(--space-md);
+    margin-top: auto;
+    border-top: 1px solid var(--line);
+    padding-top: var(--space-xl);
 }
 
 .preview-surface {

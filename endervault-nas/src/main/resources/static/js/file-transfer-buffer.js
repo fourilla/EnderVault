@@ -3,7 +3,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const region = document.querySelector("[data-transfer-buffer-region]");
     const bulkForm = document.getElementById("bulkActionForm");
 
-    if (!region || !bulkForm) {
+    if (!region) {
         return;
     }
 
@@ -11,7 +11,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const minimizedStorageKey = "endervault.transferBuffer.minimized";
 
-    const currentPath = () => bulkForm.querySelector('input[name="path"]')?.value || "";
+    const currentPath = () => region.dataset.currentPath || bulkForm?.querySelector('input[name="path"]')?.value || "";
+    const returnTo = () => region.dataset.returnTo || "";
+    const pasteEnabled = () => region.dataset.transferPasteEnabled === "true";
 
     const isMinimized = () => {
         try {
@@ -41,6 +43,13 @@ document.addEventListener("DOMContentLoaded", () => {
         const csrf = csrfPair();
         if (csrf) {
             appendHidden(form, csrf.name, csrf.value);
+        }
+    };
+
+    const appendReturnTo = (form) => {
+        const value = returnTo();
+        if (value) {
+            appendHidden(form, "returnTo", value);
         }
     };
 
@@ -83,6 +92,7 @@ document.addEventListener("DOMContentLoaded", () => {
         form.dataset.transferAction = "transfer-clear";
         appendCsrf(form);
         appendHidden(form, "path", currentPath());
+        appendReturnTo(form);
         form.append(button("ghost transfer-buffer-clear", null, "Clear buffer"));
         return form;
     };
@@ -107,6 +117,7 @@ document.addEventListener("DOMContentLoaded", () => {
         appendCsrf(form);
         appendHidden(form, "path", currentPath());
         appendHidden(form, "itemPath", item.path);
+        appendReturnTo(form);
 
         const removeButton = document.createElement("button");
         removeButton.className = "transfer-buffer-remove";
@@ -155,14 +166,19 @@ document.addEventListener("DOMContentLoaded", () => {
             list.append(entry);
         }
 
-        const actions = document.createElement("div");
-        actions.className = "transfer-buffer-actions";
-        actions.append(
-                transferForm("move", "Move here", "fas fa-file-import", "ghost"),
-                transferForm("copy", "Copy here", "fas fa-copy", "ghost")
-        );
+        const actions = pasteEnabled() ? document.createElement("div") : null;
+        if (pasteEnabled()) {
+            actions.className = "transfer-buffer-actions";
+            actions.append(
+                    transferForm("move", "Move here", "fas fa-file-import", "ghost"),
+                    transferForm("copy", "Copy here", "fas fa-copy", "ghost")
+            );
+        }
 
-        panel.append(header, list, actions);
+        panel.append(header, list);
+        if (actions) {
+            panel.append(actions);
+        }
         region.append(panel);
         bindTransferForms(panel);
         bindTransferToggles(panel);
@@ -170,6 +186,9 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     const clearSelections = () => {
+        if (!bulkForm) {
+            return;
+        }
         document.querySelectorAll('input[name="items"][form="bulkActionForm"]:checked').forEach((checkbox) => {
             checkbox.checked = false;
             checkbox.dispatchEvent(new Event("change", { bubbles: true }));

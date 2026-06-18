@@ -1,10 +1,9 @@
 package io.github.fourilla.endervault.web.support;
 
-import io.github.fourilla.endervault.share.ShareLink;
-
 public record ShareLinkPayload(
         String token,
         String url,
+        String directDownloadUrl,
         String createdLabel,
         String expiresLabel,
         String statusLabel,
@@ -12,10 +11,11 @@ public record ShareLinkPayload(
         boolean active
 ) {
 
-    public static ShareLinkPayload from(ShareLink shareLink, String url) {
+    public static ShareLinkPayload from(ShareLinkView shareLink) {
         return new ShareLinkPayload(
                 shareLink.token(),
-                url,
+                shareLink.url(),
+                shareLink.directDownloadUrl(),
                 shareLink.createdLabel(),
                 shareLink.expiresLabel(),
                 shareLink.statusLabel(),
@@ -23,4 +23,5 @@ public record ShareLinkPayload(
                 shareLink.active()
         );
     }
+
 }

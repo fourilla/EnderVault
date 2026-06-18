@@ -21,16 +21,9 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         try {
-            if (navigator.clipboard && window.isSecureContext) {
-                await navigator.clipboard.writeText(value);
-            } else {
-                const input = button.closest(".toast")?.querySelector(".toast-action input");
-                if (!input) {
-                    return;
-                }
-                input.select();
-                document.execCommand("copy");
-                input.blur();
+            const copied = await window.EnderVault.copyText(value);
+            if (!copied) {
+                throw new Error("Copy failed.");
             }
 
             const previousTitle = button.title;

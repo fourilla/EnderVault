@@ -11,6 +11,7 @@ import io.github.fourilla.endervault.web.support.ActionResponse;
 import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.FlashNotification;
 import io.github.fourilla.endervault.web.support.ShareLinkPayload;
+import io.github.fourilla.endervault.web.support.ShareLinkView;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -53,7 +54,7 @@ public class AdminFileShareController {
             RedirectAttributes redirectAttributes
     ) throws IOException {
         ShareLink shareLink = shareLinkService.create(path, item, expiresAt(expiresInDays), customToken);
-        String shareUrl = shareUrl(shareLink);
+        ShareLinkView shareView = shareView(shareLink);
         activityLogService.record(
                 "SHARE_CREATE",
                 request,
@@ -62,13 +63,13 @@ public class AdminFileShareController {
                 "Created share link " + shareLink.token(),
                 Map.of("token", shareLink.token(), "type", shareLink.type().name())
         );
-        FlashNotification notification = FlashNotification.info("Share link created.", "Copy link", shareUrl);
+        FlashNotification notification = FlashNotification.info("Share link created.", "Copy link", shareView.url());
         return ActionResponseSupport.ok(
                 request,
                 redirectAttributes,
                 notification,
                 redirectToFiles(path),
-                ActionResponse.ok(notification, ShareLinkPayload.from(shareLink, shareUrl))
+                ActionResponse.ok(notification, ShareLinkPayload.from(shareView))
         );
     }
 
@@ -82,7 +83,7 @@ public class AdminFileShareController {
     ) throws IOException {
         FileDetail detail = detailForPath(path);
         ShareLink shareLink = shareLinkService.createForVaultPath(detail.path(), expiresAt(expiresInDays), customToken);
-        String shareUrl = shareUrl(shareLink);
+        ShareLinkView shareView = shareView(shareLink);
         activityLogService.record(
                 "SHARE_CREATE",
                 request,
@@ -91,13 +92,13 @@ public class AdminFileShareController {
                 "Created share link " + shareLink.token(),
                 Map.of("token", shareLink.token(), "type", shareLink.type().name())
         );
-        FlashNotification notification = FlashNotification.info("Share link created.", "Copy link", shareUrl);
+        FlashNotification notification = FlashNotification.info("Share link created.", "Copy link", shareView.url());
         return ActionResponseSupport.ok(
                 request,
                 redirectAttributes,
                 notification,
                 redirectToDetail(detail.path()),
-                ActionResponse.ok(notification, ShareLinkPayload.from(shareLink, shareUrl))
+                ActionResponse.ok(notification, ShareLinkPayload.from(shareView))
         );
     }
 
@@ -159,11 +160,10 @@ public class AdminFileShareController {
         }
     }
 
-    private String shareUrl(ShareLink shareLink) {
-        return ServletUriComponentsBuilder.fromCurrentContextPath()
-                .path("/s/{token}")
-                .buildAndExpand(shareLink.token())
-                .toUriString();
+    private ShareLinkView shareView(ShareLink shareLink) {
+        return ShareLinkView.from(shareLink, ServletUriComponentsBuilder.fromCurrentContextPath()
+                .path("/s/")
+                .toUriString());
     }
 
     private String redirectToFiles(String path) {

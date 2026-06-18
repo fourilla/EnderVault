@@ -1,5 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
-    const { submitJsonForm, showNotification, navigateWithNotification } = window.EnderVault;
+    const { submitJsonForm, showNotification, showToast, navigateWithNotification, copyText } = window.EnderVault;
 
     const setBusy = (form, busy) => {
         form.querySelectorAll("button, input, select, textarea").forEach((control) => {
@@ -23,6 +23,27 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const csrfInput = () => window.EnderVault.csrfInput()?.cloneNode();
 
+    const bindCopyButtons = (root = document) => {
+        root.querySelectorAll("[data-copy-value]").forEach((button) => {
+            if (button.dataset.copyBound === "true") {
+                return;
+            }
+
+            button.dataset.copyBound = "true";
+            button.addEventListener("click", async () => {
+                try {
+                    const copied = await copyText(button.dataset.copyValue);
+                    if (!copied) {
+                        throw new Error("Copy failed.");
+                    }
+                    showToast("success", button.dataset.copySuccess || "Copied.");
+                } catch (error) {
+                    showToast("error", "Copy failed.");
+                }
+            });
+        });
+    };
+
     const appendShareRow = (form, shareLink) => {
         const tableBody = document.querySelector(form.dataset.shareTable);
         if (!tableBody || !shareLink) {
@@ -44,6 +65,15 @@ document.addEventListener("DOMContentLoaded", () => {
             <td><span class="status-badge"></span></td>
             <td>
                 <div class="table-actions">
+                    <button class="ghost icon-button action-icon js-only" type="button"
+                            title="Copy link" aria-label="Copy link" data-copy-value="" data-copy-success="Share link copied.">
+                        <i class="fas fa-link" aria-hidden="true"></i>
+                    </button>
+                    <button class="ghost icon-button action-icon js-only" type="button"
+                            title="Copy direct download link" aria-label="Copy direct download link"
+                            data-direct-download-copy data-copy-value="" data-copy-success="Direct download link copied.">
+                        <i class="fas fa-file-arrow-down" aria-hidden="true"></i>
+                    </button>
                     <form class="row-form" method="post" action="/files/detail/shares/revoke" data-ajax-action="share-revoke">
                         <input type="hidden" name="path" value="">
                         <input type="hidden" name="token" value="">
@@ -63,6 +93,13 @@ document.addEventListener("DOMContentLoaded", () => {
         `;
 
         row.querySelector("td input[readonly]").value = shareLink.url;
+        row.querySelector('button[aria-label="Copy link"]').dataset.copyValue = shareLink.url;
+        const directDownloadButton = row.querySelector("[data-direct-download-copy]");
+        if (shareLink.directDownloadUrl) {
+            directDownloadButton.dataset.copyValue = shareLink.directDownloadUrl;
+        } else {
+            directDownloadButton.remove();
+        }
         row.children[1].textContent = shareLink.createdLabel;
         row.children[2].textContent = shareLink.expiresLabel;
         const status = row.querySelector(".status-badge");
@@ -80,6 +117,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             bindAjaxForm(rowForm);
         });
+        bindCopyButtons(row);
 
         tableBody.prepend(row);
     };
@@ -202,6 +240,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     document.querySelectorAll("form[data-ajax-action]").forEach(bindAjaxForm);
+    bindCopyButtons();
     enhancePasswordToggles();
     window.EnderVaultActions = { submitJsonForm, showNotification };
 });

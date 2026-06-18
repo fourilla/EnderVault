@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>EnderVault Shared Links</title>
     <th:block th:replace="~{fragments/assets :: styles(true)}"></th:block>
+    <th:block th:replace="~{fragments/assets :: jsOnlyNoscript}"></th:block>
     <th:block th:replace="~{fragments/assets :: coreScripts}"></th:block>
     <th:block th:replace="~{fragments/assets :: adminActionsScript}"></th:block>
 </head>
@@ -44,7 +45,7 @@
             <tr th:each="share : ${shares}"
                 th:attr="data-share-token=${share.token()},data-share-status=${share.statusClass()}">
                 <td>
-                    <input readonly th:value="${shareBaseUrl + share.token()}">
+                    <input readonly th:value="${share.url()}">
                 </td>
                 <td class="item-name" th:text="${share.path()}">path</td>
                 <td th:text="${share.type()}">FILE</td>
@@ -55,6 +56,17 @@
                 </td>
                 <td>
                     <div class="table-actions">
+                        <button class="ghost icon-button action-icon js-only" type="button"
+                                title="Copy link" aria-label="Copy link"
+                                th:attr="data-copy-value=${share.url()},data-copy-success='Share link copied.'">
+                            <i class="fas fa-link" aria-hidden="true"></i>
+                        </button>
+                        <button class="ghost icon-button action-icon js-only" type="button"
+                                th:if="${share.hasDirectDownloadUrl()}"
+                                title="Copy direct download link" aria-label="Copy direct download link"
+                                th:attr="data-copy-value=${share.directDownloadUrl()},data-copy-success='Direct download link copied.'">
+                            <i class="fas fa-file-arrow-down" aria-hidden="true"></i>
+                        </button>
                         <form class="row-form" method="post" th:action="@{/files/shares/revoke}" th:if="${share.active()}"
                               data-ajax-action="share-revoke">
                             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">

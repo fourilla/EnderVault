@@ -5,7 +5,9 @@ import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.favorite.FavoriteService;
 import io.github.fourilla.endervault.recent.RecentService;
 import io.github.fourilla.endervault.share.ShareLinkService;
+import io.github.fourilla.endervault.storage.FileDetail;
 import io.github.fourilla.endervault.storage.FileItem;
+import io.github.fourilla.endervault.storage.StorageScope;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.thumbnail.ThumbnailService;
 import io.github.fourilla.endervault.transfer.TransferBuffer;
@@ -90,6 +92,27 @@ public class AdminFileTransferBufferController {
         );
     }
 
+    @PostMapping("/files/detail/transfer/buffer")
+    public Object bufferDetailItem(
+            @RequestParam("path") String path,
+            HttpSession session,
+            HttpServletRequest request,
+            RedirectAttributes redirectAttributes
+    ) throws IOException {
+        FileDetail detail = storageService.detail(StorageScope.VAULT, path);
+        FileItem item = storageService.describeVaultChild(detail.parentPath(), detail.name());
+        TransferBuffer buffer = transferBufferService.add(session, List.of(item));
+
+        FlashNotification notification = FlashNotification.success("Added item to transfer buffer.");
+        return ActionResponseSupport.ok(
+                request,
+                redirectAttributes,
+                notification,
+                redirectToDetail(detail.path()),
+                TransferBufferActionResponse.ok(notification, TransferBufferPayload.from(buffer))
+        );
+    }
+
     @PostMapping("/files/transfer/paste")
     public Object paste(
             @RequestParam(value = "path", required = false) String path,
@@ -136,6 +159,7 @@ public class AdminFileTransferBufferController {
     @PostMapping("/files/transfer/clear")
     public Object clear(
             @RequestParam(value = "path", required = false) String path,
+            @RequestParam(value = "returnTo", required = false) String returnTo,
             HttpSession session,
             HttpServletRequest request,
             RedirectAttributes redirectAttributes
@@ -146,7 +170,7 @@ public class AdminFileTransferBufferController {
                 request,
                 redirectAttributes,
                 notification,
-                redirectToFiles(path, null),
+                redirectToReturn(path, returnTo),
                 TransferBufferActionResponse.ok(notification, TransferBufferPayload.from(TransferBuffer.empty()))
         );
     }
@@ -155,6 +179,7 @@ public class AdminFileTransferBufferController {
     public Object remove(
             @RequestParam(value = "path", required = false) String path,
             @RequestParam("itemPath") String itemPath,
+            @RequestParam(value = "returnTo", required = false) String returnTo,
             HttpSession session,
             HttpServletRequest request,
             RedirectAttributes redirectAttributes
@@ -165,7 +190,7 @@ public class AdminFileTransferBufferController {
                 request,
                 redirectAttributes,
                 notification,
-                redirectToFiles(path, null),
+                redirectToReturn(path, returnTo),
                 TransferBufferActionResponse.ok(notification, TransferBufferPayload.from(buffer))
         );
     }
@@ -248,6 +273,29 @@ public class AdminFileTransferBufferController {
             builder.queryParam("page", page);
         }
         return "redirect:" + builder.build().encode().toUriString();
+    }
+
+    private String redirectToDetail(String path) {
+        return "redirect:" + UriComponentsBuilder.fromPath("/files/detail")
+                .queryParam("path", path)
+                .build()
+                .encode()
+                .toUriString();
+    }
+
+    private String redirectToReturn(String path, String returnTo) {
+        if (safeReturnTo(returnTo)) {
+            return "redirect:" + returnTo;
+        }
+        return redirectToFiles(path, null);
+    }
+
+    private boolean safeReturnTo(String returnTo) {
+        return returnTo != null
+                && returnTo.startsWith("/files")
+                && !returnTo.startsWith("//")
+                && !returnTo.contains("\r")
+                && !returnTo.contains("\n");
     }
 
     private record TransferBufferActionResponse(

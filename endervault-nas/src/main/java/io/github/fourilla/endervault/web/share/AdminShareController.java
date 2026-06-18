@@ -4,6 +4,7 @@ import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.FlashNotification;
+import io.github.fourilla.endervault.web.support.ShareLinkView;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.time.Instant;
@@ -28,10 +29,11 @@ public class AdminShareController {
 
     @GetMapping("/files/shares")
     public String shares(Model model) throws IOException {
-        model.addAttribute("shares", shareLinkService.list());
-        model.addAttribute("shareBaseUrl", ServletUriComponentsBuilder.fromCurrentContextPath()
-                .path("/s/")
-                .toUriString());
+        String shareBaseUrl = shareBaseUrl();
+        model.addAttribute("shares", shareLinkService.list()
+                .stream()
+                .map(shareLink -> ShareLinkView.from(shareLink, shareBaseUrl))
+                .toList());
         return "shares";
     }
 
@@ -72,5 +74,11 @@ public class AdminShareController {
         FlashNotification notification =
                 FlashNotification.success("Deleted %d expired share links.".formatted(deletedCount));
         return ActionResponseSupport.ok(request, redirectAttributes, notification, "redirect:/files/shares");
+    }
+
+    private String shareBaseUrl() {
+        return ServletUriComponentsBuilder.fromCurrentContextPath()
+                .path("/s/")
+                .toUriString();
     }
 }

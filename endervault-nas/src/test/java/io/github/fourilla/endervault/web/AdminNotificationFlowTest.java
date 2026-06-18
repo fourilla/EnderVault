@@ -448,7 +448,29 @@ class AdminNotificationFlowTest {
                 .andExpect(jsonPath("$.ok").value(true))
                 .andExpect(jsonPath("$.notification.type").value("info"))
                 .andExpect(jsonPath("$.notification.actionValue").exists())
-                .andExpect(jsonPath("$.shareLink.token").exists());
+                .andExpect(jsonPath("$.shareLink.token").exists())
+                .andExpect(jsonPath("$.shareLink.url").exists())
+                .andExpect(jsonPath("$.shareLink.directDownloadUrl").value(
+                        Matchers.containsString("/download/" + filename)));
+    }
+
+    @Test
+    void sharedLinksPageOffersCopyActionsForFileSharesOnly() throws Exception {
+        String filename = "copy-link-" + System.nanoTime() + ".txt";
+        String directory = "copy-link-dir-" + System.nanoTime();
+        Files.writeString(ROOT.resolve(filename), "share");
+        Files.createDirectories(ROOT.resolve(directory));
+        ShareLink fileShare = shareLinkService.create("", filename, null);
+        ShareLink directoryShare = shareLinkService.create("", directory, null);
+
+        mockMvc.perform(get("/files/shares"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("Copy link")))
+                .andExpect(content().string(Matchers.containsString("Copy direct download link")))
+                .andExpect(content().string(Matchers.containsString(
+                        "/s/" + fileShare.token() + "/download/" + filename)))
+                .andExpect(content().string(Matchers.not(Matchers.containsString(
+                        "/s/" + directoryShare.token() + "/download/" + directory))));
     }
 
     @Test
@@ -702,6 +724,81 @@ class AdminNotificationFlowTest {
 
         assertThat(ROOT.resolve(filename)).doesNotExist();
         assertThat(ROOT.resolve(renamed)).exists();
+    }
+
+    @Test
+    void detailPageUsesTransferBufferManageAction() throws Exception {
+        String filename = "detail-manage-" + System.nanoTime() + ".txt";
+        Files.writeString(ROOT.resolve(filename), "manage");
+
+        mockMvc.perform(get("/files/detail").param("path", filename))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Add to transfer buffer")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Move to trash")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/file-transfer-buffer.js")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("Danger zone"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("name=\"targetPath\""))));
+    }
+
+    @Test
+    void detailItemCanBeAddedToTransferBuffer() throws Exception {
+        String filename = "detail-buffer-" + System.nanoTime() + ".txt";
+        String target = "detail-buffer-target-" + System.nanoTime();
+        Files.writeString(ROOT.resolve(filename), "buffer");
+        Files.createDirectories(ROOT.resolve(target));
+        MockHttpSession session = new MockHttpSession();
+
+        mockMvc.perform(post("/files/detail/transfer/buffer")
+                        .session(session)
+                        .with(csrf())
+                        .param("path", filename))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/files/detail?path=" + filename))
+                .andExpect(flash().attributeExists(FlashNotifications.ATTRIBUTE_NAME));
+
+        mockMvc.perform(get("/files/detail")
+                        .session(session)
+                        .param("path", filename))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Transfer buffer")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(filename)))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("Move here"))));
+
+        mockMvc.perform(post("/files/transfer/paste")
+                        .session(session)
+                        .with(csrf())
+                        .param("path", target)
+                        .param("operation", "copy"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/files?path=" + target));
+
+        assertThat(Files.readString(ROOT.resolve(target).resolve(filename))).isEqualTo("buffer");
+    }
+
+    @Test
+    void directoryDetailCanUseTransferBufferAsPasteTarget() throws Exception {
+        String filename = "detail-buffer-target-file-" + System.nanoTime() + ".txt";
+        String target = "detail-buffer-target-dir-" + System.nanoTime();
+        Files.writeString(ROOT.resolve(filename), "buffer");
+        Files.createDirectories(ROOT.resolve(target));
+        MockHttpSession session = new MockHttpSession();
+
+        mockMvc.perform(post("/files/detail/transfer/buffer")
+                        .session(session)
+                        .with(csrf())
+                        .param("path", filename))
+                .andExpect(status().is3xxRedirection());
+
+        mockMvc.perform(get("/files/detail")
+                        .session(session)
+                        .param("path", target))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Transfer buffer")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Move here")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Copy here")));
     }
 
     private static Path createTempRoot() {
