@@ -1,5 +1,5 @@
-﻿.browser-section {
-    margin-top: 18px;
+.browser-section {
+    margin-top: var(--space-4xl);
 }
 
 .section-heading {
@@ -7,8 +7,8 @@
     flex-wrap: wrap;
     align-items: baseline;
     justify-content: space-between;
-    gap: 8px;
-    margin-bottom: 8px;
+    gap: var(--space-md);
+    margin-bottom: var(--space-md);
 }
 
 .section-heading h1,
@@ -19,19 +19,19 @@
 
 .section-heading h1,
 .section-heading h2 {
-    font-size: 18px;
+    font-size: var(--font-size-lg);
 }
 
 .section-heading p {
     color: var(--muted);
-    font-size: 13px;
+    font-size: var(--font-size-sm);
 }
 
 .alert {
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel);
-    padding: 10px 12px;
+    padding: var(--table-cell-padding);
 }
 
 .alert.error {
@@ -44,7 +44,7 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 10px;
+    gap: var(--space-lg);
 }
 
 .share-link input,
@@ -55,20 +55,20 @@ td input[readonly] {
 .table-wrap {
     overflow-x: auto;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel);
 }
 
 table {
     width: 100%;
-    min-width: 900px;
+    min-width: var(--table-min-width);
     border-collapse: collapse;
 }
 
 th,
 td {
     border-bottom: 1px solid var(--line);
-    padding: 10px 12px;
+    padding: var(--table-cell-padding);
     text-align: left;
     vertical-align: middle;
 }
@@ -76,7 +76,7 @@ td {
 th {
     background: var(--panel-muted);
     color: var(--text);
-    font-size: 13px;
+    font-size: var(--font-size-sm);
 }
 
 tr:last-child td {
@@ -84,7 +84,7 @@ tr:last-child td {
 }
 
 .select-col {
-    width: 72px;
+    width: var(--table-select-col-width);
     text-align: center;
 }
 
@@ -93,8 +93,8 @@ tr:last-child td {
 }
 
 .select-cell input[type="checkbox"][form="bulkActionForm"] {
-    width: 14px;
-    height: 14px;
+    width: var(--checkbox-size);
+    height: var(--checkbox-size);
     margin: 0;
     accent-color: var(--accent);
     cursor: pointer;
@@ -102,8 +102,8 @@ tr:last-child td {
 }
 
 .select-all-checkbox {
-    width: 16px;
-    height: 16px;
+    width: var(--select-all-checkbox-size);
+    height: var(--select-all-checkbox-size);
     margin: 0;
     accent-color: var(--accent);
     cursor: pointer;
@@ -112,8 +112,8 @@ tr:last-child td {
 .select-all-label {
     display: inline-grid;
     place-items: center;
-    width: 22px;
-    height: 22px;
+    width: var(--select-all-target-size);
+    height: var(--select-all-target-size);
 }
 
 .item-name {
@@ -123,7 +123,7 @@ tr:last-child td {
 
 .item-icon {
     color: var(--muted);
-    margin-right: 6px;
+    margin-right: var(--space-sm);
 }
 
 .favorite-toggle i {
@@ -141,18 +141,18 @@ tr:last-child td {
 .status-badge {
     display: inline-flex;
     align-items: center;
-    min-height: 26px;
+    min-height: var(--toast-close-size);
     border: 1px solid var(--line);
-    border-radius: 999px;
-    padding: 3px 9px;
-    font-size: 12px;
+    border-radius: var(--radius-pill);
+    padding: var(--space-2xs) 9px;
+    font-size: var(--font-size-xs);
     font-weight: 700;
 }
 
 .status-badge.active {
-    border-color: #245c44;
-    background: #123225;
-    color: #71d89d;
+    border-color: var(--success-line);
+    background: var(--success-bg);
+    color: var(--success);
 }
 
 .status-badge.expired {
@@ -175,14 +175,14 @@ tr:last-child td {
 .browser-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-    gap: 14px;
+    gap: var(--space-2xl);
 }
 
 .browser-card {
     position: relative;
     overflow: hidden;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel);
 }
 
@@ -194,10 +194,10 @@ tr:last-child td {
 .card-check {
     position: absolute;
     z-index: 2;
-    top: 10px;
-    left: 10px;
-    width: 18px;
-    height: 18px;
+    top: var(--space-lg);
+    left: var(--space-lg);
+    width: var(--card-checkbox-size);
+    height: var(--card-checkbox-size);
     margin: 0;
     accent-color: var(--accent);
     cursor: pointer;
@@ -221,9 +221,9 @@ tr:last-child td {
 }
 
 .thumb-placeholder {
-    padding: 8px 10px;
+    padding: var(--space-md) var(--space-lg);
     border: 1px solid rgba(237, 243, 247, 0.18);
-    border-radius: 6px;
+    border-radius: var(--radius-control);
     background: rgba(15, 20, 26, 0.74);
 }
 
@@ -232,10 +232,10 @@ tr:last-child td {
     max-width: calc(100% - 24px);
     overflow: hidden;
     border: 1px solid rgba(237, 243, 247, 0.18);
-    border-radius: 6px;
+    border-radius: var(--radius-control);
     background: rgba(15, 20, 26, 0.82);
     color: var(--text);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 700;
     letter-spacing: 0;
     line-height: 1;
@@ -244,14 +244,14 @@ tr:last-child td {
 }
 
 .thumb-extension-center {
-    padding: 9px 12px;
+    padding: 9px var(--space-xl);
 }
 
 .thumb-extension-overlay {
     position: absolute;
-    right: 10px;
-    bottom: 10px;
-    padding: 5px 8px;
+    right: var(--space-lg);
+    bottom: var(--space-lg);
+    padding: 5px var(--space-md);
 }
 
 .thumb-media {
@@ -269,21 +269,21 @@ tr:last-child td {
 
 .thumb-play {
     position: absolute;
-    right: 10px;
-    bottom: 10px;
-    padding: 4px 8px;
-    border-radius: 6px;
+    right: var(--space-lg);
+    bottom: var(--space-lg);
+    padding: var(--space-xs) var(--space-md);
+    border-radius: var(--radius-control);
     background: rgba(15, 20, 26, 0.82);
     color: var(--text);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 700;
 }
 
 .card-body {
     display: grid;
-    gap: 8px;
+    gap: var(--space-md);
     min-width: 0;
-    padding: 12px;
+    padding: var(--panel-padding);
 }
 
 .card-name {
@@ -300,10 +300,10 @@ tr:last-child td {
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
-    gap: 6px;
+    gap: var(--space-sm);
     margin: 0;
     color: var(--muted);
-    font-size: 13px;
+    font-size: var(--font-size-sm);
 }
 
 .js-selection-enhanced .browser-card,

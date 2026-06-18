@@ -1,5 +1,5 @@
 .bookmark-actions {
-    gap: 6px;
+    gap: var(--space-sm);
 }
 
 .bookmark-actions .settings-menu {
@@ -17,10 +17,10 @@
 
 .bookmark-create-form label {
     display: grid;
-    gap: 4px;
+    gap: var(--space-xs);
     min-width: 0;
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 700;
 }
 
@@ -28,30 +28,30 @@
     width: 100%;
     min-height: 220px;
     border: 1px solid var(--line);
-    border-radius: 6px;
+    border-radius: var(--radius-control);
     background: var(--panel-elevated);
     color: var(--text);
     font: inherit;
-    padding: 7px 10px;
+    padding: var(--field-padding);
     resize: vertical;
 }
 
 .bookmark-edit-card {
     display: grid;
-    gap: 12px;
+    gap: var(--space-xl);
 }
 
 .bookmark-edit-form {
     display: flex;
     flex-wrap: wrap;
     align-items: end;
-    gap: 10px;
+    gap: var(--space-lg);
 }
 
 .bookmark-edit-form label {
     display: grid;
     flex: 1 1 160px;
-    gap: 6px;
+    gap: var(--space-sm);
     min-width: 0;
 }
 
@@ -61,7 +61,7 @@
 
 .bookmark-edit-form span {
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 700;
 }
 
@@ -72,7 +72,7 @@
 
 .bookmark-url-content {
     display: grid;
-    gap: 3px;
+    gap: var(--space-2xs);
     min-width: 0;
 }
 

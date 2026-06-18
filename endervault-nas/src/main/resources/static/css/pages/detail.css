@@ -1,6 +1,6 @@
-﻿.shared-summary {
+.shared-summary {
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel);
     padding: 24px;
 }
@@ -9,7 +9,7 @@
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 16px;
+    gap: var(--space-3xl);
 }
 
 .shared-file-title {
@@ -21,8 +21,8 @@
     flex: 0 0 auto;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    min-height: 42px;
+    gap: var(--space-md);
+    min-height: var(--icon-button-size);
     white-space: nowrap;
 }
 
@@ -45,7 +45,7 @@ button.shared-download-button:disabled:hover {
 
 .shared-preview-panel {
     display: grid;
-    gap: 12px;
+    gap: var(--space-xl);
     margin-top: 18px;
 }
 
@@ -58,9 +58,9 @@ button.shared-download-button:disabled:hover {
     margin: 0;
     overflow: auto;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel-muted);
-    padding: 16px;
+    padding: var(--space-3xl);
     color: var(--text);
     font-family: "Consolas", "Cascadia Mono", monospace;
     line-height: 1.5;
@@ -76,7 +76,7 @@ button.shared-download-button:disabled:hover {
     height: 70vh;
     min-height: 420px;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     font-family: "Consolas", "Cascadia Mono", monospace;
     line-height: 1.45;
 }
@@ -87,7 +87,7 @@ button.shared-download-button:disabled:hover {
 
 .details {
     display: grid;
-    gap: 10px;
+    gap: var(--space-lg);
     margin: 0 0 22px;
 }
 
@@ -100,7 +100,7 @@ button.shared-download-button:disabled:hover {
 .details div {
     display: grid;
     grid-template-columns: 120px 1fr;
-    gap: 12px;
+    gap: var(--space-xl);
 }
 
 .details dt {
@@ -116,16 +116,16 @@ button.shared-download-button:disabled:hover {
 .detail-layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
-    gap: 16px;
+    gap: var(--space-3xl);
     align-items: start;
 }
 
 .detail-panel {
     margin-bottom: 16px;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel);
-    padding: 20px;
+    padding: var(--space-5xl);
 }
 
 .detail-panel h1,
@@ -140,13 +140,13 @@ button.shared-download-button:disabled:hover {
 }
 
 .detail-panel h2 {
-    font-size: 18px;
+    font-size: var(--font-size-lg);
 }
 
 .detail-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: var(--space-md);
     margin-bottom: 20px;
 }
 
@@ -164,7 +164,7 @@ button.shared-download-button:disabled:hover {
     place-items: center;
     overflow: hidden;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--thumb-bg);
 }
 
@@ -183,7 +183,7 @@ button.shared-download-button:disabled:hover {
 
 .comic-viewer {
     display: grid;
-    gap: 12px;
+    gap: var(--space-xl);
 }
 
 .comic-toolbar {
@@ -191,12 +191,12 @@ button.shared-download-button:disabled:hover {
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
+    gap: var(--space-lg);
 }
 
 .comic-status {
     color: var(--muted);
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     font-weight: 700;
 }
 
@@ -204,7 +204,7 @@ button.shared-download-button:disabled:hover {
 .comic-page-form {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-md);
 }
 
 .comic-actions {
@@ -216,7 +216,7 @@ button.shared-download-button:disabled:hover {
     width: 78px;
     height: 34px;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel-muted);
     color: var(--text);
     padding: 0 8px;
@@ -234,7 +234,7 @@ button.shared-download-button:disabled:hover {
     place-items: center;
     overflow: hidden;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: #05070a;
 }
 
@@ -247,7 +247,7 @@ button.shared-download-button:disabled:hover {
 
 .comic-metadata {
     display: grid;
-    gap: 10px;
+    gap: var(--space-lg);
     border-top: 1px solid var(--line);
     padding-top: 12px;
 }
@@ -272,9 +272,9 @@ button.shared-download-button:disabled:hover {
     overflow: auto;
     margin: 10px 0 0;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel-muted);
-    padding: 12px;
+    padding: var(--panel-padding);
     white-space: pre-wrap;
 }
 
@@ -289,9 +289,9 @@ body.is-comic-viewer-fullscreen {
     grid-template-rows: auto minmax(0, 1fr);
     overflow: hidden;
     border: 1px solid var(--line);
-    border-radius: 10px;
+    border-radius: var(--radius-soft);
     background: var(--panel);
-    padding: 14px;
+    padding: var(--space-2xl);
     box-shadow: 0 24px 80px rgb(0 0 0 / 55%);
 }
 
@@ -309,7 +309,7 @@ body.is-comic-viewer-fullscreen {
 
 .text-editor {
     display: grid;
-    gap: 10px;
+    gap: var(--space-lg);
 }
 
 .text-editor-toolbar {
@@ -317,9 +317,9 @@ body.is-comic-viewer-fullscreen {
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
+    gap: var(--space-lg);
     color: var(--muted);
-    font-size: 13px;
+    font-size: var(--font-size-sm);
 }
 
 .text-editor-toolbar > span {
@@ -351,7 +351,7 @@ body.is-comic-viewer-fullscreen {
     flex-wrap: nowrap;
     align-items: center;
     justify-content: flex-end;
-    gap: 8px;
+    gap: var(--space-md);
     margin-left: auto;
     overflow-x: auto;
     scrollbar-width: thin;
@@ -361,7 +361,7 @@ body.is-comic-viewer-fullscreen {
     height: 34px;
     max-width: 160px;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel-muted);
     color: var(--text);
     padding: 0 10px;
@@ -399,14 +399,14 @@ body.is-text-editor-fullscreen {
 }
 
 .text-editor.is-codemirror-enhanced {
-    gap: 12px;
+    gap: var(--space-xl);
 }
 
 .text-editor .CodeMirror {
     height: 64vh;
     min-height: 480px;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     font-family: "Consolas", "Cascadia Mono", monospace;
     line-height: 1.45;
 }
@@ -427,9 +427,9 @@ body.is-text-editor-fullscreen {
     grid-template-rows: auto minmax(0, 1fr);
     overflow: hidden;
     border: 1px solid var(--line);
-    border-radius: 10px;
+    border-radius: var(--radius-soft);
     background: var(--panel);
-    padding: 14px;
+    padding: var(--space-2xl);
     box-shadow: 0 24px 80px rgb(0 0 0 / 55%);
 }
 
@@ -446,9 +446,9 @@ body.is-text-editor-fullscreen {
 .tool-message {
     margin: 0;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel-muted);
-    padding: 14px;
+    padding: var(--space-2xl);
     color: var(--muted);
 }
 
@@ -459,7 +459,7 @@ body.is-text-editor-fullscreen {
 .tool-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: var(--space-md);
     margin-top: 12px;
 }
 

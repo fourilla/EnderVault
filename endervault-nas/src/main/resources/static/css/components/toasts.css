@@ -1,25 +1,25 @@
-﻿.toast-region {
+.toast-region {
     position: fixed;
     z-index: 1000;
     top: 74px;
-    right: 20px;
+    right: var(--space-5xl);
     display: grid;
-    gap: 10px;
-    width: min(420px, calc(100vw - 32px));
+    gap: var(--space-lg);
+    width: min(420px, var(--overlay-width));
     pointer-events: none;
 }
 
 .toast {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
-    gap: 12px;
+    gap: var(--space-xl);
     align-items: start;
     border: 1px solid var(--line);
     border-left-width: 4px;
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel-elevated);
     box-shadow: 0 14px 34px var(--shadow);
-    padding: 12px;
+    padding: var(--panel-padding);
     pointer-events: auto;
 }
 
@@ -28,7 +28,7 @@
 }
 
 .toast-success {
-    border-left-color: #71d89d;
+    border-left-color: var(--success);
 }
 
 .toast-warning {
@@ -45,7 +45,7 @@
 }
 
 .toast-success .toast-icon {
-    color: #71d89d;
+    color: var(--success);
 }
 
 .toast-warning .toast-icon {
@@ -58,7 +58,7 @@
 
 .toast-content {
     display: grid;
-    gap: 8px;
+    gap: var(--space-md);
     min-width: 0;
 }
 
@@ -70,7 +70,7 @@
 .toast-action {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    gap: 8px;
+    gap: var(--space-md);
 }
 
 .toast-action input {
@@ -78,23 +78,23 @@
 }
 
 .toast .toast-copy {
-    width: 32px;
-    min-width: 32px;
-    height: 32px;
-    min-height: 32px;
-    border-radius: 6px;
+    width: var(--toast-copy-size);
+    min-width: var(--toast-copy-size);
+    height: var(--toast-copy-size);
+    min-height: var(--toast-copy-size);
+    border-radius: var(--radius-control);
 }
 
 .toast .toast-close {
-    width: 26px;
-    min-width: 26px;
-    height: 26px;
-    min-height: 26px;
-    border-radius: 6px;
+    width: var(--toast-close-size);
+    min-width: var(--toast-close-size);
+    height: var(--toast-close-size);
+    min-height: var(--toast-close-size);
+    border-radius: var(--radius-control);
 }
 
 .toast .toast-close i {
-    font-size: 13px;
+    font-size: var(--compact-icon-font-size);
 }
 
 .toast.is-dismissing {
@@ -102,4 +102,3 @@
     transform: translateY(-6px);
     transition: opacity 160ms ease, transform 160ms ease;
 }
-

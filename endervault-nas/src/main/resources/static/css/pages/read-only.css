@@ -1,4 +1,4 @@
-﻿.readonly-page {
+.readonly-page {
     min-height: 100vh;
 }
 
@@ -41,13 +41,13 @@
     display: flex;
     flex: 0 0 auto;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-md);
 }
 
 .readonly-sort-panel {
     margin-bottom: 16px;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel);
     overflow: hidden;
 }
@@ -55,8 +55,8 @@
 .readonly-sort-toggle {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 10px;
+    gap: var(--space-lg);
+    padding: var(--space-lg);
     cursor: pointer;
     color: var(--text);
     font-weight: 700;
@@ -72,7 +72,7 @@
     flex: 0 0 auto;
     color: var(--muted);
     font-family: "Font Awesome 6 Free";
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 900;
     transition: transform 0.16s ease;
 }
@@ -84,7 +84,7 @@
 .readonly-sort-toggle-main {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-md);
     min-width: 0;
 }
 
@@ -92,7 +92,7 @@
     min-width: 0;
     margin-left: auto;
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 700;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -102,16 +102,16 @@
 .readonly-sort-controls {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    gap: 8px;
+    gap: var(--space-md);
     align-items: end;
     border-top: 1px solid var(--line);
-    padding: 10px;
+    padding: var(--space-lg);
 }
 
 .readonly-sortbar {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(90px, 120px) auto;
-    gap: 8px;
+    gap: var(--space-md);
     align-items: end;
 }
 
@@ -128,7 +128,7 @@
 
 .readonly-sortbar label span {
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 700;
 }
 
@@ -154,13 +154,13 @@
 .readonly-file-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 12px;
+    gap: var(--space-xl);
 }
 
 .readonly-file-card {
     overflow: hidden;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel);
 }
 
@@ -192,9 +192,9 @@
     min-height: 44px;
     min-width: 0;
     border-top: 1px solid var(--line);
-    padding: 8px;
+    padding: var(--space-md);
     color: var(--text);
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     font-weight: 700;
     line-height: 1.35;
     overflow: hidden;
@@ -208,7 +208,7 @@
     margin-top: 18px;
     padding: 34px;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel);
 }
 
@@ -217,7 +217,7 @@
     flex-wrap: wrap;
     align-items: center;
     justify-content: flex-end;
-    gap: 8px;
+    gap: var(--space-md);
     margin-top: 14px;
 }
 
@@ -225,7 +225,7 @@
 .page-status {
     min-height: 36px;
     border: 1px solid var(--line);
-    border-radius: 6px;
+    border-radius: var(--radius-control);
     padding: 7px 11px;
 }
 

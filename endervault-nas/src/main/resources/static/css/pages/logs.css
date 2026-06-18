@@ -1,4 +1,4 @@
-﻿.logs-layout {
+.logs-layout {
     grid-template-columns: minmax(0, 1fr);
 }
 
@@ -12,7 +12,7 @@
 
 .log-heading-main {
     display: grid;
-    gap: 4px;
+    gap: var(--space-xs);
     min-width: 0;
 }
 
@@ -21,13 +21,13 @@
     flex-wrap: wrap;
     align-items: flex-end;
     justify-content: flex-end;
-    gap: 8px;
+    gap: var(--space-md);
 }
 
 .log-file-select-form {
     display: grid;
     grid-template-columns: minmax(0, 420px) auto;
-    gap: 8px;
+    gap: var(--space-md);
     align-items: end;
     width: min(520px, 100%);
 }
@@ -40,23 +40,23 @@
 
 .log-file-select-form label span {
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 700;
 }
 
 .log-filter-form {
     display: grid;
-    gap: 10px;
+    gap: var(--space-lg);
     margin-bottom: 14px;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel-muted);
-    padding: 10px;
+    padding: var(--space-lg);
 }
 
 .log-filter-row {
     display: grid;
-    gap: 10px;
+    gap: var(--space-lg);
     align-items: end;
 }
 
@@ -81,20 +81,20 @@
 
 .log-filter-form label span {
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 700;
 }
 
 .log-filter-actions {
     display: flex;
-    gap: 8px;
+    gap: var(--space-md);
     justify-self: end;
 }
 
 .log-action-button {
     width: auto;
     min-width: 86px;
-    gap: 8px;
+    gap: var(--space-md);
     padding: 0 12px;
 }
 
@@ -112,7 +112,7 @@
 .log-table code {
     color: var(--accent-strong);
     font-family: Arial, Helvetica, sans-serif;
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 700;
 }
 
@@ -133,18 +133,18 @@
 .log-message small {
     margin-top: 3px;
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
 }
 
 .log-details-cell {
-    width: 72px;
+    width: var(--table-select-col-width);
 }
 
 .log-detail-modal {
     width: min(760px, calc(100vw - 32px));
     max-height: min(78vh, 720px);
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel-elevated);
     color: var(--text);
     padding: 0;
@@ -156,17 +156,17 @@
 
 .log-detail-modal-card {
     display: grid;
-    gap: 12px;
+    gap: var(--space-xl);
     max-height: inherit;
     overflow: auto;
-    padding: 16px;
+    padding: var(--space-3xl);
 }
 
 .log-detail-header {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 14px;
+    gap: var(--space-2xl);
 }
 
 .log-detail-header h2,
@@ -176,47 +176,47 @@
 
 .log-detail-header p {
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
 }
 
 .log-detail-close {
-    width: 30px;
-    min-width: 30px;
-    height: 30px;
-    min-height: 30px;
+    width: var(--table-action-icon-size);
+    min-width: var(--table-action-icon-size);
+    height: var(--table-action-icon-size);
+    min-height: var(--table-action-icon-size);
 }
 
 .log-detail-close i {
-    font-size: 13px;
+    font-size: var(--font-size-sm);
 }
 
 .log-detail-line {
     margin: 0;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel);
-    padding: 10px;
+    padding: var(--space-lg);
     overflow-wrap: anywhere;
     color: var(--text);
     font-family: Consolas, "Courier New", monospace;
-    font-size: 12px;
+    font-size: var(--font-size-xs);
 }
 
 .log-detail-grid {
     display: grid;
-    gap: 8px;
+    gap: var(--space-md);
     margin: 0;
 }
 
 .log-detail-grid div {
     display: grid;
     grid-template-columns: 90px minmax(0, 1fr);
-    gap: 10px;
+    gap: var(--space-lg);
 }
 
 .log-detail-grid dt {
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 700;
 }
 
@@ -231,18 +231,18 @@
 
 .log-file-list {
     display: grid;
-    gap: 8px;
+    gap: var(--space-md);
 }
 
 .log-file-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    gap: 8px;
+    gap: var(--space-md);
     align-items: center;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel-muted);
-    padding: 10px;
+    padding: var(--space-lg);
 }
 
 .log-file-row.selected {
@@ -251,13 +251,13 @@
 
 .log-file-row a {
     display: grid;
-    gap: 3px;
+    gap: var(--space-2xs);
     min-width: 0;
     color: var(--text);
 }
 
 .log-file-row span {
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
 }
 

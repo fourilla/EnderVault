@@ -1,35 +1,35 @@
-﻿.pathbar,
+.pathbar,
 .toolbar {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    padding: 12px 0;
+    gap: var(--space-xl);
+    padding: var(--space-xl) 0;
 }
 
 .breadcrumb-panel {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 14px;
-    margin: 12px 0 16px;
+    gap: var(--space-2xl);
+    margin: var(--space-xl) 0 var(--space-3xl);
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel);
-    padding: 12px;
+    padding: var(--panel-padding);
 }
 
 .breadcrumb-main {
     display: grid;
-    gap: 6px;
+    gap: var(--space-sm);
     min-width: 0;
 }
 
 .breadcrumb-label {
     margin: 0;
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 700;
     text-transform: uppercase;
 }
@@ -46,12 +46,12 @@
     display: flex;
     flex: 1 1 420px;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-md);
     min-width: min(100%, 280px);
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel);
-    padding: 6px;
+    padding: var(--space-sm);
 }
 
 .search-field {
@@ -64,13 +64,13 @@
 
 .search-field i {
     position: absolute;
-    left: 12px;
+    left: var(--space-xl);
     color: var(--muted);
     pointer-events: none;
 }
 
 .search-field input {
-    padding-left: 36px;
+    padding-left: var(--action-icon-size);
 }
 
 .search-form .icon-button {
@@ -82,7 +82,7 @@
     flex: 0 0 auto;
     flex-wrap: wrap;
     justify-content: flex-end;
-    gap: 10px;
+    gap: var(--space-lg);
     margin-left: auto;
 }
 
@@ -90,15 +90,15 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 6px;
+    gap: var(--space-sm);
     color: var(--muted);
 }
 
 .breadcrumbs a {
     border: 1px solid transparent;
-    border-radius: 6px;
+    border-radius: var(--radius-control);
     color: var(--text);
-    padding: 3px 6px;
+    padding: var(--space-2xs) var(--space-sm);
 }
 
 .breadcrumbs a:hover,
@@ -118,7 +118,7 @@
 
 .breadcrumb-up {
     flex: 0 0 auto;
-    gap: 8px;
+    gap: var(--space-md);
 }
 
 .tool-form,
@@ -129,14 +129,14 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-md);
 }
 
 .table-actions {
     display: flex;
     flex-wrap: nowrap;
     align-items: center;
-    gap: 6px;
+    gap: var(--space-sm);
 }
 
 .table-actions .row-form {
@@ -145,15 +145,15 @@
 }
 
 .toolbar-actions {
-    padding: 6px;
+    padding: var(--space-sm);
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel);
 }
 
 .file-actions,
 .browser-controls {
-    gap: 6px;
+    gap: var(--space-sm);
 }
 
 .icon-form {
@@ -164,12 +164,12 @@
     display: inline-flex;
     flex-wrap: nowrap;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-md);
 }
 
 .tool-form {
-    padding: 10px;
+    padding: var(--space-lg);
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel);
 }

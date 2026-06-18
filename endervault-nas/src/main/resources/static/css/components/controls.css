@@ -1,4 +1,4 @@
-﻿.visually-hidden {
+.visually-hidden {
     position: absolute;
     overflow: hidden;
     width: 1px;
@@ -16,18 +16,18 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 42px;
-    min-width: 42px;
-    height: 42px;
-    min-height: 42px;
-    border-radius: 8px;
+    width: var(--icon-button-size);
+    min-width: var(--icon-button-size);
+    height: var(--icon-button-size);
+    min-height: var(--icon-button-size);
+    border-radius: var(--radius-panel);
     padding: 0;
 }
 
 .icon-button:disabled {
     border-color: var(--line);
     background: var(--panel-muted);
-    color: #728093;
+    color: var(--disabled-text);
     cursor: not-allowed;
 }
 
@@ -36,27 +36,27 @@
 }
 
 .icon-button i {
-    font-size: 17px;
+    font-size: var(--icon-button-font-size);
     line-height: 1;
 }
 
 .action-icon {
-    width: 36px;
-    min-width: 36px;
-    height: 36px;
-    min-height: 36px;
-    border-radius: 8px;
+    width: var(--action-icon-size);
+    min-width: var(--action-icon-size);
+    height: var(--action-icon-size);
+    min-height: var(--action-icon-size);
+    border-radius: var(--radius-panel);
 }
 
 td .action-icon {
-    width: 30px;
-    min-width: 30px;
-    height: 30px;
-    min-height: 30px;
+    width: var(--table-action-icon-size);
+    min-width: var(--table-action-icon-size);
+    height: var(--table-action-icon-size);
+    min-height: var(--table-action-icon-size);
 }
 
 td .action-icon i {
-    font-size: 14px;
+    font-size: var(--table-action-icon-font-size);
 }
 
 .icon-button:hover {
@@ -94,19 +94,19 @@ td .action-icon i {
 .settings-panel {
     position: absolute;
     z-index: 20;
-    top: calc(100% + 8px);
+    top: calc(100% + var(--space-md));
     right: 0;
     width: 280px;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel-elevated);
     box-shadow: 0 12px 32px var(--shadow);
-    padding: 12px;
+    padding: var(--panel-padding);
 }
 
 .settings-form {
     display: grid;
-    gap: 10px;
+    gap: var(--space-lg);
 }
 
 .settings-form button {
@@ -114,8 +114,8 @@ td .action-icon i {
 }
 
 .settings-reset-form {
-    margin-top: 10px;
-    padding-top: 10px;
+    margin-top: var(--space-lg);
+    padding-top: var(--space-lg);
     border-top: 1px solid var(--line);
 }
 
@@ -123,15 +123,15 @@ td .action-icon i {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: var(--space-md);
     width: 100%;
 }
 
 .sort-form label {
     display: grid;
-    gap: 4px;
+    gap: var(--space-xs);
     min-width: 120px;
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 700;
 }

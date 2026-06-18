@@ -1,6 +1,6 @@
-﻿.app-shell {
+.app-shell {
     display: grid;
-    grid-template-columns: 240px minmax(0, 1fr);
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
     min-height: 100vh;
 }
 
@@ -9,18 +9,18 @@
     top: 0;
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: var(--space-5xl);
     height: 100vh;
     border-right: 1px solid var(--line);
     background: var(--panel);
-    padding: 20px 14px;
+    padding: var(--space-5xl) var(--space-2xl);
 }
 
 .sidebar-brand {
     color: var(--text);
-    font-size: 20px;
+    font-size: var(--font-size-xl);
     font-weight: 700;
-    padding: 6px 8px;
+    padding: var(--space-sm) var(--space-md);
 }
 
 .sidebar-brand:hover {
@@ -29,18 +29,18 @@
 
 .sidebar-nav {
     display: grid;
-    gap: 6px;
+    gap: var(--space-sm);
 }
 
 .sidebar-nav a {
     display: flex;
     align-items: center;
-    gap: 10px;
-    min-height: 40px;
+    gap: var(--space-lg);
+    min-height: var(--nav-row-height);
     border: 1px solid transparent;
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     color: var(--text);
-    padding: 0 10px;
+    padding: 0 var(--space-lg);
 }
 
 .sidebar-nav a:hover,
@@ -55,7 +55,7 @@
 }
 
 .sidebar-nav i {
-    width: 18px;
+    width: var(--sidebar-icon-width);
     text-align: center;
 }
 
@@ -63,7 +63,7 @@
     position: relative;
     overflow: hidden;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel);
 }
 
@@ -75,8 +75,8 @@
 .sidebar-favorites summary {
     display: flex;
     align-items: center;
-    gap: 10px;
-    min-height: 40px;
+    gap: var(--space-lg);
+    min-height: var(--nav-row-height);
     border: 0;
     border-bottom: 1px solid var(--line);
     border-radius: 0;
@@ -84,7 +84,7 @@
     color: var(--text);
     cursor: pointer;
     list-style: none;
-    padding: 0 42px 0 10px;
+    padding: 0 var(--icon-button-size) 0 var(--space-lg);
 }
 
 .sidebar-favorites summary::-webkit-details-marker {
@@ -97,30 +97,30 @@
 }
 
 .sidebar-favorites summary i {
-    width: 18px;
+    width: var(--sidebar-icon-width);
     color: var(--focus);
     text-align: center;
 }
 
 .sidebar-favorites-list {
     display: grid;
-    gap: 4px;
+    gap: var(--space-xs);
     max-height: min(260px, 34vh);
     overflow-y: auto;
-    padding: 8px;
+    padding: var(--space-md);
     scrollbar-gutter: stable;
 }
 
 .sidebar-favorites-list a {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-md);
     min-width: 0;
     min-height: 32px;
     border: 1px solid transparent;
-    border-radius: 7px;
+    border-radius: var(--radius-subtle);
     color: var(--text);
-    padding: 0 10px;
+    padding: 0 var(--space-lg);
 }
 
 .sidebar-favorites-list a:hover {
@@ -130,7 +130,7 @@
 }
 
 .sidebar-favorites-list i {
-    flex: 0 0 18px;
+    flex: 0 0 var(--sidebar-icon-width);
     color: var(--muted);
     text-align: center;
 }
@@ -142,26 +142,26 @@
 }
 
 .sidebar-favorites p {
-    margin: 8px 10px;
+    margin: var(--space-md) var(--space-lg);
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
 }
 
 .sidebar .sidebar-favorites-edit {
     position: absolute;
     top: 6px;
     right: 7px;
-    width: 28px;
-    min-width: 28px;
-    height: 28px;
-    min-height: 28px;
+    width: var(--sidebar-edit-size);
+    min-width: var(--sidebar-edit-size);
+    height: var(--sidebar-edit-size);
+    min-height: var(--sidebar-edit-size);
     border: 1px solid var(--line);
-    border-radius: 7px;
+    border-radius: var(--radius-subtle);
     background: var(--panel);
 }
 
 .sidebar .sidebar-favorites-edit i {
-    font-size: 12px;
+    font-size: var(--font-size-xs);
 }
 
 .sidebar .sidebar-favorites-edit.active,
@@ -177,24 +177,24 @@
 
 .sidebar-usage {
     display: grid;
-    gap: 4px;
+    gap: var(--space-xs);
     margin-top: auto;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel-elevated);
-    padding: 12px;
+    padding: var(--panel-padding);
 }
 
 .sidebar-usage p,
 .sidebar-usage span {
     margin: 0;
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
 }
 
 .sidebar-usage strong {
     color: var(--text);
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     overflow-wrap: anywhere;
 }
 
@@ -206,9 +206,9 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
-    min-height: 58px;
-    padding: 0 22px;
+    gap: var(--space-3xl);
+    min-height: var(--topbar-height);
+    padding: 0 var(--space-6xl);
     border-bottom: 1px solid var(--line);
     background: var(--panel);
 }
@@ -220,7 +220,7 @@
 .topbar-actions {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-md);
 }
 
 .topbar-readonly {
@@ -235,27 +235,27 @@
 
 .brand {
     color: var(--text);
-    font-size: 18px;
+    font-size: var(--font-size-lg);
     font-weight: 700;
 }
 
 .top-actions {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: var(--space-2xl);
 }
 
 .workspace {
     position: relative;
-    width: min(1180px, calc(100% - 32px));
-    margin: 22px auto;
+    width: min(var(--workspace-max-width), calc(100% - var(--workspace-gutter)));
+    margin: var(--space-6xl) auto;
 }
 
 .drop-upload-overlay {
     display: none;
     position: fixed;
     z-index: 30;
-    inset: 0 0 0 240px;
+    inset: 0 0 0 var(--sidebar-width);
     align-items: center;
     justify-content: center;
     border: 2px dashed var(--accent);
@@ -269,13 +269,13 @@
 
 .drop-upload-panel {
     display: grid;
-    gap: 8px;
+    gap: var(--space-md);
     justify-items: center;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel-elevated);
     box-shadow: 0 16px 42px var(--shadow);
-    padding: 22px 26px;
+    padding: var(--space-6xl) 26px;
 }
 
 .drop-upload-panel i {
@@ -284,11 +284,11 @@
 }
 
 .drop-upload-panel strong {
-    font-size: 18px;
+    font-size: var(--font-size-lg);
 }
 
 .drop-upload-panel span {
     color: var(--muted);
-    font-size: 13px;
+    font-size: var(--font-size-sm);
 }
 

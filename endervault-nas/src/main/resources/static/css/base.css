@@ -1,4 +1,4 @@
-﻿:root {
+:root {
     color-scheme: dark;
     --bg: #0f141a;
     --panel: #171d24;
@@ -14,8 +14,71 @@
     --danger-bg: #321b20;
     --danger-line: #66313a;
     --focus: #d6b86b;
+    --success: #71d89d;
+    --success-bg: #123225;
+    --success-line: #245c44;
+    --disabled-text: #728093;
     --shadow: rgba(0, 0, 0, 0.42);
     --thumb-bg: #25313d;
+
+    --font-size-2xs: 11px;
+    --font-size-xs: 12px;
+    --font-size-sm: 13px;
+    --font-size-base: 15px;
+    --font-size-md: 16px;
+    --font-size-lg: 18px;
+    --font-size-xl: 20px;
+    --line-height-base: 1.5;
+
+    --space-2xs: 3px;
+    --space-xs: 4px;
+    --space-sm: 6px;
+    --space-md: 8px;
+    --space-lg: 10px;
+    --space-xl: 12px;
+    --space-2xl: 14px;
+    --space-3xl: 16px;
+    --space-4xl: 18px;
+    --space-5xl: 20px;
+    --space-6xl: 22px;
+    --space-page-gutter: 32px;
+
+    --radius-control: 6px;
+    --radius-subtle: 7px;
+    --radius-panel: 8px;
+    --radius-soft: 10px;
+    --radius-pill: 999px;
+
+    --control-height: 38px;
+    --nav-row-height: 40px;
+    --topbar-height: 58px;
+    --icon-button-size: 42px;
+    --icon-button-font-size: 17px;
+    --action-icon-size: 36px;
+    --table-action-icon-size: 30px;
+    --table-action-icon-font-size: 14px;
+    --compact-icon-size: 30px;
+    --compact-icon-font-size: 13px;
+    --toast-copy-size: 32px;
+    --toast-close-size: 26px;
+    --sidebar-edit-size: 28px;
+    --checkbox-size: 14px;
+    --select-all-checkbox-size: 16px;
+    --select-all-target-size: 22px;
+    --card-checkbox-size: 18px;
+
+    --button-padding-x: 14px;
+    --field-padding: 7px 10px;
+    --panel-padding: 12px;
+    --table-cell-padding: 10px 12px;
+    --table-min-width: 900px;
+    --table-select-col-width: 72px;
+
+    --sidebar-width: 240px;
+    --sidebar-icon-width: 18px;
+    --workspace-max-width: 1180px;
+    --workspace-gutter: var(--space-page-gutter);
+    --overlay-width: calc(100vw - var(--space-page-gutter));
 }
 
 * {
@@ -27,8 +90,8 @@ body {
     background: var(--bg);
     color: var(--text);
     font-family: Arial, Helvetica, sans-serif;
-    font-size: 15px;
-    line-height: 1.5;
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-base);
 }
 
 a {
@@ -53,12 +116,12 @@ select {
 
 button,
 .primary {
-    min-height: 38px;
+    min-height: var(--control-height);
     border: 1px solid var(--accent);
-    border-radius: 6px;
+    border-radius: var(--radius-control);
     background: var(--accent);
     color: var(--accent-contrast);
-    padding: 0 14px;
+    padding: 0 var(--button-padding-x);
     cursor: pointer;
 }
 
@@ -86,12 +149,12 @@ button.ghost,
 }
 
 .button-link {
-    min-height: 38px;
+    min-height: var(--control-height);
     border: 1px solid var(--accent);
-    border-radius: 6px;
+    border-radius: var(--radius-control);
     background: var(--accent);
     color: var(--accent-contrast);
-    padding: 0 14px;
+    padding: 0 var(--button-padding-x);
 }
 
 button.danger {
@@ -109,12 +172,12 @@ input[type="datetime-local"],
 input:not([type]),
 select {
     width: 100%;
-    min-height: 38px;
+    min-height: var(--control-height);
     border: 1px solid var(--line);
-    border-radius: 6px;
+    border-radius: var(--radius-control);
     background: var(--panel-elevated);
     color: var(--text);
-    padding: 7px 10px;
+    padding: var(--field-padding);
 }
 
 input:focus,

@@ -1,4 +1,4 @@
-﻿@media (max-width: 720px) {
+@media (max-width: 720px) {
     .app-shell {
         grid-template-columns: 1fr;
     }
@@ -31,7 +31,7 @@
     }
 
     .workspace {
-        width: min(100% - 20px, 1180px);
+        width: min(100% - var(--space-5xl), var(--workspace-max-width));
         margin-top: 12px;
     }
 
@@ -64,7 +64,7 @@
     .telegram-subsection-heading {
         align-items: start;
         flex-direction: column;
-        gap: 4px;
+        gap: var(--space-xs);
     }
 
     .telegram-subsection-heading p {
@@ -137,18 +137,18 @@
     }
 
     .icon-button {
-        width: 42px;
-        min-width: 42px;
+        width: var(--icon-button-size);
+        min-width: var(--icon-button-size);
     }
 
     .toast-copy {
-        width: 32px;
-        min-width: 32px;
+        width: var(--toast-copy-size);
+        min-width: var(--toast-copy-size);
     }
 
     .toast-close {
-        width: 26px;
-        min-width: 26px;
+        width: var(--toast-close-size);
+        min-width: var(--toast-close-size);
     }
 
     .toolbar-actions,
@@ -166,7 +166,7 @@
 
     .remote-confirm-details div {
         grid-template-columns: 1fr;
-        gap: 4px;
+        gap: var(--space-xs);
     }
 
     .table-actions,
@@ -176,19 +176,19 @@
     }
 
     .action-icon {
-        width: 36px;
-        min-width: 36px;
+        width: var(--action-icon-size);
+        min-width: var(--action-icon-size);
     }
 
     td .action-icon {
-        width: 30px;
-        min-width: 30px;
+        width: var(--table-action-icon-size);
+        min-width: var(--table-action-icon-size);
     }
 
     .settings-panel {
         position: static;
         width: min(280px, calc(100vw - 44px));
-        margin-top: 8px;
+        margin-top: var(--space-md);
         box-shadow: none;
     }
 
@@ -201,8 +201,8 @@
     }
 
     .readonly-workspace {
-        width: min(100% - 16px, 920px);
-        margin-top: 8px;
+        width: min(100% - var(--space-3xl), 920px);
+        margin-top: var(--space-md);
     }
 
     .readonly-workspace .breadcrumb-panel {
@@ -220,12 +220,12 @@
 
     .readonly-file-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px;
+        gap: var(--space-lg);
     }
 
     .readonly-date-col {
         width: 96px;
-        font-size: 12px;
+        font-size: var(--font-size-xs);
     }
 }
 

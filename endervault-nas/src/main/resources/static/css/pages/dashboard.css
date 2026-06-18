@@ -1,36 +1,36 @@
-﻿.dashboard-workspace {
+.dashboard-workspace {
     display: grid;
-    gap: 18px;
+    gap: var(--space-4xl);
 }
 
 .dashboard-metrics {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 14px;
+    gap: var(--space-2xl);
 }
 
 .dashboard-metric {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
-    gap: 12px;
+    gap: var(--space-xl);
     align-items: center;
     min-height: 116px;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel);
-    padding: 16px;
+    padding: var(--space-3xl);
 }
 
 .dashboard-metric i {
     display: inline-grid;
-    width: 42px;
-    height: 42px;
+    width: var(--icon-button-size);
+    height: var(--icon-button-size);
     place-items: center;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel-muted);
     color: var(--accent-strong);
-    font-size: 18px;
+    font-size: var(--font-size-lg);
 }
 
 .dashboard-metric div {
@@ -40,7 +40,7 @@
 .dashboard-metric span,
 .dashboard-metric p {
     color: var(--muted);
-    font-size: 13px;
+    font-size: var(--font-size-sm);
 }
 
 .dashboard-metric strong {
@@ -57,7 +57,7 @@
 
 .dashboard-metric-breakdown {
     display: grid;
-    gap: 3px;
+    gap: var(--space-2xs);
     margin: 0;
     padding: 0;
     list-style: none;
@@ -67,14 +67,14 @@
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-    gap: 10px;
+    gap: var(--space-lg);
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
 }
 
 .dashboard-metric-breakdown b {
     color: var(--text);
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     font-weight: 700;
     text-align: right;
 }
@@ -82,15 +82,15 @@
 .dashboard-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 16px;
+    gap: var(--space-3xl);
 }
 
 .dashboard-panel {
     min-width: 0;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel);
-    padding: 18px;
+    padding: var(--space-4xl);
 }
 
 .dashboard-panel-focus {
@@ -103,7 +103,7 @@
 
 .dashboard-list {
     display: grid;
-    gap: 10px;
+    gap: var(--space-lg);
     margin: 0;
     padding: 0;
     list-style: none;
@@ -113,10 +113,10 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    min-height: 36px;
+    gap: var(--space-xl);
+    min-height: var(--action-icon-size);
     border-bottom: 1px solid var(--line);
-    padding-bottom: 10px;
+    padding-bottom: var(--space-lg);
 }
 
 .dashboard-list li:last-child {
@@ -126,7 +126,7 @@
 
 .dashboard-list span {
     color: var(--muted);
-    font-size: 13px;
+    font-size: var(--font-size-sm);
 }
 
 .dashboard-list strong {
@@ -142,30 +142,30 @@
 .dashboard-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: var(--space-lg);
 }
 
 .dashboard-actions .button-link {
-    gap: 8px;
+    gap: var(--space-md);
 }
 
 .dashboard-action-grid {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 12px;
+    gap: var(--space-xl);
 }
 
 .dashboard-action-link {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
-    gap: 10px;
+    gap: var(--space-lg);
     align-items: center;
     min-height: 86px;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel-muted);
     color: var(--text);
-    padding: 12px;
+    padding: var(--panel-padding);
 }
 
 .dashboard-action-link:hover {
@@ -176,11 +176,11 @@
 
 .dashboard-action-link i {
     display: inline-grid;
-    width: 36px;
-    height: 36px;
+    width: var(--action-icon-size);
+    height: var(--action-icon-size);
     place-items: center;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     color: var(--accent-strong);
 }
 
@@ -197,7 +197,7 @@
 
 .dashboard-action-link small {
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
 }
 
 .dashboard-action-link.is-planned {
@@ -212,7 +212,7 @@
 
 .activity-list {
     display: grid;
-    gap: 10px;
+    gap: var(--space-lg);
     margin: 0;
     padding: 0;
     list-style: none;
@@ -224,7 +224,7 @@
     gap: 8px 10px;
     align-items: center;
     border-bottom: 1px solid var(--line);
-    padding-bottom: 10px;
+    padding-bottom: var(--space-lg);
 }
 
 .activity-list li:last-child {
@@ -246,7 +246,7 @@
 .activity-list small,
 .activity-time {
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
 }
 
 .compact-activity-list li {
@@ -259,7 +259,7 @@
 
 .telegram-settings-panel {
     display: grid;
-    gap: 16px;
+    gap: var(--space-3xl);
 }
 
 .telegram-settings-workspace {
@@ -269,71 +269,71 @@
 .telegram-settings-panel .section-heading p {
     margin: 4px 0 0;
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     overflow-wrap: anywhere;
 }
 
 .telegram-settings-form {
     display: grid;
-    gap: 20px;
+    gap: var(--space-5xl);
 }
 
 .telegram-settings-section {
     display: grid;
-    gap: 12px;
+    gap: var(--space-xl);
 }
 
 .telegram-settings-section + .telegram-settings-section {
     border-top: 1px solid var(--line);
-    padding-top: 18px;
+    padding-top: var(--space-4xl);
 }
 
 .telegram-actions-top {
     border-bottom: 1px solid var(--line);
-    padding-bottom: 16px;
+    padding-bottom: var(--space-3xl);
 }
 
 .telegram-settings-form .icon-text-button {
-    gap: 10px;
+    gap: var(--space-lg);
 }
 
 .telegram-subsection-heading {
     display: flex;
     align-items: end;
     justify-content: space-between;
-    gap: 16px;
+    gap: var(--space-3xl);
 }
 
 .telegram-subsection-heading h3 {
     margin: 0;
-    font-size: 16px;
+    font-size: var(--font-size-md);
 }
 
 .telegram-subsection-heading p {
     margin: 0;
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     text-align: right;
 }
 
 .telegram-settings-grid {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 12px;
+    gap: var(--space-xl);
     align-items: stretch;
 }
 
 .telegram-settings-grid label,
 .telegram-field {
     display: grid;
-    gap: 6px;
+    gap: var(--space-sm);
     min-width: 0;
 }
 
 .telegram-settings-grid label > span,
 .telegram-field > label {
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     font-weight: 700;
 }
 
@@ -349,10 +349,10 @@
 .password-field .password-toggle {
     position: absolute;
     top: 50%;
-    right: 6px;
-    width: 30px;
-    height: 30px;
-    min-height: 30px;
+    right: var(--space-sm);
+    width: var(--table-action-icon-size);
+    height: var(--table-action-icon-size);
+    min-height: var(--table-action-icon-size);
     transform: translateY(-50%);
     color: var(--muted);
 }
@@ -369,23 +369,23 @@
 .telegram-master-toggle,
 .telegram-activity-toggle {
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel-muted);
 }
 
 .telegram-master-toggle {
     display: grid !important;
     grid-template-columns: auto minmax(0, 1fr);
-    gap: 10px;
+    gap: var(--space-lg);
     align-items: center;
     min-height: 56px;
-    padding: 10px 12px;
+    padding: var(--table-cell-padding);
 }
 
 .telegram-master-toggle input,
 .telegram-activity-toggle input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
+    width: var(--sidebar-icon-width);
+    height: var(--sidebar-icon-width);
     accent-color: var(--accent);
 }
 
@@ -397,57 +397,57 @@
 
 .telegram-master-toggle strong {
     color: var(--text);
-    font-size: 14px;
+    font-size: var(--table-action-icon-font-size);
 }
 
 .telegram-master-toggle small,
 .telegram-activity-toggle small {
     color: var(--muted);
-    font-size: 11px;
+    font-size: var(--font-size-2xs);
 }
 
 .telegram-activity-settings {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     align-items: stretch;
-    gap: 16px;
+    gap: var(--space-3xl);
 }
 
 .telegram-activity-group {
     display: grid;
     align-content: start;
     align-self: stretch;
-    gap: 10px;
+    gap: var(--space-lg);
     min-width: 0;
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius-panel);
     background: var(--panel-muted);
-    padding: 12px;
+    padding: var(--panel-padding);
 }
 
 .telegram-activity-group h4 {
     margin: 0;
     color: var(--muted);
-    font-size: 13px;
+    font-size: var(--font-size-sm);
 }
 
 .telegram-activity-grid {
     display: grid;
     grid-template-columns: 1fr;
     align-content: start;
-    gap: 8px;
+    gap: var(--space-md);
 }
 
 .telegram-activity-toggle {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
-    gap: 8px;
+    gap: var(--space-md);
     align-items: center;
     height: 54px;
     min-height: 54px;
     border-color: #3a4653;
     background: var(--panel);
-    padding: 8px 10px;
+    padding: var(--space-md) var(--space-lg);
 }
 
 .telegram-activity-toggle span {
@@ -459,7 +459,7 @@
 .telegram-activity-toggle strong {
     overflow: hidden;
     color: var(--text);
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     text-overflow: ellipsis;
     white-space: nowrap;
 }

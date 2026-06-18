@@ -1,35 +1,35 @@
 .passkey-workspace {
     display: grid;
-    gap: 18px;
+    gap: var(--space-4xl);
 }
 
 .passkey-panel {
     display: grid;
-    gap: 12px;
+    gap: var(--space-xl);
 }
 
 .passkey-register-form {
     display: grid;
     grid-template-columns: minmax(180px, 1fr) auto;
-    gap: 10px;
+    gap: var(--space-lg);
     align-items: end;
 }
 
 .passkey-register-form label {
     display: grid;
-    gap: 6px;
+    gap: var(--space-sm);
     min-width: 0;
 }
 
 .passkey-note {
     margin: 0;
     color: var(--muted);
-    font-size: 13px;
+    font-size: var(--font-size-sm);
 }
 
 .auth-passkey {
     display: grid;
-    gap: 8px;
+    gap: var(--space-md);
     margin-bottom: 14px;
 }
 
@@ -37,16 +37,16 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: var(--space-md);
 }
 
 .auth-separator {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--space-lg);
     margin: 16px 0;
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     text-transform: uppercase;
 }
 
