@@ -37,7 +37,7 @@ public class AdminPasskeyController {
         this.activityLogService = activityLogService;
     }
 
-    @GetMapping("/files/passkeys")
+    @GetMapping("/admin/settings/passkeys")
     public String page(Model model) {
         model.addAttribute("passkeys", passkeyService.listCredentials());
         model.addAttribute("passkeysEnabled", passkeyService.isEnabled());
@@ -47,7 +47,7 @@ public class AdminPasskeyController {
         return "passkeys";
     }
 
-    @PostMapping(value = "/files/passkeys/register/options", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PostMapping(value = "/admin/settings/passkeys/register/options", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<String> startRegistration(HttpSession session) {
         try {
             return ResponseEntity.ok()
@@ -60,10 +60,7 @@ public class AdminPasskeyController {
         }
     }
 
-    @PostMapping(
-            value = "/files/passkeys/register/finish",
-            consumes = MediaType.APPLICATION_JSON_VALUE
-    )
+    @PostMapping(value = "/admin/settings/passkeys/register/finish", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ActionResponse> finishRegistration(
             @RequestBody PasskeyCredentialPayload payload,
             HttpSession session,
@@ -85,14 +82,14 @@ public class AdminPasskeyController {
             );
             return ResponseEntity.ok(ActionResponse.redirect(
                     FlashNotification.success("Passkey registered."),
-                    "/files/passkeys"
+                    "/admin/settings/passkeys"
             ));
         } catch (Exception ex) {
             return ResponseEntity.badRequest().body(ActionResponse.error("Passkey registration failed. Try again."));
         }
     }
 
-    @PostMapping("/files/passkeys/{id}/delete")
+    @PostMapping("/admin/settings/passkeys/{id}/delete")
     public String delete(
             @PathVariable String id,
             HttpServletRequest request,
@@ -112,6 +109,6 @@ public class AdminPasskeyController {
         } catch (Exception ex) {
             FlashNotifications.error(redirectAttributes, "Passkey delete failed.");
         }
-        return "redirect:/files/passkeys";
+        return "redirect:/admin/settings/passkeys";
     }
 }

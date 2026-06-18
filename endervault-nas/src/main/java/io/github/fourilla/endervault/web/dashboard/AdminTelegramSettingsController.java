@@ -23,13 +23,13 @@ public class AdminTelegramSettingsController {
         this.telegramSettingsService = telegramSettingsService;
     }
 
-    @GetMapping("/files/telegram-alerts")
+    @GetMapping("/admin/settings/telegram-alerts")
     public String telegramAlerts(Model model) {
         model.addAttribute("telegramSettings", telegramSettingsService.currentSettings());
         return "telegram-alerts";
     }
 
-    @PostMapping("/files/telegram-alerts")
+    @PostMapping("/admin/settings/telegram-alerts")
     public Object saveTelegramSettings(
             @RequestParam MultiValueMap<String, String> parameters,
             HttpServletRequest request,
@@ -38,13 +38,13 @@ public class AdminTelegramSettingsController {
         try {
             telegramSettingsService.save(telegramSettingsService.updateFrom(parameters));
             FlashNotification notification = FlashNotification.success("Telegram alert settings saved.");
-            return ActionResponseSupport.ok(request, redirectAttributes, notification, "redirect:/files/telegram-alerts");
+            return ActionResponseSupport.ok(request, redirectAttributes, notification, redirectToTelegramSettings());
         } catch (IllegalArgumentException ex) {
             return ActionResponseSupport.badRequest(
                     request,
                     redirectAttributes,
                     FlashNotification.error(ex.getMessage()),
-                    "redirect:/files/telegram-alerts"
+                    redirectToTelegramSettings()
             );
         } catch (IOException ex) {
             String message = "Telegram settings could not be saved.";
@@ -53,12 +53,12 @@ public class AdminTelegramSettingsController {
                     request,
                     redirectAttributes,
                     FlashNotification.error(message),
-                    "redirect:/files/telegram-alerts"
+                    redirectToTelegramSettings()
             );
         }
     }
 
-    @PostMapping("/files/telegram-alerts/test")
+    @PostMapping("/admin/settings/telegram-alerts/test")
     public Object testTelegramSettings(
             @RequestParam MultiValueMap<String, String> parameters,
             HttpServletRequest request,
@@ -73,15 +73,19 @@ public class AdminTelegramSettingsController {
                 notification = FlashNotification.error("Telegram test message failed.");
             }
             return sent
-                    ? ActionResponseSupport.ok(request, redirectAttributes, notification, "redirect:/files/telegram-alerts")
-                    : ActionResponseSupport.badRequest(request, redirectAttributes, notification, "redirect:/files/telegram-alerts");
+                    ? ActionResponseSupport.ok(request, redirectAttributes, notification, redirectToTelegramSettings())
+                    : ActionResponseSupport.badRequest(request, redirectAttributes, notification, redirectToTelegramSettings());
         } catch (IllegalArgumentException ex) {
             return ActionResponseSupport.badRequest(
                     request,
                     redirectAttributes,
                     FlashNotification.error(ex.getMessage()),
-                    "redirect:/files/telegram-alerts"
+                    redirectToTelegramSettings()
             );
         }
+    }
+
+    private String redirectToTelegramSettings() {
+        return "redirect:/admin/settings/telegram-alerts";
     }
 }

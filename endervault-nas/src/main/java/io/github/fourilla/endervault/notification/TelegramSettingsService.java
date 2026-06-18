@@ -116,7 +116,7 @@ public class TelegramSettingsService {
         validateForTest(update);
         String message = "EnderVault Telegram test\n"
                 + "time: " + Instant.now() + "\n"
-                + "message: Dashboard settings test";
+                + "message: Settings test";
         return telegramNotificationService.send(update.botToken(), update.chatId(), message);
     }
 
@@ -185,7 +185,7 @@ public class TelegramSettingsService {
             if (!lines.isEmpty() && !lines.get(lines.size() - 1).isBlank()) {
                 lines.add("");
             }
-            lines.add("# Telegram alert settings managed from the Dashboard.");
+            lines.add("# Telegram alert settings managed from EnderVault Settings.");
             for (String key : missingKeys) {
                 lines.add(key + "=" + escapePropertyValue(updates.get(key)));
             }

@@ -45,6 +45,7 @@ public class SecurityConfig {
                         .requestMatchers("/css/**", "/js/**", "/webjars/**", "/favicon.ico").permitAll()
                         .requestMatchers(HttpMethod.GET, "/", "/login", "/s/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/login/passkey/**").permitAll()
+                        .requestMatchers("/admin/**").hasRole("ADMIN")
                         .requestMatchers("/files/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
