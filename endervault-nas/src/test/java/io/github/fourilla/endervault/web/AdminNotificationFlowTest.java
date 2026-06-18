@@ -18,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import io.github.fourilla.endervault.favorite.FavoriteService;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.web.support.FlashNotification;
@@ -49,6 +50,9 @@ class AdminNotificationFlowTest {
 
     @Autowired
     ShareLinkService shareLinkService;
+
+    @Autowired
+    FavoriteService favoriteService;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -331,6 +335,23 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote Download")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"general-settings-save\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/general")));
+    }
+
+    @Test
+    void settingsPagesRenderSidebarFavorites() throws Exception {
+        String filename = "settings-favorite-" + System.nanoTime() + ".txt";
+        Files.writeString(ROOT.resolve(filename), "favorite");
+        favoriteService.toggle(filename);
+
+        mockMvc.perform(get("/admin/settings"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-sidebar-favorites-list")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(filename)));
+
+        mockMvc.perform(get("/admin/settings/general"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-sidebar-favorites-list")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(filename)));
     }
 
     @Test

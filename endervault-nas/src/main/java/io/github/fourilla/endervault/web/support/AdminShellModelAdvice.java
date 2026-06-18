@@ -17,6 +17,8 @@ import io.github.fourilla.endervault.web.file.AdminFileShareController;
 import io.github.fourilla.endervault.web.file.AdminFileTransferController;
 import io.github.fourilla.endervault.web.file.AdminRecentController;
 import io.github.fourilla.endervault.web.remote.AdminRemoteDownloadController;
+import io.github.fourilla.endervault.web.settings.AdminGeneralSettingsController;
+import io.github.fourilla.endervault.web.settings.AdminSettingsController;
 import io.github.fourilla.endervault.web.share.AdminShareController;
 import io.github.fourilla.endervault.web.trash.AdminTrashController;
 import java.util.List;
@@ -38,7 +40,9 @@ import org.springframework.web.bind.annotation.ModelAttribute;
         AdminLogController.class,
         AdminRemoteDownloadController.class,
         AdminShareController.class,
-        AdminTrashController.class
+        AdminTrashController.class,
+        AdminSettingsController.class,
+        AdminGeneralSettingsController.class
 })
 public class AdminShellModelAdvice {
 
