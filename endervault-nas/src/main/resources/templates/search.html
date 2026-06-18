@@ -30,6 +30,33 @@
                 <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
             </button>
         </form>
+
+        <div class="toolbar-cluster" th:if="${searchPerformed}" aria-label="Search result controls">
+            <div class="toolbar-actions browser-controls" aria-label="Paging controls">
+                <details class="settings-menu">
+                    <summary class="icon-button menu-summary" title="Search result paging" aria-label="Search result paging">
+                        <i class="fas fa-ellipsis-vertical" aria-hidden="true"></i>
+                    </summary>
+                    <div class="settings-panel">
+                        <form class="settings-form sort-form" method="get" th:action="@{/files/search}">
+                            <input type="hidden" name="path" th:value="${path}">
+                            <input type="hidden" name="q" th:value="${query}">
+                            <input type="hidden" name="page" value="1">
+                            <label>
+                                Results/page
+                                <select name="size">
+                                    <option th:each="option : ${pageSizes}"
+                                            th:value="${option}"
+                                            th:text="${option}"
+                                            th:selected="${option == resultPage.size()}">200</option>
+                                </select>
+                            </label>
+                            <button type="submit">Apply</button>
+                        </form>
+                    </div>
+                </details>
+            </div>
+        </div>
     </section>
 
     <section class="section-heading">

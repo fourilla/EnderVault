@@ -16,15 +16,20 @@
 <main class="workspace">
     <section th:replace="~{fragments/breadcrumbs :: shared(${listing}, ${token})}"></section>
 
-    <section class="toolbar" aria-label="Download tools">
-        <form id="bulkActionForm" method="get" th:action="@{/s/{token}/download.zip(token=${token})}">
+    <section class="toolbar" aria-label="Shared directory tools">
+        <form class="bulk-action-anchor" id="bulkActionForm" method="get" th:action="@{/s/{token}/download.zip(token=${token})}">
             <input type="hidden" name="path" th:value="${path}">
         </form>
-        <button class="button-link shared-download-button" id="downloadSelectedButton" form="bulkActionForm"
-                type="submit" title="Download selected file" aria-label="Download selected file">
-            <i class="fas fa-download" aria-hidden="true"></i>
-            <span>Download selected file</span>
-        </button>
+
+        <div class="toolbar-cluster" aria-label="Shared directory controls">
+            <div class="toolbar-actions file-actions shared-directory-actions" aria-label="Shared directory actions">
+                <button class="button-link shared-download-button" id="downloadSelectedButton" form="bulkActionForm"
+                        type="submit" title="Download selected file" aria-label="Download selected file">
+                    <i class="fas fa-download" aria-hidden="true"></i>
+                    <span>Download selected file</span>
+                </button>
+            </div>
+        </div>
     </section>
 
     <section class="browser-section" aria-label="Shared directory">
