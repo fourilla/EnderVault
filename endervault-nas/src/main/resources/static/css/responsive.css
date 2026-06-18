@@ -53,7 +53,8 @@
         grid-template-columns: 1fr;
     }
 
-    .telegram-settings-grid {
+    .telegram-settings-grid,
+    .settings-field-grid {
         grid-template-columns: 1fr;
     }
 
@@ -61,13 +62,15 @@
         grid-template-columns: 1fr;
     }
 
-    .telegram-subsection-heading {
+    .telegram-subsection-heading,
+    .settings-subsection-heading {
         align-items: start;
         flex-direction: column;
         gap: var(--space-xs);
     }
 
-    .telegram-subsection-heading p {
+    .telegram-subsection-heading p,
+    .settings-subsection-heading p {
         text-align: left;
     }
 

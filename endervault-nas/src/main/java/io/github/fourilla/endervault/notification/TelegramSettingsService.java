@@ -2,13 +2,10 @@ package io.github.fourilla.endervault.notification;
 
 import io.github.fourilla.endervault.activity.ActivityTypeCatalog;
 import io.github.fourilla.endervault.activity.ActivityTypeCatalog.ActivityTypeOption;
+import io.github.fourilla.endervault.config.LocalPropertiesFile;
 import io.github.fourilla.endervault.config.NasProperties;
-import io.github.fourilla.endervault.config.StartupConfigBootstrap;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -32,18 +29,17 @@ public class TelegramSettingsService {
 
     private final NasProperties nasProperties;
     private final TelegramNotificationService telegramNotificationService;
-    private final Path configFile;
+    private final LocalPropertiesFile localPropertiesFile;
 
     @Autowired
     public TelegramSettingsService(
             NasProperties nasProperties,
-            TelegramNotificationService telegramNotificationService
+            TelegramNotificationService telegramNotificationService,
+            LocalPropertiesFile localPropertiesFile
     ) {
-        this(
-                nasProperties,
-                telegramNotificationService,
-                Path.of(StartupConfigBootstrap.CONFIG_FILE_NAME).toAbsolutePath().normalize()
-        );
+        this.nasProperties = nasProperties;
+        this.telegramNotificationService = telegramNotificationService;
+        this.localPropertiesFile = localPropertiesFile;
     }
 
     TelegramSettingsService(
@@ -53,7 +49,7 @@ public class TelegramSettingsService {
     ) {
         this.nasProperties = nasProperties;
         this.telegramNotificationService = telegramNotificationService;
-        this.configFile = configFile;
+        this.localPropertiesFile = new LocalPropertiesFile(configFile);
     }
 
     public TelegramSettingsSnapshot currentSettings() {
@@ -79,7 +75,7 @@ public class TelegramSettingsService {
                 telegram.getBotToken(),
                 telegram.getChatId(),
                 activityGroups,
-                configFile.toString()
+                localPropertiesFile.configFile().toString()
         );
     }
 
@@ -121,7 +117,7 @@ public class TelegramSettingsService {
     }
 
     public Path configFile() {
-        return configFile;
+        return localPropertiesFile.configFile();
     }
 
     private void validateForSave(TelegramSettingsUpdate update) {
@@ -156,10 +152,6 @@ public class TelegramSettingsService {
     }
 
     private void persist(TelegramSettingsUpdate update) throws IOException {
-        if (Files.notExists(configFile)) {
-            throw new IOException("Local configuration file was not found: " + configFile);
-        }
-
         Map<String, String> updates = new LinkedHashMap<>();
         updates.put(ENABLED_KEY, Boolean.toString(update.enabled()));
         updates.put(BOT_TOKEN_KEY, update.botToken());
@@ -167,42 +159,7 @@ public class TelegramSettingsService {
         update.activity().forEach((key, enabled) ->
                 updates.put(ACTIVITY_PREFIX + key, Boolean.toString(Boolean.TRUE.equals(enabled))));
 
-        List<String> lines = new ArrayList<>(Files.readAllLines(configFile, StandardCharsets.UTF_8));
-        Set<String> seenKeys = new LinkedHashSet<>();
-
-        for (int i = 0; i < lines.size(); i++) {
-            String key = propertyKey(lines.get(i));
-            if (key != null && updates.containsKey(key)) {
-                lines.set(i, key + "=" + escapePropertyValue(updates.get(key)));
-                seenKeys.add(key);
-            }
-        }
-
-        List<String> missingKeys = updates.keySet().stream()
-                .filter(key -> !seenKeys.contains(key))
-                .toList();
-        if (!missingKeys.isEmpty()) {
-            if (!lines.isEmpty() && !lines.get(lines.size() - 1).isBlank()) {
-                lines.add("");
-            }
-            lines.add("# Telegram alert settings managed from EnderVault Settings.");
-            for (String key : missingKeys) {
-                lines.add(key + "=" + escapePropertyValue(updates.get(key)));
-            }
-        }
-
-        writeAtomically(lines);
-    }
-
-    private void writeAtomically(List<String> lines) throws IOException {
-        Path parent = configFile.getParent();
-        Path tempFile = Files.createTempFile(parent, "endervault-nas", ".properties.tmp");
-        Files.write(tempFile, lines, StandardCharsets.UTF_8);
-        try {
-            Files.move(tempFile, configFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (IOException ex) {
-            Files.move(tempFile, configFile, StandardCopyOption.REPLACE_EXISTING);
-        }
+        localPropertiesFile.update(updates, "# Telegram alert settings managed from EnderVault Settings.");
     }
 
     private Set<String> allowedActivityKeys() {
@@ -213,22 +170,6 @@ public class TelegramSettingsService {
         return keys;
     }
 
-    private String propertyKey(String line) {
-        String trimmed = line.trim();
-        if (trimmed.isBlank() || trimmed.startsWith("#") || trimmed.startsWith("!")) {
-            return null;
-        }
-
-        int separator = line.indexOf('=');
-        if (separator < 0) {
-            separator = line.indexOf(':');
-        }
-        if (separator < 0) {
-            return null;
-        }
-        return line.substring(0, separator).trim();
-    }
-
     private static String firstValue(MultiValueMap<String, String> parameters, String key) {
         String value = parameters.getFirst(key);
         return value == null ? "" : value;
@@ -236,10 +177,6 @@ public class TelegramSettingsService {
 
     private static String cleanValue(String value) {
         return value == null ? "" : value.replace("\r", "").replace("\n", "").trim();
-    }
-
-    private static String escapePropertyValue(String value) {
-        return value == null ? "" : value.replace("\\", "\\\\");
     }
 
     public record TelegramSettingsSnapshot(

@@ -312,9 +312,25 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Notifications")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Passkeys")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Telegram alerts")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("General settings")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/passkeys")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/telegram-alerts")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/general")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("External tools")));
+    }
+
+    @Test
+    void generalSettingsPageRendersApplicationSettingsForm() throws Exception {
+        mockMvc.perform(get("/admin/settings/general"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("General Settings")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Browser Defaults")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Recent Items")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Trash")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("File Tools")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote Download")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"general-settings-save\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/general")));
     }
 
     @Test
@@ -323,6 +339,7 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Passkeys")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Register Device")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("settings-detail-panel")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/passkeys/register/options")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/passkeys/register/finish")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Back to settings")));
@@ -334,6 +351,9 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Telegram Alerts")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Enable Telegram alerts")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("settings-switch-input")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("form=\"telegramSettingsForm\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-toggle-target=\".telegram-settings-dependent\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Bot token")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Chat ID")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("LOGIN_SUCCESS")))

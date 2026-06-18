@@ -16,7 +16,7 @@
 <header th:replace="~{fragments/admin-shell :: topbar}"></header>
 <div th:replace="~{fragments/notifications :: toasts}"></div>
 
-<main class="workspace dashboard-workspace telegram-settings-workspace">
+<main class="workspace dashboard-workspace settings-workspace telegram-settings-workspace">
     <section class="pathbar">
         <a class="ghost icon-button" th:href="@{/admin/settings}" title="Back to settings" aria-label="Back to settings">
             <i class="fas fa-arrow-left" aria-hidden="true"></i>
@@ -24,19 +24,27 @@
         <h1>Telegram Alerts</h1>
     </section>
 
-    <section class="dashboard-panel telegram-settings-panel" id="telegram-alerts">
+    <section class="dashboard-panel settings-detail-panel telegram-settings-panel" id="telegram-alerts">
         <header class="section-heading">
             <div>
                 <h2>Activity Notifications</h2>
                 <p th:text="|Config: ${telegramSettings.configPath()}|">Config: endervault-nas.properties</p>
             </div>
-            <span data-telegram-status
-                  class="status-badge"
-                  th:classappend="${telegramSettings.enabled()} ? ' active' : ' expired'"
-                  th:text="${telegramSettings.enabled()} ? 'Enabled' : 'Disabled'">Enabled</span>
+            <label class="settings-heading-switch" title="Enable Telegram alerts">
+                <span class="visually-hidden">Enable Telegram alerts</span>
+                <input class="settings-switch-input"
+                       type="checkbox"
+                       form="telegramSettingsForm"
+                       name="enabled"
+                       value="true"
+                       aria-label="Enable Telegram alerts"
+                       th:checked="${telegramSettings.enabled()}"
+                       data-toggle-target=".telegram-settings-dependent">
+            </label>
         </header>
 
-        <form class="telegram-settings-form"
+        <form id="telegramSettingsForm"
+              class="telegram-settings-form"
               method="post"
               th:action="@{/admin/settings/telegram-alerts}"
               data-ajax-action="telegram-settings-save">
@@ -49,19 +57,12 @@
                 </button>
             </div>
 
-            <section class="telegram-settings-section" aria-label="Telegram connection settings">
-                <header class="telegram-subsection-heading">
+            <section class="settings-detail-section telegram-settings-dependent" aria-label="Telegram connection settings">
+                <header class="settings-subsection-heading">
                     <h3>Telegram Connection</h3>
                     <p>Configure the bot target used for selected activity alerts.</p>
                 </header>
                 <div class="telegram-settings-grid">
-                    <label class="telegram-master-toggle">
-                        <input type="checkbox" name="enabled" value="true" th:checked="${telegramSettings.enabled()}">
-                        <span>
-                            <strong>Enable Telegram alerts</strong>
-                            <small>Send selected activity logs to Telegram.</small>
-                        </span>
-                    </label>
                     <div class="telegram-field telegram-token-field">
                         <label for="telegramBotToken">Bot token</label>
                         <div class="password-field">
@@ -102,8 +103,8 @@
                 </div>
             </section>
 
-            <section class="telegram-settings-section" aria-label="Activity type alert settings">
-                <header class="telegram-subsection-heading">
+            <section class="settings-detail-section telegram-settings-dependent" aria-label="Activity type alert settings">
+                <header class="settings-subsection-heading">
                     <h3>Activity Types</h3>
                     <p>Choose which log categories are sent to Telegram.</p>
                 </header>

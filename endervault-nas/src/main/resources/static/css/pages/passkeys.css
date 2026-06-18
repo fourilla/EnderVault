@@ -5,7 +5,7 @@
 
 .passkey-panel {
     display: grid;
-    gap: var(--space-xl);
+    gap: var(--space-3xl);
 }
 
 .passkey-register-form {
@@ -21,10 +21,25 @@
     min-width: 0;
 }
 
+.passkey-register-form label > span {
+    color: var(--muted);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+}
+
+.passkey-note-list {
+    display: grid;
+    gap: var(--space-sm);
+}
+
 .passkey-note {
     margin: 0;
     color: var(--muted);
     font-size: var(--font-size-sm);
+}
+
+.passkey-list-panel {
+    gap: var(--space-xl);
 }
 
 .auth-passkey {

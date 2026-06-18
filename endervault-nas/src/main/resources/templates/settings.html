@@ -69,18 +69,18 @@
         <article class="dashboard-panel">
             <header class="section-heading">
                 <div>
-                    <h2>Browser</h2>
-                    <p>Default file manager display preferences.</p>
+                    <h2>Application</h2>
+                    <p>Small runtime options and operational defaults.</p>
                 </div>
             </header>
             <div class="dashboard-action-grid">
-                <span class="dashboard-action-link is-planned">
-                    <i class="fas fa-table-cells-large" aria-hidden="true"></i>
+                <a class="dashboard-action-link" th:href="@{/admin/settings/general}">
+                    <i class="fas fa-sliders" aria-hidden="true"></i>
                     <span>
-                        <strong>Default view</strong>
-                        <small>Table/grid, sort order, and page size later</small>
+                        <strong>General settings</strong>
+                        <small>Browser, recent, trash, file tools, and remote download</small>
                     </span>
-                </span>
+                </a>
             </div>
         </article>
 
@@ -97,13 +97,6 @@
                     <span>
                         <strong>Storage</strong>
                         <small>Root path validation and restart-required settings later</small>
-                    </span>
-                </span>
-                <span class="dashboard-action-link is-planned">
-                    <i class="fas fa-screwdriver-wrench" aria-hidden="true"></i>
-                    <span>
-                        <strong>File tools</strong>
-                        <small>Thumbnail, text editor, and CBZ limits later</small>
                     </span>
                 </span>
                 <span class="dashboard-action-link is-planned">

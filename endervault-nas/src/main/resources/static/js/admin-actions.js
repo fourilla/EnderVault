@@ -144,17 +144,6 @@ document.addEventListener("DOMContentLoaded", () => {
         document.querySelectorAll('tr[data-share-status="expired"]').forEach((row) => row.remove());
     };
 
-    const updateTelegramStatus = (form) => {
-        const status = document.querySelector("[data-telegram-status]");
-        const enabled = form.querySelector('input[name="enabled"]')?.checked === true;
-        if (!status) {
-            return;
-        }
-        status.textContent = enabled ? "Enabled" : "Disabled";
-        status.classList.toggle("active", enabled);
-        status.classList.toggle("expired", !enabled);
-    };
-
     const enhancePasswordToggles = () => {
         document.querySelectorAll("[data-password-toggle]").forEach((button) => {
             if (button.dataset.passwordToggleBound === "true") {
@@ -185,6 +174,57 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     };
 
+    const settingToggleControllers = () =>
+        Array.from(document.querySelectorAll("input[type='checkbox'][data-toggle-target]"));
+
+    const syncSettingDependencies = () => {
+        const controllers = settingToggleControllers();
+        const controlled = new Set();
+
+        controllers.forEach((controller) => {
+            document.querySelectorAll(controller.dataset.toggleTarget).forEach((element) => {
+                controlled.add(element);
+            });
+        });
+
+        controlled.forEach((element) => {
+            const locked = controllers.some((controller) =>
+                !controller.checked && element.matches(controller.dataset.toggleTarget));
+            element.classList.toggle("settings-dependent-locked", locked);
+            element.setAttribute("aria-disabled", String(locked));
+            element.querySelectorAll("input, select, textarea, button, a").forEach((control) => {
+                if (control === element) {
+                    return;
+                }
+                if ("readOnly" in control) {
+                    control.readOnly = locked;
+                }
+                if (locked) {
+                    if (!control.dataset.previousTabIndex && control.hasAttribute("tabindex")) {
+                        control.dataset.previousTabIndex = control.getAttribute("tabindex");
+                    }
+                    control.setAttribute("tabindex", "-1");
+                } else if (control.dataset.previousTabIndex) {
+                    control.setAttribute("tabindex", control.dataset.previousTabIndex);
+                    delete control.dataset.previousTabIndex;
+                } else {
+                    control.removeAttribute("tabindex");
+                }
+            });
+        });
+    };
+
+    const enhanceSettingDependencies = () => {
+        settingToggleControllers().forEach((controller) => {
+            if (controller.dataset.settingDependencyBound === "true") {
+                return;
+            }
+            controller.dataset.settingDependencyBound = "true";
+            controller.addEventListener("change", syncSettingDependencies);
+        });
+        syncSettingDependencies();
+    };
+
     const handleSuccess = (form, body, action = ajaxAction(form)) => {
         if (["detail-rename", "detail-move", "detail-delete"].includes(action)
                 && navigateWithNotification(body)) {
@@ -206,9 +246,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 break;
             case "share-delete-expired":
                 removeExpiredShareRows();
-                break;
-            case "telegram-settings-save":
-                updateTelegramStatus(form);
                 break;
             default:
                 break;
@@ -235,6 +272,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 window.EnderVault.showToast("error", error.message || "The action failed.");
             } finally {
                 setBusy(form, false);
+                syncSettingDependencies();
             }
         });
     }
@@ -242,5 +280,6 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll("form[data-ajax-action]").forEach(bindAjaxForm);
     bindCopyButtons();
     enhancePasswordToggles();
+    enhanceSettingDependencies();
     window.EnderVaultActions = { submitJsonForm, showNotification };
 });
