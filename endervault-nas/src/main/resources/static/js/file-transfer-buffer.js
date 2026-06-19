@@ -280,6 +280,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (Object.prototype.hasOwnProperty.call(body, "transferBuffer")) {
                     renderBuffer(body.transferBuffer);
                 }
+                if (body.task) {
+                    window.EnderVaultServerTasks?.track(body.task, {
+                        refreshUrl: window.location.href
+                    });
+                }
                 if (action === "transfer-buffer-add") {
                     clearSelections();
                 }

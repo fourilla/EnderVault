@@ -6,12 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const dropUploadOverlay = document.getElementById("dropUploadOverlay");
     const uploadState = {
         uploads: new Map(),
-        nextId: 1,
-        minimized: false,
-        panel: null,
-        list: null,
-        summary: null,
-        toggleButton: null
+        nextId: 1
     };
 
     if (!uploadForm || !fileUploadInput || !uploadButton) {
@@ -23,26 +18,22 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     const formatBytes = (bytes) => {
-        if (!Number.isFinite(bytes) || bytes <= 0) {
-            return "0 B";
+        if (window.EnderVaultActivity?.formatBytes) {
+            return window.EnderVaultActivity.formatBytes(bytes);
         }
-
-        const units = ["B", "KB", "MB", "GB", "TB"];
-        let value = bytes;
-        let unitIndex = 0;
-        while (value >= 1024 && unitIndex < units.length - 1) {
-            value /= 1024;
-            unitIndex += 1;
-        }
-        const precision = value >= 10 || unitIndex === 0 ? 0 : 1;
-        return `${value.toFixed(precision)} ${units[unitIndex]}`;
+        return `${bytes || 0} B`;
     };
 
     const activeUploads = () =>
         Array.from(uploadState.uploads.values()).filter((upload) => upload.status === "uploading");
 
-    const terminalUploads = () =>
-        Array.from(uploadState.uploads.values()).filter((upload) => upload.status !== "uploading");
+    window.addEventListener("beforeunload", (event) => {
+        if (activeUploads().length === 0) {
+            return;
+        }
+        event.preventDefault();
+        event.returnValue = "";
+    });
 
     const uploadPercent = (upload) => {
         if (!upload.total) {
@@ -68,46 +59,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
 
-    const ensureUploadPanel = () => {
-        if (uploadState.panel) {
-            uploadState.panel.hidden = false;
-            return;
-        }
-
-        const panel = document.createElement("section");
-        panel.className = "upload-activity js-only";
-        panel.setAttribute("aria-label", "Upload activity");
-        panel.hidden = true;
-        panel.innerHTML = `
-            <header class="upload-activity-header">
-                <div class="upload-activity-heading">
-                    <i class="fas fa-cloud-arrow-up" aria-hidden="true"></i>
-                    <div>
-                        <strong>Uploads</strong>
-                        <span class="upload-activity-summary">Preparing...</span>
-                    </div>
-                </div>
-                <button class="ghost icon-button upload-activity-toggle" type="button"
-                        title="Minimize uploads" aria-label="Minimize uploads">
-                    <i class="fas fa-minus" aria-hidden="true"></i>
-                </button>
-            </header>
-            <div class="upload-activity-body">
-                <div class="upload-list"></div>
-            </div>
-        `;
-        document.body.append(panel);
-
-        uploadState.panel = panel;
-        uploadState.list = panel.querySelector(".upload-list");
-        uploadState.summary = panel.querySelector(".upload-activity-summary");
-        uploadState.toggleButton = panel.querySelector(".upload-activity-toggle");
-        uploadState.toggleButton.addEventListener("click", () => {
-            uploadState.minimized = !uploadState.minimized;
-            renderUploadPanel();
-        });
-    };
-
     const updateUploadButtonState = () => {
         const activeCount = activeUploads().length;
         uploadButton.classList.toggle("is-busy", activeCount > 0);
@@ -117,8 +68,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     const removeUpload = (uploadId) => {
-        const upload = uploadState.uploads.get(uploadId);
-        upload?.row?.remove();
+        window.EnderVaultActivity?.remove(`upload-${uploadId}`);
         uploadState.uploads.delete(uploadId);
         renderUploadPanel();
     };
@@ -134,99 +84,30 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         upload.cancelRequested = true;
-        updateUploadRow(upload);
+        renderUploadPanel();
         upload.xhr?.abort();
     };
 
-    const ensureUploadRow = (upload) => {
-        if (upload.row) {
-            return upload.row;
-        }
-
-        const item = document.createElement("article");
-        item.className = "upload-item upload-uploading";
-        item.innerHTML = `
-            <div class="upload-item-main">
-                <div class="upload-item-row">
-                    <span class="upload-name"></span>
-                    <span class="upload-percent">0%</span>
-                </div>
-                <div class="upload-meta"></div>
-                <div class="upload-progress-track" role="progressbar"
-                     aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-                    <div class="upload-progress-bar" style="width: 0%"></div>
-                </div>
-            </div>
-        `;
-
-        const cancelButton = document.createElement("button");
-        cancelButton.className = "ghost icon-button upload-cancel";
-        cancelButton.type = "button";
-        cancelButton.title = "Cancel upload";
-        cancelButton.setAttribute("aria-label", `Cancel ${upload.file.name}`);
-        cancelButton.innerHTML = '<i class="fas fa-xmark" aria-hidden="true"></i>';
-        cancelButton.addEventListener("click", () => cancelUpload(upload));
-        item.append(cancelButton);
-
-        upload.row = item;
-        upload.nameElement = item.querySelector(".upload-name");
-        upload.percentElement = item.querySelector(".upload-percent");
-        upload.metaElement = item.querySelector(".upload-meta");
-        upload.progressTrack = item.querySelector(".upload-progress-track");
-        upload.progressBar = item.querySelector(".upload-progress-bar");
-        upload.cancelButton = cancelButton;
-        upload.nameElement.textContent = upload.file.name;
-        return item;
-    };
-
-    function updateUploadRow(upload) {
-        ensureUploadRow(upload);
-
-        const percent = upload.status === "complete" ? 100 : uploadPercent(upload);
-        upload.row.className = `upload-item upload-${upload.status}`;
-        upload.percentElement.textContent = `${percent}%`;
-        upload.metaElement.textContent = uploadStatusText(upload);
-        upload.progressTrack.setAttribute("aria-valuenow", String(percent));
-        upload.progressBar.style.width = `${percent}%`;
-
-        const uploading = upload.status === "uploading";
-        upload.cancelButton.hidden = !uploading;
-        upload.cancelButton.disabled = upload.cancelRequested || !uploading;
-        upload.cancelButton.title = upload.cancelRequested ? "Canceling upload" : "Cancel upload";
-        upload.cancelButton.setAttribute(
-                "aria-label",
-                upload.cancelRequested ? `Canceling ${upload.file.name}` : `Cancel ${upload.file.name}`
-        );
-    }
-
     function renderUploadPanel() {
-        ensureUploadPanel();
-
         const uploads = Array.from(uploadState.uploads.values());
-        const activeCount = activeUploads().length;
-        const doneCount = terminalUploads().length;
         if (uploads.length === 0) {
-            uploadState.panel.hidden = true;
             updateUploadButtonState();
             return;
         }
 
-        uploadState.panel.hidden = false;
-        uploadState.panel.classList.toggle("is-minimized", uploadState.minimized);
-        uploadState.summary.textContent = activeCount > 0
-            ? `${activeCount} uploading - ${doneCount} finished`
-            : `${doneCount} finished`;
-        uploadState.toggleButton.title = uploadState.minimized ? "Show uploads" : "Minimize uploads";
-        uploadState.toggleButton.setAttribute("aria-label", uploadState.toggleButton.title);
-        uploadState.toggleButton.querySelector("i").className =
-            uploadState.minimized ? "fas fa-chevron-up" : "fas fa-minus";
-
         uploads.forEach((upload) => {
-            const row = ensureUploadRow(upload);
-            if (row.parentElement !== uploadState.list) {
-                uploadState.list.append(row);
-            }
-            updateUploadRow(upload);
+            window.EnderVaultActivity?.upsert({
+                id: `upload-${upload.id}`,
+                title: upload.file.name,
+                type: "UPLOAD",
+                typeLabel: "Upload",
+                status: upload.status,
+                percent: upload.status === "complete" ? 100 : uploadPercent(upload),
+                message: uploadStatusText(upload),
+                cancelRequested: upload.cancelRequested,
+                cancelable: upload.status === "uploading",
+                onCancel: () => cancelUpload(upload)
+            });
         });
         updateUploadButtonState();
     }
@@ -315,7 +196,6 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        ensureUploadPanel();
         files.forEach((file) => {
             const upload = {
                 id: uploadState.nextId,

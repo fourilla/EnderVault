@@ -2,13 +2,15 @@ package io.github.fourilla.endervault.web.dashboard;
 
 import io.github.fourilla.endervault.remote.RemoteDownloadSummary;
 import io.github.fourilla.endervault.storage.StorageUsage;
+import io.github.fourilla.endervault.task.TaskSummary;
 
 public record DashboardView(
         StorageUsage storage,
         TrashSummary trash,
         ShareSummary shares,
         ThumbnailSummary thumbnails,
-        RemoteDownloadSummary remoteDownloads
+        RemoteDownloadSummary remoteDownloads,
+        TaskSummary fileTasks
 ) {
 
     public record TrashSummary(

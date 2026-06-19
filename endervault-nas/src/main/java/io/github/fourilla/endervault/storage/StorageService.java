@@ -17,6 +17,7 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -230,6 +231,15 @@ public class StorageService {
     }
 
     public String copyVaultPath(String vaultPath, String targetDirectoryPath) throws IOException {
+        return copyVaultPath(vaultPath, targetDirectoryPath, StorageProgressListener.NOOP);
+    }
+
+    public String copyVaultPath(
+            String vaultPath,
+            String targetDirectoryPath,
+            StorageProgressListener progressListener
+    ) throws IOException {
+        StorageProgressListener progress = progressListener == null ? StorageProgressListener.NOOP : progressListener;
         validateVaultItemPath(vaultPath);
         Path source = resolve(StorageScope.VAULT, vaultPath);
         Path targetDirectory = resolveDirectory(StorageScope.VAULT, targetDirectoryPath);
@@ -243,10 +253,18 @@ public class StorageService {
         }
 
         rejectSymbolicLink(source);
-        if (Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS)) {
-            copyDirectory(source, target);
-        } else {
-            Files.copy(source, target);
+        try {
+            progress.checkCanceled();
+            if (Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS)) {
+                copyDirectory(source, target, progress);
+            } else {
+                copyFile(source, target, progress);
+            }
+        } catch (IOException | RuntimeException ex) {
+            if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
+                deleteRecursively(target);
+            }
+            throw ex;
         }
         return toRelativePath(root, target);
     }
@@ -387,6 +405,18 @@ public class StorageService {
         return toFileItem(root, target);
     }
 
+    public StorageOperationSummary summarizeVaultPaths(List<String> vaultPaths) throws IOException {
+        long totalBytes = 0L;
+        long totalItems = 0L;
+        for (String vaultPath : vaultPaths == null ? List.<String>of() : vaultPaths) {
+            validateVaultItemPath(vaultPath);
+            StorageOperationSummary summary = summarizePath(resolve(StorageScope.VAULT, vaultPath));
+            totalBytes += summary.totalBytes();
+            totalItems += summary.totalItems();
+        }
+        return new StorageOperationSummary(totalBytes, totalItems);
+    }
+
     private void moveUploadedFileIntoPlace(Path temporaryFile, Path target) throws IOException {
         movePath(temporaryFile, target);
     }
@@ -400,26 +430,33 @@ public class StorageService {
     }
 
     private void copyDirectory(Path source, Path target) throws IOException {
+        copyDirectory(source, target, StorageProgressListener.NOOP);
+    }
+
+    private void copyDirectory(Path source, Path target, StorageProgressListener progress) throws IOException {
         try {
             Files.walkFileTree(source, new SimpleFileVisitor<>() {
                 @Override
                 public FileVisitResult preVisitDirectory(Path directory, BasicFileAttributes attributes)
                         throws IOException {
+                    progress.checkCanceled();
                     rejectSymbolicLink(directory);
                     Path relative = source.relativize(directory);
                     Path targetDirectory = target.resolve(relative).normalize();
                     ensureInsideBase(StorageScope.VAULT, targetDirectory);
                     Files.createDirectory(targetDirectory);
+                    progress.onItemProcessed();
                     return FileVisitResult.CONTINUE;
                 }
 
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) throws IOException {
+                    progress.checkCanceled();
                     rejectSymbolicLink(file);
                     Path relative = source.relativize(file);
                     Path targetFile = target.resolve(relative).normalize();
                     ensureInsideBase(StorageScope.VAULT, targetFile);
-                    Files.copy(file, targetFile);
+                    copyFile(file, targetFile, progress);
                     return FileVisitResult.CONTINUE;
                 }
             });
@@ -429,6 +466,21 @@ public class StorageService {
             }
             throw ex;
         }
+    }
+
+    private void copyFile(Path source, Path target, StorageProgressListener progress) throws IOException {
+        progress.checkCanceled();
+        try (InputStream inputStream = Files.newInputStream(source);
+                OutputStream outputStream = Files.newOutputStream(target, StandardOpenOption.CREATE_NEW)) {
+            byte[] buffer = new byte[64 * 1024];
+            int read;
+            while ((read = inputStream.read(buffer)) != -1) {
+                progress.checkCanceled();
+                outputStream.write(buffer, 0, read);
+                progress.onBytesProcessed(read);
+            }
+        }
+        progress.onItemProcessed();
     }
 
     private void rejectSymbolicLink(Path path) {
@@ -836,6 +888,34 @@ public class StorageService {
             return false;
         }
         return isVaultSystemPath(path.toRealPath());
+    }
+
+    private StorageOperationSummary summarizePath(Path path) throws IOException {
+        rejectSymbolicLink(path);
+        if (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
+            return new StorageOperationSummary(Files.size(path), 1L);
+        }
+
+        final long[] totalBytes = {0L};
+        final long[] totalItems = {0L};
+        Files.walkFileTree(path, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult preVisitDirectory(Path directory, BasicFileAttributes attributes)
+                    throws IOException {
+                rejectSymbolicLink(directory);
+                totalItems[0]++;
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) throws IOException {
+                rejectSymbolicLink(file);
+                totalItems[0]++;
+                totalBytes[0] += attributes.size();
+                return FileVisitResult.CONTINUE;
+            }
+        });
+        return new StorageOperationSummary(totalBytes[0], totalItems[0]);
     }
 
     private String safeSubmittedFilename(MultipartFile file) {

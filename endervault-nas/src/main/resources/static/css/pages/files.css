@@ -308,10 +308,11 @@ tr:last-child td {
 
 .transfer-buffer-dock-enabled [data-transfer-buffer-region] {
     position: fixed;
-    right: var(--space-xl);
+    right: auto;
     bottom: var(--space-xl);
+    left: var(--space-xl);
     z-index: 80;
-    width: min(720px, calc(100vw - var(--space-xl) * 2));
+    width: min(720px, calc(100vw - 520px));
     pointer-events: none;
 }
 
@@ -326,6 +327,18 @@ tr:last-child td {
     max-height: 160px;
     overflow-y: auto;
     padding-right: var(--space-xs);
+}
+
+@media (max-width: 1180px) {
+    .transfer-buffer-dock-enabled [data-transfer-buffer-region] {
+        right: var(--space-xl);
+        left: var(--space-xl);
+        width: auto;
+    }
+
+    .activity-panel-visible.transfer-buffer-dock-enabled [data-transfer-buffer-region] {
+        bottom: calc(var(--space-xl) + var(--activity-panel-height, 180px) + var(--space-lg));
+    }
 }
 
 .empty {

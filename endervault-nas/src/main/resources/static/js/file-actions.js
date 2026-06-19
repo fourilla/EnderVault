@@ -59,7 +59,13 @@ document.addEventListener("DOMContentLoaded", () => {
                         deleteSelectedButton.formMethod || deleteSelectedButton.getAttribute("formmethod") || "POST"
                 );
                 showActionNotification(body.notification);
-                await window.EnderVaultFileBrowser.refreshListing(body.redirectUrl || window.location.href);
+                if (body.task) {
+                    window.EnderVaultServerTasks?.track(body.task, {
+                        refreshUrl: body.redirectUrl || window.location.href
+                    });
+                } else {
+                    await window.EnderVaultFileBrowser.refreshListing(body.redirectUrl || window.location.href);
+                }
             } catch (error) {
                 window.EnderVault.showToast("error", error.message || "Delete failed.");
             } finally {

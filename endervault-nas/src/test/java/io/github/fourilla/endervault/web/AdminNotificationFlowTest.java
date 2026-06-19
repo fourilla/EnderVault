@@ -768,14 +768,12 @@ class AdminNotificationFlowTest {
                         .with(csrf())
                         .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                         .param("items", filename))
-                .andExpect(status().isOk())
+                .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.ok").value(true))
-                .andExpect(jsonPath("$.notification.type").value("success"))
+                .andExpect(jsonPath("$.notification.type").value("info"))
+                .andExpect(jsonPath("$.task.id").exists())
+                .andExpect(jsonPath("$.task.type").value("FILE_TRASH"))
                 .andExpect(jsonPath("$.redirectUrl").exists());
-
-        assertThat(ROOT.resolve(filename)).doesNotExist();
-        assertThat(Files.readString(ROOT.resolve(".endervault").resolve("trash-records.json")))
-                .contains(filename);
     }
 
     @Test

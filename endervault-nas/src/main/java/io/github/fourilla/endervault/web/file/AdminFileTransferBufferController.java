@@ -9,6 +9,8 @@ import io.github.fourilla.endervault.storage.FileDetail;
 import io.github.fourilla.endervault.storage.FileItem;
 import io.github.fourilla.endervault.storage.StorageScope;
 import io.github.fourilla.endervault.storage.StorageService;
+import io.github.fourilla.endervault.task.AppTask;
+import io.github.fourilla.endervault.task.FileOperationTaskService;
 import io.github.fourilla.endervault.thumbnail.ThumbnailService;
 import io.github.fourilla.endervault.transfer.TransferBuffer;
 import io.github.fourilla.endervault.transfer.TransferBufferItem;
@@ -17,6 +19,7 @@ import io.github.fourilla.endervault.transfer.TransferOperation;
 import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.FlashNotification;
 import io.github.fourilla.endervault.web.support.SelectedItems;
+import io.github.fourilla.endervault.web.task.TaskPayload;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
@@ -24,6 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -40,6 +44,7 @@ public class AdminFileTransferBufferController {
     private final ThumbnailService thumbnailService;
     private final ActivityLogService activityLogService;
     private final TransferBufferService transferBufferService;
+    private final FileOperationTaskService fileOperationTaskService;
 
     public AdminFileTransferBufferController(
             StorageService storageService,
@@ -48,7 +53,8 @@ public class AdminFileTransferBufferController {
             RecentService recentService,
             ThumbnailService thumbnailService,
             ActivityLogService activityLogService,
-            TransferBufferService transferBufferService
+            TransferBufferService transferBufferService,
+            FileOperationTaskService fileOperationTaskService
     ) {
         this.storageService = storageService;
         this.shareLinkService = shareLinkService;
@@ -57,6 +63,7 @@ public class AdminFileTransferBufferController {
         this.thumbnailService = thumbnailService;
         this.activityLogService = activityLogService;
         this.transferBufferService = transferBufferService;
+        this.fileOperationTaskService = fileOperationTaskService;
     }
 
     @PostMapping("/files/transfer/buffer")
@@ -132,6 +139,17 @@ public class AdminFileTransferBufferController {
         }
 
         TransferOperation transferOperation = TransferOperation.from(operation);
+        if (ActionResponseSupport.wantsJson(request)) {
+            AppTask task = fileOperationTaskService.queueTransfer(transferOperation, buffer.items(), path, request);
+            transferBufferService.clear(session);
+            FlashNotification notification = FlashNotification.info(transferOperation.label() + " task queued.");
+            return ResponseEntity.accepted().body(TransferBufferActionResponse.ok(
+                    notification,
+                    TransferBufferPayload.from(TransferBuffer.empty()),
+                    TaskPayload.from(task)
+            ));
+        }
+
         List<TransferBufferItem> failedItems = new ArrayList<>();
         int completedCount = 0;
         for (TransferBufferItem item : buffer.items()) {
@@ -301,10 +319,19 @@ public class AdminFileTransferBufferController {
     private record TransferBufferActionResponse(
             boolean ok,
             FlashNotification notification,
-            TransferBufferPayload transferBuffer
+            TransferBufferPayload transferBuffer,
+            TaskPayload task
     ) {
         static TransferBufferActionResponse ok(FlashNotification notification, TransferBufferPayload transferBuffer) {
-            return new TransferBufferActionResponse(true, notification, transferBuffer);
+            return ok(notification, transferBuffer, null);
+        }
+
+        static TransferBufferActionResponse ok(
+                FlashNotification notification,
+                TransferBufferPayload transferBuffer,
+                TaskPayload task
+        ) {
+            return new TransferBufferActionResponse(true, notification, transferBuffer, task);
         }
     }
 

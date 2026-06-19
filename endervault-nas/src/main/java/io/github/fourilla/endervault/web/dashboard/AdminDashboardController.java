@@ -6,6 +6,7 @@ import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.storage.StorageUsage;
+import io.github.fourilla.endervault.task.TaskManagerService;
 import io.github.fourilla.endervault.thumbnail.ThumbnailCacheStats;
 import io.github.fourilla.endervault.thumbnail.ThumbnailService;
 import io.github.fourilla.endervault.trash.TrashRecord;
@@ -25,19 +26,22 @@ public class AdminDashboardController {
     private final ShareLinkService shareLinkService;
     private final ThumbnailService thumbnailService;
     private final RemoteDownloadService remoteDownloadService;
+    private final TaskManagerService taskManagerService;
 
     public AdminDashboardController(
             StorageService storageService,
             TrashService trashService,
             ShareLinkService shareLinkService,
             ThumbnailService thumbnailService,
-            RemoteDownloadService remoteDownloadService
+            RemoteDownloadService remoteDownloadService,
+            TaskManagerService taskManagerService
     ) {
         this.storageService = storageService;
         this.trashService = trashService;
         this.shareLinkService = shareLinkService;
         this.thumbnailService = thumbnailService;
         this.remoteDownloadService = remoteDownloadService;
+        this.taskManagerService = taskManagerService;
     }
 
     @GetMapping("/files/dashboard")
@@ -52,7 +56,8 @@ public class AdminDashboardController {
                 trashSummary(trashRecords),
                 shareSummary(shareLinks),
                 thumbnailSummary(thumbnailStats),
-                remoteDownloadService.summary(3)
+                remoteDownloadService.summary(3),
+                taskManagerService.summary()
         ));
         return "dashboard";
     }

@@ -63,11 +63,17 @@
             <header class="section-heading">
                 <h2>Task Manager</h2>
                 <span class="status-badge active"
-                      th:if="${dashboard.thumbnails().inProgressCount() > 0 or dashboard.remoteDownloads().running() > 0}">Active</span>
+                      th:if="${dashboard.thumbnails().inProgressCount() > 0 or dashboard.remoteDownloads().running() > 0 or dashboard.fileTasks().running() > 0}">Active</span>
                 <span class="status-badge expired"
-                      th:unless="${dashboard.thumbnails().inProgressCount() > 0 or dashboard.remoteDownloads().running() > 0}">Idle</span>
+                      th:unless="${dashboard.thumbnails().inProgressCount() > 0 or dashboard.remoteDownloads().running() > 0 or dashboard.fileTasks().running() > 0}">Idle</span>
             </header>
             <ul class="dashboard-list">
+                <li>
+                    <span>File operation tasks</span>
+                    <strong th:text="|${dashboard.fileTasks().running()} running / ${dashboard.fileTasks().total()} tracked|">
+                        0 running / 0 tracked
+                    </strong>
+                </li>
                 <li>
                     <span>Thumbnail queue</span>
                     <strong th:text="|${dashboard.thumbnails().inProgressCount()} running|">0 running</strong>

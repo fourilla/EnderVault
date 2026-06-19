@@ -8,6 +8,8 @@ import io.github.fourilla.endervault.storage.FileDetail;
 import io.github.fourilla.endervault.storage.FileItem;
 import io.github.fourilla.endervault.storage.StorageScope;
 import io.github.fourilla.endervault.storage.StorageService;
+import io.github.fourilla.endervault.task.AppTask;
+import io.github.fourilla.endervault.task.FileOperationTaskService;
 import io.github.fourilla.endervault.thumbnail.ThumbnailService;
 import io.github.fourilla.endervault.trash.TrashRecord;
 import io.github.fourilla.endervault.trash.TrashService;
@@ -16,6 +18,7 @@ import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.FlashNotification;
 import io.github.fourilla.endervault.web.support.SelectedItems;
 import io.github.fourilla.endervault.web.support.UploadedFilePayload;
+import io.github.fourilla.endervault.web.task.TaskPayload;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -23,6 +26,7 @@ import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -41,6 +45,7 @@ public class AdminFileMutationController {
     private final ThumbnailService thumbnailService;
     private final TrashService trashService;
     private final ActivityLogService activityLogService;
+    private final FileOperationTaskService fileOperationTaskService;
 
     public AdminFileMutationController(
             StorageService storageService,
@@ -49,7 +54,8 @@ public class AdminFileMutationController {
             RecentService recentService,
             ThumbnailService thumbnailService,
             TrashService trashService,
-            ActivityLogService activityLogService
+            ActivityLogService activityLogService,
+            FileOperationTaskService fileOperationTaskService
     ) {
         this.storageService = storageService;
         this.shareLinkService = shareLinkService;
@@ -58,6 +64,7 @@ public class AdminFileMutationController {
         this.thumbnailService = thumbnailService;
         this.trashService = trashService;
         this.activityLogService = activityLogService;
+        this.fileOperationTaskService = fileOperationTaskService;
     }
 
     @PostMapping("/files/upload")
@@ -224,12 +231,22 @@ public class AdminFileMutationController {
                     redirectToFiles(path, view, sort, direction, page, size)
             );
         }
+        String redirect = redirectToFiles(path, view, sort, direction, page, size);
+        if (ActionResponseSupport.wantsJson(request)) {
+            AppTask task = fileOperationTaskService.queueMoveToTrash(path, items, request);
+            FlashNotification notification = FlashNotification.info("Trash task queued.");
+            return ResponseEntity.accepted().body(new FileTaskActionResponse(
+                    true,
+                    notification,
+                    TaskPayload.from(task),
+                    ActionResponseSupport.redirectUrl(redirect)
+            ));
+        }
         List<TrashRecord> trashRecords = trashService.moveToTrash(path, items);
         for (TrashRecord record : trashRecords) {
             activityLogService.record("TRASH_MOVE", request, record.originalPath(), null, "Moved item to trash");
         }
         FlashNotification notification = FlashNotification.success("Selected items moved to trash.");
-        String redirect = redirectToFiles(path, view, sort, direction, page, size);
         return ActionResponseSupport.redirect(request, redirectAttributes, notification, redirect);
     }
 
@@ -284,6 +301,14 @@ public class AdminFileMutationController {
 
     private String redirectToDetail(String path) {
         return "redirect:/files/detail?path=" + UriUtils.encodeQueryParam(path, StandardCharsets.UTF_8);
+    }
+
+    private record FileTaskActionResponse(
+            boolean ok,
+            FlashNotification notification,
+            TaskPayload task,
+            String redirectUrl
+    ) {
     }
 
 }
