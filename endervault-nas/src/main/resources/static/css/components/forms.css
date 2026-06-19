@@ -6,3 +6,39 @@
 .share-create-form label {
     min-width: 0;
 }
+
+.password-field {
+    position: relative;
+    display: grid;
+}
+
+.password-field input {
+    padding-right: 44px;
+}
+
+.password-field .password-toggle {
+    position: absolute;
+    top: 50%;
+    right: var(--space-sm);
+    width: var(--table-action-icon-size);
+    height: var(--table-action-icon-size);
+    min-height: var(--table-action-icon-size);
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    opacity: 0;
+    box-shadow: none;
+    transform: translateY(-50%);
+    visibility: hidden;
+}
+
+.password-field .password-toggle.is-visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+.password-field .password-toggle:hover,
+.password-field .password-toggle:focus-visible {
+    background: transparent;
+    color: var(--text);
+}

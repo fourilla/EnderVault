@@ -144,38 +144,25 @@ document.addEventListener("DOMContentLoaded", () => {
         document.querySelectorAll('tr[data-share-status="expired"]').forEach((row) => row.remove());
     };
 
-    const enhancePasswordToggles = () => {
-        document.querySelectorAll("[data-password-toggle]").forEach((button) => {
-            if (button.dataset.passwordToggleBound === "true") {
-                return;
-            }
-
-            const input = button.closest(".password-field")?.querySelector("[data-password-toggle-input]");
-            const icon = button.querySelector("i");
-            if (!input) {
-                return;
-            }
-
-            const setVisible = (visible) => {
-                input.type = visible ? "text" : "password";
-                button.setAttribute("aria-pressed", String(visible));
-                button.setAttribute("title", visible ? "Hide bot token" : "Show bot token");
-                button.setAttribute("aria-label", visible ? "Hide bot token" : "Show bot token");
-                icon?.classList.toggle("fa-eye", !visible);
-                icon?.classList.toggle("fa-eye-slash", visible);
-            };
-
-            button.dataset.passwordToggleBound = "true";
-            setVisible(input.type === "text");
-            button.addEventListener("click", () => {
-                setVisible(input.type !== "text");
-                input.focus({ preventScroll: true });
-            });
-        });
-    };
-
     const settingToggleControllers = () =>
         Array.from(document.querySelectorAll("input[type='checkbox'][data-toggle-target]"));
+
+    const syncSwitchStateLabels = () => {
+        document.querySelectorAll("input[type='checkbox'][data-state-label]").forEach((controller) => {
+            const label = document.querySelector(controller.dataset.stateLabel);
+            if (!label) {
+                return;
+            }
+
+            const active = controller.checked;
+            const onClass = controller.dataset.onClass || "active";
+            const offClass = controller.dataset.offClass || "expired";
+            label.textContent = active
+                    ? (controller.dataset.onLabel || "Enabled")
+                    : (controller.dataset.offLabel || "Disabled");
+            label.className = `status-badge ${active ? onClass : offClass}`;
+        });
+    };
 
     const syncSettingDependencies = () => {
         const controllers = settingToggleControllers();
@@ -212,6 +199,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
             });
         });
+        syncSwitchStateLabels();
     };
 
     const enhanceSettingDependencies = () => {
@@ -221,6 +209,13 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             controller.dataset.settingDependencyBound = "true";
             controller.addEventListener("change", syncSettingDependencies);
+        });
+        document.querySelectorAll("input[type='checkbox'][data-state-label]").forEach((controller) => {
+            if (controller.dataset.switchStateBound === "true") {
+                return;
+            }
+            controller.dataset.switchStateBound = "true";
+            controller.addEventListener("change", syncSwitchStateLabels);
         });
         syncSettingDependencies();
     };
@@ -279,7 +274,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.querySelectorAll("form[data-ajax-action]").forEach(bindAjaxForm);
     bindCopyButtons();
-    enhancePasswordToggles();
     enhanceSettingDependencies();
     window.EnderVaultActions = { submitJsonForm, showNotification };
 });

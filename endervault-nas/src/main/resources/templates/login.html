@@ -33,7 +33,22 @@
 
             <label>
                 <span>Password</span>
-                <input name="password" type="password" autocomplete="current-password" required>
+                <div class="password-field">
+                    <input name="password"
+                           type="password"
+                           autocomplete="current-password"
+                           required
+                           data-password-toggle-input>
+                    <button class="ghost icon-button password-toggle"
+                            type="button"
+                            title="Show password"
+                            aria-label="Show password"
+                            data-show-label="Show password"
+                            data-hide-label="Hide password"
+                            data-password-toggle>
+                        <i class="fas fa-eye" aria-hidden="true"></i>
+                    </button>
+                </div>
             </label>
 
             <button class="primary" type="submit">Log in</button>

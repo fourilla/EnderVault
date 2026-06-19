@@ -32,11 +32,11 @@ public class PasskeyRepository implements CredentialRepository {
     };
 
     private final JsonRegistry<PasskeyStore> registry;
+    private final NasProperties nasProperties;
     private final SecureRandom secureRandom = new SecureRandom();
-    private final String adminUsername;
 
     public PasskeyRepository(ObjectMapper objectMapper, NasProperties nasProperties) {
-        this.adminUsername = nasProperties.getAdmin().getUsername();
+        this.nasProperties = nasProperties;
         NasProperties.Storage storage = nasProperties.getStorage();
         this.registry = new JsonRegistry<>(
                 objectMapper,
@@ -100,7 +100,7 @@ public class PasskeyRepository implements CredentialRepository {
         PasskeyCredential credential = new PasskeyCredential(
                 UUID.randomUUID().toString(),
                 cleanLabel(label),
-                adminUsername,
+                adminUsername(),
                 userHandle,
                 credentialId,
                 publicKeyCose,
@@ -149,7 +149,7 @@ public class PasskeyRepository implements CredentialRepository {
 
     @Override
     public synchronized Set<PublicKeyCredentialDescriptor> getCredentialIdsForUsername(String username) {
-        if (!adminUsername.equals(username)) {
+        if (!adminUsername().equals(username)) {
             return Set.of();
         }
         return readStore().getCredentials().stream()
@@ -160,7 +160,7 @@ public class PasskeyRepository implements CredentialRepository {
     @Override
     public synchronized Optional<ByteArray> getUserHandleForUsername(String username) {
         PasskeyStore store = readStore();
-        if (!adminUsername.equals(username) || store.getUserHandle() == null || store.getUserHandle().isBlank()) {
+        if (!adminUsername().equals(username) || store.getUserHandle() == null || store.getUserHandle().isBlank()) {
             return Optional.empty();
         }
         return Optional.of(byteArray(store.getUserHandle()));
@@ -168,6 +168,7 @@ public class PasskeyRepository implements CredentialRepository {
 
     @Override
     public synchronized Optional<String> getUsernameForUserHandle(ByteArray userHandle) {
+        String adminUsername = adminUsername();
         return userHandle != null
                 && getUserHandleForUsername(adminUsername).filter(userHandle::equals).isPresent()
                 ? Optional.of(adminUsername)
@@ -257,5 +258,9 @@ public class PasskeyRepository implements CredentialRepository {
         }
         String trimmed = label.trim();
         return trimmed.length() > 80 ? trimmed.substring(0, 80) : trimmed;
+    }
+
+    private String adminUsername() {
+        return nasProperties.getAdmin().getUsername();
     }
 }

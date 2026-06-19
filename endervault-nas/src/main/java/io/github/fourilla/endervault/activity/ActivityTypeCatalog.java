@@ -10,6 +10,7 @@ public final class ActivityTypeCatalog {
     private static final List<ActivityTypeOption> OPTIONS = List.of(
             new ActivityTypeOption("login-success", "LOGIN_SUCCESS", "Login success", "Authentication", true),
             new ActivityTypeOption("login-failure", "LOGIN_FAILURE", "Login failure", "Authentication", true),
+            new ActivityTypeOption("account-update", "ACCOUNT_UPDATE", "Account update", "Authentication", false),
             new ActivityTypeOption("passkey-register", "PASSKEY_REGISTER", "Passkey register", "Authentication", false),
             new ActivityTypeOption("passkey-delete", "PASSKEY_DELETE", "Passkey delete", "Authentication", false),
             new ActivityTypeOption("upload", "UPLOAD", "Upload", "File management", false),

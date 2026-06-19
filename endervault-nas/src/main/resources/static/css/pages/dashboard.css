@@ -264,7 +264,8 @@
 
 .settings-workspace,
 .telegram-settings-workspace,
-.general-settings-workspace {
+.general-settings-workspace,
+.account-settings-workspace {
     max-width: 1080px;
 }
 
@@ -292,7 +293,8 @@
     overflow-wrap: anywhere;
 }
 
-.general-settings-form {
+.general-settings-form,
+.account-settings-form {
     display: grid;
     gap: var(--space-5xl);
 }
@@ -334,7 +336,8 @@
     gap: var(--space-lg);
 }
 
-.general-settings-form .icon-text-button {
+.general-settings-form .icon-text-button,
+.account-settings-form .icon-text-button {
     gap: var(--space-lg);
 }
 
@@ -408,6 +411,31 @@
     align-items: stretch;
 }
 
+.account-status-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-xl);
+}
+
+.account-status-grid article {
+    display: grid;
+    gap: var(--space-xs);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
+    background: var(--panel-muted);
+    padding: var(--panel-padding);
+}
+
+.account-status-grid span {
+    color: var(--muted);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+}
+
+.account-status-grid strong {
+    font-size: var(--font-size-lg);
+}
+
 .telegram-settings-grid label,
 .telegram-field {
     display: grid;
@@ -465,30 +493,6 @@
     color: var(--muted);
     font-size: var(--font-size-xs);
     font-weight: 700;
-}
-
-.password-field {
-    position: relative;
-    display: grid;
-}
-
-.password-field input {
-    padding-right: 44px;
-}
-
-.password-field .password-toggle {
-    position: absolute;
-    top: 50%;
-    right: var(--space-sm);
-    width: var(--table-action-icon-size);
-    height: var(--table-action-icon-size);
-    min-height: var(--table-action-icon-size);
-    transform: translateY(-50%);
-    color: var(--muted);
-}
-
-.password-field .password-toggle:hover {
-    color: var(--text);
 }
 
 .telegram-connection-actions {
