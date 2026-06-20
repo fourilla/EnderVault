@@ -6,7 +6,6 @@ import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.FavoriteActionResponse;
 import io.github.fourilla.endervault.web.support.FavoritePayload;
 import io.github.fourilla.endervault.web.support.FlashNotification;
-import io.github.fourilla.endervault.web.support.FlashNotifications;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.net.URI;
@@ -73,14 +72,20 @@ public class AdminFavoriteController {
     }
 
     @PostMapping("/files/favorites/move")
-    public String move(
+    public Object move(
             @RequestParam("path") String path,
             @RequestParam("direction") String direction,
+            HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
         favoriteService.move(path, direction);
-        FlashNotifications.success(redirectAttributes, "Favorite order updated.");
-        return "redirect:/files/favorites";
+        FlashNotification notification = FlashNotification.success("Favorite order updated.");
+        return ActionResponseSupport.ok(
+                request,
+                redirectAttributes,
+                notification,
+                redirectBack(request, "redirect:/files/favorites")
+        );
     }
 
     private String redirectBack(HttpServletRequest request, String fallback) {

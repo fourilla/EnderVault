@@ -510,3 +510,24 @@ tbody tr.is-selected td {
 tbody tr.is-selected .item-name {
     color: var(--accent-strong);
 }
+
+.browser-card.is-context-target {
+    border-color: var(--focus);
+    box-shadow: 0 0 0 1px rgba(214, 184, 107, 0.36);
+}
+
+.browser-card.is-context-target .card-thumb::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border: 2px solid rgba(214, 184, 107, 0.72);
+    pointer-events: none;
+}
+
+tbody tr.is-context-target td {
+    background: rgba(214, 184, 107, 0.1);
+}
+
+tbody tr.is-context-target .item-name {
+    color: var(--focus);
+}

@@ -2,6 +2,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const {
         submitJsonForm,
         submitJsonFormResolvingConflicts,
+        requestJson,
+        requestJsonResolvingConflicts,
         showNotification,
         showToast,
         navigateWithNotification,
@@ -38,12 +40,17 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
 
-    const appendHidden = (form, name, value) => {
+    const appendHidden = (target, name, value) => {
+        if (target instanceof FormData) {
+            target.append(name, value == null ? "" : value);
+            return;
+        }
+
         const input = document.createElement("input");
         input.type = "hidden";
         input.name = name;
-        input.value = value;
-        form.append(input);
+        input.value = value == null ? "" : value;
+        target.append(input);
     };
 
     const appendCsrf = (form) => {
@@ -216,6 +223,61 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     };
 
+    const handleTransferBody = (action, body, { clearSelection = action === "transfer-buffer-add" } = {}) => {
+        if (body.redirectUrl && navigateWithNotification(body)) {
+            return true;
+        }
+        showNotification(body.notification);
+        if (Object.prototype.hasOwnProperty.call(body, "transferBuffer")) {
+            renderBuffer(body.transferBuffer);
+        }
+        if (body.task) {
+            window.EnderVaultServerTasks?.track(body.task, {
+                refreshUrl: window.location.href
+            });
+        }
+        if (clearSelection) {
+            clearSelections();
+        }
+        return false;
+    };
+
+    const addItems = async (items, options = {}) => {
+        const names = Array.from(items || []).filter(Boolean);
+        if (!names.length) {
+            showToast("warning", "Select at least one item.");
+            return;
+        }
+
+        const formData = new FormData();
+        appendCsrf(formData);
+        appendHidden(formData, "path", currentPath());
+        names.forEach((name) => appendHidden(formData, "items", name));
+        const body = await requestJson("/files/transfer/buffer", {
+            method: "POST",
+            body: formData
+        });
+        handleTransferBody("transfer-buffer-add", body, options);
+    };
+
+    const paste = async (operation) => {
+        if (!pasteEnabled()) {
+            showToast("warning", "Open a directory before pasting the transfer buffer.");
+            return;
+        }
+
+        const formData = new FormData();
+        appendCsrf(formData);
+        appendHidden(formData, "path", currentPath());
+        appendHidden(formData, "operation", operation);
+        formData.set("conflictPolicy", "ask");
+        const body = await requestJsonResolvingConflicts("/files/transfer/paste", {
+            method: "POST",
+            body: formData
+        });
+        handleTransferBody("transfer-paste", body);
+    };
+
     function bindTransferForms(root = document) {
         root.querySelectorAll("form[data-transfer-action]").forEach(bindTransferForm);
         root.querySelectorAll("button[data-transfer-action]").forEach((submitter) => {
@@ -285,20 +347,8 @@ document.addEventListener("DOMContentLoaded", () => {
             try {
                 const submit = conflictAware ? submitJsonFormResolvingConflicts : submitJsonForm;
                 const body = await submit(form, formData, target.url, target.method);
-                if (body.redirectUrl && navigateWithNotification(body)) {
+                if (handleTransferBody(action, body)) {
                     return;
-                }
-                showNotification(body.notification);
-                if (Object.prototype.hasOwnProperty.call(body, "transferBuffer")) {
-                    renderBuffer(body.transferBuffer);
-                }
-                if (body.task) {
-                    window.EnderVaultServerTasks?.track(body.task, {
-                        refreshUrl: window.location.href
-                    });
-                }
-                if (action === "transfer-buffer-add") {
-                    clearSelections();
                 }
             } catch (error) {
                 showToast("error", error.message || "The transfer action failed.");
@@ -313,4 +363,10 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll(".transfer-buffer-panel").forEach((panel) => {
         applyMinimized(panel, isMinimized());
     });
+
+    window.EnderVaultTransferBuffer = {
+        addItems,
+        paste,
+        render: renderBuffer
+    };
 });

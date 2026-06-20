@@ -214,6 +214,34 @@
         return true;
     };
 
+    const contextMenus = (() => {
+        let activeCloser = null;
+
+        return {
+            open(closer) {
+                if (activeCloser && activeCloser !== closer) {
+                    const closePrevious = activeCloser;
+                    activeCloser = null;
+                    closePrevious();
+                }
+                activeCloser = closer;
+            },
+            close() {
+                if (!activeCloser) {
+                    return;
+                }
+                const closeActive = activeCloser;
+                activeCloser = null;
+                closeActive();
+            },
+            clear(closer) {
+                if (activeCloser === closer) {
+                    activeCloser = null;
+                }
+            }
+        };
+    })();
+
     const closeDetails = (details) => {
         if (!details.open) {
             return;
@@ -273,6 +301,7 @@
         csrfPair,
         cloneFormData,
         rememberNotification,
-        navigateWithNotification
+        navigateWithNotification,
+        contextMenus
     };
 })();

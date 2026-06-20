@@ -129,6 +129,12 @@
     text-decoration: none;
 }
 
+.sidebar-favorites-list a.is-context-target {
+    border-color: color-mix(in srgb, var(--focus) 48%, transparent);
+    background: color-mix(in srgb, var(--focus) 14%, var(--panel-elevated));
+    color: var(--focus);
+}
+
 .sidebar-favorites-list i {
     flex: 0 0 var(--sidebar-icon-width);
     color: var(--muted);
@@ -291,4 +297,3 @@
     color: var(--muted);
     font-size: var(--font-size-sm);
 }
-

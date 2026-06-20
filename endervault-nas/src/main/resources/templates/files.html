@@ -173,7 +173,15 @@
                 </tr>
                 </thead>
                 <tbody>
-                <tr th:each="directory : ${listing.directories()}">
+                <tr th:each="directory : ${listing.directories()}"
+                    data-context-item="true"
+                    data-item-kind="directory"
+                    th:data-item-name="${directory.name()}"
+                    th:data-item-path="${directory.path()}"
+                    th:data-item-open-url="@{/files(path=${directory.path()})}"
+                    th:data-item-detail-url="@{/files/detail(path=${directory.path()})}"
+                    th:data-item-download-url="@{/files/detail/download.zip(path=${directory.path()})}"
+                    th:data-item-favorite="${favoritePaths.contains(directory.path())}">
                     <td class="select-cell"><input form="bulkActionForm" type="checkbox" name="items" th:value="${directory.name()}"></td>
                     <td><a class="item-name directory"
                            th:href="@{/files(path=${directory.path()})}">
@@ -224,7 +232,16 @@
                 </tr>
                 </thead>
                 <tbody>
-                <tr th:each="file : ${filePage.items()}">
+                <tr th:each="file : ${filePage.items()}"
+                    data-context-item="true"
+                    data-item-kind="file"
+                    th:data-item-name="${file.name()}"
+                    th:data-item-path="${file.path()}"
+                    th:data-item-open-url="@{/files/detail(path=${file.path()})}"
+                    th:data-item-detail-url="@{/files/detail(path=${file.path()})}"
+                    th:data-item-download-url="@{/files/detail/download(path=${file.path()})}"
+                    th:data-item-preview-url="${file.previewable() ? fileActions.previewUrl(file) : ''}"
+                    th:data-item-favorite="${favoritePaths.contains(file.path())}">
                     <td class="select-cell"><input form="bulkActionForm" type="checkbox" name="items" th:value="${file.name()}"></td>
                     <td><a class="item-name" th:href="@{/files/detail(path=${file.path()})}" th:text="${file.name()}">file</a></td>
                     <td th:text="${file.mediaType()}">type</td>
@@ -252,7 +269,16 @@
         </div>
 
         <div class="browser-grid" th:if="${view == 'grid'}">
-            <article class="browser-card" th:each="file : ${filePage.items()}">
+            <article class="browser-card" th:each="file : ${filePage.items()}"
+                     data-context-item="true"
+                     data-item-kind="file"
+                     th:data-item-name="${file.name()}"
+                     th:data-item-path="${file.path()}"
+                     th:data-item-open-url="@{/files/detail(path=${file.path()})}"
+                     th:data-item-detail-url="@{/files/detail(path=${file.path()})}"
+                     th:data-item-download-url="@{/files/detail/download(path=${file.path()})}"
+                     th:data-item-preview-url="${file.previewable() ? fileActions.previewUrl(file) : ''}"
+                     th:data-item-favorite="${favoritePaths.contains(file.path())}">
                 <input form="bulkActionForm" class="card-check" type="checkbox" name="items" th:value="${file.name()}">
                 <a class="card-thumb" th:href="@{/files/detail(path=${file.path()})}">
                     <img class="thumb-media" th:if="${file.image()}" loading="lazy"
