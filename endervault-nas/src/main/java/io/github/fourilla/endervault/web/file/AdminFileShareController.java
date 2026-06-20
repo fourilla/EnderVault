@@ -2,6 +2,7 @@ package io.github.fourilla.endervault.web.file;
 
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.common.StorageAccessException;
+import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.storage.FileDetail;
@@ -12,6 +13,7 @@ import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.FlashNotification;
 import io.github.fourilla.endervault.web.support.ShareLinkPayload;
 import io.github.fourilla.endervault.web.support.ShareLinkView;
+import io.github.fourilla.endervault.web.support.ShareUrlBuilder;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -24,7 +26,6 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import org.springframework.web.util.UriUtils;
 
 @Controller
@@ -33,15 +34,21 @@ public class AdminFileShareController {
     private final StorageService storageService;
     private final ShareLinkService shareLinkService;
     private final ActivityLogService activityLogService;
+    private final ShareUrlBuilder shareUrlBuilder;
+    private final NasProperties.Share shareProperties;
 
     public AdminFileShareController(
             StorageService storageService,
             ShareLinkService shareLinkService,
-            ActivityLogService activityLogService
+            ActivityLogService activityLogService,
+            ShareUrlBuilder shareUrlBuilder,
+            NasProperties nasProperties
     ) {
         this.storageService = storageService;
         this.shareLinkService = shareLinkService;
         this.activityLogService = activityLogService;
+        this.shareUrlBuilder = shareUrlBuilder;
+        this.shareProperties = nasProperties.getShare();
     }
 
     @PostMapping("/files/share")
@@ -139,7 +146,15 @@ public class AdminFileShareController {
 
     private Instant expiresAt(String expiresInDays) {
         if (expiresInDays == null || expiresInDays.isBlank()) {
-            return null;
+            int defaultDays = Math.max(0, shareProperties.getDefaultExpirationDays());
+            if (defaultDays > 0) {
+                validateMaxExpirationDays(defaultDays);
+                return expirationFromDays(defaultDays);
+            }
+            if (shareProperties.isAllowNeverExpires()) {
+                return null;
+            }
+            throw new StorageAccessException("Share expiration is required.");
         }
 
         long days;
@@ -152,7 +167,19 @@ public class AdminFileShareController {
         if (days <= 0) {
             throw new StorageAccessException("Expiration days must be 1 or greater.");
         }
+        validateMaxExpirationDays(days);
 
+        return expirationFromDays(days);
+    }
+
+    private void validateMaxExpirationDays(long days) {
+        int maxDays = shareProperties.getMaxExpirationDays();
+        if (maxDays > 0 && days > maxDays) {
+            throw new StorageAccessException("Expiration days must be " + maxDays + " or less.");
+        }
+    }
+
+    private Instant expirationFromDays(long days) {
         try {
             return Instant.now().plus(Duration.ofDays(days));
         } catch (ArithmeticException | DateTimeException ex) {
@@ -161,9 +188,11 @@ public class AdminFileShareController {
     }
 
     private ShareLinkView shareView(ShareLink shareLink) {
-        return ShareLinkView.from(shareLink, ServletUriComponentsBuilder.fromCurrentContextPath()
-                .path("/s/")
-                .toUriString());
+        return ShareLinkView.from(
+                shareLink,
+                shareUrlBuilder.shareBaseUrl(),
+                shareUrlBuilder.directDownloadLinkEnabled()
+        );
     }
 
     private String redirectToFiles(String path) {

@@ -4,6 +4,7 @@ import io.github.fourilla.endervault.activity.ActivityLogQuery;
 import io.github.fourilla.endervault.activity.ActivityLogFile;
 import io.github.fourilla.endervault.activity.ActivityLogSearchResult;
 import io.github.fourilla.endervault.activity.ActivityLogService;
+import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.web.support.FlashNotifications;
 import java.io.IOException;
 import java.util.List;
@@ -17,12 +18,12 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 @Controller
 public class AdminLogController {
 
-    private static final List<Integer> PAGE_SIZE_OPTIONS = List.of(50, 100, 200, 500);
-
     private final ActivityLogService activityLogService;
+    private final NasProperties.ActivityLog activityLogProperties;
 
-    public AdminLogController(ActivityLogService activityLogService) {
+    public AdminLogController(ActivityLogService activityLogService, NasProperties nasProperties) {
         this.activityLogService = activityLogService;
+        this.activityLogProperties = nasProperties.getActivityLog();
     }
 
     @GetMapping("/files/logs")
@@ -47,7 +48,7 @@ public class AdminLogController {
                 from,
                 to,
                 page == null ? 1 : page,
-                size == null ? ActivityLogQuery.DEFAULT_SIZE : size
+                size == null ? activityLogProperties.getDefaultPageSize() : size
         );
         ActivityLogSearchResult result = activityLogService.searchEntries(selectedFile, query);
         List<ActivityLogFile> logFiles = activityLogService.listLogFiles();
@@ -64,7 +65,7 @@ public class AdminLogController {
         model.addAttribute("totalCount", result.totalCount());
         model.addAttribute("matchedCount", result.matchedCount());
         model.addAttribute("logResult", result);
-        model.addAttribute("pageSizeOptions", PAGE_SIZE_OPTIONS);
+        model.addAttribute("pageSizeOptions", pageSizeOptions());
         model.addAttribute("logQuery", query);
         return "logs";
     }
@@ -77,5 +78,17 @@ public class AdminLogController {
         activityLogService.deleteArchive(fileName);
         FlashNotifications.success(redirectAttributes, "Activity log deleted.");
         return "redirect:/files/logs";
+    }
+
+    private List<Integer> pageSizeOptions() {
+        List<Integer> options = activityLogProperties.getPageSizeOptions();
+        if (options == null || options.isEmpty()) {
+            return List.of(activityLogProperties.getDefaultPageSize());
+        }
+        List<Integer> safeOptions = options.stream()
+                .filter(option -> option != null && option > 0)
+                .distinct()
+                .toList();
+        return safeOptions.isEmpty() ? List.of(activityLogProperties.getDefaultPageSize()) : safeOptions;
     }
 }

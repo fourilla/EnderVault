@@ -17,7 +17,6 @@ import java.util.Base64;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
-import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -25,14 +24,15 @@ public class ShareLinkService {
 
     private static final TypeReference<List<ShareLink>> SHARE_LINK_LIST = new TypeReference<>() {
     };
-    private static final Pattern CUSTOM_TOKEN_PATTERN = Pattern.compile("[A-Za-z0-9_-]{3,64}");
 
     private final StorageService storageService;
+    private final NasProperties.Share shareProperties;
     private final JsonRegistry<List<ShareLink>> registry;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public ShareLinkService(StorageService storageService, ObjectMapper objectMapper, NasProperties nasProperties) {
         this.storageService = storageService;
+        this.shareProperties = nasProperties.getShare();
         this.registry = new JsonRegistry<>(
                 objectMapper,
                 nasProperties.getStorage().getRoot()
@@ -87,7 +87,11 @@ public class ShareLinkService {
     }
 
     private ShareLink createFromItem(FileItem item, Instant expiresAt, String customToken) throws IOException {
+        ensureSharingEnabled();
         ShareTargetType type = item.directory() ? ShareTargetType.DIRECTORY : ShareTargetType.FILE;
+        if (type == ShareTargetType.DIRECTORY && !shareProperties.isDirectoryShareEnabled()) {
+            throw new StorageAccessException("Directory sharing is disabled.");
+        }
         List<ShareLink> links = readAllMutable();
         String token = requestedToken(customToken, links);
         ShareLink shareLink = new ShareLink(token, item.path(), type, Instant.now(), expiresAt, true);
@@ -104,6 +108,7 @@ public class ShareLinkService {
     }
 
     public synchronized ShareLink requireUsable(String token) throws IOException {
+        ensureSharingEnabled();
         ShareLink shareLink = find(token)
                 .filter(link -> link.usable(Instant.now()))
                 .orElseThrow(() -> new NoSuchFileException(token));
@@ -205,10 +210,18 @@ public class ShareLinkService {
         if (customToken == null || customToken.isBlank()) {
             return newToken(existingLinks);
         }
+        if (!shareProperties.isCustomTokenEnabled()) {
+            throw new StorageAccessException("Custom share tokens are disabled.");
+        }
 
         String token = customToken.trim();
-        if (!CUSTOM_TOKEN_PATTERN.matcher(token).matches()) {
-            throw new StorageAccessException("Share token must be 3-64 characters using letters, numbers, '-' or '_'.");
+        int minLength = Math.max(1, shareProperties.getCustomTokenMinLength());
+        int maxLength = Math.max(minLength, shareProperties.getCustomTokenMaxLength());
+        if (token.length() < minLength || token.length() > maxLength || !validCustomTokenCharacters(token)) {
+            throw new StorageAccessException(
+                    "Share token must be %d-%d characters using letters, numbers, '-' or '_'."
+                            .formatted(minLength, maxLength)
+            );
         }
         if (tokenExists(existingLinks, token)) {
             throw new StorageAccessException("Share token already exists.");
@@ -219,11 +232,32 @@ public class ShareLinkService {
     private String newToken(List<ShareLink> existingLinks) {
         String token;
         do {
-            byte[] bytes = new byte[24];
+            byte[] bytes = new byte[Math.max(8, shareProperties.getRandomTokenBytes())];
             secureRandom.nextBytes(bytes);
             token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
         } while (tokenExists(existingLinks, token));
         return token;
+    }
+
+    private boolean validCustomTokenCharacters(String token) {
+        for (int i = 0; i < token.length(); i++) {
+            char ch = token.charAt(i);
+            boolean valid = (ch >= 'A' && ch <= 'Z')
+                    || (ch >= 'a' && ch <= 'z')
+                    || (ch >= '0' && ch <= '9')
+                    || ch == '-'
+                    || ch == '_';
+            if (!valid) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void ensureSharingEnabled() {
+        if (!shareProperties.isEnabled()) {
+            throw new StorageAccessException("Sharing is disabled.");
+        }
     }
 
     private boolean tokenExists(List<ShareLink> existingLinks, String token) {

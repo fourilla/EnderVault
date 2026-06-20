@@ -1,5 +1,6 @@
 package io.github.fourilla.endervault.metadata;
 
+import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.storage.StorageService.TemporaryFileInfo;
 import io.github.fourilla.endervault.task.TaskContext;
@@ -13,12 +14,12 @@ import org.springframework.stereotype.Component;
 @Component
 public class UploadTempMetadataInspector implements MetadataInspector {
 
-    private static final Duration STALE_AFTER = Duration.ofMinutes(30);
-
     private final StorageService storageService;
+    private final NasProperties.MetadataInspector metadataInspectorProperties;
 
-    public UploadTempMetadataInspector(StorageService storageService) {
+    public UploadTempMetadataInspector(StorageService storageService, NasProperties nasProperties) {
         this.storageService = storageService;
+        this.metadataInspectorProperties = nasProperties.getMetadataInspector();
     }
 
     @Override
@@ -34,13 +35,14 @@ public class UploadTempMetadataInspector implements MetadataInspector {
     @Override
     public List<MetadataIssue> inspect(TaskContext context) throws IOException {
         Instant now = Instant.now();
+        Duration staleAfter = Duration.ofMinutes(Math.max(1, metadataInspectorProperties.getUploadTempStaleMinutes()));
         List<MetadataIssue> issues = new ArrayList<>();
         for (TemporaryFileInfo file : storageService.listUploadTemporaryFiles()) {
             if (context != null) {
                 context.checkCanceled();
             }
             Duration age = Duration.between(file.modifiedAt(), now);
-            boolean stale = age.compareTo(STALE_AFTER) >= 0;
+            boolean stale = age.compareTo(staleAfter) >= 0;
             issues.add(new MetadataIssue(
                     area(),
                     stale ? MetadataIssueSeverity.WARNING : MetadataIssueSeverity.INFO,

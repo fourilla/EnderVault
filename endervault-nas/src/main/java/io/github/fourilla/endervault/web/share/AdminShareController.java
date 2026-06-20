@@ -5,6 +5,7 @@ import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.FlashNotification;
 import io.github.fourilla.endervault.web.support.ShareLinkView;
+import io.github.fourilla.endervault.web.support.ShareUrlBuilder;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.time.Instant;
@@ -14,17 +15,22 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 @Controller
 public class AdminShareController {
 
     private final ShareLinkService shareLinkService;
     private final ActivityLogService activityLogService;
+    private final ShareUrlBuilder shareUrlBuilder;
 
-    public AdminShareController(ShareLinkService shareLinkService, ActivityLogService activityLogService) {
+    public AdminShareController(
+            ShareLinkService shareLinkService,
+            ActivityLogService activityLogService,
+            ShareUrlBuilder shareUrlBuilder
+    ) {
         this.shareLinkService = shareLinkService;
         this.activityLogService = activityLogService;
+        this.shareUrlBuilder = shareUrlBuilder;
     }
 
     @GetMapping("/files/shares")
@@ -32,7 +38,7 @@ public class AdminShareController {
         String shareBaseUrl = shareBaseUrl();
         model.addAttribute("shares", shareLinkService.list()
                 .stream()
-                .map(shareLink -> ShareLinkView.from(shareLink, shareBaseUrl))
+                .map(shareLink -> ShareLinkView.from(shareLink, shareBaseUrl, shareUrlBuilder.directDownloadLinkEnabled()))
                 .toList());
         return "shares";
     }
@@ -77,8 +83,6 @@ public class AdminShareController {
     }
 
     private String shareBaseUrl() {
-        return ServletUriComponentsBuilder.fromCurrentContextPath()
-                .path("/s/")
-                .toUriString();
+        return shareUrlBuilder.shareBaseUrl();
     }
 }

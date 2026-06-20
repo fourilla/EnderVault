@@ -15,6 +15,8 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
     }
 
+    const maxFilesPerRequest = Math.max(0, Number.parseInt(uploadForm.dataset.maxFilesPerRequest || "0", 10) || 0);
+
     const showUploadStatus = (message, error = false) => {
         window.EnderVault.showToast(error ? "error" : "info", message);
     };
@@ -290,6 +292,20 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
 
+    const validateUploadBatch = (files) => {
+        if (!files || files.length === 0) {
+            return false;
+        }
+        if (maxFilesPerRequest > 0 && files.length > maxFilesPerRequest) {
+            showUploadStatus(
+                `You can upload up to ${maxFilesPerRequest} file${maxFilesPerRequest === 1 ? "" : "s"} at once.`,
+                true
+            );
+            return false;
+        }
+        return true;
+    };
+
     function sendFileUpload(upload) {
         const xhr = new XMLHttpRequest();
         upload.xhr = xhr;
@@ -336,7 +352,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const startFileUploads = (files) => {
-        if (files.length === 0) {
+        if (!validateUploadBatch(files)) {
             return;
         }
 

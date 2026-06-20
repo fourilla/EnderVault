@@ -1,5 +1,7 @@
 package io.github.fourilla.endervault.metadata;
 
+import io.github.fourilla.endervault.common.StorageAccessException;
+import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.task.TaskContext;
 import java.io.IOException;
 import java.time.Instant;
@@ -15,15 +17,20 @@ import org.springframework.stereotype.Service;
 public class MetadataMaintenanceService {
 
     private final Map<MetadataArea, MetadataInspector> inspectors;
+    private final NasProperties.MetadataInspector metadataInspectorProperties;
 
-    public MetadataMaintenanceService(List<MetadataInspector> inspectors) {
+    public MetadataMaintenanceService(List<MetadataInspector> inspectors, NasProperties nasProperties) {
         this.inspectors = new EnumMap<>(MetadataArea.class);
+        this.metadataInspectorProperties = nasProperties.getMetadataInspector();
         for (MetadataInspector inspector : inspectors) {
             this.inspectors.put(inspector.area(), inspector);
         }
     }
 
     public List<MetadataArea> availableAreas() {
+        if (!metadataInspectorProperties.isEnabled()) {
+            return List.of();
+        }
         return inspectors.keySet().stream()
                 .sorted(Comparator.comparingInt(Enum::ordinal))
                 .toList();
@@ -40,6 +47,7 @@ public class MetadataMaintenanceService {
     }
 
     public MetadataScanReport scan(Collection<String> values, TaskContext context) throws IOException {
+        ensureEnabled();
         List<MetadataAreaReport> reports = new ArrayList<>();
         List<MetadataArea> selectedAreas = selectedAreas(values);
         if (context != null) {
@@ -51,7 +59,7 @@ public class MetadataMaintenanceService {
                 context.message("Scanning " + area.label() + ".");
             }
             MetadataInspector inspector = inspectors.get(area);
-            reports.add(new MetadataAreaReport(area, inspector.inspect(context)));
+            reports.add(new MetadataAreaReport(area, limitIssues(inspector.inspect(context))));
             if (context != null) {
                 context.incrementProcessedItems();
             }
@@ -60,6 +68,7 @@ public class MetadataMaintenanceService {
     }
 
     public MetadataRepairSummary repair(Collection<String> tokens) {
+        ensureEnabled();
         if (tokens == null || tokens.isEmpty()) {
             return new MetadataRepairSummary(0, 0, List.of("No metadata issue was selected."), List.of());
         }
@@ -87,5 +96,19 @@ public class MetadataMaintenanceService {
             }
         }
         return new MetadataRepairSummary(repaired, failed, List.copyOf(messages), List.copyOf(repairedTokens));
+    }
+
+    private List<MetadataIssue> limitIssues(List<MetadataIssue> issues) {
+        int maxIssues = metadataInspectorProperties.getMaxIssuesPerArea();
+        if (maxIssues <= 0 || issues.size() <= maxIssues) {
+            return List.copyOf(issues);
+        }
+        return List.copyOf(issues.subList(0, maxIssues));
+    }
+
+    private void ensureEnabled() {
+        if (!metadataInspectorProperties.isEnabled()) {
+            throw new StorageAccessException("Metadata inspector is disabled.");
+        }
     }
 }

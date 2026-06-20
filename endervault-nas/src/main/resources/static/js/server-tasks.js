@@ -5,7 +5,29 @@
     const terminalNotifications = new Set();
     let pollTimer = null;
 
+    const metaContent = (name) =>
+        document.querySelector(`meta[name="${name}"]`)?.content || "";
+
+    const configuredBoolean = (name, fallback) => {
+        const value = metaContent(name).trim().toLowerCase();
+        if (value === "true") {
+            return true;
+        }
+        if (value === "false") {
+            return false;
+        }
+        return fallback;
+    };
+
+    const configuredInteger = (name, fallback) => {
+        const value = Number.parseInt(metaContent(name), 10);
+        return Number.isFinite(value) && value >= 0 ? value : fallback;
+    };
+
     const panelEnabled = () => {
+        if (!configuredBoolean("endervault-task-activity-enabled", true)) {
+            return false;
+        }
         if (document.body?.dataset.serverTaskActivity === "false") {
             return false;
         }
@@ -117,7 +139,10 @@
             maybeRefreshPage(task);
             maybeNotifyTerminalTask(task);
             removeTrackedId(task.id);
-            window.EnderVaultActivity?.scheduleRemoval(id, task.status === "COMPLETE" ? 2800 : 7000);
+            const delayMs = task.status === "COMPLETE"
+                    ? configuredInteger("endervault-task-completed-display-ms", 2800)
+                    : configuredInteger("endervault-task-failed-display-ms", 7000);
+            window.EnderVaultActivity?.scheduleRemoval(id, delayMs);
         }
     };
 

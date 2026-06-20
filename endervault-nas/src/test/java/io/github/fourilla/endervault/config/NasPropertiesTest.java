@@ -40,4 +40,34 @@ class NasPropertiesTest {
         assertThat(properties.getSecurity().getTrustedProxies())
                 .isEqualTo(List.of("127.0.0.1", "10.0.0.0/8"));
     }
+
+    @Test
+    void bindsOperationalSettings() {
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty("nas.server.public-base-url", "https://nas.example.com/")
+                .withProperty("nas.share.default-expiration-days", "7")
+                .withProperty("nas.share.max-expiration-days", "30")
+                .withProperty("nas.share.custom-token-min-length", "4")
+                .withProperty("nas.share.direct-download-link-enabled", "false")
+                .withProperty("nas.upload.temp-retention-minutes", "45")
+                .withProperty("nas.activity-log.max-archive-files", "12")
+                .withProperty("nas.activity-log.page-size-options", "25,50,100")
+                .withProperty("nas.tasks.worker-threads", "3")
+                .withProperty("nas.metadata-inspector.max-issues-per-area", "250");
+
+        NasProperties properties = Binder.get(environment)
+                .bind("nas", NasProperties.class)
+                .orElseGet(NasProperties::new);
+
+        assertThat(properties.getServer().getPublicBaseUrl()).isEqualTo("https://nas.example.com/");
+        assertThat(properties.getShare().getDefaultExpirationDays()).isEqualTo(7);
+        assertThat(properties.getShare().getMaxExpirationDays()).isEqualTo(30);
+        assertThat(properties.getShare().getCustomTokenMinLength()).isEqualTo(4);
+        assertThat(properties.getShare().isDirectDownloadLinkEnabled()).isFalse();
+        assertThat(properties.getUpload().getTempRetentionMinutes()).isEqualTo(45);
+        assertThat(properties.getActivityLog().getMaxArchiveFiles()).isEqualTo(12);
+        assertThat(properties.getActivityLog().getPageSizeOptions()).isEqualTo(List.of(25, 50, 100));
+        assertThat(properties.getTasks().getWorkerThreads()).isEqualTo(3);
+        assertThat(properties.getMetadataInspector().getMaxIssuesPerArea()).isEqualTo(250);
+    }
 }

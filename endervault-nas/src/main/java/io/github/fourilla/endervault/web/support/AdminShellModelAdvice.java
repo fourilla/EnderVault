@@ -1,5 +1,6 @@
 package io.github.fourilla.endervault.web.support;
 
+import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.favorite.FavoriteItem;
 import io.github.fourilla.endervault.favorite.FavoriteService;
 import io.github.fourilla.endervault.storage.StorageService;
@@ -52,17 +53,20 @@ public class AdminShellModelAdvice {
     private final FavoriteService favoriteService;
     private final FilePreviewSupport filePreviewSupport;
     private final FileActionViewSupport fileActionViewSupport;
+    private final NasProperties nasProperties;
 
     public AdminShellModelAdvice(
             StorageService storageService,
             FavoriteService favoriteService,
             FilePreviewSupport filePreviewSupport,
-            FileActionViewSupport fileActionViewSupport
+            FileActionViewSupport fileActionViewSupport,
+            NasProperties nasProperties
     ) {
         this.storageService = storageService;
         this.favoriteService = favoriteService;
         this.filePreviewSupport = filePreviewSupport;
         this.fileActionViewSupport = fileActionViewSupport;
+        this.nasProperties = nasProperties;
     }
 
     @ModelAttribute("storageUsage")
@@ -87,5 +91,37 @@ public class AdminShellModelAdvice {
     @ModelAttribute("fileActions")
     public FileActionViewSupport fileActions() {
         return fileActionViewSupport;
+    }
+
+    @ModelAttribute("taskUiConfig")
+    public TaskUiConfig taskUiConfig() {
+        NasProperties.Tasks tasks = nasProperties.getTasks();
+        return new TaskUiConfig(
+                tasks.isActivityPanelEnabled(),
+                tasks.getCompletedDisplayMs(),
+                tasks.getFailedDisplayMs()
+        );
+    }
+
+    @ModelAttribute("uploadUiConfig")
+    public UploadUiConfig uploadUiConfig() {
+        NasProperties.Upload upload = nasProperties.getUpload();
+        return new UploadUiConfig(
+                upload.getMaxFilesPerRequest(),
+                upload.isDirectoryUploadEnabled()
+        );
+    }
+
+    public record TaskUiConfig(
+            boolean activityPanelEnabled,
+            int completedDisplayMs,
+            int failedDisplayMs
+    ) {
+    }
+
+    public record UploadUiConfig(
+            int maxFilesPerRequest,
+            boolean directoryUploadEnabled
+    ) {
     }
 }

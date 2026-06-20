@@ -18,7 +18,7 @@ public record ActivityLogQuery(
         int size
 ) {
     public static final int DEFAULT_SIZE = 100;
-    public static final int MAX_SIZE = 500;
+    public static final int MAX_SIZE = 1000;
 
     private static final DateTimeFormatter MINUTE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm");
     private static final DateTimeFormatter SECOND_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");

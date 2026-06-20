@@ -17,6 +17,7 @@ import io.github.fourilla.endervault.transfer.TransferBufferService;
 import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.FlashNotification;
 import io.github.fourilla.endervault.web.support.ShareLinkView;
+import io.github.fourilla.endervault.web.support.ShareUrlBuilder;
 import io.github.fourilla.endervault.web.support.TextFileLoadResponse;
 import io.github.fourilla.endervault.web.support.TextFilePayload;
 import jakarta.servlet.http.HttpServletRequest;
@@ -32,7 +33,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import org.springframework.web.util.UriUtils;
 
 @Controller
@@ -46,6 +46,7 @@ public class AdminFileDetailController {
     private final RecentService recentService;
     private final ActivityLogService activityLogService;
     private final TransferBufferService transferBufferService;
+    private final ShareUrlBuilder shareUrlBuilder;
 
     public AdminFileDetailController(
             StorageService storageService,
@@ -55,7 +56,8 @@ public class AdminFileDetailController {
             ComicArchiveService comicArchiveService,
             RecentService recentService,
             ActivityLogService activityLogService,
-            TransferBufferService transferBufferService
+            TransferBufferService transferBufferService,
+            ShareUrlBuilder shareUrlBuilder
     ) {
         this.storageService = storageService;
         this.shareLinkService = shareLinkService;
@@ -65,6 +67,7 @@ public class AdminFileDetailController {
         this.recentService = recentService;
         this.activityLogService = activityLogService;
         this.transferBufferService = transferBufferService;
+        this.shareUrlBuilder = shareUrlBuilder;
     }
 
     @GetMapping("/files/detail")
@@ -92,10 +95,10 @@ public class AdminFileDetailController {
             model.addAttribute("comicPreviousPageNumber", Math.max(1, comicPageNumber - 1));
             model.addAttribute("comicNextPageNumber", Math.min(comicManifest.pageCount(), comicPageNumber + 1));
         }
-        String shareBaseUrl = shareBaseUrl();
+        String shareBaseUrl = shareUrlBuilder.shareBaseUrl();
         model.addAttribute("shares", shareLinkService.listForVaultPath(detail.path())
                 .stream()
-                .map(shareLink -> ShareLinkView.from(shareLink, shareBaseUrl))
+                .map(shareLink -> ShareLinkView.from(shareLink, shareBaseUrl, shareUrlBuilder.directDownloadLinkEnabled()))
                 .toList());
         model.addAttribute("favorite", favoriteService.isFavorite(detail.path()));
         model.addAttribute("transferBuffer", transferBufferService.current(request.getSession(false)));
@@ -136,12 +139,6 @@ public class AdminFileDetailController {
             throw new NoSuchFileException("");
         }
         return storageService.detail(StorageScope.VAULT, path);
-    }
-
-    private String shareBaseUrl() {
-        return ServletUriComponentsBuilder.fromCurrentContextPath()
-                .path("/s/")
-                .toUriString();
     }
 
     private String redirectToDetail(String path) {

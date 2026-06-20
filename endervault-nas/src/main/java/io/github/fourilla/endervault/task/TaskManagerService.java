@@ -1,5 +1,6 @@
 package io.github.fourilla.endervault.task;
 
+import io.github.fourilla.endervault.config.NasProperties;
 import jakarta.annotation.PreDestroy;
 import java.util.Comparator;
 import java.util.List;
@@ -14,11 +15,15 @@ import org.springframework.stereotype.Service;
 @Service
 public class TaskManagerService {
 
-    private static final int HISTORY_LIMIT = 100;
-
-    private final ExecutorService executorService = Executors.newFixedThreadPool(2);
+    private final NasProperties.Tasks taskProperties;
+    private final ExecutorService executorService;
     private final Map<String, AppTask> tasks = new ConcurrentHashMap<>();
     private final Map<String, Future<?>> taskFutures = new ConcurrentHashMap<>();
+
+    public TaskManagerService(NasProperties nasProperties) {
+        this.taskProperties = nasProperties.getTasks();
+        this.executorService = Executors.newFixedThreadPool(Math.max(1, taskProperties.getWorkerThreads()));
+    }
 
     public AppTask submit(TaskType type, String title, String targetPath, String actor, String ip, TaskWork work) {
         AppTask task = new AppTask(UUID.randomUUID().toString(), type, title, targetPath, actor, ip);
@@ -150,11 +155,12 @@ public class TaskManagerService {
 
     private void trimHistory() {
         List<AppTask> allTasks = listTasks();
-        if (allTasks.size() <= HISTORY_LIMIT) {
+        int historyLimit = Math.max(1, taskProperties.getHistoryLimit());
+        if (allTasks.size() <= historyLimit) {
             return;
         }
         allTasks.stream()
-                .skip(HISTORY_LIMIT)
+                .skip(historyLimit)
                 .filter(task -> !task.active())
                 .map(AppTask::id)
                 .forEach(tasks::remove);

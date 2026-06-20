@@ -26,6 +26,9 @@ public class NasProperties {
     private Security security = new Security();
 
     @Valid
+    private Server server = new Server();
+
+    @Valid
     private Admin admin = new Admin();
 
     @Valid
@@ -52,6 +55,21 @@ public class NasProperties {
     @Valid
     private FileTools fileTools = new FileTools();
 
+    @Valid
+    private Share share = new Share();
+
+    @Valid
+    private Upload upload = new Upload();
+
+    @Valid
+    private ActivityLog activityLog = new ActivityLog();
+
+    @Valid
+    private Tasks tasks = new Tasks();
+
+    @Valid
+    private MetadataInspector metadataInspector = new MetadataInspector();
+
     public Storage getStorage() {
         return storage;
     }
@@ -74,6 +92,14 @@ public class NasProperties {
 
     public void setSecurity(Security security) {
         this.security = security;
+    }
+
+    public Server getServer() {
+        return server;
+    }
+
+    public void setServer(Server server) {
+        this.server = server;
     }
 
     public Admin getAdmin() {
@@ -148,6 +174,46 @@ public class NasProperties {
         this.fileTools = fileTools;
     }
 
+    public Share getShare() {
+        return share;
+    }
+
+    public void setShare(Share share) {
+        this.share = share;
+    }
+
+    public Upload getUpload() {
+        return upload;
+    }
+
+    public void setUpload(Upload upload) {
+        this.upload = upload;
+    }
+
+    public ActivityLog getActivityLog() {
+        return activityLog;
+    }
+
+    public void setActivityLog(ActivityLog activityLog) {
+        this.activityLog = activityLog;
+    }
+
+    public Tasks getTasks() {
+        return tasks;
+    }
+
+    public void setTasks(Tasks tasks) {
+        this.tasks = tasks;
+    }
+
+    public MetadataInspector getMetadataInspector() {
+        return metadataInspector;
+    }
+
+    public void setMetadataInspector(MetadataInspector metadataInspector) {
+        this.metadataInspector = metadataInspector;
+    }
+
     public static class Storage {
         @NotNull
         private Path root = Path.of("./storage");
@@ -216,6 +282,18 @@ public class NasProperties {
 
         public void setTrustedProxies(List<String> trustedProxies) {
             this.trustedProxies = trustedProxies == null ? List.of() : trustedProxies;
+        }
+    }
+
+    public static class Server {
+        private String publicBaseUrl = "";
+
+        public String getPublicBaseUrl() {
+            return publicBaseUrl;
+        }
+
+        public void setPublicBaseUrl(String publicBaseUrl) {
+            this.publicBaseUrl = publicBaseUrl == null ? "" : publicBaseUrl.trim();
         }
     }
 
@@ -633,6 +711,318 @@ public class NasProperties {
         public void setTextMaxBytes(long textMaxBytes) {
             this.textAutoLoadMaxBytes = textMaxBytes;
             this.textManualLoadMaxBytes = Math.max(this.textManualLoadMaxBytes, textMaxBytes);
+        }
+    }
+
+    public static class Share {
+        private boolean enabled = true;
+
+        @Min(0)
+        private int defaultExpirationDays = 0;
+
+        private boolean allowNeverExpires = true;
+
+        @Min(0)
+        private int maxExpirationDays = 0;
+
+        private boolean customTokenEnabled = true;
+
+        @Min(1)
+        private int customTokenMinLength = 3;
+
+        @Min(1)
+        private int customTokenMaxLength = 64;
+
+        @Min(8)
+        @Max(64)
+        private int randomTokenBytes = 24;
+
+        private boolean directoryShareEnabled = true;
+
+        private boolean directDownloadLinkEnabled = true;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public int getDefaultExpirationDays() {
+            return defaultExpirationDays;
+        }
+
+        public void setDefaultExpirationDays(int defaultExpirationDays) {
+            this.defaultExpirationDays = defaultExpirationDays;
+        }
+
+        public boolean isAllowNeverExpires() {
+            return allowNeverExpires;
+        }
+
+        public void setAllowNeverExpires(boolean allowNeverExpires) {
+            this.allowNeverExpires = allowNeverExpires;
+        }
+
+        public int getMaxExpirationDays() {
+            return maxExpirationDays;
+        }
+
+        public void setMaxExpirationDays(int maxExpirationDays) {
+            this.maxExpirationDays = maxExpirationDays;
+        }
+
+        public boolean isCustomTokenEnabled() {
+            return customTokenEnabled;
+        }
+
+        public void setCustomTokenEnabled(boolean customTokenEnabled) {
+            this.customTokenEnabled = customTokenEnabled;
+        }
+
+        public int getCustomTokenMinLength() {
+            return customTokenMinLength;
+        }
+
+        public void setCustomTokenMinLength(int customTokenMinLength) {
+            this.customTokenMinLength = customTokenMinLength;
+        }
+
+        public int getCustomTokenMaxLength() {
+            return customTokenMaxLength;
+        }
+
+        public void setCustomTokenMaxLength(int customTokenMaxLength) {
+            this.customTokenMaxLength = customTokenMaxLength;
+        }
+
+        public int getRandomTokenBytes() {
+            return randomTokenBytes;
+        }
+
+        public void setRandomTokenBytes(int randomTokenBytes) {
+            this.randomTokenBytes = randomTokenBytes;
+        }
+
+        public boolean isDirectoryShareEnabled() {
+            return directoryShareEnabled;
+        }
+
+        public void setDirectoryShareEnabled(boolean directoryShareEnabled) {
+            this.directoryShareEnabled = directoryShareEnabled;
+        }
+
+        public boolean isDirectDownloadLinkEnabled() {
+            return directDownloadLinkEnabled;
+        }
+
+        public void setDirectDownloadLinkEnabled(boolean directDownloadLinkEnabled) {
+            this.directDownloadLinkEnabled = directDownloadLinkEnabled;
+        }
+    }
+
+    public static class Upload {
+        @Min(1)
+        private int tempRetentionMinutes = 30;
+
+        @Min(60000)
+        private long tempCleanupIntervalMs = 600000L;
+
+        @Min(0)
+        private int maxFilesPerRequest = 0;
+
+        private boolean directoryUploadEnabled = false;
+
+        public int getTempRetentionMinutes() {
+            return tempRetentionMinutes;
+        }
+
+        public void setTempRetentionMinutes(int tempRetentionMinutes) {
+            this.tempRetentionMinutes = tempRetentionMinutes;
+        }
+
+        public long getTempCleanupIntervalMs() {
+            return tempCleanupIntervalMs;
+        }
+
+        public void setTempCleanupIntervalMs(long tempCleanupIntervalMs) {
+            this.tempCleanupIntervalMs = tempCleanupIntervalMs;
+        }
+
+        public int getMaxFilesPerRequest() {
+            return maxFilesPerRequest;
+        }
+
+        public void setMaxFilesPerRequest(int maxFilesPerRequest) {
+            this.maxFilesPerRequest = maxFilesPerRequest;
+        }
+
+        public boolean isDirectoryUploadEnabled() {
+            return directoryUploadEnabled;
+        }
+
+        public void setDirectoryUploadEnabled(boolean directoryUploadEnabled) {
+            this.directoryUploadEnabled = directoryUploadEnabled;
+        }
+    }
+
+    public static class ActivityLog {
+        private boolean enabled = true;
+
+        @Min(1024)
+        private long maxFileSizeBytes = 10L * 1024L * 1024L;
+
+        @Min(0)
+        private int maxArchiveFiles = 30;
+
+        @Min(1)
+        @Max(1000)
+        private int defaultPageSize = 100;
+
+        @NotNull
+        private List<Integer> pageSizeOptions = List.of(50, 100, 200, 500);
+
+        private boolean allowArchiveDelete = true;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public long getMaxFileSizeBytes() {
+            return maxFileSizeBytes;
+        }
+
+        public void setMaxFileSizeBytes(long maxFileSizeBytes) {
+            this.maxFileSizeBytes = maxFileSizeBytes;
+        }
+
+        public int getMaxArchiveFiles() {
+            return maxArchiveFiles;
+        }
+
+        public void setMaxArchiveFiles(int maxArchiveFiles) {
+            this.maxArchiveFiles = maxArchiveFiles;
+        }
+
+        public int getDefaultPageSize() {
+            return defaultPageSize;
+        }
+
+        public void setDefaultPageSize(int defaultPageSize) {
+            this.defaultPageSize = defaultPageSize;
+        }
+
+        public List<Integer> getPageSizeOptions() {
+            return pageSizeOptions;
+        }
+
+        public void setPageSizeOptions(List<Integer> pageSizeOptions) {
+            this.pageSizeOptions = pageSizeOptions == null ? List.of(50, 100, 200, 500) : pageSizeOptions;
+        }
+
+        public boolean isAllowArchiveDelete() {
+            return allowArchiveDelete;
+        }
+
+        public void setAllowArchiveDelete(boolean allowArchiveDelete) {
+            this.allowArchiveDelete = allowArchiveDelete;
+        }
+    }
+
+    public static class Tasks {
+        @Min(1)
+        @Max(10000)
+        private int historyLimit = 100;
+
+        @Min(1)
+        @Max(16)
+        private int workerThreads = 2;
+
+        private boolean activityPanelEnabled = true;
+
+        @Min(0)
+        private int completedDisplayMs = 2800;
+
+        @Min(0)
+        private int failedDisplayMs = 7000;
+
+        public int getHistoryLimit() {
+            return historyLimit;
+        }
+
+        public void setHistoryLimit(int historyLimit) {
+            this.historyLimit = historyLimit;
+        }
+
+        public int getWorkerThreads() {
+            return workerThreads;
+        }
+
+        public void setWorkerThreads(int workerThreads) {
+            this.workerThreads = workerThreads;
+        }
+
+        public boolean isActivityPanelEnabled() {
+            return activityPanelEnabled;
+        }
+
+        public void setActivityPanelEnabled(boolean activityPanelEnabled) {
+            this.activityPanelEnabled = activityPanelEnabled;
+        }
+
+        public int getCompletedDisplayMs() {
+            return completedDisplayMs;
+        }
+
+        public void setCompletedDisplayMs(int completedDisplayMs) {
+            this.completedDisplayMs = completedDisplayMs;
+        }
+
+        public int getFailedDisplayMs() {
+            return failedDisplayMs;
+        }
+
+        public void setFailedDisplayMs(int failedDisplayMs) {
+            this.failedDisplayMs = failedDisplayMs;
+        }
+    }
+
+    public static class MetadataInspector {
+        private boolean enabled = true;
+
+        @Min(1)
+        private int uploadTempStaleMinutes = 30;
+
+        @Min(0)
+        private int maxIssuesPerArea = 5000;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public int getUploadTempStaleMinutes() {
+            return uploadTempStaleMinutes;
+        }
+
+        public void setUploadTempStaleMinutes(int uploadTempStaleMinutes) {
+            this.uploadTempStaleMinutes = uploadTempStaleMinutes;
+        }
+
+        public int getMaxIssuesPerArea() {
+            return maxIssuesPerArea;
+        }
+
+        public void setMaxIssuesPerArea(int maxIssuesPerArea) {
+            this.maxIssuesPerArea = maxIssuesPerArea;
         }
     }
 

@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.upload;
 
 import io.github.fourilla.endervault.common.StorageAccessException;
+import io.github.fourilla.endervault.config.NasProperties;
 import jakarta.annotation.PreDestroy;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -19,10 +20,14 @@ import org.springframework.stereotype.Service;
 @Service
 public class PendingUploadConflictService {
 
-    private static final Duration EXPIRATION = Duration.ofMinutes(30);
     private static final Logger logger = LoggerFactory.getLogger(PendingUploadConflictService.class);
 
     private final Map<String, PendingUploadConflict> conflicts = new ConcurrentHashMap<>();
+    private final NasProperties.Upload uploadProperties;
+
+    public PendingUploadConflictService(NasProperties nasProperties) {
+        this.uploadProperties = nasProperties.getUpload();
+    }
 
     public PendingUploadConflict create(Path temporaryFile, String directoryPath, String filename, long size)
             throws IOException {
@@ -55,7 +60,7 @@ public class PendingUploadConflictService {
         }
     }
 
-    @Scheduled(fixedDelay = 600000)
+    @Scheduled(fixedDelayString = "${nas.upload.temp-cleanup-interval-ms:600000}")
     public void cleanupExpiredConflicts() {
         try {
             cleanupExpired();
@@ -78,8 +83,9 @@ public class PendingUploadConflictService {
 
     private void cleanupExpired() throws IOException {
         Instant now = Instant.now();
+        Duration expiration = Duration.ofMinutes(Math.max(1, uploadProperties.getTempRetentionMinutes()));
         for (PendingUploadConflict conflict : new ArrayList<>(conflicts.values())) {
-            if (conflict.expired(now) && conflicts.remove(conflict.id(), conflict)) {
+            if (conflict.expired(now, expiration) && conflicts.remove(conflict.id(), conflict)) {
                 Files.deleteIfExists(conflict.temporaryFile());
             }
         }
@@ -100,8 +106,8 @@ public class PendingUploadConflictService {
             long size,
             Instant createdAt
     ) {
-        boolean expired(Instant now) {
-            return createdAt.plus(EXPIRATION).isBefore(now);
+        boolean expired(Instant now, Duration expiration) {
+            return createdAt.plus(expiration).isBefore(now);
         }
     }
 }

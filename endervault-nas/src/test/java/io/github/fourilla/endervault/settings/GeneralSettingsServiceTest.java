@@ -24,6 +24,7 @@ class GeneralSettingsServiceTest {
         Path configFile = tempDir.resolve("endervault-nas.properties");
         Files.writeString(configFile, """
                 nas.setup.accepted=true
+                nas.storage.default-conflict-policy=cancel
                 nas.browser.default-view=table
                 nas.browser.default-sort=name
                 nas.browser.default-direction=asc
@@ -57,6 +58,7 @@ class GeneralSettingsServiceTest {
         parameters.set("defaultSort", "modified");
         parameters.set("defaultDirection", "desc");
         parameters.set("defaultPageSize", "120");
+        parameters.set("defaultConflictPolicy", "rename");
         parameters.set("recentMaxItems", "55");
         parameters.remove("recordDirectories");
         parameters.set("trashRetentionDays", "14");
@@ -81,6 +83,7 @@ class GeneralSettingsServiceTest {
                 .contains("nas.browser.default-sort=modified")
                 .contains("nas.browser.default-direction=desc")
                 .contains("nas.browser.default-page-size=120")
+                .contains("nas.storage.default-conflict-policy=rename")
                 .contains("nas.recent.max-items=55")
                 .contains("nas.recent.record-directories=false")
                 .contains("nas.trash.retention-days=14")
@@ -96,6 +99,7 @@ class GeneralSettingsServiceTest {
         assertThat(properties.getBrowser().getDefaultSort()).isEqualTo("modified");
         assertThat(properties.getBrowser().getDefaultDirection()).isEqualTo("desc");
         assertThat(properties.getBrowser().getDefaultPageSize()).isEqualTo(120);
+        assertThat(properties.getStorage().getDefaultConflictPolicy()).isEqualTo("rename");
         assertThat(properties.getRecent().getMaxItems()).isEqualTo(55);
         assertThat(properties.getRecent().isRecordDirectories()).isFalse();
         assertThat(properties.getTrash().getRetentionDays()).isEqualTo(14);
@@ -122,6 +126,7 @@ class GeneralSettingsServiceTest {
         parameters.add("defaultSort", "name");
         parameters.add("defaultDirection", "asc");
         parameters.add("defaultPageSize", "200");
+        parameters.add("defaultConflictPolicy", "cancel");
         parameters.add("recentMaxItems", "200");
         parameters.add("recordDirectories", "on");
         parameters.add("trashRetentionDays", "30");

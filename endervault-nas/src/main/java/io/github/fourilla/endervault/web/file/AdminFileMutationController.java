@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.web.file;
 
 import io.github.fourilla.endervault.activity.ActivityLogService;
+import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.favorite.FavoriteService;
 import io.github.fourilla.endervault.recent.RecentService;
 import io.github.fourilla.endervault.share.ShareLinkService;
@@ -56,6 +57,7 @@ public class AdminFileMutationController {
     private final ActivityLogService activityLogService;
     private final FileOperationTaskService fileOperationTaskService;
     private final PendingUploadConflictService pendingUploadConflictService;
+    private final NasProperties.Upload uploadProperties;
 
     public AdminFileMutationController(
             StorageService storageService,
@@ -66,7 +68,8 @@ public class AdminFileMutationController {
             TrashService trashService,
             ActivityLogService activityLogService,
             FileOperationTaskService fileOperationTaskService,
-            PendingUploadConflictService pendingUploadConflictService
+            PendingUploadConflictService pendingUploadConflictService,
+            NasProperties nasProperties
     ) {
         this.storageService = storageService;
         this.shareLinkService = shareLinkService;
@@ -77,6 +80,7 @@ public class AdminFileMutationController {
         this.activityLogService = activityLogService;
         this.fileOperationTaskService = fileOperationTaskService;
         this.pendingUploadConflictService = pendingUploadConflictService;
+        this.uploadProperties = nasProperties.getUpload();
     }
 
     @PostMapping("/files/upload")
@@ -92,6 +96,10 @@ public class AdminFileMutationController {
             HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
+        Object validationFailure = validateUploadRequest(files, request, redirectAttributes, redirectToFiles(path, view, sort, direction, page, size));
+        if (validationFailure != null) {
+            return validationFailure;
+        }
         List<UploadedFilePayload> uploadedFiles = new ArrayList<>();
         for (MultipartFile file : files) {
             FileItem uploadedFile;
@@ -429,6 +437,38 @@ public class AdminFileMutationController {
             throw new NoSuchFileException("");
         }
         return storageService.detail(StorageScope.VAULT, path);
+    }
+
+    private Object validateUploadRequest(
+            MultipartFile[] files,
+            HttpServletRequest request,
+            RedirectAttributes redirectAttributes,
+            String redirect
+    ) {
+        int maxFiles = uploadProperties.getMaxFilesPerRequest();
+        int fileCount = files == null ? 0 : files.length;
+        if (maxFiles > 0 && fileCount > maxFiles) {
+            return ActionResponseSupport.badRequest(
+                    request,
+                    redirectAttributes,
+                    FlashNotification.warning("Upload is limited to " + maxFiles + " file(s) per request."),
+                    redirect
+            );
+        }
+        if (!uploadProperties.isDirectoryUploadEnabled() && files != null) {
+            for (MultipartFile file : files) {
+                String filename = file == null ? "" : file.getOriginalFilename();
+                if (filename != null && (filename.contains("/") || filename.contains("\\"))) {
+                    return ActionResponseSupport.badRequest(
+                            request,
+                            redirectAttributes,
+                            FlashNotification.warning("Directory upload is disabled."),
+                            redirect
+                    );
+                }
+            }
+        }
+        return null;
     }
 
     private FileItem uploadFile(

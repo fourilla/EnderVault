@@ -40,7 +40,6 @@ public class ActivityLogService {
     private static final String CURRENT_LOG_NAME = "activity-log.jsonl";
     private static final String ARCHIVE_PREFIX = "activity-log-";
     private static final String LOG_EXTENSION = ".jsonl";
-    private static final long MAX_LOG_BYTES = 10L * 1024L * 1024L;
     private static final DateTimeFormatter ROLLING_NAME_FORMATTER =
             DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").withZone(ZoneId.systemDefault());
 
@@ -49,6 +48,7 @@ public class ActivityLogService {
     private final Path currentLogFile;
     private final ActivityLogNotifier activityLogNotifier;
     private final ClientIpResolver clientIpResolver;
+    private final NasProperties.ActivityLog activityLogProperties;
 
     public ActivityLogService(ObjectMapper objectMapper, NasProperties nasProperties) {
         this(objectMapper, nasProperties, ActivityLogNotifier.NOOP, new ClientIpResolver(nasProperties));
@@ -72,6 +72,7 @@ public class ActivityLogService {
         this.objectMapper = objectMapper;
         this.activityLogNotifier = activityLogNotifier == null ? ActivityLogNotifier.NOOP : activityLogNotifier;
         this.clientIpResolver = clientIpResolver == null ? new ClientIpResolver(nasProperties) : clientIpResolver;
+        this.activityLogProperties = nasProperties.getActivityLog();
         NasProperties.Storage storage = nasProperties.getStorage();
         this.logDirectory = storage.getRoot()
                 .toAbsolutePath()
@@ -153,6 +154,9 @@ public class ActivityLogService {
             String message,
             Map<String, String> metadata
     ) throws IOException {
+        if (!activityLogProperties.isEnabled()) {
+            return null;
+        }
         return append(
                 type,
                 actor(request),
@@ -175,6 +179,9 @@ public class ActivityLogService {
             String message,
             Map<String, String> metadata
     ) throws IOException {
+        if (!activityLogProperties.isEnabled()) {
+            return null;
+        }
         Files.createDirectories(logDirectory);
 
         ActivityLogEntry entry = new ActivityLogEntry(
@@ -300,6 +307,9 @@ public class ActivityLogService {
     }
 
     public synchronized void deleteArchive(String fileName) throws IOException {
+        if (!activityLogProperties.isAllowArchiveDelete()) {
+            throw new StorageAccessException("Activity log archive deletion is disabled.");
+        }
         if (!isArchiveLogName(fileName)) {
             throw new StorageAccessException("Only archived activity logs can be deleted.");
         }
@@ -311,7 +321,7 @@ public class ActivityLogService {
             return;
         }
         long currentSize = Files.size(currentLogFile);
-        if (currentSize + appendBytes <= MAX_LOG_BYTES) {
+        if (currentSize + appendBytes <= Math.max(1024L, activityLogProperties.getMaxFileSizeBytes())) {
             return;
         }
 
@@ -320,6 +330,25 @@ public class ActivityLogService {
             Files.move(currentLogFile, archive, StandardCopyOption.ATOMIC_MOVE);
         } catch (AtomicMoveNotSupportedException ex) {
             Files.move(currentLogFile, archive);
+        }
+        cleanupOldArchives();
+    }
+
+    private void cleanupOldArchives() throws IOException {
+        int maxArchives = activityLogProperties.getMaxArchiveFiles();
+        if (maxArchives <= 0) {
+            return;
+        }
+        List<Path> archives;
+        try (Stream<Path> paths = Files.list(logDirectory)) {
+            archives = paths
+                    .filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))
+                    .filter(path -> isArchiveLogName(path.getFileName().toString()))
+                    .sorted(Comparator.comparing(this::lastModified).reversed())
+                    .toList();
+        }
+        for (Path archive : archives.stream().skip(maxArchives).toList()) {
+            Files.deleteIfExists(archive);
         }
     }
 

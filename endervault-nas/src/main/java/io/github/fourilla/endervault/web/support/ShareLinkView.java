@@ -11,8 +11,12 @@ public record ShareLinkView(
 ) {
 
     public static ShareLinkView from(ShareLink shareLink, String shareBaseUrl) {
+        return from(shareLink, shareBaseUrl, true);
+    }
+
+    public static ShareLinkView from(ShareLink shareLink, String shareBaseUrl, boolean directDownloadLinkEnabled) {
         String url = normalizeBaseUrl(shareBaseUrl) + shareLink.token();
-        String directDownloadUrl = shareLink.type() == ShareTargetType.FILE
+        String directDownloadUrl = directDownloadLinkEnabled && shareLink.type() == ShareTargetType.FILE
                 ? directDownloadUrl(url, shareLink.path())
                 : null;
         return new ShareLinkView(shareLink, url, directDownloadUrl);
