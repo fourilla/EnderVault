@@ -1,5 +1,12 @@
 document.addEventListener("DOMContentLoaded", () => {
-    const { submitJsonForm, showNotification, showToast, navigateWithNotification, csrfPair } = window.EnderVault;
+    const {
+        submitJsonForm,
+        submitJsonFormResolvingConflicts,
+        showNotification,
+        showToast,
+        navigateWithNotification,
+        csrfPair
+    } = window.EnderVault;
     const region = document.querySelector("[data-transfer-buffer-region]");
     const bulkForm = document.getElementById("bulkActionForm");
 
@@ -269,10 +276,15 @@ document.addEventListener("DOMContentLoaded", () => {
             if (submitter?.name) {
                 formData.append(submitter.name, submitter.value);
             }
+            const conflictAware = action === "transfer-paste";
+            if (conflictAware) {
+                formData.set("conflictPolicy", "ask");
+            }
 
             setBusy(form, submitter, true);
             try {
-                const body = await submitJsonForm(form, formData, target.url, target.method);
+                const submit = conflictAware ? submitJsonFormResolvingConflicts : submitJsonForm;
+                const body = await submit(form, formData, target.url, target.method);
                 if (body.redirectUrl && navigateWithNotification(body)) {
                     return;
                 }

@@ -69,11 +69,11 @@ public class TrashService {
         return moveItemToTrash(item);
     }
 
-    public synchronized TrashRecord restore(String id) throws IOException {
+    public synchronized TrashRestoreResult restore(String id) throws IOException {
         TrashRecord record = requireRecord(id);
-        storageService.restoreTrashItem(record.trashName(), record.originalPath());
+        String restoredPath = storageService.restoreTrashItem(record.trashName(), record.originalPath());
         trashRepository.remove(record.id());
-        return record;
+        return new TrashRestoreResult(record, restoredPath);
     }
 
     public synchronized TrashRecord deletePermanently(String id) throws IOException {
@@ -153,5 +153,8 @@ public class TrashService {
     private String parentPathOf(String path) {
         int index = path.lastIndexOf('/');
         return index < 0 ? "" : path.substring(0, index);
+    }
+
+    public record TrashRestoreResult(TrashRecord record, String restoredPath) {
     }
 }

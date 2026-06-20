@@ -6,6 +6,7 @@ import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.favorite.FavoriteService;
 import io.github.fourilla.endervault.recent.RecentService;
 import io.github.fourilla.endervault.share.ShareLinkService;
+import io.github.fourilla.endervault.storage.ConflictPolicy;
 import io.github.fourilla.endervault.storage.StorageOperationSummary;
 import io.github.fourilla.endervault.storage.StorageProgressListener;
 import io.github.fourilla.endervault.storage.StorageService;
@@ -63,6 +64,16 @@ public class FileOperationTaskService {
             String targetPath,
             HttpServletRequest request
     ) {
+        return queueTransfer(operation, items, targetPath, request, null);
+    }
+
+    public AppTask queueTransfer(
+            TransferOperation operation,
+            List<TransferBufferItem> items,
+            String targetPath,
+            HttpServletRequest request,
+            ConflictPolicy conflictPolicy
+    ) {
         List<TransferBufferItem> snapshot = List.copyOf(items);
         RequestSnapshot requestSnapshot = RequestSnapshot.from(request, clientIpResolver);
         TaskType type = operation == TransferOperation.MOVE ? TaskType.FILE_MOVE : TaskType.FILE_COPY;
@@ -73,7 +84,7 @@ public class FileOperationTaskService {
                 targetPath,
                 requestSnapshot.actor(),
                 requestSnapshot.ip(),
-                context -> runTransfer(operation, snapshot, targetPath, requestSnapshot, context)
+                context -> runTransfer(operation, snapshot, targetPath, requestSnapshot, context, conflictPolicy)
         );
     }
 
@@ -99,7 +110,8 @@ public class FileOperationTaskService {
             List<TransferBufferItem> items,
             String targetPath,
             RequestSnapshot request,
-            TaskContext context
+            TaskContext context,
+            ConflictPolicy conflictPolicy
     ) throws IOException {
         context.message("Preparing " + operation.label().toLowerCase(Locale.ROOT) + ".");
         if (operation == TransferOperation.COPY) {
@@ -119,8 +131,8 @@ public class FileOperationTaskService {
             context.message(runningLabel(operation) + " " + item.name());
             try {
                 String newPath = operation == TransferOperation.MOVE
-                        ? storageService.moveVaultPath(item.path(), targetPath)
-                        : storageService.copyVaultPath(item.path(), targetPath, listener(context));
+                        ? storageService.moveVaultPath(item.path(), targetPath, conflictPolicy)
+                        : storageService.copyVaultPath(item.path(), targetPath, listener(context), conflictPolicy);
                 if (operation == TransferOperation.MOVE) {
                     context.incrementProcessedItems();
                     finishMovedItem(item, newPath, request);

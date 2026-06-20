@@ -83,6 +83,25 @@
                 </div>
             </section>
 
+            <section class="settings-detail-section" aria-label="File conflict settings">
+                <header class="settings-subsection-heading">
+                    <div>
+                        <h3>File Conflicts</h3>
+                        <p>Default behavior when upload, move, copy, rename, or restore finds the same name.</p>
+                    </div>
+                </header>
+                <div class="settings-field-grid">
+                    <label>
+                        <span>Default conflict policy</span>
+                        <select name="defaultConflictPolicy">
+                            <option value="cancel" th:selected="${settings.storage().defaultConflictPolicy() == 'cancel'}">Cancel</option>
+                            <option value="rename" th:selected="${settings.storage().defaultConflictPolicy() == 'rename'}">Rename automatically</option>
+                            <option value="overwrite" th:selected="${settings.storage().defaultConflictPolicy() == 'overwrite'}">Overwrite files</option>
+                        </select>
+                    </label>
+                </div>
+            </section>
+
             <section class="settings-detail-section" aria-label="Recent item settings">
                 <header class="settings-subsection-heading">
                     <div>

@@ -6,7 +6,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const dropUploadOverlay = document.getElementById("dropUploadOverlay");
     const uploadState = {
         uploads: new Map(),
-        nextId: 1
+        nextId: 1,
+        conflictQueue: [],
+        conflictDialogOpen: false
     };
 
     if (!uploadForm || !fileUploadInput || !uploadButton) {
@@ -25,7 +27,8 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     const activeUploads = () =>
-        Array.from(uploadState.uploads.values()).filter((upload) => upload.status === "uploading");
+        Array.from(uploadState.uploads.values()).filter((upload) =>
+            ["uploading", "conflict", "resolving"].includes(upload.status));
 
     window.addEventListener("beforeunload", (event) => {
         if (activeUploads().length === 0) {
@@ -54,6 +57,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 return upload.message || "Failed";
             case "canceled":
                 return "Canceled";
+            case "conflict":
+                return "Waiting for conflict choice";
+            case "resolving":
+                return "Applying conflict choice...";
             default:
                 return `${formatBytes(upload.loaded)} / ${formatBytes(upload.total || upload.file.size)}`;
         }
@@ -102,7 +109,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 type: "UPLOAD",
                 typeLabel: "Upload",
                 status: upload.status,
-                percent: upload.status === "complete" ? 100 : uploadPercent(upload),
+                percent: ["complete", "conflict", "resolving"].includes(upload.status) ? 100 : uploadPercent(upload),
                 message: uploadStatusText(upload),
                 cancelRequested: upload.cancelRequested,
                 cancelable: upload.status === "uploading",
@@ -124,11 +131,12 @@ document.addEventListener("DOMContentLoaded", () => {
             formData.append(control.name, control.value);
         });
         formData.append(fileUploadInput.name || "files", file, file.name);
+        formData.set("conflictPolicy", "ask");
         return formData;
     };
 
     const finishUpload = (upload, status, message = "") => {
-        if (upload.status !== "uploading") {
+        if (!["uploading", "conflict", "resolving"].includes(upload.status)) {
             return;
         }
 
@@ -142,6 +150,136 @@ document.addEventListener("DOMContentLoaded", () => {
             scheduleUploadRemoval(upload, 6500);
         }
         renderUploadPanel();
+    };
+
+    const conflictFormData = (conflict, policy) => {
+        const formData = new FormData();
+        const csrf = window.EnderVault.csrfPair(uploadForm);
+        if (csrf) {
+            formData.append(csrf.name, csrf.value);
+        }
+        formData.append("id", conflict.id);
+        formData.append("conflictPolicy", policy);
+        Array.from(uploadForm.elements).forEach((control) => {
+            if (!control.name || control.disabled || control.type === "file" || control.name === "conflictPolicy") {
+                return;
+            }
+            if ((control.type === "checkbox" || control.type === "radio") && !control.checked) {
+                return;
+            }
+            if (!formData.has(control.name)) {
+                formData.append(control.name, control.value);
+            }
+        });
+        return formData;
+    };
+
+    const resolveUploadConflict = async (upload, policy) => {
+        if (!upload.conflict || upload.status !== "conflict") {
+            return;
+        }
+
+        upload.status = "resolving";
+        renderUploadPanel();
+        try {
+            const body = await window.EnderVault.requestJson("/files/upload/conflicts/resolve", {
+                method: "POST",
+                body: conflictFormData(upload.conflict, policy)
+            });
+            upload.redirectUrl = body.redirectUrl;
+            window.EnderVault.showNotification(body.notification);
+            if (body.uploadedFile) {
+                finishUpload(upload, "complete");
+            } else {
+                finishUpload(upload, "canceled");
+            }
+        } catch (error) {
+            finishUpload(upload, "failed", error.message || "Conflict resolution failed.");
+        }
+    };
+
+    const ensureConflictDialog = () => {
+        let dialog = document.getElementById("uploadConflictDialog");
+        if (dialog) {
+            return dialog;
+        }
+
+        dialog = document.createElement("dialog");
+        dialog.id = "uploadConflictDialog";
+        dialog.className = "upload-conflict-dialog";
+        dialog.innerHTML = `
+            <form method="dialog" class="upload-conflict-card">
+                <header class="upload-conflict-header">
+                    <div>
+                        <h2>File name conflict</h2>
+                        <p data-conflict-message></p>
+                    </div>
+                    <button class="ghost icon-button action-icon" value="default" type="submit" title="Use default policy" aria-label="Use default policy">
+                        <i class="fas fa-xmark" aria-hidden="true"></i>
+                    </button>
+                </header>
+                <div class="upload-conflict-actions">
+                    <button class="ghost icon-text-button" value="rename" type="submit">
+                        <span>Rename and Continue</span>
+                    </button>
+                    <button class="danger icon-text-button" value="overwrite" type="submit">
+                        <span>Overwrite</span>
+                    </button>
+                    <button class="ghost icon-text-button" value="cancel" type="submit">
+                        <span>Cancel</span>
+                    </button>
+                </div>
+            </form>
+        `;
+        document.body.append(dialog);
+        return dialog;
+    };
+
+    const showNextConflictDialog = () => {
+        if (uploadState.conflictDialogOpen || uploadState.conflictQueue.length === 0) {
+            return;
+        }
+
+        const upload = uploadState.conflictQueue.shift();
+        if (!upload || upload.status !== "conflict" || !upload.conflict) {
+            showNextConflictDialog();
+            return;
+        }
+
+        const dialog = ensureConflictDialog();
+        const message = dialog.querySelector("[data-conflict-message]");
+        const defaultPolicy = upload.conflict.defaultPolicy || "cancel";
+        message.textContent = `"${upload.conflict.fileName}" already exists. Choose how to finish this upload. Closing uses the default policy: ${defaultPolicy}.`;
+        dialog.returnValue = "default";
+
+        uploadState.conflictDialogOpen = true;
+        const finish = () => {
+            uploadState.conflictDialogOpen = false;
+            dialog.removeEventListener("close", onClose);
+            showNextConflictDialog();
+        };
+        const onClose = () => {
+            const policy = dialog.returnValue || "default";
+            finish();
+            resolveUploadConflict(upload, policy);
+        };
+        dialog.addEventListener("close", onClose);
+
+        if (typeof dialog.showModal === "function") {
+            dialog.showModal();
+        } else {
+            dialog.returnValue = "default";
+            onClose();
+        }
+    };
+
+    const queueUploadConflict = (upload, conflict) => {
+        upload.conflict = conflict;
+        upload.status = "conflict";
+        upload.loaded = upload.total || upload.file.size;
+        uploadState.conflictQueue.push(upload);
+        renderUploadPanel();
+        showNextConflictDialog();
     };
 
     const parseUploadResponse = (xhr) => {
@@ -178,6 +316,12 @@ document.addEventListener("DOMContentLoaded", () => {
             if (xhr.status >= 200 && xhr.status < 300 && body.ok !== false) {
                 upload.redirectUrl = body.redirectUrl;
                 finishUpload(upload, "complete");
+                return;
+            }
+
+            if (xhr.status === 409 && body.conflict) {
+                upload.redirectUrl = body.redirectUrl;
+                queueUploadConflict(upload, body.conflict);
                 return;
             }
 

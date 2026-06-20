@@ -158,6 +158,9 @@ public class NasProperties {
         @NotBlank
         private String metadataDirectory = ".endervault";
 
+        @NotBlank
+        private String defaultConflictPolicy = "cancel";
+
         public Path getRoot() {
             return root;
         }
@@ -180,6 +183,14 @@ public class NasProperties {
 
         public void setMetadataDirectory(String metadataDirectory) {
             this.metadataDirectory = metadataDirectory;
+        }
+
+        public String getDefaultConflictPolicy() {
+            return defaultConflictPolicy;
+        }
+
+        public void setDefaultConflictPolicy(String defaultConflictPolicy) {
+            this.defaultConflictPolicy = defaultConflictPolicy;
         }
     }
 

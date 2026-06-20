@@ -3,6 +3,7 @@ package io.github.fourilla.endervault.web.trash;
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.trash.TrashRecord;
 import io.github.fourilla.endervault.trash.TrashService;
+import io.github.fourilla.endervault.trash.TrashService.TrashRestoreResult;
 import io.github.fourilla.endervault.web.support.FlashNotifications;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
@@ -38,8 +39,9 @@ public class AdminTrashController {
             HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
-        TrashRecord record = trashService.restore(id);
-        activityLogService.record("TRASH_RESTORE", request, record.originalPath(), null, "Restored item from trash");
+        TrashRestoreResult result = trashService.restore(id);
+        TrashRecord record = result.record();
+        activityLogService.record("TRASH_RESTORE", request, record.originalPath(), result.restoredPath(), "Restored item from trash");
         FlashNotifications.success(redirectAttributes, "Item restored.");
         return "redirect:/files/trash";
     }

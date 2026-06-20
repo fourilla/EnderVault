@@ -5,6 +5,7 @@ import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.favorite.FavoriteService;
 import io.github.fourilla.endervault.recent.RecentService;
 import io.github.fourilla.endervault.share.ShareLinkService;
+import io.github.fourilla.endervault.storage.ConflictPolicy;
 import io.github.fourilla.endervault.storage.FileDetail;
 import io.github.fourilla.endervault.storage.FileItem;
 import io.github.fourilla.endervault.storage.StorageScope;
@@ -17,16 +18,20 @@ import io.github.fourilla.endervault.transfer.TransferBufferItem;
 import io.github.fourilla.endervault.transfer.TransferBufferService;
 import io.github.fourilla.endervault.transfer.TransferOperation;
 import io.github.fourilla.endervault.web.support.ActionResponseSupport;
+import io.github.fourilla.endervault.web.support.FileConflictPayload;
+import io.github.fourilla.endervault.web.support.FileConflictResponse;
 import io.github.fourilla.endervault.web.support.FlashNotification;
 import io.github.fourilla.endervault.web.support.SelectedItems;
 import io.github.fourilla.endervault.web.task.TaskPayload;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -124,6 +129,7 @@ public class AdminFileTransferBufferController {
     public Object paste(
             @RequestParam(value = "path", required = false) String path,
             @RequestParam("operation") String operation,
+            @RequestParam(value = "conflictPolicy", required = false) String conflictPolicy,
             HttpSession session,
             HttpServletRequest request,
             RedirectAttributes redirectAttributes
@@ -139,8 +145,38 @@ public class AdminFileTransferBufferController {
         }
 
         TransferOperation transferOperation = TransferOperation.from(operation);
+        if (isCancelConflictPolicy(conflictPolicy)) {
+            FlashNotification notification = FlashNotification.warning("Action canceled.");
+            return ActionResponseSupport.ok(
+                    request,
+                    redirectAttributes,
+                    notification,
+                    redirectToFiles(path, null),
+                    TransferBufferActionResponse.ok(notification, TransferBufferPayload.from(buffer))
+            );
+        }
+
+        if (asksConflictPolicy(conflictPolicy, request)) {
+            TransferBufferItem conflict = firstConflictingTarget(transferOperation, buffer.items(), path);
+            if (conflict != null) {
+                return conflictResponse(
+                        transferOperation,
+                        conflict,
+                        joinPath(path, conflict.name()),
+                        redirectToFiles(path, null)
+                );
+            }
+        }
+
+        ConflictPolicy resolvedConflictPolicy = transferConflictPolicy(conflictPolicy);
         if (ActionResponseSupport.wantsJson(request)) {
-            AppTask task = fileOperationTaskService.queueTransfer(transferOperation, buffer.items(), path, request);
+            AppTask task = fileOperationTaskService.queueTransfer(
+                    transferOperation,
+                    buffer.items(),
+                    path,
+                    request,
+                    resolvedConflictPolicy
+            );
             transferBufferService.clear(session);
             FlashNotification notification = FlashNotification.info(transferOperation.label() + " task queued.");
             return ResponseEntity.accepted().body(TransferBufferActionResponse.ok(
@@ -153,7 +189,7 @@ public class AdminFileTransferBufferController {
         List<TransferBufferItem> failedItems = new ArrayList<>();
         int completedCount = 0;
         for (TransferBufferItem item : buffer.items()) {
-            TransferAttempt attempt = attemptTransfer(transferOperation, item, path);
+            TransferAttempt attempt = attemptTransfer(transferOperation, item, path, resolvedConflictPolicy);
             if (!attempt.success()) {
                 failedItems.add(item);
                 recordFailedTransfer(transferOperation, item, path, request, attempt.failure());
@@ -221,12 +257,17 @@ public class AdminFileTransferBufferController {
         return selectedItems;
     }
 
-    private TransferAttempt attemptTransfer(TransferOperation operation, TransferBufferItem item, String targetPath)
+    private TransferAttempt attemptTransfer(
+            TransferOperation operation,
+            TransferBufferItem item,
+            String targetPath,
+            ConflictPolicy conflictPolicy
+    )
             throws IOException {
         try {
             String newPath = operation == TransferOperation.MOVE
-                    ? storageService.moveVaultPath(item.path(), targetPath)
-                    : storageService.copyVaultPath(item.path(), targetPath);
+                    ? storageService.moveVaultPath(item.path(), targetPath, conflictPolicy)
+                    : storageService.copyVaultPath(item.path(), targetPath, conflictPolicy);
             return TransferAttempt.success(newPath);
         } catch (StorageAccessException ex) {
             return TransferAttempt.failure(ex);
@@ -280,6 +321,80 @@ public class AdminFileTransferBufferController {
                 operation.completedLabel() + " " + completedCount + " item(s). "
                         + failedCount + " item(s) could not be " + action + " and stayed in the buffer."
         );
+    }
+
+    private TransferBufferItem firstConflictingTarget(
+            TransferOperation operation,
+            List<TransferBufferItem> items,
+            String targetDirectoryPath
+    )
+            throws IOException {
+        for (TransferBufferItem item : items) {
+            String targetPath = joinPath(targetDirectoryPath, item.name());
+            if (operation == TransferOperation.MOVE && item.path().equals(targetPath)) {
+                continue;
+            }
+            try {
+                storageService.describeVaultChild(targetDirectoryPath, item.name());
+                return item;
+            } catch (NoSuchFileException ignored) {
+                // No existing target with the same name.
+            }
+        }
+        return null;
+    }
+
+    private ResponseEntity<FileConflictResponse> conflictResponse(
+            TransferOperation operation,
+            TransferBufferItem item,
+            String targetPath,
+            String redirect
+    ) {
+        String action = operation == TransferOperation.MOVE ? "move" : "copy";
+        String message = "An item named \"" + item.name() + "\" already exists in the target directory.";
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(FileConflictResponse.conflict(
+                new FileConflictPayload(
+                        action,
+                        item.name(),
+                        targetPath,
+                        storageService.defaultConflictPolicy().value(),
+                        message
+                ),
+                ActionResponseSupport.redirectUrl(redirect)
+        ));
+    }
+
+    private ConflictPolicy transferConflictPolicy(String conflictPolicy) {
+        if (asksConflictPolicy(conflictPolicy) || "default".equalsIgnoreCase(clean(conflictPolicy))) {
+            return storageService.defaultConflictPolicy();
+        }
+        return ConflictPolicy.from(conflictPolicy);
+    }
+
+    private boolean asksConflictPolicy(String conflictPolicy, HttpServletRequest request) {
+        return asksConflictPolicy(conflictPolicy) && ActionResponseSupport.wantsJson(request);
+    }
+
+    private boolean asksConflictPolicy(String conflictPolicy) {
+        return "ask".equalsIgnoreCase(clean(conflictPolicy));
+    }
+
+    private boolean isCancelConflictPolicy(String conflictPolicy) {
+        String cleanPolicy = clean(conflictPolicy);
+        return "cancel".equalsIgnoreCase(cleanPolicy)
+                || ("default".equalsIgnoreCase(cleanPolicy)
+                && storageService.defaultConflictPolicy() == ConflictPolicy.CANCEL);
+    }
+
+    private String clean(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private String joinPath(String directoryPath, String itemName) {
+        if (directoryPath == null || directoryPath.isBlank()) {
+            return itemName;
+        }
+        return directoryPath + "/" + itemName;
     }
 
     private String redirectToFiles(String path, Integer page) {

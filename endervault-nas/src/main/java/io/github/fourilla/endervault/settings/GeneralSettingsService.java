@@ -2,6 +2,7 @@ package io.github.fourilla.endervault.settings;
 
 import io.github.fourilla.endervault.config.LocalPropertiesFile;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.storage.ConflictPolicy;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -16,6 +17,7 @@ public class GeneralSettingsService {
     private static final List<String> VIEWS = List.of("table", "grid");
     private static final List<String> SORTS = List.of("name", "size", "modified", "type");
     private static final List<String> DIRECTIONS = List.of("asc", "desc");
+    private static final List<String> CONFLICT_POLICIES = ConflictPolicy.valuesForSettings();
 
     private final NasProperties nasProperties;
     private final LocalPropertiesFile localPropertiesFile;
@@ -27,6 +29,7 @@ public class GeneralSettingsService {
 
     public GeneralSettingsSnapshot currentSettings() {
         NasProperties.Browser browser = nasProperties.getBrowser();
+        NasProperties.Storage storage = nasProperties.getStorage();
         NasProperties.Recent recent = nasProperties.getRecent();
         NasProperties.Trash trash = nasProperties.getTrash();
         NasProperties.FileTools fileTools = nasProperties.getFileTools();
@@ -39,6 +42,7 @@ public class GeneralSettingsService {
                         browser.getDefaultDirection(),
                         browser.getDefaultPageSize()
                 ),
+                new StorageSettings(storage.getDefaultConflictPolicy()),
                 new RecentSettings(
                         recent.getMaxItems(),
                         recent.isRecordDirectories()
@@ -75,6 +79,11 @@ public class GeneralSettingsService {
         String defaultSort = oneOf(clean(first(parameters, "defaultSort")), SORTS, "Default sort");
         String defaultDirection = oneOf(clean(first(parameters, "defaultDirection")), DIRECTIONS, "Default direction");
         int defaultPageSize = intRange(first(parameters, "defaultPageSize"), 1, 1000, "Default page size");
+        String defaultConflictPolicy = oneOf(
+                clean(first(parameters, "defaultConflictPolicy")),
+                CONFLICT_POLICIES,
+                "Default conflict policy"
+        );
 
         int recentMaxItems = intRange(first(parameters, "recentMaxItems"), 1, 1000, "Recent max items");
         boolean recordDirectories = parameters.containsKey("recordDirectories");
@@ -104,6 +113,7 @@ public class GeneralSettingsService {
 
         return new GeneralSettingsUpdate(
                 new BrowserSettings(defaultView, defaultSort, defaultDirection, defaultPageSize),
+                new StorageSettings(defaultConflictPolicy),
                 new RecentSettings(recentMaxItems, recordDirectories),
                 new TrashSettings(trashRetentionDays, cleanupOnStartup, cleanupIntervalMs),
                 new FileToolSettings(
@@ -141,6 +151,9 @@ public class GeneralSettingsService {
         updates.put("nas.browser.default-direction", browser.defaultDirection());
         updates.put("nas.browser.default-page-size", Integer.toString(browser.defaultPageSize()));
 
+        StorageSettings storage = update.storage();
+        updates.put("nas.storage.default-conflict-policy", storage.defaultConflictPolicy());
+
         RecentSettings recent = update.recent();
         updates.put("nas.recent.max-items", Integer.toString(recent.maxItems()));
         updates.put("nas.recent.record-directories", Boolean.toString(recent.recordDirectories()));
@@ -177,6 +190,9 @@ public class GeneralSettingsService {
         browser.setDefaultSort(update.browser().defaultSort());
         browser.setDefaultDirection(update.browser().defaultDirection());
         browser.setDefaultPageSize(update.browser().defaultPageSize());
+
+        NasProperties.Storage storage = nasProperties.getStorage();
+        storage.setDefaultConflictPolicy(update.storage().defaultConflictPolicy());
 
         NasProperties.Recent recent = nasProperties.getRecent();
         recent.setMaxItems(update.recent().maxItems());
@@ -262,6 +278,7 @@ public class GeneralSettingsService {
 
     public record GeneralSettingsSnapshot(
             BrowserSettings browser,
+            StorageSettings storage,
             RecentSettings recent,
             TrashSettings trash,
             FileToolSettings fileTools,
@@ -272,6 +289,7 @@ public class GeneralSettingsService {
 
     public record GeneralSettingsUpdate(
             BrowserSettings browser,
+            StorageSettings storage,
             RecentSettings recent,
             TrashSettings trash,
             FileToolSettings fileTools,
@@ -281,6 +299,9 @@ public class GeneralSettingsService {
     }
 
     public record BrowserSettings(String defaultView, String defaultSort, String defaultDirection, int defaultPageSize) {
+    }
+
+    public record StorageSettings(String defaultConflictPolicy) {
     }
 
     public record RecentSettings(int maxItems, boolean recordDirectories) {

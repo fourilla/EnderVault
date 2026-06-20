@@ -41,6 +41,7 @@ public class StorageService {
     private static final DateTimeFormatter MODIFIED_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
+    private final NasProperties nasProperties;
     private final Path root;
     private final Path trashRoot;
     private final Path metadataRoot;
@@ -55,6 +56,7 @@ public class StorageService {
 
     @Autowired
     public StorageService(NasProperties nasProperties, FileActionRegistry fileActionRegistry) {
+        this.nasProperties = nasProperties;
         NasProperties.Storage storage = nasProperties.getStorage();
         this.root = storage.getRoot().toAbsolutePath().normalize();
         this.trashDirectoryName = validateConfiguredDirectory(storage.getTrashDirectory());
@@ -201,43 +203,76 @@ public class StorageService {
     }
 
     public String renameVaultPath(String vaultPath, String newName) throws IOException {
+        return renameVaultPath(vaultPath, newName, null);
+    }
+
+    public String renameVaultPath(String vaultPath, String newName, ConflictPolicy conflictPolicy) throws IOException {
         validateVaultItemPath(vaultPath);
         Path source = resolve(StorageScope.VAULT, vaultPath);
         Path target = source.resolveSibling(newName).normalize();
         validateSingleName(newName);
         ensureInsideBase(StorageScope.VAULT, target);
         ensureParentInsideBase(StorageScope.VAULT, target);
-        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
-            throw new FileAlreadyExistsException(newName);
+        if (source.equals(target)) {
+            return toRelativePath(root, source);
         }
-        Files.move(source, target);
-        return toRelativePath(root, target);
+        ConflictTarget resolvedTarget = resolveConflictTarget(
+                target,
+                Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS),
+                conflictPolicy
+        );
+        movePath(source, resolvedTarget.path(), resolvedTarget.overwrite());
+        return toRelativePath(root, resolvedTarget.path());
     }
 
     public String moveVaultPath(String vaultPath, String targetDirectoryPath) throws IOException {
+        return moveVaultPath(vaultPath, targetDirectoryPath, null);
+    }
+
+    public String moveVaultPath(String vaultPath, String targetDirectoryPath, ConflictPolicy conflictPolicy)
+            throws IOException {
         validateVaultItemPath(vaultPath);
         Path source = resolve(StorageScope.VAULT, vaultPath);
         Path targetDirectory = resolveDirectory(StorageScope.VAULT, targetDirectoryPath);
         Path target = targetDirectory.resolve(source.getFileName()).normalize();
         ensureInsideBase(StorageScope.VAULT, target);
+        if (source.equals(target)) {
+            return toRelativePath(root, source);
+        }
         if (targetDirectory.startsWith(source)) {
             throw new StorageAccessException("A directory cannot be moved into itself.");
         }
-        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
-            throw new FileAlreadyExistsException(target.getFileName().toString());
-        }
-        Files.move(source, target, StandardCopyOption.ATOMIC_MOVE);
-        return toRelativePath(root, target);
+        ConflictTarget resolvedTarget = resolveConflictTarget(
+                target,
+                Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS),
+                conflictPolicy
+        );
+        movePath(source, resolvedTarget.path(), resolvedTarget.overwrite());
+        return toRelativePath(root, resolvedTarget.path());
     }
 
     public String copyVaultPath(String vaultPath, String targetDirectoryPath) throws IOException {
         return copyVaultPath(vaultPath, targetDirectoryPath, StorageProgressListener.NOOP);
     }
 
+    public String copyVaultPath(String vaultPath, String targetDirectoryPath, ConflictPolicy conflictPolicy)
+            throws IOException {
+        return copyVaultPath(vaultPath, targetDirectoryPath, StorageProgressListener.NOOP, conflictPolicy);
+    }
+
     public String copyVaultPath(
             String vaultPath,
             String targetDirectoryPath,
             StorageProgressListener progressListener
+    ) throws IOException {
+        return copyVaultPath(vaultPath, targetDirectoryPath, progressListener, null);
+    }
+
+    public String copyVaultPath(
+            String vaultPath,
+            String targetDirectoryPath,
+            StorageProgressListener progressListener,
+            ConflictPolicy conflictPolicy
     ) throws IOException {
         StorageProgressListener progress = progressListener == null ? StorageProgressListener.NOOP : progressListener;
         validateVaultItemPath(vaultPath);
@@ -248,25 +283,27 @@ public class StorageService {
         if (Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS) && targetDirectory.startsWith(source)) {
             throw new StorageAccessException("A directory cannot be copied into itself.");
         }
-        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
-            throw new FileAlreadyExistsException(target.getFileName().toString());
-        }
 
         rejectSymbolicLink(source);
+        ConflictTarget resolvedTarget = resolveConflictTarget(
+                target,
+                Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS),
+                conflictPolicy
+        );
         try {
             progress.checkCanceled();
             if (Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS)) {
-                copyDirectory(source, target, progress);
+                copyDirectory(source, resolvedTarget.path(), progress);
             } else {
-                copyFile(source, target, progress);
+                copyFile(source, resolvedTarget.path(), progress, resolvedTarget.overwrite());
             }
         } catch (IOException | RuntimeException ex) {
-            if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
-                deleteRecursively(target);
+            if (!resolvedTarget.overwrite() && Files.exists(resolvedTarget.path(), LinkOption.NOFOLLOW_LINKS)) {
+                deleteRecursively(resolvedTarget.path());
             }
             throw ex;
         }
-        return toRelativePath(root, target);
+        return toRelativePath(root, resolvedTarget.path());
     }
 
     public void deleteVaultPath(String vaultPath) throws IOException {
@@ -285,13 +322,23 @@ public class StorageService {
         movePath(source, target);
     }
 
-    public void restoreTrashItem(String trashName, String originalPath) throws IOException {
+    public String restoreTrashItem(String trashName, String originalPath) throws IOException {
+        return restoreTrashItem(trashName, originalPath, null);
+    }
+
+    public String restoreTrashItem(String trashName, String originalPath, ConflictPolicy conflictPolicy)
+            throws IOException {
         Path trashItem = resolveTrashChild(trashName);
         if (!Files.exists(trashItem, LinkOption.NOFOLLOW_LINKS)) {
             throw new NoSuchFileException(trashName);
         }
-        Path target = resolveRestoreTarget(originalPath);
-        movePath(trashItem, target);
+        ConflictTarget target = resolveRestoreTarget(
+                originalPath,
+                Files.isDirectory(trashItem, LinkOption.NOFOLLOW_LINKS),
+                conflictPolicy
+        );
+        movePath(trashItem, target.path(), target.overwrite());
+        return toRelativePath(root, target.path());
     }
 
     public boolean trashItemExists(String trashName) {
@@ -368,26 +415,43 @@ public class StorageService {
     }
 
     public FileItem upload(String directoryPath, MultipartFile file) throws IOException {
+        return upload(directoryPath, file, null);
+    }
+
+    public FileItem upload(String directoryPath, MultipartFile file, ConflictPolicy conflictPolicy) throws IOException {
+        if (file.isEmpty()) {
+            return null;
+        }
+        StagedUpload stagedUpload = stageUpload(file);
+        try {
+            FileItem item = moveStagedUploadIntoVault(stagedUpload, directoryPath, conflictPolicy);
+            stagedUpload = null;
+            return item;
+        } finally {
+            if (stagedUpload != null) {
+                Files.deleteIfExists(stagedUpload.temporaryFile());
+            }
+        }
+    }
+
+    public StagedUpload stageUpload(MultipartFile file) throws IOException {
         if (file.isEmpty()) {
             return null;
         }
         String filename = safeSubmittedFilename(file);
-        Path target = resolveChild(StorageScope.VAULT, directoryPath, filename, false);
-        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
-            throw new FileAlreadyExistsException(filename);
-        }
         Files.createDirectories(uploadTempRoot);
         Path temporaryFile = Files.createTempFile(uploadTempRoot, "upload-", ".tmp");
+        boolean staged = false;
         try (InputStream inputStream = file.getInputStream()) {
             Files.copy(inputStream, temporaryFile, StandardCopyOption.REPLACE_EXISTING);
-            moveUploadedFileIntoPlace(temporaryFile, target);
-            temporaryFile = null;
+            StagedUpload stagedUpload = new StagedUpload(temporaryFile, filename, Files.size(temporaryFile));
+            staged = true;
+            return stagedUpload;
         } finally {
-            if (temporaryFile != null) {
+            if (!staged) {
                 Files.deleteIfExists(temporaryFile);
             }
         }
-        return toFileItem(root, target);
     }
 
     public Path createUploadTemporaryFile(String prefix, String suffix) throws IOException {
@@ -397,12 +461,35 @@ public class StorageService {
 
     public FileItem moveTemporaryFileIntoVault(Path temporaryFile, String directoryPath, String filename)
             throws IOException {
+        return moveTemporaryFileIntoVault(temporaryFile, directoryPath, filename, null);
+    }
+
+    public FileItem moveTemporaryFileIntoVault(
+            Path temporaryFile,
+            String directoryPath,
+            String filename,
+            ConflictPolicy conflictPolicy
+    ) throws IOException {
         Path target = resolveChild(StorageScope.VAULT, directoryPath, filename, false);
-        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
-            throw new FileAlreadyExistsException(filename);
+        ConflictTarget resolvedTarget = resolveConflictTarget(target, false, conflictPolicy);
+        movePath(temporaryFile, resolvedTarget.path(), resolvedTarget.overwrite());
+        return toFileItem(root, resolvedTarget.path());
+    }
+
+    public FileItem moveStagedUploadIntoVault(
+            StagedUpload stagedUpload,
+            String directoryPath,
+            ConflictPolicy conflictPolicy
+    ) throws IOException {
+        if (stagedUpload == null) {
+            return null;
         }
-        movePath(temporaryFile, target);
-        return toFileItem(root, target);
+        return moveTemporaryFileIntoVault(
+                stagedUpload.temporaryFile(),
+                directoryPath,
+                stagedUpload.filename(),
+                conflictPolicy
+        );
     }
 
     public StorageOperationSummary summarizeVaultPaths(List<String> vaultPaths) throws IOException {
@@ -417,15 +504,22 @@ public class StorageService {
         return new StorageOperationSummary(totalBytes, totalItems);
     }
 
-    private void moveUploadedFileIntoPlace(Path temporaryFile, Path target) throws IOException {
-        movePath(temporaryFile, target);
+    private void movePath(Path source, Path target) throws IOException {
+        movePath(source, target, false);
     }
 
-    private void movePath(Path source, Path target) throws IOException {
+    private void movePath(Path source, Path target, boolean overwrite) throws IOException {
+        StandardCopyOption[] options = overwrite
+                ? new StandardCopyOption[] { StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING }
+                : new StandardCopyOption[] { StandardCopyOption.ATOMIC_MOVE };
         try {
-            Files.move(source, target, StandardCopyOption.ATOMIC_MOVE);
+            Files.move(source, target, options);
         } catch (AtomicMoveNotSupportedException ex) {
-            Files.move(source, target);
+            if (overwrite) {
+                Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+            } else {
+                Files.move(source, target);
+            }
         }
     }
 
@@ -469,6 +563,30 @@ public class StorageService {
     }
 
     private void copyFile(Path source, Path target, StorageProgressListener progress) throws IOException {
+        copyFile(source, target, progress, false);
+    }
+
+    private void copyFile(Path source, Path target, StorageProgressListener progress, boolean overwrite)
+            throws IOException {
+        if (!overwrite) {
+            copyFileDirect(source, target, progress);
+            return;
+        }
+
+        Path temporaryFile = createUploadTemporaryFile("copy-overwrite-", ".tmp");
+        try {
+            Files.deleteIfExists(temporaryFile);
+            copyFileDirect(source, temporaryFile, progress);
+            movePath(temporaryFile, target, true);
+            temporaryFile = null;
+        } finally {
+            if (temporaryFile != null) {
+                Files.deleteIfExists(temporaryFile);
+            }
+        }
+    }
+
+    private void copyFileDirect(Path source, Path target, StorageProgressListener progress) throws IOException {
         progress.checkCanceled();
         try (InputStream inputStream = Files.newInputStream(source);
                 OutputStream outputStream = Files.newOutputStream(target, StandardOpenOption.CREATE_NEW)) {
@@ -483,6 +601,57 @@ public class StorageService {
         progress.onItemProcessed();
     }
 
+    public ConflictPolicy defaultConflictPolicy() {
+        return ConflictPolicy.from(nasProperties.getStorage().getDefaultConflictPolicy());
+    }
+
+    private ConflictTarget resolveConflictTarget(Path requestedTarget, boolean sourceDirectory, ConflictPolicy policy)
+            throws IOException {
+        if (!Files.exists(requestedTarget, LinkOption.NOFOLLOW_LINKS)) {
+            return new ConflictTarget(requestedTarget, false);
+        }
+
+        ConflictPolicy effectivePolicy = effectiveConflictPolicy(policy);
+        return switch (effectivePolicy) {
+            case CANCEL -> throw new FileAlreadyExistsException(requestedTarget.getFileName().toString());
+            case RENAME -> new ConflictTarget(nextAvailableTarget(requestedTarget, sourceDirectory), false);
+            case OVERWRITE -> {
+                validateOverwriteTarget(requestedTarget, sourceDirectory);
+                yield new ConflictTarget(requestedTarget, true);
+            }
+        };
+    }
+
+    private ConflictPolicy effectiveConflictPolicy(ConflictPolicy policy) {
+        ConflictPolicy effective = policy == null ? defaultConflictPolicy() : policy;
+        return effective == null ? ConflictPolicy.CANCEL : effective;
+    }
+
+    private Path nextAvailableTarget(Path requestedTarget, boolean directory) throws IOException {
+        String filename = requestedTarget.getFileName().toString();
+        int extensionIndex = directory ? -1 : filename.lastIndexOf('.');
+        String stem = extensionIndex > 0 ? filename.substring(0, extensionIndex) : filename;
+        String extension = extensionIndex > 0 ? filename.substring(extensionIndex) : "";
+        Path parent = requestedTarget.getParent();
+        for (int counter = 1; counter <= 9999; counter++) {
+            Path candidate = parent.resolve(stem + " - " + counter + extension).normalize();
+            ensureInsideBase(StorageScope.VAULT, candidate);
+            if (!Files.exists(candidate, LinkOption.NOFOLLOW_LINKS)) {
+                return candidate;
+            }
+        }
+        throw new FileAlreadyExistsException(requestedTarget.getFileName().toString());
+    }
+
+    private void validateOverwriteTarget(Path target, boolean sourceDirectory) {
+        if (sourceDirectory || Files.isDirectory(target, LinkOption.NOFOLLOW_LINKS)) {
+            throw new StorageAccessException("Directory overwrite is not supported yet.");
+        }
+        if (Files.isSymbolicLink(target) || !Files.isRegularFile(target, LinkOption.NOFOLLOW_LINKS)) {
+            throw new StorageAccessException("Only regular files can be overwritten.");
+        }
+    }
+
     private void rejectSymbolicLink(Path path) {
         if (Files.isSymbolicLink(path)) {
             throw new StorageAccessException("Symbolic links cannot be copied.");
@@ -494,26 +663,52 @@ public class StorageService {
         Files.createDirectory(target);
     }
 
-    public void rename(String directoryPath, String itemName, String newName) throws IOException {
-        Path source = resolveChild(StorageScope.VAULT, directoryPath, itemName, true);
-        Path target = resolveChild(StorageScope.VAULT, directoryPath, newName, false);
-        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
-            throw new FileAlreadyExistsException(newName);
-        }
-        Files.move(source, target);
+    public String rename(String directoryPath, String itemName, String newName) throws IOException {
+        return rename(directoryPath, itemName, newName, null);
     }
 
-    public void move(String sourceDirectoryPath, String itemName, String targetDirectoryPath) throws IOException {
+    public String rename(String directoryPath, String itemName, String newName, ConflictPolicy conflictPolicy)
+            throws IOException {
+        Path source = resolveChild(StorageScope.VAULT, directoryPath, itemName, true);
+        Path target = resolveChild(StorageScope.VAULT, directoryPath, newName, false);
+        if (source.equals(target)) {
+            return toRelativePath(root, source);
+        }
+        ConflictTarget resolvedTarget = resolveConflictTarget(
+                target,
+                Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS),
+                conflictPolicy
+        );
+        movePath(source, resolvedTarget.path(), resolvedTarget.overwrite());
+        return toRelativePath(root, resolvedTarget.path());
+    }
+
+    public String move(String sourceDirectoryPath, String itemName, String targetDirectoryPath) throws IOException {
+        return move(sourceDirectoryPath, itemName, targetDirectoryPath, null);
+    }
+
+    public String move(
+            String sourceDirectoryPath,
+            String itemName,
+            String targetDirectoryPath,
+            ConflictPolicy conflictPolicy
+    ) throws IOException {
         Path source = resolveChild(StorageScope.VAULT, sourceDirectoryPath, itemName, true);
         Path targetDirectory = resolveDirectory(StorageScope.VAULT, targetDirectoryPath);
         Path target = resolveChild(StorageScope.VAULT, targetDirectoryPath, source.getFileName().toString(), false);
+        if (source.equals(target)) {
+            return toRelativePath(root, source);
+        }
         if (targetDirectory.startsWith(source)) {
             throw new StorageAccessException("A directory cannot be moved into itself.");
         }
-        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
-            throw new FileAlreadyExistsException(target.getFileName().toString());
-        }
-        Files.move(source, target, StandardCopyOption.ATOMIC_MOVE);
+        ConflictTarget resolvedTarget = resolveConflictTarget(
+                target,
+                Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS),
+                conflictPolicy
+        );
+        movePath(source, resolvedTarget.path(), resolvedTarget.overwrite());
+        return toRelativePath(root, resolvedTarget.path());
     }
 
     public void delete(String directoryPath, List<String> itemNames) throws IOException {
@@ -629,16 +824,14 @@ public class StorageService {
         return child;
     }
 
-    private Path resolveRestoreTarget(String vaultPath) throws IOException {
+    private ConflictTarget resolveRestoreTarget(String vaultPath, boolean sourceDirectory, ConflictPolicy conflictPolicy)
+            throws IOException {
         validateVaultItemPath(vaultPath);
         Path target = root.resolve(sanitizeRelativePath(vaultPath)).normalize();
         ensureInsideBase(StorageScope.VAULT, target);
         rejectHiddenSystemPath(StorageScope.VAULT, target);
         ensureParentInsideBase(StorageScope.VAULT, target);
-        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
-            throw new FileAlreadyExistsException(target.getFileName().toString());
-        }
-        return target;
+        return resolveConflictTarget(target, sourceDirectory, conflictPolicy);
     }
 
     private void validateSingleName(String itemName) {
@@ -970,5 +1163,11 @@ public class StorageService {
             inputStream.transferTo(zipOutputStream);
         }
         zipOutputStream.closeEntry();
+    }
+
+    public record StagedUpload(Path temporaryFile, String filename, long size) {
+    }
+
+    private record ConflictTarget(Path path, boolean overwrite) {
     }
 }

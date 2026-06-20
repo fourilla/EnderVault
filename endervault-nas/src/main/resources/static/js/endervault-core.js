@@ -18,7 +18,10 @@
         });
         const payload = await parseJsonBody(response);
         if (!response.ok || !payload || payload.ok === false) {
-            throw new Error(payload?.notification?.message || "The action failed.");
+            const error = new Error(payload?.notification?.message || "The action failed.");
+            error.status = response.status;
+            error.payload = payload;
+            throw error;
         }
         return payload;
     };
@@ -87,6 +90,102 @@
         }
         return next;
     };
+
+    const formDataWithConflictPolicy = (source, policy) => {
+        if (!(source instanceof FormData)) {
+            return source;
+        }
+        const next = cloneFormData(source);
+        next.set("conflictPolicy", policy);
+        return next;
+    };
+
+    const ensureFileConflictDialog = () => {
+        let dialog = document.getElementById("fileConflictDialog");
+        if (dialog) {
+            return dialog;
+        }
+
+        dialog = document.createElement("dialog");
+        dialog.id = "fileConflictDialog";
+        dialog.className = "upload-conflict-dialog";
+        dialog.innerHTML = `
+            <form method="dialog" class="upload-conflict-card">
+                <header class="upload-conflict-header">
+                    <div>
+                        <h2>File name conflict</h2>
+                        <p data-conflict-message></p>
+                    </div>
+                    <button class="ghost icon-button action-icon" value="default" type="submit" title="Use default policy" aria-label="Use default policy">
+                        <i class="fas fa-xmark" aria-hidden="true"></i>
+                    </button>
+                </header>
+                <div class="upload-conflict-actions">
+                    <button class="ghost icon-text-button" value="rename" type="submit">
+                        <span>Rename and Continue</span>
+                    </button>
+                    <button class="danger icon-text-button" value="overwrite" type="submit">
+                        <span>Overwrite</span>
+                    </button>
+                    <button class="ghost icon-text-button" value="cancel" type="submit">
+                        <span>Cancel</span>
+                    </button>
+                </div>
+            </form>
+        `;
+        document.body.append(dialog);
+        return dialog;
+    };
+
+    const askFileConflictPolicy = (conflict) => new Promise((resolve) => {
+        const dialog = ensureFileConflictDialog();
+        const message = dialog.querySelector("[data-conflict-message]");
+        const defaultPolicy = conflict?.defaultPolicy || "cancel";
+        message.textContent = conflict?.message
+                ? `${conflict.message} Closing uses the default policy: ${defaultPolicy}.`
+                : `Choose how to handle this conflict. Closing uses the default policy: ${defaultPolicy}.`;
+        dialog.returnValue = "default";
+
+        const onClose = () => {
+            dialog.removeEventListener("close", onClose);
+            resolve(dialog.returnValue || "default");
+        };
+        dialog.addEventListener("close", onClose);
+
+        if (typeof dialog.showModal === "function") {
+            dialog.showModal();
+            return;
+        }
+        resolve("default");
+    });
+
+    const requestJsonResolvingConflicts = async (
+            url,
+            { method = "GET", body = null, headers = {} } = {}
+    ) => {
+        let currentBody = body;
+        while (true) {
+            try {
+                return await requestJson(url, { method, body: currentBody, headers });
+            } catch (error) {
+                if (error.status !== 409 || !error.payload?.conflict) {
+                    throw error;
+                }
+                const policy = await askFileConflictPolicy(error.payload.conflict);
+                currentBody = formDataWithConflictPolicy(body, policy);
+            }
+        }
+    };
+
+    const submitJsonFormResolvingConflicts = (
+            form,
+            formData = new FormData(form),
+            action = form.action,
+            method = form.method || "POST"
+    ) => requestJsonResolvingConflicts(action, {
+        method: method.toUpperCase(),
+        body: formData
+    });
 
     const rememberNotification = (notification) => {
         if (!notification) {
@@ -165,6 +264,8 @@
     window.EnderVault = {
         requestJson,
         submitJsonForm,
+        requestJsonResolvingConflicts,
+        submitJsonFormResolvingConflicts,
         showNotification,
         showToast,
         copyText,

@@ -1,5 +1,12 @@
 document.addEventListener("DOMContentLoaded", () => {
-    const { submitJsonForm, showNotification, showToast, navigateWithNotification, copyText } = window.EnderVault;
+    const {
+        submitJsonForm,
+        submitJsonFormResolvingConflicts,
+        showNotification,
+        showToast,
+        navigateWithNotification,
+        copyText
+    } = window.EnderVault;
 
     const setBusy = (form, busy) => {
         form.querySelectorAll("button, input, select, textarea").forEach((control) => {
@@ -15,6 +22,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const ajaxAction = (form, submitter = null) =>
         submitter?.dataset?.ajaxAction || form.dataset.ajaxAction || "";
+
+    const conflictAwareActions = new Set(["detail-rename", "detail-move"]);
 
     const submitAction = (form, submitter = null) => ({
         url: submitter?.getAttribute("formaction") || form.getAttribute("action") || form.action,
@@ -259,9 +268,14 @@ document.addEventListener("DOMContentLoaded", () => {
             const action = ajaxAction(form, submitter);
             const target = submitAction(form, submitter);
             const formData = new FormData(form);
+            const conflictAware = conflictAwareActions.has(action);
+            if (conflictAware) {
+                formData.set("conflictPolicy", "ask");
+            }
             setBusy(form, true);
             try {
-                const body = await submitJsonForm(form, formData, target.url, target.method);
+                const submit = conflictAware ? submitJsonFormResolvingConflicts : submitJsonForm;
+                const body = await submit(form, formData, target.url, target.method);
                 handleSuccess(form, body, action);
             } catch (error) {
                 window.EnderVault.showToast("error", error.message || "The action failed.");
