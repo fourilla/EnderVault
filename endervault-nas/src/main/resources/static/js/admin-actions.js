@@ -30,6 +30,21 @@ document.addEventListener("DOMContentLoaded", () => {
         method: submitter?.getAttribute("formmethod") || form.getAttribute("method") || form.method || "POST"
     });
 
+    const formDataForSubmitter = (form, submitter = null) => {
+        if (!submitter) {
+            return new FormData(form);
+        }
+        try {
+            return new FormData(form, submitter);
+        } catch (error) {
+            const formData = new FormData(form);
+            if (submitter.name) {
+                formData.append(submitter.name, submitter.value);
+            }
+            return formData;
+        }
+    };
+
     const csrfInput = () => window.EnderVault.csrfInput()?.cloneNode();
 
     const bindCopyButtons = (root = document) => {
@@ -251,6 +266,12 @@ document.addEventListener("DOMContentLoaded", () => {
             case "share-delete-expired":
                 removeExpiredShareRows();
                 break;
+            case "metadata-scan":
+                window.EnderVaultServerTasks?.track(body.task);
+                break;
+            case "metadata-repair":
+                window.EnderVaultMetadata?.handleRepair(body, form);
+                break;
             default:
                 break;
         }
@@ -267,7 +288,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const submitter = event.submitter;
             const action = ajaxAction(form, submitter);
             const target = submitAction(form, submitter);
-            const formData = new FormData(form);
+            const formData = formDataForSubmitter(form, submitter);
             const conflictAware = conflictAwareActions.has(action);
             if (conflictAware) {
                 formData.set("conflictPolicy", "ask");
@@ -282,6 +303,7 @@ document.addEventListener("DOMContentLoaded", () => {
             } finally {
                 setBusy(form, false);
                 syncSettingDependencies();
+                window.EnderVaultMetadata?.syncSelection?.();
             }
         });
     }

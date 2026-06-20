@@ -7,7 +7,8 @@ public enum TaskType {
     TRASH_DELETE("Trash delete", "fas fa-trash-can"),
     TRASH_EMPTY("Empty trash", "fas fa-broom"),
     REMOTE_DOWNLOAD("Remote download", "fas fa-cloud-arrow-down"),
-    THUMBNAIL("Thumbnail", "fas fa-image");
+    THUMBNAIL("Thumbnail", "fas fa-image"),
+    METADATA_INSPECTION("Metadata inspection", "fas fa-magnifying-glass-chart");
 
     private final String label;
     private final String iconClass;

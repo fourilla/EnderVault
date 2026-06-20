@@ -49,6 +49,34 @@ public class TaskManagerService {
                 .toList();
     }
 
+    public List<AppTask> activeTasks(TaskType type) {
+        return tasks.values().stream()
+                .filter(AppTask::active)
+                .filter(task -> task.type() == type)
+                .sorted(Comparator.comparing(AppTask::createdAt).reversed())
+                .toList();
+    }
+
+    public AppTask newestActiveTask(TaskType type) {
+        return activeTasks(type).stream().findFirst().orElse(null);
+    }
+
+    public int requestCancelActive(TaskType type) {
+        int canceled = 0;
+        for (AppTask task : activeTasks(type)) {
+            if (task.requestCancel()) {
+                Future<?> future = taskFutures.get(task.id());
+                boolean futureCanceled = future != null && future.cancel(true);
+                if (task.status() == TaskStatus.QUEUED && futureCanceled) {
+                    task.markCanceled("Canceled before it started.");
+                    taskFutures.remove(task.id());
+                }
+                canceled++;
+            }
+        }
+        return canceled;
+    }
+
     public TaskSummary summary() {
         List<AppTask> allTasks = listTasks();
         long running = allTasks.stream().filter(AppTask::active).count();

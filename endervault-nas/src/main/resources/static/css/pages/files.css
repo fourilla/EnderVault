@@ -155,6 +155,24 @@ tr:last-child td {
     color: var(--success);
 }
 
+.status-badge.info {
+    border-color: var(--accent-soft);
+    background: var(--panel-muted);
+    color: var(--accent-strong);
+}
+
+.status-badge.warning {
+    border-color: var(--warning-line);
+    background: var(--warning-bg);
+    color: var(--warning);
+}
+
+.status-badge.error {
+    border-color: var(--danger-line);
+    background: var(--danger-bg);
+    color: var(--danger);
+}
+
 .status-badge.expired {
     border-color: var(--line);
     background: var(--panel-muted);

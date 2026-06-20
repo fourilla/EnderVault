@@ -2,9 +2,16 @@
     const trackedStorageKey = "endervault.trackedTasks";
     const pollIntervalMs = 1400;
     const refreshUrls = new Map();
+    const terminalNotifications = new Set();
     let pollTimer = null;
 
-    const panelEnabled = () => document.body?.dataset.serverTaskActivity === "true";
+    const panelEnabled = () => {
+        if (document.body?.dataset.serverTaskActivity === "false") {
+            return false;
+        }
+        return document.body?.dataset.serverTaskActivity === "true"
+                || Boolean(document.querySelector(".app-shell"));
+    };
 
     const trackedIds = () => {
         try {
@@ -61,6 +68,32 @@
         window.EnderVaultFileBrowser.requestListingRefresh(refreshUrl);
     };
 
+    const maybeNotifyTerminalTask = (task) => {
+        if (task.type !== "METADATA_INSPECTION" || terminalNotifications.has(task.id)) {
+            return;
+        }
+        terminalNotifications.add(task.id);
+        const status = (task.status || "").toUpperCase();
+        if (status === "COMPLETE" || status === "PARTIAL") {
+            window.EnderVault?.showToast?.(
+                "success",
+                "Metadata inspection completed. Check the inspector page for the latest report.",
+                {
+                    actionLabel: "Open inspector",
+                    actionHref: "/admin/metadata"
+                }
+            );
+            return;
+        }
+        if (status === "CANCELED") {
+            window.EnderVault?.showToast?.("info", "Metadata inspection canceled.");
+            return;
+        }
+        if (status === "FAILED") {
+            window.EnderVault?.showToast?.("warning", task.message || "Metadata inspection did not complete.");
+        }
+    };
+
     const renderTask = (task) => {
         if (!panelEnabled()) {
             return;
@@ -82,6 +115,7 @@
 
         if (terminal(task)) {
             maybeRefreshPage(task);
+            maybeNotifyTerminalTask(task);
             removeTrackedId(task.id);
             window.EnderVaultActivity?.scheduleRemoval(id, task.status === "COMPLETE" ? 2800 : 7000);
         }

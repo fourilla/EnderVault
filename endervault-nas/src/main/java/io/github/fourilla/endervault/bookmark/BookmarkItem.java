@@ -66,6 +66,10 @@ public record BookmarkItem(
         return new BookmarkItem(id, type, parentId, title, url, note, createdAt, updatedAt, openedAt);
     }
 
+    public BookmarkItem withParentId(String newParentId, Instant updatedAt) {
+        return new BookmarkItem(id, type, newParentId, title, url, note, createdAt, updatedAt, lastOpenedAt);
+    }
+
     private String format(Instant value) {
         return value == null ? "-" : LABEL_FORMATTER.format(value);
     }

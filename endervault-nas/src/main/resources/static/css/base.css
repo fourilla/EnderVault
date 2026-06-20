@@ -9,11 +9,15 @@
     --muted: #9ba8b7;
     --accent: #5bbdb4;
     --accent-strong: #79d2c8;
+    --accent-soft: #315a5c;
     --accent-contrast: #071617;
     --danger: #ff7a70;
     --danger-bg: #321b20;
     --danger-line: #66313a;
     --focus: #d6b86b;
+    --warning: #f3c96b;
+    --warning-bg: #342b19;
+    --warning-line: #6a5528;
     --success: #71d89d;
     --success-bg: #123225;
     --success-line: #245c44;

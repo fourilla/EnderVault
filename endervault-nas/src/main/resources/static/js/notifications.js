@@ -50,7 +50,13 @@ document.addEventListener("DOMContentLoaded", () => {
         window.setTimeout(() => dismiss(toast), autoDismissMs);
     };
 
-    const show = ({ type = "info", message, actionLabel = "Copy", actionValue = "" }) => {
+    const show = ({
+        type = "info",
+        message,
+        actionLabel = "Copy",
+        actionValue = "",
+        actionHref = ""
+    }) => {
         if (!message) {
             return;
         }
@@ -58,7 +64,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const toast = document.createElement("article");
         toast.className = `toast toast-${type}`;
         toast.dataset.toast = "true";
-        if (actionValue) {
+        if (actionValue || actionHref) {
             toast.dataset.toastPersistent = "true";
         }
 
@@ -74,7 +80,9 @@ document.addEventListener("DOMContentLoaded", () => {
         text.textContent = message;
         content.append(text);
 
-        if (actionValue) {
+        if (actionHref) {
+            content.append(actionLink(actionLabel, actionHref));
+        } else if (actionValue) {
             content.append(actionControl(actionLabel, actionValue));
         }
 
@@ -114,6 +122,19 @@ document.addEventListener("DOMContentLoaded", () => {
         button.innerHTML = '<i class="fas fa-copy" aria-hidden="true"></i>';
 
         wrapper.append(input, button);
+        return wrapper;
+    };
+
+    const actionLink = (label, href) => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "toast-action toast-action-single";
+
+        const link = document.createElement("a");
+        link.className = "button-link ghost toast-action-link";
+        link.href = href;
+        link.textContent = label || "Open";
+
+        wrapper.append(link);
         return wrapper;
     };
 

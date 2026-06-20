@@ -40,12 +40,13 @@
             type: notification.type,
             message: notification.message,
             actionLabel: notification.actionLabel || "Copy",
-            actionValue: notification.actionValue || ""
+            actionValue: notification.actionValue || "",
+            actionHref: notification.actionHref || ""
         });
     };
 
-    const showToast = (type, message) => {
-        showNotification({ type, message });
+    const showToast = (type, message, options = {}) => {
+        showNotification({ type, message, ...options });
     };
 
     const copyText = async (value) => {
@@ -197,7 +198,8 @@
                 type: notification.type,
                 message: notification.message,
                 actionLabel: notification.actionLabel || "Copy",
-                actionValue: notification.actionValue || ""
+                actionValue: notification.actionValue || "",
+                actionHref: notification.actionHref || ""
             }));
         } catch (error) {
             // The redirect can still happen; the toast is progressive enhancement.

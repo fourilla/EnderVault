@@ -459,6 +459,28 @@ public class StorageService {
         return Files.createTempFile(uploadTempRoot, prefix, suffix);
     }
 
+    public List<TemporaryFileInfo> listUploadTemporaryFiles() throws IOException {
+        Files.createDirectories(uploadTempRoot);
+        try (Stream<Path> stream = Files.list(uploadTempRoot)) {
+            return stream
+                    .filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))
+                    .filter(path -> !Files.isSymbolicLink(path))
+                    .map(this::toTemporaryFileInfo)
+                    .sorted(Comparator.comparing(TemporaryFileInfo::modifiedAt).reversed())
+                    .toList();
+        }
+    }
+
+    public void deleteUploadTemporaryFile(String filename) throws IOException {
+        validateSingleName(filename);
+        Path temporaryFile = uploadTempRoot.resolve(filename).normalize();
+        ensureInsideUploadTempRoot(temporaryFile);
+        if (Files.isRegularFile(temporaryFile, LinkOption.NOFOLLOW_LINKS)
+                && !Files.isSymbolicLink(temporaryFile)) {
+            Files.deleteIfExists(temporaryFile);
+        }
+    }
+
     public FileItem moveTemporaryFileIntoVault(Path temporaryFile, String directoryPath, String filename)
             throws IOException {
         return moveTemporaryFileIntoVault(temporaryFile, directoryPath, filename, null);
@@ -921,6 +943,12 @@ public class StorageService {
         }
     }
 
+    private void ensureInsideUploadTempRoot(Path candidate) {
+        if (!candidate.normalize().startsWith(uploadTempRoot)) {
+            throw new StorageAccessException("Path is outside upload temporary storage.");
+        }
+    }
+
     private void ensureExistingPathInsideSharedBase(Path sharedBase, Path candidate) throws IOException {
         Path realSharedBase = sharedBase.toRealPath();
         Path realCandidate = candidate.toRealPath();
@@ -983,6 +1011,22 @@ public class StorageService {
             );
         } catch (IOException ex) {
             throw new StorageAccessException("Failed to read file metadata.", ex);
+        }
+    }
+
+    private TemporaryFileInfo toTemporaryFileInfo(Path path) {
+        try {
+            long size = Files.size(path);
+            Instant modified = Files.getLastModifiedTime(path).toInstant();
+            return new TemporaryFileInfo(
+                    path.getFileName().toString(),
+                    size,
+                    ByteSizeFormatter.humanSize(size),
+                    modified,
+                    MODIFIED_FORMATTER.format(modified)
+            );
+        } catch (IOException ex) {
+            throw new StorageAccessException("Failed to read temporary upload metadata.", ex);
         }
     }
 
@@ -1166,6 +1210,15 @@ public class StorageService {
     }
 
     public record StagedUpload(Path temporaryFile, String filename, long size) {
+    }
+
+    public record TemporaryFileInfo(
+            String name,
+            long size,
+            String sizeLabel,
+            Instant modifiedAt,
+            String modifiedLabel
+    ) {
     }
 
     private record ConflictTarget(Path path, boolean overwrite) {

@@ -28,6 +28,7 @@ public class BookmarkService {
     private static final int MAX_URL_LENGTH = 4096;
     private static final int MAX_NOTE_LENGTH = 1000;
     private static final int MAX_BULK_LINKS = 1000;
+    private static final String RECOVERED_DIRECTORY_TITLE = "Recovered Bookmarks";
 
     private final JsonRegistry<List<BookmarkItem>> registry;
 
@@ -68,6 +69,10 @@ public class BookmarkService {
                 .filter(bookmark -> matches(bookmark, normalizedQuery))
                 .sorted(bookmarkComparator())
                 .toList();
+    }
+
+    public synchronized List<BookmarkItem> storedItems() throws IOException {
+        return List.copyOf(readAllMutable());
     }
 
     public synchronized BookmarkItem createDirectory(String parentId, String title) throws IOException {
@@ -213,6 +218,34 @@ public class BookmarkService {
         return target;
     }
 
+    public synchronized BookmarkItem moveToRoot(String id) throws IOException {
+        List<BookmarkItem> bookmarks = readAllMutable();
+        int index = indexOf(bookmarks, id);
+        BookmarkItem current = bookmarks.get(index);
+        BookmarkItem updated = current.withParentId(null, Instant.now());
+        bookmarks.set(index, updated);
+        writeAll(bookmarks);
+        return updated;
+    }
+
+    public synchronized BookmarkItem moveToRecoveredDirectory(String id) throws IOException {
+        List<BookmarkItem> bookmarks = readAllMutable();
+        int index = indexOf(bookmarks, id);
+        BookmarkItem current = bookmarks.get(index);
+        BookmarkItem recoveredDirectory = ensureRecoveredDirectory(bookmarks);
+        if (current.id().equals(recoveredDirectory.id())) {
+            BookmarkItem updated = current.withParentId(null, Instant.now());
+            bookmarks.set(index, updated);
+            writeAll(bookmarks);
+            return updated;
+        }
+
+        BookmarkItem updated = current.withParentId(recoveredDirectory.id(), Instant.now());
+        bookmarks.set(index, updated);
+        writeAll(bookmarks);
+        return updated;
+    }
+
     public synchronized int deleteAll(List<String> ids) throws IOException {
         if (ids == null || ids.isEmpty()) {
             return 0;
@@ -300,6 +333,32 @@ public class BookmarkService {
                 .filter(bookmark -> bookmark.id().equals(id))
                 .findFirst()
                 .orElseThrow(() -> new StorageAccessException("Bookmark item not found."));
+    }
+
+    private BookmarkItem ensureRecoveredDirectory(List<BookmarkItem> bookmarks) {
+        String titleKey = RECOVERED_DIRECTORY_TITLE.toLowerCase(Locale.ROOT);
+        for (BookmarkItem bookmark : bookmarks) {
+            if (bookmark.directory()
+                    && normalizeId(bookmark.parentId()) == null
+                    && titleKey.equals(bookmark.title() == null ? "" : bookmark.title().toLowerCase(Locale.ROOT))) {
+                return bookmark;
+            }
+        }
+
+        Instant now = Instant.now();
+        BookmarkItem recoveredDirectory = new BookmarkItem(
+                UUID.randomUUID().toString(),
+                BookmarkItemType.DIRECTORY,
+                null,
+                RECOVERED_DIRECTORY_TITLE,
+                null,
+                null,
+                now,
+                now,
+                null
+        );
+        bookmarks.add(recoveredDirectory);
+        return recoveredDirectory;
     }
 
     private String normalizeParentId(String parentId, List<BookmarkItem> bookmarks) {

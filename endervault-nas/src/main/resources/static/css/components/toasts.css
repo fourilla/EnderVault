@@ -77,6 +77,15 @@
     min-width: 0;
 }
 
+.toast-action-single {
+    grid-template-columns: minmax(0, max-content);
+}
+
+.toast-action-link {
+    min-height: var(--toast-copy-size);
+    padding: 0 var(--space-xl);
+}
+
 .toast .toast-copy {
     width: var(--toast-copy-size);
     min-width: var(--toast-copy-size);

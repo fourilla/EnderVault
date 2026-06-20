@@ -5,6 +5,7 @@ import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.filetool.ComicArchiveService;
 import io.github.fourilla.endervault.filetool.ComicPageResource;
+import io.github.fourilla.endervault.task.TaskContext;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import java.awt.Color;
@@ -18,14 +19,23 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.HexFormat;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -51,7 +61,12 @@ public class ThumbnailService {
     private static final Logger logger = LoggerFactory.getLogger(ThumbnailService.class);
     private static final int MAX_WIDTH = 480;
     private static final int MAX_HEIGHT = 270;
+    private static final DateTimeFormatter MODIFIED_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
+    private final Path vaultRoot;
+    private final Path trashRoot;
+    private final Path metadataRoot;
     private final Path cacheRoot;
     private final Path videoCacheRoot;
     private final Path comicCacheRoot;
@@ -69,11 +84,10 @@ public class ThumbnailService {
         NasProperties.Thumbnails thumbnails = nasProperties.getThumbnails();
         String cacheDirectory = validateDirectoryName(thumbnails.getCacheDirectory());
 
-        this.cacheRoot = storage.getRoot()
-                .toAbsolutePath()
-                .normalize()
-                .resolve(storage.getMetadataDirectory())
-                .resolve(cacheDirectory);
+        this.vaultRoot = storage.getRoot().toAbsolutePath().normalize();
+        this.trashRoot = vaultRoot.resolve(storage.getTrashDirectory()).normalize();
+        this.metadataRoot = vaultRoot.resolve(storage.getMetadataDirectory()).normalize();
+        this.cacheRoot = metadataRoot.resolve(cacheDirectory);
         this.videoCacheRoot = cacheRoot.resolve("videos");
         this.comicCacheRoot = cacheRoot.resolve("comics");
         this.videoPlaceholderFile = cacheRoot.resolve("video-placeholder.png");
@@ -150,6 +164,61 @@ public class ThumbnailService {
         return isVideoFile(file) || isComicFile(file);
     }
 
+    public ThumbnailCacheScan scanCache() throws IOException {
+        return scanCache(null);
+    }
+
+    public ThumbnailCacheScan scanCache(TaskContext context) throws IOException {
+        Set<Path> expectedFiles = expectedCacheFiles(context);
+        List<ThumbnailCacheFile> orphanFiles = new ArrayList<>();
+        List<ThumbnailCacheFile> temporaryFiles = new ArrayList<>();
+
+        for (Path thumbnailRoot : List.of(videoCacheRoot, comicCacheRoot)) {
+            checkCanceled(context);
+            if (!Files.exists(thumbnailRoot)) {
+                continue;
+            }
+            message(context, "Scanning thumbnail cache: " + cacheRoot.relativize(thumbnailRoot).toString().replace('\\', '/'));
+            try (Stream<Path> paths = Files.walk(thumbnailRoot)) {
+                Iterator<Path> iterator = paths.iterator();
+                while (iterator.hasNext()) {
+                    Path cacheFile = iterator.next();
+                    checkCanceled(context);
+                    if (!Files.isRegularFile(cacheFile, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(cacheFile)) {
+                        continue;
+                    }
+                    String filename = cacheFile.getFileName().toString().toLowerCase(Locale.ROOT);
+                    if (filename.endsWith(".tmp")) {
+                        temporaryFiles.add(toCacheFile(cacheFile));
+                        continue;
+                    }
+                    if (filename.endsWith(".jpg") && !expectedFiles.contains(cacheFile.toAbsolutePath().normalize())) {
+                        orphanFiles.add(toCacheFile(cacheFile));
+                    }
+                }
+            }
+        }
+
+        return new ThumbnailCacheScan(
+                orphanFiles.stream().sorted(ThumbnailCacheFile::compareTo).toList(),
+                temporaryFiles.stream().sorted(ThumbnailCacheFile::compareTo).toList()
+        );
+    }
+
+    public void deleteCacheFile(String relativePath) throws IOException {
+        if (relativePath == null || relativePath.isBlank()) {
+            throw new StorageAccessException("Thumbnail cache path is required.");
+        }
+        Path cacheFile = cacheRoot.resolve(relativePath.replace('\\', '/')).normalize();
+        Path normalized = cacheFile.toAbsolutePath().normalize();
+        if (!normalized.startsWith(videoCacheRoot) && !normalized.startsWith(comicCacheRoot)) {
+            throw new StorageAccessException("Path is outside thumbnail cache.");
+        }
+        if (Files.isRegularFile(normalized, LinkOption.NOFOLLOW_LINKS) && !Files.isSymbolicLink(normalized)) {
+            Files.deleteIfExists(normalized);
+        }
+    }
+
     public ThumbnailCacheStats cacheStats() throws IOException {
         long cachedFiles = 0L;
         long sizeBytes = 0L;
@@ -178,6 +247,79 @@ public class ThumbnailService {
                 ByteSizeFormatter.humanSize(sizeBytes),
                 inProgress.size()
         );
+    }
+
+    private Set<Path> expectedCacheFiles() throws IOException {
+        return expectedCacheFiles(null);
+    }
+
+    private Set<Path> expectedCacheFiles(TaskContext context) throws IOException {
+        Set<Path> expected = new HashSet<>();
+        if (!Files.exists(vaultRoot)) {
+            return expected;
+        }
+
+        message(context, "Scanning vault for expected thumbnail cache files.");
+        Files.walkFileTree(vaultRoot, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult preVisitDirectory(Path directory, BasicFileAttributes attributes) {
+                checkCanceled(context);
+                if (!directory.equals(vaultRoot) && isVaultSystemPath(directory)) {
+                    return FileVisitResult.SKIP_SUBTREE;
+                }
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) throws IOException {
+                checkCanceled(context);
+                if (!attributes.isRegularFile() || Files.isSymbolicLink(file) || isVaultSystemPath(file)) {
+                    return FileVisitResult.CONTINUE;
+                }
+                String vaultPath = vaultRoot.relativize(file).toString().replace('\\', '/');
+                if (videoEnabled && isVideoFile(file)) {
+                    expected.add(videoCacheFile(file, vaultPath).toAbsolutePath().normalize());
+                }
+                if (comicEnabled && isComicFile(file)) {
+                    expected.add(comicCacheFile(file, vaultPath).toAbsolutePath().normalize());
+                }
+                return FileVisitResult.CONTINUE;
+            }
+        });
+        return expected;
+    }
+
+    private void checkCanceled(TaskContext context) {
+        if (context != null) {
+            context.checkCanceled();
+        }
+    }
+
+    private void message(TaskContext context, String message) {
+        if (context != null) {
+            context.message(message);
+        }
+    }
+
+    private boolean isVaultSystemPath(Path path) {
+        Path normalized = path.toAbsolutePath().normalize();
+        return normalized.startsWith(trashRoot) || normalized.startsWith(metadataRoot);
+    }
+
+    private ThumbnailCacheFile toCacheFile(Path path) {
+        try {
+            long size = Files.size(path);
+            Instant modified = Files.getLastModifiedTime(path).toInstant();
+            return new ThumbnailCacheFile(
+                    cacheRoot.relativize(path).toString().replace('\\', '/'),
+                    size,
+                    ByteSizeFormatter.humanSize(size),
+                    modified,
+                    MODIFIED_FORMATTER.format(modified)
+            );
+        } catch (IOException ex) {
+            throw new StorageAccessException("Failed to read thumbnail cache metadata.", ex);
+        }
     }
 
     public void migrateThumbnails(Path currentPath, String oldVaultPath, String newVaultPath) {
