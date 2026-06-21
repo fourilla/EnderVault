@@ -5,6 +5,7 @@ import io.github.fourilla.endervault.bookmark.BookmarkItem;
 import io.github.fourilla.endervault.bookmark.BookmarkService;
 import io.github.fourilla.endervault.bookmark.BookmarkService.BookmarkFavicon;
 import io.github.fourilla.endervault.common.StorageAccessException;
+import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.web.support.FlashNotifications;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
@@ -30,10 +31,16 @@ public class AdminBookmarkController {
 
     private final BookmarkService bookmarkService;
     private final ActivityLogService activityLogService;
+    private final NasProperties nasProperties;
 
-    public AdminBookmarkController(BookmarkService bookmarkService, ActivityLogService activityLogService) {
+    public AdminBookmarkController(
+            BookmarkService bookmarkService,
+            ActivityLogService activityLogService,
+            NasProperties nasProperties
+    ) {
         this.bookmarkService = bookmarkService;
         this.activityLogService = activityLogService;
+        this.nasProperties = nasProperties;
     }
 
     @GetMapping("/files/bookmarks")
@@ -52,6 +59,7 @@ public class AdminBookmarkController {
         model.addAttribute("currentBookmarkDirectory", bookmarkService.currentDirectory(currentDirectoryId));
         model.addAttribute("currentBookmarkDirectoryId", normalizeId(currentDirectoryId));
         model.addAttribute("bookmarkMetadataFetchEnabled", bookmarkService.metadataFetchEnabled());
+        model.addAttribute("bookmarkLinkClickAction", bookmarkLinkClickAction());
         model.addAttribute("query", normalizedQuery);
         model.addAttribute("searchPerformed", !normalizedQuery.isBlank());
         return "bookmarks";
@@ -351,6 +359,11 @@ public class AdminBookmarkController {
 
     private String normalizeId(String id) {
         return id == null || id.isBlank() ? null : id.trim();
+    }
+
+    private String bookmarkLinkClickAction() {
+        String value = nasProperties.getBookmarks().getLinkClickAction();
+        return "detail".equalsIgnoreCase(value) ? "detail" : "open";
     }
 
     private String normalizeQuery(String query) {

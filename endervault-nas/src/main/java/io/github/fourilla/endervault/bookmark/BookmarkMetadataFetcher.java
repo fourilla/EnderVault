@@ -48,14 +48,9 @@ public class BookmarkMetadataFetcher {
     );
 
     private final NasProperties nasProperties;
-    private final HttpClient httpClient;
 
     public BookmarkMetadataFetcher(NasProperties nasProperties) {
         this.nasProperties = nasProperties;
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(nasProperties.getBookmarks().getConnectTimeoutSeconds()))
-                .followRedirects(HttpClient.Redirect.NEVER)
-                .build();
     }
 
     public BookmarkMetadataFetchResult fetch(String rawUrl) throws IOException, InterruptedException {
@@ -78,6 +73,13 @@ public class BookmarkMetadataFetcher {
         return new BookmarkMetadataFetchResult(title, favicon);
     }
 
+    private HttpClient httpClient() {
+        return HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(nasProperties.getBookmarks().getConnectTimeoutSeconds()))
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .build();
+    }
+
     private HtmlResponse fetchHtml(URI uri) throws IOException, InterruptedException {
         URI current = validate(uri);
         int maxRedirects = nasProperties.getBookmarks().getMaxRedirects();
@@ -88,7 +90,7 @@ public class BookmarkMetadataFetcher {
                     .header("Accept", "text/html,application/xhtml+xml")
                     .GET()
                     .build();
-            HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
+            HttpResponse<InputStream> response = httpClient().send(request, HttpResponse.BodyHandlers.ofInputStream());
             int status = response.statusCode();
             if (isRedirect(status)) {
                 closeQuietly(response.body());
@@ -167,7 +169,7 @@ public class BookmarkMetadataFetcher {
                     .header("Accept", "application/manifest+json,application/json,text/json,*/*;q=0.2")
                     .GET()
                     .build();
-            HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
+            HttpResponse<InputStream> response = httpClient().send(request, HttpResponse.BodyHandlers.ofInputStream());
             int status = response.statusCode();
             if (isRedirect(status)) {
                 closeQuietly(response.body());
@@ -209,7 +211,7 @@ public class BookmarkMetadataFetcher {
                     .header("Accept", "image/avif,image/webp,image/png,image/jpeg,image/gif,image/x-icon,*/*;q=0.2")
                     .GET()
                     .build();
-            HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
+            HttpResponse<InputStream> response = httpClient().send(request, HttpResponse.BodyHandlers.ofInputStream());
             int status = response.statusCode();
             if (isRedirect(status)) {
                 closeQuietly(response.body());

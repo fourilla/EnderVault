@@ -657,6 +657,9 @@ public class NasProperties {
     }
 
     public static class Bookmarks {
+        @NotBlank
+        private String linkClickAction = "open";
+
         private boolean metadataFetchEnabled = false;
 
         private boolean blockPrivateNetworks = true;
@@ -681,6 +684,16 @@ public class NasProperties {
 
         @NotBlank
         private String faviconCacheDirectory = "bookmark-favicons";
+
+        public String getLinkClickAction() {
+            return linkClickAction;
+        }
+
+        public void setLinkClickAction(String linkClickAction) {
+            this.linkClickAction = "detail".equalsIgnoreCase(linkClickAction == null ? "" : linkClickAction.trim())
+                    ? "detail"
+                    : "open";
+        }
 
         public boolean isMetadataFetchEnabled() {
             return metadataFetchEnabled;

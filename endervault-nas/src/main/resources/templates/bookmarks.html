@@ -203,8 +203,10 @@
                     </td>
                     <td>
                         <a class="item-name"
-                           th:href="@{/files/bookmarks/open(id=${link.id()})}"
-                           th:title="${link.safeUrl()}" target="_blank" rel="noopener noreferrer">
+                           th:href="${bookmarkLinkClickAction == 'detail'} ? @{/files/bookmarks/detail(id=${link.id()})} : @{/files/bookmarks/open(id=${link.id()})}"
+                           th:title="${link.safeUrl()}"
+                           th:target="${bookmarkLinkClickAction == 'open'} ? '_blank' : null"
+                           th:rel="${bookmarkLinkClickAction == 'open'} ? 'noopener noreferrer' : null">
                             <img class="bookmark-favicon"
                                  th:if="${link.faviconAvailable()}"
                                  th:src="@{/files/bookmarks/favicon(id=${link.id()})}"
