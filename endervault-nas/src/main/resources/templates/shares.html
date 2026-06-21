@@ -19,7 +19,7 @@
 <main class="workspace">
     <section class="pathbar">
         <h1>Shared Links</h1>
-        <form class="row-form" method="post" th:action="@{/files/shares/delete-expired}" th:if="${not #lists.isEmpty(shares)}"
+        <form class="row-form" method="post" th:action="@{/admin/shares/delete-expired}" th:if="${not #lists.isEmpty(shares)}"
               data-ajax-action="share-delete-expired">
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
             <button class="ghost icon-button" type="submit" title="Delete expired links" aria-label="Delete expired links">
@@ -67,7 +67,7 @@
                                 th:attr="data-copy-value=${share.directDownloadUrl()},data-copy-success='Direct download link copied.'">
                             <i class="fas fa-file-arrow-down" aria-hidden="true"></i>
                         </button>
-                        <form class="row-form" method="post" th:action="@{/files/shares/revoke}" th:if="${share.active()}"
+                        <form class="row-form" method="post" th:action="@{/admin/shares/revoke}" th:if="${share.active()}"
                               data-ajax-action="share-revoke">
                             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                             <input type="hidden" name="token" th:value="${share.token()}">
@@ -75,7 +75,7 @@
                                 <i class="fas fa-link-slash" aria-hidden="true"></i>
                             </button>
                         </form>
-                        <form class="row-form" method="post" th:action="@{/files/shares/delete}"
+                        <form class="row-form" method="post" th:action="@{/admin/shares/delete}"
                               data-ajax-action="share-delete">
                             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                             <input type="hidden" name="token" th:value="${share.token()}">

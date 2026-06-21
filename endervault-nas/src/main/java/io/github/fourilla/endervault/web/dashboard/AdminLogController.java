@@ -26,7 +26,7 @@ public class AdminLogController {
         this.activityLogProperties = nasProperties.getActivityLog();
     }
 
-    @GetMapping("/files/logs")
+    @GetMapping("/admin/logs")
     public String logs(
             @RequestParam(value = "file", required = false) String fileName,
             @RequestParam(value = "q", required = false) String queryText,
@@ -70,14 +70,14 @@ public class AdminLogController {
         return "logs";
     }
 
-    @PostMapping("/files/logs/delete")
+    @PostMapping("/admin/logs/delete")
     public String deleteArchive(
             @RequestParam("file") String fileName,
             RedirectAttributes redirectAttributes
     ) throws IOException {
         activityLogService.deleteArchive(fileName);
         FlashNotifications.success(redirectAttributes, "Activity log deleted.");
-        return "redirect:/files/logs";
+        return "redirect:/admin/logs";
     }
 
     private List<Integer> pageSizeOptions() {

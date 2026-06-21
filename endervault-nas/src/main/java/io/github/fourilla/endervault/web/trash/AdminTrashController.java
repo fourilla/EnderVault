@@ -26,14 +26,14 @@ public class AdminTrashController {
         this.activityLogService = activityLogService;
     }
 
-    @GetMapping("/files/trash")
+    @GetMapping("/admin/trash")
     public String trash(Model model) throws IOException {
         List<TrashRecord> records = trashService.list();
         model.addAttribute("records", records);
         return "trash";
     }
 
-    @PostMapping("/files/trash/restore")
+    @PostMapping("/admin/trash/restore")
     public String restore(
             @RequestParam("id") String id,
             HttpServletRequest request,
@@ -43,10 +43,10 @@ public class AdminTrashController {
         TrashRecord record = result.record();
         activityLogService.record("TRASH_RESTORE", request, record.originalPath(), result.restoredPath(), "Restored item from trash");
         FlashNotifications.success(redirectAttributes, "Item restored.");
-        return "redirect:/files/trash";
+        return "redirect:/admin/trash";
     }
 
-    @PostMapping("/files/trash/delete")
+    @PostMapping("/admin/trash/delete")
     public String delete(
             @RequestParam("id") String id,
             HttpServletRequest request,
@@ -55,14 +55,14 @@ public class AdminTrashController {
         TrashRecord record = trashService.deletePermanently(id);
         activityLogService.record("TRASH_DELETE", request, record.originalPath(), null, "Permanently deleted trash item");
         FlashNotifications.success(redirectAttributes, "Item permanently deleted.");
-        return "redirect:/files/trash";
+        return "redirect:/admin/trash";
     }
 
-    @PostMapping("/files/trash/empty")
+    @PostMapping("/admin/trash/empty")
     public String empty(HttpServletRequest request, RedirectAttributes redirectAttributes) throws IOException {
         int deletedCount = trashService.empty();
         activityLogService.record("TRASH_EMPTY", request, null, null, "Emptied trash (" + deletedCount + " item(s))");
         FlashNotifications.success(redirectAttributes, "Emptied trash (" + deletedCount + " item(s)).");
-        return "redirect:/files/trash";
+        return "redirect:/admin/trash";
     }
 }

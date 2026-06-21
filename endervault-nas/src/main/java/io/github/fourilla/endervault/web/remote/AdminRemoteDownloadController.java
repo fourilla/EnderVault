@@ -27,13 +27,15 @@ public class AdminRemoteDownloadController {
         this.remoteDownloadService = remoteDownloadService;
     }
 
-    @GetMapping("/files/remote-download")
+    private static final String REMOTE_DOWNLOAD_PATH = "/admin/utils/remote-download";
+
+    @GetMapping(REMOTE_DOWNLOAD_PATH)
     public String remoteDownload(Model model) {
         model.addAttribute("tasks", remoteDownloadService.listTasks());
         return "remote-download";
     }
 
-    @PostMapping("/files/remote-download/inspect")
+    @PostMapping(REMOTE_DOWNLOAD_PATH + "/inspect")
     public Object inspect(
             @RequestParam("url") String url,
             @RequestParam(value = "path", required = false) String path,
@@ -51,7 +53,7 @@ public class AdminRemoteDownloadController {
         return "remote-download-confirm";
     }
 
-    @PostMapping("/files/remote-download")
+    @PostMapping(REMOTE_DOWNLOAD_PATH)
     public Object start(
             @RequestParam("url") String url,
             @RequestParam(value = "path", required = false) String path,
@@ -64,12 +66,12 @@ public class AdminRemoteDownloadController {
                 request,
                 redirectAttributes,
                 notification,
-                "redirect:/files/remote-download",
+                "redirect:" + REMOTE_DOWNLOAD_PATH,
                 RemoteDownloadActionResponse.ok(notification, RemoteDownloadTaskPayload.from(task))
         );
     }
 
-    @PostMapping("/files/remote-download/cancel")
+    @PostMapping(REMOTE_DOWNLOAD_PATH + "/cancel")
     public Object cancel(
             @RequestParam("id") String id,
             HttpServletRequest request,
@@ -77,10 +79,10 @@ public class AdminRemoteDownloadController {
     ) {
         RemoteDownloadTask task = remoteDownloadService.cancel(id);
         FlashNotification notification = FlashNotification.success("Remote download canceled (" + task.shortId() + ").");
-        return ActionResponseSupport.ok(request, redirectAttributes, notification, "redirect:/files/remote-download");
+        return ActionResponseSupport.ok(request, redirectAttributes, notification, "redirect:" + REMOTE_DOWNLOAD_PATH);
     }
 
-    @PostMapping("/files/remote-download/delete")
+    @PostMapping(REMOTE_DOWNLOAD_PATH + "/delete")
     public Object delete(
             @RequestParam("id") String id,
             HttpServletRequest request,
@@ -88,10 +90,10 @@ public class AdminRemoteDownloadController {
     ) {
         remoteDownloadService.deleteTask(id);
         FlashNotification notification = FlashNotification.success("Remote download task removed.");
-        return ActionResponseSupport.ok(request, redirectAttributes, notification, "redirect:/files/remote-download");
+        return ActionResponseSupport.ok(request, redirectAttributes, notification, "redirect:" + REMOTE_DOWNLOAD_PATH);
     }
 
-    @GetMapping(value = "/files/remote-download/tasks", produces = MediaType.APPLICATION_JSON_VALUE)
+    @GetMapping(value = REMOTE_DOWNLOAD_PATH + "/tasks", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
     public List<RemoteDownloadTaskPayload> tasks() {
         return remoteDownloadService.listTasks().stream()

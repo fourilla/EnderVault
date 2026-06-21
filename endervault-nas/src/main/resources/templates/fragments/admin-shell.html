@@ -4,7 +4,7 @@
 <aside class="sidebar" th:fragment="sidebar(active)">
     <a class="sidebar-brand" th:href="@{/files}">EnderVault</a>
     <nav class="sidebar-nav" aria-label="Primary navigation">
-        <a th:classappend="${active == 'dashboard'} ? ' active' : ''" th:href="@{/files/dashboard}">
+        <a th:classappend="${active == 'dashboard'} ? ' active' : ''" th:href="@{/admin/dashboard}">
             <i class="fas fa-gauge-high" aria-hidden="true"></i>
             <span>Dashboard</span>
         </a>

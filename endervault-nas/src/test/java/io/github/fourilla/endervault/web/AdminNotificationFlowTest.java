@@ -279,7 +279,7 @@ class AdminNotificationFlowTest {
 
     @Test
     void dashboardPageRendersSummaryPanels() throws Exception {
-        mockMvc.perform(get("/files/dashboard"))
+        mockMvc.perform(get("/admin/dashboard"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Dashboard")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Task Manager")))
@@ -289,6 +289,7 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Shared links")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Activity logs")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Trash")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Metadata inspector")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Settings")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote download")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Page archiving")))
@@ -308,6 +309,29 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void legacyOperationalFileRoutesAreRemovedBeforeRelease() throws Exception {
+        mockMvc.perform(get("/files/dashboard"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/files/shares"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/files/logs"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/files/trash"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/files/remote-download"))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(post("/files/shares/revoke").with(csrf()).param("token", "legacy"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/logs/delete").with(csrf()).param("file", "legacy.jsonl"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/trash/empty").with(csrf()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/remote-download").with(csrf()).param("url", "https://example.com/file.bin"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void settingsPageLinksToSecurityAndNotificationSettings() throws Exception {
         mockMvc.perform(get("/admin/settings"))
                 .andExpect(status().isOk())
@@ -320,7 +344,8 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/passkeys")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/telegram-alerts")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/general")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("External tools")));
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("Metadata inspector"))));
     }
 
     @Test
@@ -457,7 +482,7 @@ class AdminNotificationFlowTest {
 
     @Test
     void remoteDownloadPageRendersForm() throws Exception {
-        mockMvc.perform(get("/files/remote-download"))
+        mockMvc.perform(get("/admin/utils/remote-download"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote Download")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"url\"")))
@@ -474,7 +499,7 @@ class AdminNotificationFlowTest {
                         .param("name", directory))
                 .andExpect(status().is3xxRedirection());
 
-        mockMvc.perform(get("/files/logs")
+        mockMvc.perform(get("/admin/logs")
                         .param("type", "CREATE_DIRECTORY")
                         .param("q", directory)
                         .param("order", "oldest"))
@@ -535,7 +560,7 @@ class AdminNotificationFlowTest {
         ShareLink fileShare = shareLinkService.create("", filename, null);
         ShareLink directoryShare = shareLinkService.create("", directory, null);
 
-        mockMvc.perform(get("/files/shares"))
+        mockMvc.perform(get("/admin/shares"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("Copy link")))
                 .andExpect(content().string(Matchers.containsString("Copy direct download link")))

@@ -33,7 +33,7 @@ public class AdminShareController {
         this.shareUrlBuilder = shareUrlBuilder;
     }
 
-    @GetMapping("/files/shares")
+    @GetMapping("/admin/shares")
     public String shares(Model model) throws IOException {
         String shareBaseUrl = shareBaseUrl();
         model.addAttribute("shares", shareLinkService.list()
@@ -43,7 +43,7 @@ public class AdminShareController {
         return "shares";
     }
 
-    @PostMapping("/files/shares/revoke")
+    @PostMapping("/admin/shares/revoke")
     public Object revoke(
             @RequestParam("token") String token,
             HttpServletRequest request,
@@ -53,10 +53,10 @@ public class AdminShareController {
         shareLinkService.revoke(token);
         activityLogService.record("SHARE_REVOKE", request, null, null, "Revoked share link " + token);
         FlashNotification notification = FlashNotification.success("Share link revoked.");
-        return ActionResponseSupport.ok(request, redirectAttributes, notification, "redirect:/files/shares");
+        return ActionResponseSupport.ok(request, redirectAttributes, notification, "redirect:/admin/shares");
     }
 
-    @PostMapping("/files/shares/delete")
+    @PostMapping("/admin/shares/delete")
     public Object delete(
             @RequestParam("token") String token,
             HttpServletRequest request,
@@ -66,10 +66,10 @@ public class AdminShareController {
         shareLinkService.delete(token);
         activityLogService.record("SHARE_DELETE", request, null, null, "Deleted share link " + token);
         FlashNotification notification = FlashNotification.success("Share link deleted.");
-        return ActionResponseSupport.ok(request, redirectAttributes, notification, "redirect:/files/shares");
+        return ActionResponseSupport.ok(request, redirectAttributes, notification, "redirect:/admin/shares");
     }
 
-    @PostMapping("/files/shares/delete-expired")
+    @PostMapping("/admin/shares/delete-expired")
     public Object deleteExpired(
             HttpServletRequest request,
             RedirectAttributes redirectAttributes
@@ -79,7 +79,7 @@ public class AdminShareController {
                 "Deleted " + deletedCount + " expired share links.");
         FlashNotification notification =
                 FlashNotification.success("Deleted %d expired share links.".formatted(deletedCount));
-        return ActionResponseSupport.ok(request, redirectAttributes, notification, "redirect:/files/shares");
+        return ActionResponseSupport.ok(request, redirectAttributes, notification, "redirect:/admin/shares");
     }
 
     private String shareBaseUrl() {

@@ -44,7 +44,7 @@ public class AdminDashboardController {
         this.taskManagerService = taskManagerService;
     }
 
-    @GetMapping("/files/dashboard")
+    @GetMapping("/admin/dashboard")
     public String dashboard(Model model) throws IOException {
         StorageUsage storageUsage = storageService.storageUsage();
         List<TrashRecord> trashRecords = trashService.list();

@@ -134,25 +134,32 @@
                 <h2>Management</h2>
             </header>
             <div class="dashboard-action-grid">
-                <a class="dashboard-action-link" th:href="@{/files/shares}">
+                <a class="dashboard-action-link" th:href="@{/admin/shares}">
                     <i class="fas fa-link" aria-hidden="true"></i>
                     <span>
                         <strong>Shared links</strong>
                         <small>Manage issued file and directory links</small>
                     </span>
                 </a>
-                <a class="dashboard-action-link" th:href="@{/files/logs}">
+                <a class="dashboard-action-link" th:href="@{/admin/logs}">
                     <i class="fas fa-clock-rotate-left" aria-hidden="true"></i>
                     <span>
                         <strong>Activity logs</strong>
                         <small>Review file operations and access records</small>
                     </span>
                 </a>
-                <a class="dashboard-action-link" th:href="@{/files/trash}">
+                <a class="dashboard-action-link" th:href="@{/admin/trash}">
                     <i class="fas fa-trash-can" aria-hidden="true"></i>
                     <span>
                         <strong>Trash</strong>
                         <small>Restore or permanently delete removed items</small>
+                    </span>
+                </a>
+                <a class="dashboard-action-link" th:href="@{/admin/metadata}">
+                    <i class="fas fa-magnifying-glass-chart" aria-hidden="true"></i>
+                    <span>
+                        <strong>Metadata inspector</strong>
+                        <small>Scan and repair stale metadata records</small>
                     </span>
                 </a>
                 <a class="dashboard-action-link" th:href="@{/admin/settings}">
@@ -170,7 +177,7 @@
                 <h2>Utils</h2>
             </header>
             <div class="dashboard-action-grid">
-                <a class="dashboard-action-link" th:href="@{/files/remote-download}">
+                <a class="dashboard-action-link" th:href="@{/admin/utils/remote-download}">
                     <i class="fas fa-cloud-arrow-down" aria-hidden="true"></i>
                     <span>
                         <strong>Remote download</strong>

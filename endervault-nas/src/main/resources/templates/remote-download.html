@@ -18,15 +18,15 @@
 <main class="workspace">
     <section class="pathbar">
         <h1>Remote Download</h1>
-        <a class="ghost icon-button" th:href="@{/files/remote-download}" title="Refresh" aria-label="Refresh">
+        <a class="ghost icon-button" th:href="@{/admin/utils/remote-download}" title="Refresh" aria-label="Refresh">
             <i class="fas fa-rotate" aria-hidden="true"></i>
         </a>
     </section>
 
     <section class="dashboard-panel remote-download-panel" aria-label="New remote download">
         <form id="remoteDownloadForm" class="remote-download-form" method="post"
-              th:action="@{/files/remote-download/inspect}"
-              th:attr="data-start-url=@{/files/remote-download}">
+              th:action="@{/admin/utils/remote-download/inspect}"
+              th:attr="data-start-url=@{/admin/utils/remote-download}">
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
             <label>
                 URL
@@ -90,7 +90,7 @@
 
     <section id="remoteTasksSection" class="browser-section" th:hidden="${#lists.isEmpty(tasks)}"
              aria-label="Remote download tasks"
-             th:attr="data-tasks-url=@{/files/remote-download/tasks},data-cancel-url=@{/files/remote-download/cancel},data-delete-url=@{/files/remote-download/delete}">
+             th:attr="data-tasks-url=@{/admin/utils/remote-download/tasks},data-cancel-url=@{/admin/utils/remote-download/cancel},data-delete-url=@{/admin/utils/remote-download/delete}">
         <header class="section-heading">
             <h2 id="remoteTasksHeading" th:text="|Tasks (${#lists.size(tasks)})|">Tasks</h2>
         </header>
@@ -136,7 +136,7 @@
                     <td class="remote-message" th:text="${task.message()}">message</td>
                     <td>
                         <div class="table-actions">
-                            <form class="row-form" method="post" th:if="${task.active()}" th:action="@{/files/remote-download/cancel}">
+                            <form class="row-form" method="post" th:if="${task.active()}" th:action="@{/admin/utils/remote-download/cancel}">
                                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                                 <input type="hidden" name="id" th:value="${task.id()}">
                                 <button class="danger icon-button action-icon" type="submit"
@@ -145,7 +145,7 @@
                                     <i class="fas fa-ban" aria-hidden="true"></i>
                                 </button>
                             </form>
-                            <form class="row-form" method="post" th:if="${!task.active()}" th:action="@{/files/remote-download/delete}">
+                            <form class="row-form" method="post" th:if="${!task.active()}" th:action="@{/admin/utils/remote-download/delete}">
                                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                                 <input type="hidden" name="id" th:value="${task.id()}">
                                 <button class="ghost icon-button action-icon" type="submit"
