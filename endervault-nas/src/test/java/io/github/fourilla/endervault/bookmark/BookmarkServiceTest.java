@@ -241,6 +241,16 @@ class BookmarkServiceTest {
     }
 
     @Test
+    void rejectsBulkTitleThatIsTooLongBeforeSaving() throws Exception {
+        String longTitle = "a".repeat(201);
+
+        assertThatThrownBy(() -> bookmarkService.createLinks(null, longTitle + "\nhttps://example.com"))
+                .isInstanceOf(StorageAccessException.class)
+                .hasMessageContaining("too long");
+        assertThat(bookmarkService.list(null, "")).isEmpty();
+    }
+
+    @Test
     void rejectsSchemeRelativeUrls() {
         assertThatThrownBy(() -> bookmarkService.createLink(null, "External", "//example.com", ""))
                 .isInstanceOf(StorageAccessException.class);

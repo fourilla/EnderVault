@@ -6,6 +6,7 @@ public enum TaskType {
     FILE_TRASH("Move to trash", "fas fa-trash-can"),
     TRASH_DELETE("Trash delete", "fas fa-trash-can"),
     TRASH_EMPTY("Empty trash", "fas fa-broom"),
+    BOOKMARK_BULK_CREATE("Bookmark bulk add", "fas fa-list-ul"),
     REMOTE_DOWNLOAD("Remote download", "fas fa-cloud-arrow-down"),
     THUMBNAIL("Thumbnail", "fas fa-image"),
     METADATA_INSPECTION("Metadata inspection", "fas fa-magnifying-glass-chart");

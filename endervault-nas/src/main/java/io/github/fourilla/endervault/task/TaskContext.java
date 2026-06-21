@@ -28,8 +28,12 @@ public class TaskContext {
         task.setMessage(message);
     }
 
+    public boolean canceled() {
+        return task.cancelRequested() || Thread.currentThread().isInterrupted();
+    }
+
     public void checkCanceled() {
-        if (task.cancelRequested() || Thread.currentThread().isInterrupted()) {
+        if (canceled()) {
             throw new TaskCanceledException();
         }
     }

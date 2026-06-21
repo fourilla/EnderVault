@@ -7,6 +7,7 @@
     <th:block th:replace="~{fragments/assets :: styles(true)}"></th:block>
     <th:block th:replace="~{fragments/assets :: jsOnlyNoscript}"></th:block>
     <th:block th:replace="~{fragments/assets :: coreScripts}"></th:block>
+    <th:block th:replace="~{fragments/assets :: adminActionsScript}"></th:block>
     <th:block th:replace="~{fragments/assets :: selectionScript}"></th:block>
     <th:block th:replace="~{fragments/assets :: bookmarkScript}"></th:block>
 </head>
@@ -88,7 +89,8 @@
                         <i class="fas fa-list-ul" aria-hidden="true"></i>
                     </summary>
                     <div class="settings-panel bookmark-form-panel bookmark-bulk-panel">
-                        <form class="settings-form bookmark-create-form" method="post" th:action="@{/files/bookmarks/bulk}">
+                        <form class="settings-form bookmark-create-form" method="post" th:action="@{/files/bookmarks/bulk}"
+                              data-ajax-action="bookmark-bulk-add">
                             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                             <input type="hidden" name="parentId" th:value="${currentBookmarkDirectoryId}">
                             <label>

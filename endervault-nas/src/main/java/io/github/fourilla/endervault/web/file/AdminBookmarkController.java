@@ -2,14 +2,20 @@ package io.github.fourilla.endervault.web.file;
 
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.bookmark.BookmarkItem;
+import io.github.fourilla.endervault.bookmark.BookmarkLogMetadata;
 import io.github.fourilla.endervault.bookmark.BookmarkService;
 import io.github.fourilla.endervault.bookmark.BookmarkService.BookmarkFavicon;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.task.AppTask;
+import io.github.fourilla.endervault.task.BookmarkBulkTaskService;
+import io.github.fourilla.endervault.web.support.ActionResponseSupport;
+import io.github.fourilla.endervault.web.support.FlashNotification;
 import io.github.fourilla.endervault.web.support.FlashNotifications;
+import io.github.fourilla.endervault.web.task.TaskActionResponse;
+import io.github.fourilla.endervault.web.task.TaskPayload;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.core.io.PathResource;
@@ -30,15 +36,18 @@ import org.springframework.web.util.UriComponentsBuilder;
 public class AdminBookmarkController {
 
     private final BookmarkService bookmarkService;
+    private final BookmarkBulkTaskService bookmarkBulkTaskService;
     private final ActivityLogService activityLogService;
     private final NasProperties nasProperties;
 
     public AdminBookmarkController(
             BookmarkService bookmarkService,
+            BookmarkBulkTaskService bookmarkBulkTaskService,
             ActivityLogService activityLogService,
             NasProperties nasProperties
     ) {
         this.bookmarkService = bookmarkService;
+        this.bookmarkBulkTaskService = bookmarkBulkTaskService;
         this.activityLogService = activityLogService;
         this.nasProperties = nasProperties;
     }
@@ -83,8 +92,8 @@ public class AdminBookmarkController {
         model.addAttribute("currentBookmarkDirectory", bookmarkService.currentDirectory(parentId));
         model.addAttribute("currentBookmarkDirectoryId", parentId);
         model.addAttribute("bookmarkMetadataFetchEnabled", bookmarkService.metadataFetchEnabled());
-        model.addAttribute("metadataFetchAttempted", metadataFetchAttempted(bookmark));
-        model.addAttribute("metadataFetchStatus", metadataFetchStatus(bookmark));
+        model.addAttribute("metadataFetchAttempted", BookmarkLogMetadata.metadataFetchAttempted(bookmark));
+        model.addAttribute("metadataFetchStatus", BookmarkLogMetadata.metadataFetchStatus(bookmark));
         return "bookmark-detail";
     }
 
@@ -129,7 +138,7 @@ public class AdminBookmarkController {
                     link.url(),
                     null,
                     "Created bookmark link " + link.title(),
-                    bookmarkLogMetadata(link, "link")
+                    BookmarkLogMetadata.single(link, "link")
             );
             FlashNotifications.success(redirectAttributes, "Bookmark link created.");
         } catch (StorageAccessException ex) {
@@ -139,27 +148,29 @@ public class AdminBookmarkController {
     }
 
     @PostMapping("/files/bookmarks/bulk")
-    public String bulkCreateLinks(
+    public Object bulkCreateLinks(
             @RequestParam(value = "parentId", required = false) String parentId,
             @RequestParam("bulkText") String bulkText,
             HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
+        String redirect = redirectToBookmarks(parentId, null);
         try {
-            List<BookmarkItem> links = bookmarkService.createLinks(parentId, bulkText);
-            activityLogService.record(
-                    "BOOKMARK_BULK_CREATE",
-                    request,
-                    null,
-                    null,
-                    "Created " + links.size() + " bookmark links",
-                    bulkBookmarkLogMetadata(links)
-            );
-            FlashNotifications.success(redirectAttributes, "Bookmark links created: " + links.size());
+            AppTask task = bookmarkBulkTaskService.queueCreateLinks(parentId, bulkText, request);
+            FlashNotification notification = FlashNotification.info("Bookmark bulk add task queued.");
+            if (ActionResponseSupport.wantsJson(request)) {
+                return ResponseEntity.accepted().body(TaskActionResponse.ok(notification, TaskPayload.from(task)));
+            }
+            FlashNotifications.add(redirectAttributes, notification);
         } catch (StorageAccessException ex) {
-            FlashNotifications.error(redirectAttributes, ex.getMessage());
+            return ActionResponseSupport.badRequest(
+                    request,
+                    redirectAttributes,
+                    FlashNotification.error(ex.getMessage()),
+                    redirect
+            );
         }
-        return redirectToBookmarks(parentId, null);
+        return redirect;
     }
 
     @PostMapping("/files/bookmarks/directories/update")
@@ -212,7 +223,7 @@ public class AdminBookmarkController {
                     link.url(),
                     null,
                     "Updated bookmark link " + link.title(),
-                    bookmarkLogMetadata(link, "link")
+                    BookmarkLogMetadata.single(link, "link")
             );
             FlashNotifications.success(redirectAttributes, "Bookmark link updated.");
         } catch (StorageAccessException ex) {
@@ -297,7 +308,7 @@ public class AdminBookmarkController {
                     link.url(),
                     null,
                     "Fetched bookmark metadata for " + link.title(),
-                    bookmarkLogMetadata(link, "link")
+                    BookmarkLogMetadata.single(link, "link")
             );
             FlashNotifications.success(redirectAttributes, "Bookmark metadata updated.");
         } catch (StorageAccessException ex) {
@@ -379,56 +390,6 @@ public class AdminBookmarkController {
                 .map(String::trim)
                 .distinct()
                 .toList();
-    }
-
-    private Map<String, String> bookmarkLogMetadata(BookmarkItem bookmark, String type) {
-        Map<String, String> metadata = new LinkedHashMap<>();
-        metadata.put("bookmarkId", bookmark.id());
-        metadata.put("type", type);
-        metadata.put("titleSource", String.valueOf(bookmark.effectiveTitleSource()));
-        metadata.put("metadataFetchAttempted", String.valueOf(metadataFetchAttempted(bookmark)));
-        metadata.put("metadataFetchStatus", metadataFetchStatus(bookmark));
-        metadata.put("faviconAvailable", String.valueOf(bookmark.faviconAvailable()));
-        return metadata;
-    }
-
-    private Map<String, String> bulkBookmarkLogMetadata(List<BookmarkItem> bookmarks) {
-        List<BookmarkItem> safeBookmarks = bookmarks == null ? List.of() : bookmarks;
-        Map<String, String> metadata = new LinkedHashMap<>();
-        metadata.put("count", String.valueOf(safeBookmarks.size()));
-        metadata.put("metadataFetchAttemptedCount", String.valueOf(safeBookmarks.stream()
-                .filter(this::metadataFetchAttempted)
-                .count()));
-        metadata.put("metadataFetchOkCount", String.valueOf(safeBookmarks.stream()
-                .filter(bookmark -> "OK".equals(metadataFetchStatus(bookmark)))
-                .count()));
-        metadata.put("faviconAvailableCount", String.valueOf(safeBookmarks.stream()
-                .filter(BookmarkItem::faviconAvailable)
-                .count()));
-        metadata.put("manualTitleCount", String.valueOf(safeBookmarks.stream()
-                .filter(bookmark -> "MANUAL".equals(String.valueOf(bookmark.effectiveTitleSource())))
-                .count()));
-        metadata.put("urlDerivedTitleCount", String.valueOf(safeBookmarks.stream()
-                .filter(bookmark -> "URL_DERIVED".equals(String.valueOf(bookmark.effectiveTitleSource())))
-                .count()));
-        metadata.put("remoteTitleCount", String.valueOf(safeBookmarks.stream()
-                .filter(bookmark -> "REMOTE_TITLE".equals(String.valueOf(bookmark.effectiveTitleSource())))
-                .count()));
-        return metadata;
-    }
-
-    private boolean metadataFetchAttempted(BookmarkItem bookmark) {
-        return bookmark != null
-                && (bookmark.metadataFetchedAt() != null
-                || (bookmark.metadataFetchStatus() != null && !bookmark.metadataFetchStatus().isBlank()));
-    }
-
-    private String metadataFetchStatus(BookmarkItem bookmark) {
-        if (!metadataFetchAttempted(bookmark)) {
-            return "SKIPPED";
-        }
-        String status = bookmark.metadataFetchStatus();
-        return status == null || status.isBlank() ? "UNKNOWN" : status;
     }
 
     private MediaType parseMediaType(String contentType) {

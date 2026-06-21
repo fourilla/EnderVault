@@ -21,6 +21,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
+import java.util.function.BooleanSupplier;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -34,6 +36,7 @@ public class BookmarkService {
     private static final int MAX_URL_LENGTH = 4096;
     private static final int MAX_NOTE_LENGTH = 1000;
     private static final int MAX_BULK_LINKS = 1000;
+    private static final int MAX_BULK_TEXT_LENGTH = 5_000_000;
     private static final String RECOVERED_DIRECTORY_TITLE = "Recovered Bookmarks";
 
     private final JsonRegistry<List<BookmarkItem>> registry;
@@ -129,13 +132,31 @@ public class BookmarkService {
         return directory;
     }
 
-    public synchronized BookmarkItem createLink(String parentId, String title, String url, String note) throws IOException {
+    public BookmarkItem createLink(String parentId, String title, String url, String note) throws IOException {
+        return createLink(parentId, title, url, note, () -> false);
+    }
+
+    public BookmarkItem createLink(
+            String parentId,
+            String title,
+            String url,
+            String note,
+            BooleanSupplier cancellationRequested
+    ) throws IOException {
+        BookmarkItem link = newLink(parentId, title, url, note);
+        checkCanceled(cancellationRequested);
+        link = tryApplyRemoteMetadata(link, cancellationRequested);
+        checkCanceled(cancellationRequested);
+        return addPreparedLink(link);
+    }
+
+    private synchronized BookmarkItem newLink(String parentId, String title, String url, String note) throws IOException {
         List<BookmarkItem> bookmarks = readAllMutable();
         String normalizedParentId = normalizeParentId(parentId, bookmarks);
         String normalizedUrl = normalizeUrl(url);
         TitleChoice titleChoice = titleChoice(title, normalizedUrl);
         Instant now = Instant.now();
-        BookmarkItem link = new BookmarkItem(
+        return new BookmarkItem(
                 UUID.randomUUID().toString(),
                 BookmarkItemType.LINK,
                 normalizedParentId,
@@ -151,15 +172,27 @@ public class BookmarkService {
                 now,
                 null
         );
-        link = tryApplyRemoteMetadata(link);
+    }
+
+    private synchronized BookmarkItem addPreparedLink(BookmarkItem link) throws IOException {
+        List<BookmarkItem> bookmarks = readAllMutable();
+        normalizeParentId(link.parentId(), bookmarks);
         bookmarks.add(link);
         writeAll(bookmarks);
         return link;
     }
 
-    public synchronized List<BookmarkItem> createLinks(String parentId, String bulkText) throws IOException {
-        List<BookmarkItem> bookmarks = readAllMutable();
-        String normalizedParentId = normalizeParentId(parentId, bookmarks);
+    public List<BookmarkItem> createLinks(String parentId, String bulkText) throws IOException {
+        List<BulkLinkInput> inputs = parseBulkLinkInputs(bulkText);
+        List<BookmarkItem> created = new ArrayList<>();
+        for (BulkLinkInput input : inputs) {
+            created.add(createLink(parentId, input.title(), input.url(), ""));
+        }
+        return List.copyOf(created);
+    }
+
+    public List<BulkLinkInput> parseBulkLinkInputs(String bulkText) {
+        validateBulkTextLength(bulkText);
         List<BulkLinkInput> inputs = parseBulkLinks(bulkText);
         if (inputs.isEmpty()) {
             throw new StorageAccessException("Bulk add text is required.");
@@ -167,34 +200,8 @@ public class BookmarkService {
         if (inputs.size() > MAX_BULK_LINKS) {
             throw new StorageAccessException("Bulk add is limited to " + MAX_BULK_LINKS + " links at a time.");
         }
-
-        Instant now = Instant.now();
-        List<BookmarkItem> created = new ArrayList<>();
-        for (BulkLinkInput input : inputs) {
-            String normalizedUrl = normalizeUrl(input.url());
-            TitleChoice titleChoice = titleChoice(input.title(), normalizedUrl);
-            BookmarkItem link = new BookmarkItem(
-                    UUID.randomUUID().toString(),
-                    BookmarkItemType.LINK,
-                    normalizedParentId,
-                    titleChoice.title(),
-                    normalizedUrl,
-                    "",
-                    titleChoice.source(),
-                    null,
-                    null,
-                    null,
-                    null,
-                    now,
-                    now,
-                    null
-            );
-            created.add(tryApplyRemoteMetadata(link));
-        }
-
-        bookmarks.addAll(created);
-        writeAll(bookmarks);
-        return List.copyOf(created);
+        inputs.forEach(this::validateBulkInput);
+        return List.copyOf(inputs);
     }
 
     public synchronized BookmarkItem updateDirectory(String id, String title) throws IOException {
@@ -366,6 +373,10 @@ public class BookmarkService {
         return directory;
     }
 
+    public synchronized String normalizeExistingParentId(String parentId) throws IOException {
+        return normalizeParentId(parentId, readAllMutable());
+    }
+
     public synchronized BookmarkFavicon favicon(String id) throws IOException {
         BookmarkItem bookmark = require(id, readAllMutable());
         if (!bookmark.link() || !bookmark.faviconAvailable()) {
@@ -479,6 +490,19 @@ public class BookmarkService {
             throw new StorageAccessException("Bookmark title is too long.");
         }
         return normalized;
+    }
+
+    private void validateBulkTextLength(String bulkText) {
+        if (bulkText != null && bulkText.length() > MAX_BULK_TEXT_LENGTH) {
+            throw new StorageAccessException("Bulk add text is too large.");
+        }
+    }
+
+    private void validateBulkInput(BulkLinkInput input) {
+        normalizeUrl(input.url());
+        if (input.title() != null && !input.title().isBlank()) {
+            normalizeTitle(input.title());
+        }
     }
 
     private TitleChoice titleChoice(String title, String normalizedUrl) {
@@ -690,12 +714,16 @@ public class BookmarkService {
     }
 
     private BookmarkItem tryApplyRemoteMetadata(BookmarkItem bookmark) {
+        return tryApplyRemoteMetadata(bookmark, () -> false);
+    }
+
+    private BookmarkItem tryApplyRemoteMetadata(BookmarkItem bookmark, BooleanSupplier cancellationRequested) {
         if (!metadataFetchEnabled() || !bookmark.externalLink()) {
             return bookmark;
         }
 
         try {
-            return fetchAndApplyRemoteMetadata(bookmark);
+            return fetchAndApplyRemoteMetadata(bookmark, cancellationRequested);
         } catch (IOException | StorageAccessException ex) {
             Instant now = Instant.now();
             return bookmark.withRemoteMetadata(
@@ -711,6 +739,14 @@ public class BookmarkService {
     }
 
     private BookmarkItem fetchAndApplyRemoteMetadata(BookmarkItem bookmark) throws IOException {
+        return fetchAndApplyRemoteMetadata(bookmark, () -> false);
+    }
+
+    private BookmarkItem fetchAndApplyRemoteMetadata(
+            BookmarkItem bookmark,
+            BooleanSupplier cancellationRequested
+    ) throws IOException {
+        checkCanceled(cancellationRequested);
         BookmarkMetadataFetchResult result;
         try {
             result = metadataFetcher.fetch(bookmark.url());
@@ -718,6 +754,7 @@ public class BookmarkService {
             Thread.currentThread().interrupt();
             throw new StorageAccessException("Bookmark metadata fetch was interrupted.");
         }
+        checkCanceled(cancellationRequested);
 
         String nextTitle = bookmark.title();
         BookmarkTitleSource nextTitleSource = bookmark.effectiveTitleSource();
@@ -729,8 +766,10 @@ public class BookmarkService {
         String faviconFileName = bookmark.faviconFileName();
         String faviconContentType = bookmark.faviconContentType();
         if (result.hasFavicon()) {
+            checkCanceled(cancellationRequested);
             BookmarkMetadataFetchResult.Favicon favicon = result.favicon();
             BookmarkFaviconCacheEntry cachedFavicon = cacheFavicon(favicon);
+            checkCanceled(cancellationRequested);
             faviconFileName = cachedFavicon.fileName();
             faviconContentType = cachedFavicon.contentType();
         }
@@ -747,7 +786,14 @@ public class BookmarkService {
         );
     }
 
-    private BookmarkFaviconCacheEntry cacheFavicon(BookmarkMetadataFetchResult.Favicon favicon) throws IOException {
+    private void checkCanceled(BooleanSupplier cancellationRequested) {
+        if (Thread.currentThread().isInterrupted()
+                || (cancellationRequested != null && cancellationRequested.getAsBoolean())) {
+            throw new CancellationException("Bookmark link creation was canceled.");
+        }
+    }
+
+    private synchronized BookmarkFaviconCacheEntry cacheFavicon(BookmarkMetadataFetchResult.Favicon favicon) throws IOException {
         Files.createDirectories(faviconRoot);
 
         String sourceUrl = normalizeFaviconSourceUrl(favicon.sourceUrl());
@@ -833,7 +879,7 @@ public class BookmarkService {
     private record TitleChoice(String title, BookmarkTitleSource source) {
     }
 
-    private record BulkLinkInput(String title, String url) {
+    public record BulkLinkInput(String title, String url) {
     }
 
     public record BookmarkFavicon(Path path, String contentType) {
