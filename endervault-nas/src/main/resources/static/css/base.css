@@ -81,6 +81,7 @@
     --sidebar-width: 240px;
     --sidebar-icon-width: 18px;
     --workspace-max-width: 1180px;
+    --settings-workspace-max-width: 1080px;
     --workspace-gutter: var(--space-page-gutter);
     --overlay-width: calc(100vw - var(--space-page-gutter));
 }

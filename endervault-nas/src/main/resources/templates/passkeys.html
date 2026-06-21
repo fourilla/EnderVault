@@ -31,8 +31,6 @@
                 <h2>Register Device</h2>
                 <p th:text="|RP ID: ${rpId}|">RP ID: localhost</p>
             </div>
-            <span class="status-badge active" th:if="${passkeysEnabled}">Enabled</span>
-            <span class="status-badge expired" th:unless="${passkeysEnabled}">Disabled</span>
         </header>
 
         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">

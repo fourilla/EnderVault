@@ -33,9 +33,8 @@
                 <h2>Scan Areas</h2>
                 <p>Choose metadata stores to inspect. Repair actions only run after you select issues from the result.</p>
             </div>
-            <div class="metadata-status-stack">
+            <div class="metadata-status-stack" th:if="${activeInspectionTask != null}">
                 <span class="status-badge warning" th:if="${activeInspectionTask != null}">Inspection running</span>
-                <span class="status-badge active">Manual repair</span>
             </div>
         </header>
 

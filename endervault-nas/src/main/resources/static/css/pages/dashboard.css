@@ -277,12 +277,11 @@
     gap: var(--space-3xl);
 }
 
-.settings-workspace,
 .telegram-settings-workspace,
 .general-settings-workspace,
 .account-settings-workspace,
-.metadata-workspace {
-    max-width: 1080px;
+.passkey-workspace {
+    max-width: var(--settings-workspace-max-width);
 }
 
 .telegram-settings-panel .section-heading p {
