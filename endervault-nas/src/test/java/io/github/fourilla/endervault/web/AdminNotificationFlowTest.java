@@ -339,6 +339,9 @@ class AdminNotificationFlowTest {
         mockMvc.perform(get("/admin/settings"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Settings")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("settings-index-panel")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("settings-link-row")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Application")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Security")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Notifications")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Passkeys")))
@@ -491,6 +494,17 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"url\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"path\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote download")));
+    }
+
+    @Test
+    void metadataInspectorRendersScanAreasAsCompactRows() throws Exception {
+        mockMvc.perform(get("/admin/metadata"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Metadata Inspector")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("metadata-area-list")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("metadata-area-row")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("metadata-area-grid"))));
     }
 
     @Test

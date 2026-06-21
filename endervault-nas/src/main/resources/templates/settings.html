@@ -24,68 +24,72 @@
         </div>
     </section>
 
-    <section class="dashboard-grid" aria-label="Settings categories">
-        <article class="dashboard-panel">
-            <header class="section-heading">
-                <div>
-                    <h2>Security</h2>
-                    <p>Account access and trusted login devices.</p>
-                </div>
-            </header>
-            <div class="dashboard-action-grid">
-                <a class="dashboard-action-link" th:href="@{/admin/settings/passkeys}">
-                    <i class="fas fa-key" aria-hidden="true"></i>
-                    <span>
-                        <strong>Passkeys</strong>
-                        <small>Register and remove trusted devices</small>
-                    </span>
-                </a>
-                <a class="dashboard-action-link" th:href="@{/admin/settings/account}">
-                    <i class="fas fa-user-lock" aria-hidden="true"></i>
-                    <span>
-                        <strong>Admin account</strong>
-                        <small>Change ID, password, and ID/password login policy</small>
-                    </span>
-                </a>
+    <section class="dashboard-panel settings-detail-panel settings-index-panel" aria-label="Settings categories">
+        <header class="section-heading">
+            <div>
+                <h2>Configuration</h2>
+                <p>Choose a settings area to edit.</p>
             </div>
-        </article>
+        </header>
 
-        <article class="dashboard-panel">
-            <header class="section-heading">
-                <div>
-                    <h2>Notifications</h2>
-                    <p>Activity alerts and delivery channels.</p>
-                </div>
-            </header>
-            <div class="dashboard-action-grid">
-                <a class="dashboard-action-link" th:href="@{/admin/settings/telegram-alerts}">
-                    <i class="fab fa-telegram" aria-hidden="true"></i>
-                    <span>
-                        <strong>Telegram alerts</strong>
-                        <small>Configure activity notifications and test messages</small>
-                    </span>
-                </a>
+        <section class="settings-detail-section" aria-label="Application settings">
+            <div class="settings-section-copy">
+                <h2>Application</h2>
+                <p>Runtime options and operational defaults.</p>
             </div>
-        </article>
-
-        <article class="dashboard-panel">
-            <header class="section-heading">
-                <div>
-                    <h2>Application</h2>
-                    <p>Small runtime options and operational defaults.</p>
-                </div>
-            </header>
-            <div class="dashboard-action-grid">
-                <a class="dashboard-action-link" th:href="@{/admin/settings/general}">
+            <div class="settings-link-list">
+                <a class="settings-link-row" th:href="@{/admin/settings/general}">
                     <i class="fas fa-sliders" aria-hidden="true"></i>
                     <span>
                         <strong>General settings</strong>
-                        <small>Browser, recent, trash, file tools, and remote download</small>
+                        <small>Browser defaults, recent items, trash, file tools, and remote download options.</small>
                     </span>
+                    <i class="fas fa-chevron-right settings-link-arrow" aria-hidden="true"></i>
                 </a>
             </div>
-        </article>
+        </section>
 
+        <section class="settings-detail-section" aria-label="Security settings">
+            <div class="settings-section-copy">
+                <h2>Security</h2>
+                <p>Account access and trusted login devices.</p>
+            </div>
+            <div class="settings-link-list">
+                <a class="settings-link-row" th:href="@{/admin/settings/account}">
+                    <i class="fas fa-user-lock" aria-hidden="true"></i>
+                    <span>
+                        <strong>Admin account</strong>
+                        <small>Change admin ID, password, and ID/password login policy.</small>
+                    </span>
+                    <i class="fas fa-chevron-right settings-link-arrow" aria-hidden="true"></i>
+                </a>
+                <a class="settings-link-row" th:href="@{/admin/settings/passkeys}">
+                    <i class="fas fa-key" aria-hidden="true"></i>
+                    <span>
+                        <strong>Passkeys</strong>
+                        <small>Register, review, and remove trusted devices for passkey login.</small>
+                    </span>
+                    <i class="fas fa-chevron-right settings-link-arrow" aria-hidden="true"></i>
+                </a>
+            </div>
+        </section>
+
+        <section class="settings-detail-section" aria-label="Notification settings">
+            <div class="settings-section-copy">
+                <h2>Notifications</h2>
+                <p>Activity alerts and delivery channels.</p>
+            </div>
+            <div class="settings-link-list">
+                <a class="settings-link-row" th:href="@{/admin/settings/telegram-alerts}">
+                    <i class="fab fa-telegram" aria-hidden="true"></i>
+                    <span>
+                        <strong>Telegram alerts</strong>
+                        <small>Configure activity notifications, bot connection, and test messages.</small>
+                    </span>
+                    <i class="fas fa-chevron-right settings-link-arrow" aria-hidden="true"></i>
+                </a>
+            </div>
+        </section>
     </section>
 </main>
 </div>

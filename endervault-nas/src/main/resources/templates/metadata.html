@@ -54,8 +54,8 @@
                     <small>Starting a new scan will cancel the running inspection and replace it with the new selection.</small>
                 </span>
             </div>
-            <div class="metadata-area-grid">
-                <label class="metadata-area-card" th:each="area : ${areas}">
+            <div class="metadata-area-list">
+                <label class="metadata-area-row" th:each="area : ${areas}">
                     <input type="checkbox"
                            name="areas"
                            th:value="${area.name()}"
