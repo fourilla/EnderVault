@@ -501,7 +501,7 @@ public class NasProperties {
     }
 
     public static class RemoteDownload {
-        private boolean enabled = true;
+        private boolean enabled = false;
 
         private boolean directEnabled = true;
 

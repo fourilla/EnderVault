@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.web.dashboard;
 
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
+import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.remote.RemoteDownloadService;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
@@ -27,6 +28,7 @@ public class AdminDashboardController {
     private final ThumbnailService thumbnailService;
     private final RemoteDownloadService remoteDownloadService;
     private final TaskManagerService taskManagerService;
+    private final NasProperties nasProperties;
 
     public AdminDashboardController(
             StorageService storageService,
@@ -34,7 +36,8 @@ public class AdminDashboardController {
             ShareLinkService shareLinkService,
             ThumbnailService thumbnailService,
             RemoteDownloadService remoteDownloadService,
-            TaskManagerService taskManagerService
+            TaskManagerService taskManagerService,
+            NasProperties nasProperties
     ) {
         this.storageService = storageService;
         this.trashService = trashService;
@@ -42,6 +45,7 @@ public class AdminDashboardController {
         this.thumbnailService = thumbnailService;
         this.remoteDownloadService = remoteDownloadService;
         this.taskManagerService = taskManagerService;
+        this.nasProperties = nasProperties;
     }
 
     @GetMapping("/admin/dashboard")
@@ -57,6 +61,7 @@ public class AdminDashboardController {
                 shareSummary(shareLinks),
                 thumbnailSummary(thumbnailStats),
                 remoteDownloadService.summary(3),
+                nasProperties.getRemoteDownload().isEnabled(),
                 taskManagerService.summary()
         ));
         return "dashboard";

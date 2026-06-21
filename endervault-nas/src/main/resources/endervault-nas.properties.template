@@ -122,7 +122,7 @@ nas.file-tools.comic-info-max-bytes=65536
 # ---------------------------------------------------------------------------
 # block-private-networks helps prevent SSRF against localhost, private LAN, and
 # cloud metadata addresses. Keep it enabled unless you know the risk.
-nas.remote-download.enabled=true
+nas.remote-download.enabled=false
 nas.remote-download.direct-enabled=true
 nas.remote-download.extractor-enabled=false
 nas.remote-download.block-private-networks=true

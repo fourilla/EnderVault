@@ -34,6 +34,7 @@ class RemoteDownloadServiceTest {
     void setUp() throws Exception {
         NasProperties properties = new NasProperties();
         properties.getStorage().setRoot(root);
+        properties.getRemoteDownload().setEnabled(true);
         properties.getRemoteDownload().setBlockPrivateNetworks(false);
         properties.getRemoteDownload().setAllowedPorts(List.of());
         properties.getRemoteDownload().setWorkerThreads(1);

@@ -10,6 +10,7 @@ public record DashboardView(
         ShareSummary shares,
         ThumbnailSummary thumbnails,
         RemoteDownloadSummary remoteDownloads,
+        boolean remoteDownloadEnabled,
         TaskSummary fileTasks
 ) {
 
