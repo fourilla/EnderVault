@@ -53,11 +53,35 @@
     white-space: nowrap;
 }
 
+.bookmark-link-name {
+    display: inline-grid;
+    grid-template-columns: 24px minmax(0, 1fr);
+    align-items: center;
+    column-gap: var(--space-md);
+    max-width: 100%;
+}
+
 .bookmark-favicon {
-    width: var(--sidebar-icon-width);
-    height: var(--sidebar-icon-width);
+    display: block;
     object-fit: contain;
     border-radius: var(--radius-control);
+}
+
+.bookmark-favicon,
+.bookmark-link-name .item-icon {
+    width: 22px;
+    height: 22px;
+}
+
+.bookmark-link-name .item-icon {
+    display: inline-grid;
+    place-items: center;
+    margin-right: 0;
+}
+
+.bookmark-link-title {
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .bookmark-detail-title-row {

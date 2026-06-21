@@ -202,7 +202,7 @@
                         <input form="bulkActionForm" type="checkbox" name="bookmarkIds" th:value="${link.id()}">
                     </td>
                     <td>
-                        <a class="item-name"
+                        <a class="item-name bookmark-link-name"
                            th:href="${bookmarkLinkClickAction == 'detail'} ? @{/files/bookmarks/detail(id=${link.id()})} : @{/files/bookmarks/open(id=${link.id()})}"
                            th:title="${link.safeUrl()}"
                            th:target="${bookmarkLinkClickAction == 'open'} ? '_blank' : null"
@@ -213,7 +213,7 @@
                                  alt=""
                                  loading="lazy">
                             <i th:unless="${link.faviconAvailable()}" th:class="${link.iconClass()} + ' item-icon'" aria-hidden="true"></i>
-                            <span th:text="${link.title()}">link</span>
+                            <span class="bookmark-link-title" th:text="${link.title()}">link</span>
                         </a>
                     </td>
                     <td th:text="${link.typeLabel()}">Link</td>
