@@ -138,6 +138,10 @@ button,
     justify-content: center;
 }
 
+.icon-text-button {
+    gap: var(--space-md);
+}
+
 button:hover,
 .button-link:hover,
 .primary:hover {

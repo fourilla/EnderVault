@@ -40,7 +40,6 @@ public class AdminBookmarkController {
     public String bookmarks(
             @RequestParam(value = "directory", required = false) String directoryId,
             @RequestParam(value = "q", required = false) String query,
-            @RequestParam(value = "edit", required = false) String editId,
             Model model
     ) throws IOException {
         String currentDirectoryId = normalizeId(directoryId);
@@ -52,11 +51,33 @@ public class AdminBookmarkController {
         model.addAttribute("bookmarkBreadcrumbs", bookmarkService.breadcrumbs(currentDirectoryId));
         model.addAttribute("currentBookmarkDirectory", bookmarkService.currentDirectory(currentDirectoryId));
         model.addAttribute("currentBookmarkDirectoryId", normalizeId(currentDirectoryId));
-        model.addAttribute("editingBookmark", bookmarkService.find(editId));
         model.addAttribute("bookmarkMetadataFetchEnabled", bookmarkService.metadataFetchEnabled());
         model.addAttribute("query", normalizedQuery);
         model.addAttribute("searchPerformed", !normalizedQuery.isBlank());
         return "bookmarks";
+    }
+
+    @GetMapping("/files/bookmarks/detail")
+    public String detail(
+            @RequestParam("id") String id,
+            Model model,
+            RedirectAttributes redirectAttributes
+    ) throws IOException {
+        BookmarkItem bookmark = bookmarkService.find(id);
+        if (bookmark == null) {
+            FlashNotifications.error(redirectAttributes, "Bookmark item not found.");
+            return "redirect:/files/bookmarks";
+        }
+
+        String parentId = normalizeId(bookmark.parentId());
+        model.addAttribute("bookmark", bookmark);
+        model.addAttribute("bookmarkBreadcrumbs", bookmarkService.breadcrumbs(parentId));
+        model.addAttribute("currentBookmarkDirectory", bookmarkService.currentDirectory(parentId));
+        model.addAttribute("currentBookmarkDirectoryId", parentId);
+        model.addAttribute("bookmarkMetadataFetchEnabled", bookmarkService.metadataFetchEnabled());
+        model.addAttribute("metadataFetchAttempted", metadataFetchAttempted(bookmark));
+        model.addAttribute("metadataFetchStatus", metadataFetchStatus(bookmark));
+        return "bookmark-detail";
     }
 
     @PostMapping("/files/bookmarks/directories")
@@ -139,6 +160,7 @@ public class AdminBookmarkController {
             @RequestParam(value = "parentId", required = false) String parentId,
             @RequestParam("title") String title,
             @RequestParam(value = "q", required = false) String query,
+            @RequestParam(value = "returnToDetail", required = false, defaultValue = "false") boolean returnToDetail,
             HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
@@ -156,6 +178,9 @@ public class AdminBookmarkController {
         } catch (StorageAccessException ex) {
             FlashNotifications.error(redirectAttributes, ex.getMessage());
         }
+        if (returnToDetail) {
+            return redirectToBookmarkDetail(id);
+        }
         return redirectToBookmarks(parentId, query);
     }
 
@@ -167,6 +192,7 @@ public class AdminBookmarkController {
             @RequestParam("url") String url,
             @RequestParam(value = "note", required = false) String note,
             @RequestParam(value = "q", required = false) String query,
+            @RequestParam(value = "returnToDetail", required = false, defaultValue = "false") boolean returnToDetail,
             HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
@@ -183,6 +209,9 @@ public class AdminBookmarkController {
             FlashNotifications.success(redirectAttributes, "Bookmark link updated.");
         } catch (StorageAccessException ex) {
             FlashNotifications.error(redirectAttributes, ex.getMessage());
+        }
+        if (returnToDetail) {
+            return redirectToBookmarkDetail(id);
         }
         return redirectToBookmarks(parentId, query);
     }
@@ -248,6 +277,7 @@ public class AdminBookmarkController {
             @RequestParam("id") String id,
             @RequestParam(value = "parentId", required = false) String parentId,
             @RequestParam(value = "q", required = false) String query,
+            @RequestParam(value = "returnToDetail", required = false, defaultValue = "false") boolean returnToDetail,
             HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
@@ -264,6 +294,9 @@ public class AdminBookmarkController {
             FlashNotifications.success(redirectAttributes, "Bookmark metadata updated.");
         } catch (StorageAccessException ex) {
             FlashNotifications.error(redirectAttributes, ex.getMessage());
+        }
+        if (returnToDetail) {
+            return redirectToBookmarkDetail(id);
         }
         return redirectToBookmarks(parentId, query);
     }
@@ -306,6 +339,14 @@ public class AdminBookmarkController {
             builder.queryParam("q", normalizedQuery);
         }
         return "redirect:" + builder.build().encode().toUriString();
+    }
+
+    private String redirectToBookmarkDetail(String id) {
+        return "redirect:" + UriComponentsBuilder.fromPath("/files/bookmarks/detail")
+                .queryParam("id", id)
+                .build()
+                .encode()
+                .toUriString();
     }
 
     private String normalizeId(String id) {
