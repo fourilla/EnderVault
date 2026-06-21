@@ -30,6 +30,17 @@
         flex-direction: column;
     }
 
+    .pathbar-title-group {
+        align-items: flex-start;
+        justify-content: flex-start;
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .pathbar-title-group h1 {
+        text-align: left;
+    }
+
     .workspace {
         width: min(100% - var(--space-5xl), var(--workspace-max-width));
         margin-top: 12px;
@@ -131,6 +142,18 @@
     .pagination {
         align-items: stretch;
         flex-direction: column;
+    }
+
+    .readonly-workspace .pagination {
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .readonly-workspace .pagination-link,
+    .readonly-workspace .page-status {
+        flex: 0 0 auto;
+        width: auto;
     }
 
     button,

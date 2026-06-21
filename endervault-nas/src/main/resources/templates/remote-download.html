@@ -17,10 +17,15 @@
 
 <main class="workspace">
     <section class="pathbar">
-        <h1>Remote Download</h1>
-        <a class="ghost icon-button" th:href="@{/admin/utils/remote-download}" title="Refresh" aria-label="Refresh">
-            <i class="fas fa-rotate" aria-hidden="true"></i>
+        <a class="ghost icon-button" th:href="@{/admin/dashboard}" title="Back to dashboard" aria-label="Back to dashboard">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
         </a>
+        <div class="pathbar-title-group">
+            <h1>Remote Download</h1>
+            <a class="ghost icon-button" th:href="@{/admin/utils/remote-download}" title="Refresh" aria-label="Refresh">
+                <i class="fas fa-rotate" aria-hidden="true"></i>
+            </a>
+        </div>
     </section>
 
     <section class="dashboard-panel remote-download-panel" aria-label="New remote download">

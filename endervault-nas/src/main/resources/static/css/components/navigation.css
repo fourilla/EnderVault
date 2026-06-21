@@ -8,6 +8,33 @@
     padding: var(--space-xl) 0;
 }
 
+.pathbar-title-group {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: var(--space-sm);
+    min-width: 0;
+    margin-left: auto;
+}
+
+.pathbar-title-group h1 {
+    margin: 0;
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
+.pathbar-title-group .row-form {
+    flex: 0 0 auto;
+}
+
+.pathbar-title-group > .icon-button,
+.pathbar-title-group > .button-link,
+.pathbar-title-group > .row-form {
+    margin-top: var(--space-2xs);
+}
+
 .breadcrumb-panel {
     display: flex;
     align-items: center;

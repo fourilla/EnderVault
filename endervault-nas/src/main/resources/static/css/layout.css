@@ -161,19 +161,21 @@
     min-width: var(--sidebar-edit-size);
     height: var(--sidebar-edit-size);
     min-height: var(--sidebar-edit-size);
-    border: 1px solid var(--line);
+    border-color: transparent;
     border-radius: var(--radius-subtle);
-    background: var(--panel);
+    background: transparent;
+    color: var(--muted);
 }
 
 .sidebar .sidebar-favorites-edit i {
-    font-size: var(--font-size-xs);
+    font-size: var(--font-size-sm);
+    transform: translateY(-3px);
 }
 
 .sidebar .sidebar-favorites-edit.active,
 .sidebar .sidebar-favorites-edit:hover {
-    border-color: var(--line);
-    background: var(--panel-elevated);
+    border-color: transparent;
+    background: transparent;
     color: var(--accent-strong);
 }
 

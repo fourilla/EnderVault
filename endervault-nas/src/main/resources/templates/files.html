@@ -8,6 +8,7 @@
     <th:block th:replace="~{fragments/assets :: jsOnlyNoscript}"></th:block>
     <th:block th:replace="~{fragments/assets :: coreScripts}"></th:block>
     <th:block th:replace="~{fragments/assets :: fileToolbarScript}"></th:block>
+    <script defer th:src="@{/js/page-jump.js}"></script>
 </head>
 <body data-server-task-activity="true">
 <div class="app-shell">
@@ -314,7 +315,11 @@
             <a class="ghost pagination-link" th:if="${filePage.hasPrevious()}"
                th:href="@{/files(path=${path}, page=${filePage.previousPage()})}">Previous</a>
             <span class="ghost pagination-link disabled" th:unless="${filePage.hasPrevious()}">Previous</span>
-            <span class="page-status" th:text="|Page ${filePage.page()} of ${filePage.totalPages()}|">Page 1 of 1</span>
+            <span class="page-status"
+                  data-page-jump
+                  data-page-param="page"
+                  th:attr="data-page-current=${filePage.page()},data-page-total=${filePage.totalPages()}"
+                  th:text="|Page ${filePage.page()} of ${filePage.totalPages()}|">Page 1 of 1</span>
             <a class="ghost pagination-link" th:if="${filePage.hasNext()}"
                th:href="@{/files(path=${path}, page=${filePage.nextPage()})}">Next</a>
             <span class="ghost pagination-link disabled" th:unless="${filePage.hasNext()}">Next</span>

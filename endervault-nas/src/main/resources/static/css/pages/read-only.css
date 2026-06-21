@@ -211,36 +211,3 @@
     border-radius: var(--radius-panel);
     background: var(--panel);
 }
-
-.pagination {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: flex-end;
-    gap: var(--space-md);
-    margin-top: 14px;
-}
-
-.pagination-link,
-.page-status {
-    min-height: 36px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-control);
-    padding: 7px 11px;
-}
-
-.pagination-link {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.pagination-link.disabled {
-    color: var(--muted);
-    opacity: 0.58;
-}
-
-.page-status {
-    background: var(--panel);
-    color: var(--muted);
-}

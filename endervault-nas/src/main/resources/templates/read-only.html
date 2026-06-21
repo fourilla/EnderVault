@@ -6,6 +6,7 @@
     <title>EnderVault Read-only</title>
     <th:block th:replace="~{fragments/assets :: styles(true)}"></th:block>
     <script defer th:src="@{/js/read-only.js}"></script>
+    <script defer th:src="@{/js/page-jump.js}"></script>
 </head>
 <body class="readonly-page">
 <main class="workspace readonly-workspace">
@@ -125,7 +126,11 @@
             <a class="ghost pagination-link" th:if="${filePage.hasPrevious()}"
                th:href="@{/files/read-only(path=${path}, page=${filePage.previousPage()})}">Previous</a>
             <span class="ghost pagination-link disabled" th:unless="${filePage.hasPrevious()}">Previous</span>
-            <span class="page-status" th:text="|Page ${filePage.page()} of ${filePage.totalPages()}|">Page 1 of 1</span>
+            <span class="page-status"
+                  data-page-jump
+                  data-page-param="page"
+                  th:attr="data-page-current=${filePage.page()},data-page-total=${filePage.totalPages()}"
+                  th:text="|Page ${filePage.page()} of ${filePage.totalPages()}|">Page 1 of 1</span>
             <a class="ghost pagination-link" th:if="${filePage.hasNext()}"
                th:href="@{/files/read-only(path=${path}, page=${filePage.nextPage()})}">Next</a>
             <span class="ghost pagination-link disabled" th:unless="${filePage.hasNext()}">Next</span>
