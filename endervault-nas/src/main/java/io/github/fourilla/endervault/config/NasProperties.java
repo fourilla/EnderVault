@@ -53,6 +53,9 @@ public class NasProperties {
     private Recent recent = new Recent();
 
     @Valid
+    private Bookmarks bookmarks = new Bookmarks();
+
+    @Valid
     private FileTools fileTools = new FileTools();
 
     @Valid
@@ -164,6 +167,14 @@ public class NasProperties {
 
     public void setRecent(Recent recent) {
         this.recent = recent;
+    }
+
+    public Bookmarks getBookmarks() {
+        return bookmarks;
+    }
+
+    public void setBookmarks(Bookmarks bookmarks) {
+        this.bookmarks = bookmarks;
     }
 
     public FileTools getFileTools() {
@@ -642,6 +653,105 @@ public class NasProperties {
 
         public void setRecordDirectories(boolean recordDirectories) {
             this.recordDirectories = recordDirectories;
+        }
+    }
+
+    public static class Bookmarks {
+        private boolean metadataFetchEnabled = false;
+
+        private boolean blockPrivateNetworks = true;
+
+        @NotNull
+        private List<Integer> allowedPorts = List.of(80, 443);
+
+        @Min(1)
+        private int connectTimeoutSeconds = 5;
+
+        @Min(1)
+        private int responseTimeoutSeconds = 8;
+
+        @Min(0)
+        private int maxRedirects = 3;
+
+        @Min(1024)
+        private int htmlMaxBytes = 524288;
+
+        @Min(1024)
+        private int faviconMaxBytes = 262144;
+
+        @NotBlank
+        private String faviconCacheDirectory = "bookmark-favicons";
+
+        public boolean isMetadataFetchEnabled() {
+            return metadataFetchEnabled;
+        }
+
+        public void setMetadataFetchEnabled(boolean metadataFetchEnabled) {
+            this.metadataFetchEnabled = metadataFetchEnabled;
+        }
+
+        public boolean isBlockPrivateNetworks() {
+            return blockPrivateNetworks;
+        }
+
+        public void setBlockPrivateNetworks(boolean blockPrivateNetworks) {
+            this.blockPrivateNetworks = blockPrivateNetworks;
+        }
+
+        public List<Integer> getAllowedPorts() {
+            return allowedPorts;
+        }
+
+        public void setAllowedPorts(List<Integer> allowedPorts) {
+            this.allowedPorts = allowedPorts == null ? List.of(80, 443) : allowedPorts;
+        }
+
+        public int getConnectTimeoutSeconds() {
+            return connectTimeoutSeconds;
+        }
+
+        public void setConnectTimeoutSeconds(int connectTimeoutSeconds) {
+            this.connectTimeoutSeconds = connectTimeoutSeconds;
+        }
+
+        public int getResponseTimeoutSeconds() {
+            return responseTimeoutSeconds;
+        }
+
+        public void setResponseTimeoutSeconds(int responseTimeoutSeconds) {
+            this.responseTimeoutSeconds = responseTimeoutSeconds;
+        }
+
+        public int getMaxRedirects() {
+            return maxRedirects;
+        }
+
+        public void setMaxRedirects(int maxRedirects) {
+            this.maxRedirects = maxRedirects;
+        }
+
+        public int getHtmlMaxBytes() {
+            return htmlMaxBytes;
+        }
+
+        public void setHtmlMaxBytes(int htmlMaxBytes) {
+            this.htmlMaxBytes = htmlMaxBytes;
+        }
+
+        public int getFaviconMaxBytes() {
+            return faviconMaxBytes;
+        }
+
+        public void setFaviconMaxBytes(int faviconMaxBytes) {
+            this.faviconMaxBytes = faviconMaxBytes;
+        }
+
+        public String getFaviconCacheDirectory() {
+            return faviconCacheDirectory;
+        }
+
+        public void setFaviconCacheDirectory(String faviconCacheDirectory) {
+            this.faviconCacheDirectory = faviconCacheDirectory;
         }
     }
 

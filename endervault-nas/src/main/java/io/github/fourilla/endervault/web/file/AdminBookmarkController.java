@@ -3,12 +3,20 @@ package io.github.fourilla.endervault.web.file;
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.bookmark.BookmarkItem;
 import io.github.fourilla.endervault.bookmark.BookmarkService;
+import io.github.fourilla.endervault.bookmark.BookmarkService.BookmarkFavicon;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.web.support.FlashNotifications;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.core.io.PathResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.CacheControl;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -45,6 +53,7 @@ public class AdminBookmarkController {
         model.addAttribute("currentBookmarkDirectory", bookmarkService.currentDirectory(currentDirectoryId));
         model.addAttribute("currentBookmarkDirectoryId", normalizeId(currentDirectoryId));
         model.addAttribute("editingBookmark", bookmarkService.find(editId));
+        model.addAttribute("bookmarkMetadataFetchEnabled", bookmarkService.metadataFetchEnabled());
         model.addAttribute("query", normalizedQuery);
         model.addAttribute("searchPerformed", !normalizedQuery.isBlank());
         return "bookmarks";
@@ -91,7 +100,7 @@ public class AdminBookmarkController {
                     link.url(),
                     null,
                     "Created bookmark link " + link.title(),
-                    Map.of("bookmarkId", link.id())
+                    bookmarkLogMetadata(link, "link")
             );
             FlashNotifications.success(redirectAttributes, "Bookmark link created.");
         } catch (StorageAccessException ex) {
@@ -115,7 +124,7 @@ public class AdminBookmarkController {
                     null,
                     null,
                     "Created " + links.size() + " bookmark links",
-                    Map.of("count", String.valueOf(links.size()))
+                    bulkBookmarkLogMetadata(links)
             );
             FlashNotifications.success(redirectAttributes, "Bookmark links created: " + links.size());
         } catch (StorageAccessException ex) {
@@ -169,7 +178,7 @@ public class AdminBookmarkController {
                     link.url(),
                     null,
                     "Updated bookmark link " + link.title(),
-                    Map.of("bookmarkId", link.id(), "type", "link")
+                    bookmarkLogMetadata(link, "link")
             );
             FlashNotifications.success(redirectAttributes, "Bookmark link updated.");
         } catch (StorageAccessException ex) {
@@ -234,6 +243,31 @@ public class AdminBookmarkController {
         return redirectToBookmarks(parentId, query);
     }
 
+    @PostMapping("/files/bookmarks/metadata")
+    public String refreshMetadata(
+            @RequestParam("id") String id,
+            @RequestParam(value = "parentId", required = false) String parentId,
+            @RequestParam(value = "q", required = false) String query,
+            HttpServletRequest request,
+            RedirectAttributes redirectAttributes
+    ) throws IOException {
+        try {
+            BookmarkItem link = bookmarkService.refreshMetadata(id);
+            activityLogService.record(
+                    "BOOKMARK_METADATA_FETCH",
+                    request,
+                    link.url(),
+                    null,
+                    "Fetched bookmark metadata for " + link.title(),
+                    bookmarkLogMetadata(link, "link")
+            );
+            FlashNotifications.success(redirectAttributes, "Bookmark metadata updated.");
+        } catch (StorageAccessException ex) {
+            FlashNotifications.error(redirectAttributes, ex.getMessage());
+        }
+        return redirectToBookmarks(parentId, query);
+    }
+
     @GetMapping("/files/bookmarks/open")
     public String open(
             @RequestParam("id") String id,
@@ -249,6 +283,16 @@ public class AdminBookmarkController {
                 Map.of("bookmarkId", link.id())
         );
         return "redirect:" + link.url();
+    }
+
+    @GetMapping("/files/bookmarks/favicon")
+    public ResponseEntity<Resource> favicon(@RequestParam("id") String id) throws IOException {
+        BookmarkFavicon favicon = bookmarkService.favicon(id);
+        MediaType mediaType = parseMediaType(favicon.contentType());
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noCache())
+                .header(HttpHeaders.CONTENT_TYPE, mediaType.toString())
+                .body(new PathResource(favicon.path()));
     }
 
     private String redirectToBookmarks(String directoryId, String query) {
@@ -281,5 +325,65 @@ public class AdminBookmarkController {
                 .map(String::trim)
                 .distinct()
                 .toList();
+    }
+
+    private Map<String, String> bookmarkLogMetadata(BookmarkItem bookmark, String type) {
+        Map<String, String> metadata = new LinkedHashMap<>();
+        metadata.put("bookmarkId", bookmark.id());
+        metadata.put("type", type);
+        metadata.put("titleSource", String.valueOf(bookmark.effectiveTitleSource()));
+        metadata.put("metadataFetchAttempted", String.valueOf(metadataFetchAttempted(bookmark)));
+        metadata.put("metadataFetchStatus", metadataFetchStatus(bookmark));
+        metadata.put("faviconAvailable", String.valueOf(bookmark.faviconAvailable()));
+        return metadata;
+    }
+
+    private Map<String, String> bulkBookmarkLogMetadata(List<BookmarkItem> bookmarks) {
+        List<BookmarkItem> safeBookmarks = bookmarks == null ? List.of() : bookmarks;
+        Map<String, String> metadata = new LinkedHashMap<>();
+        metadata.put("count", String.valueOf(safeBookmarks.size()));
+        metadata.put("metadataFetchAttemptedCount", String.valueOf(safeBookmarks.stream()
+                .filter(this::metadataFetchAttempted)
+                .count()));
+        metadata.put("metadataFetchOkCount", String.valueOf(safeBookmarks.stream()
+                .filter(bookmark -> "OK".equals(metadataFetchStatus(bookmark)))
+                .count()));
+        metadata.put("faviconAvailableCount", String.valueOf(safeBookmarks.stream()
+                .filter(BookmarkItem::faviconAvailable)
+                .count()));
+        metadata.put("manualTitleCount", String.valueOf(safeBookmarks.stream()
+                .filter(bookmark -> "MANUAL".equals(String.valueOf(bookmark.effectiveTitleSource())))
+                .count()));
+        metadata.put("urlDerivedTitleCount", String.valueOf(safeBookmarks.stream()
+                .filter(bookmark -> "URL_DERIVED".equals(String.valueOf(bookmark.effectiveTitleSource())))
+                .count()));
+        metadata.put("remoteTitleCount", String.valueOf(safeBookmarks.stream()
+                .filter(bookmark -> "REMOTE_TITLE".equals(String.valueOf(bookmark.effectiveTitleSource())))
+                .count()));
+        return metadata;
+    }
+
+    private boolean metadataFetchAttempted(BookmarkItem bookmark) {
+        return bookmark != null
+                && (bookmark.metadataFetchedAt() != null
+                || (bookmark.metadataFetchStatus() != null && !bookmark.metadataFetchStatus().isBlank()));
+    }
+
+    private String metadataFetchStatus(BookmarkItem bookmark) {
+        if (!metadataFetchAttempted(bookmark)) {
+            return "SKIPPED";
+        }
+        String status = bookmark.metadataFetchStatus();
+        return status == null || status.isBlank() ? "UNKNOWN" : status;
+    }
+
+    private MediaType parseMediaType(String contentType) {
+        try {
+            return contentType == null || contentType.isBlank()
+                    ? MediaType.APPLICATION_OCTET_STREAM
+                    : MediaType.parseMediaType(contentType);
+        } catch (IllegalArgumentException ex) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
     }
 }

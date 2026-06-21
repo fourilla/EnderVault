@@ -41,6 +41,7 @@ public final class ActivityTypeCatalog {
             new ActivityTypeOption("bookmark-link-create", "BOOKMARK_LINK_CREATE", "Bookmark link create", "Bookmarks and recent", false),
             new ActivityTypeOption("bookmark-bulk-create", "BOOKMARK_BULK_CREATE", "Bookmark bulk create", "Bookmarks and recent", false),
             new ActivityTypeOption("bookmark-update", "BOOKMARK_UPDATE", "Bookmark update", "Bookmarks and recent", false),
+            new ActivityTypeOption("bookmark-metadata-fetch", "BOOKMARK_METADATA_FETCH", "Bookmark metadata fetch", "Bookmarks and recent", false),
             new ActivityTypeOption("bookmark-delete", "BOOKMARK_DELETE", "Bookmark delete", "Bookmarks and recent", false),
             new ActivityTypeOption("bookmark-delete-selected", "BOOKMARK_DELETE_SELECTED", "Bookmark delete selected", "Bookmarks and recent", false),
             new ActivityTypeOption("bookmark-open", "BOOKMARK_OPEN", "Bookmark open", "Bookmarks and recent", false),

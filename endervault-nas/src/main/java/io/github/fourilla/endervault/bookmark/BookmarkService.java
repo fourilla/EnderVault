@@ -9,6 +9,10 @@ import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -24,6 +28,8 @@ public class BookmarkService {
 
     private static final TypeReference<List<BookmarkItem>> BOOKMARK_LIST = new TypeReference<>() {
     };
+    private static final TypeReference<List<BookmarkFaviconCacheEntry>> FAVICON_CACHE_LIST = new TypeReference<>() {
+    };
     private static final int MAX_TITLE_LENGTH = 200;
     private static final int MAX_URL_LENGTH = 4096;
     private static final int MAX_NOTE_LENGTH = 1000;
@@ -31,25 +37,48 @@ public class BookmarkService {
     private static final String RECOVERED_DIRECTORY_TITLE = "Recovered Bookmarks";
 
     private final JsonRegistry<List<BookmarkItem>> registry;
+    private final JsonRegistry<List<BookmarkFaviconCacheEntry>> faviconRegistry;
+    private final NasProperties nasProperties;
+    private final BookmarkMetadataFetcher metadataFetcher;
+    private final Path faviconRoot;
 
-    public BookmarkService(ObjectMapper objectMapper, NasProperties nasProperties) {
+    public BookmarkService(
+            ObjectMapper objectMapper,
+            NasProperties nasProperties,
+            BookmarkMetadataFetcher metadataFetcher
+    ) {
+        this.nasProperties = nasProperties;
+        this.metadataFetcher = metadataFetcher;
         NasProperties.Storage storage = nasProperties.getStorage();
+        Path metadataRoot = storage.getRoot()
+                .toAbsolutePath()
+                .normalize()
+                .resolve(storage.getMetadataDirectory());
         this.registry = new JsonRegistry<>(
                 objectMapper,
-                storage.getRoot()
-                        .toAbsolutePath()
-                        .normalize()
-                        .resolve(storage.getMetadataDirectory())
-                        .resolve("bookmarks.json"),
+                metadataRoot.resolve("bookmarks.json"),
                 BOOKMARK_LIST,
                 List::of,
                 JsonRegistry.CorruptionPolicy.BACKUP_AND_RESET
         );
+        this.faviconRegistry = new JsonRegistry<>(
+                objectMapper,
+                metadataRoot.resolve("bookmark-favicon-cache.json"),
+                FAVICON_CACHE_LIST,
+                List::of,
+                JsonRegistry.CorruptionPolicy.BACKUP_AND_RESET
+        );
+        this.faviconRoot = metadataRoot.resolve(nasProperties.getBookmarks().getFaviconCacheDirectory()).normalize();
+        if (!faviconRoot.startsWith(metadataRoot)) {
+            throw new StorageAccessException("Bookmark favicon cache directory must stay inside metadata storage.");
+        }
     }
 
     @PostConstruct
     public synchronized void initialize() throws IOException {
         registry.initialize();
+        faviconRegistry.initialize();
+        Files.createDirectories(faviconRoot);
     }
 
     public synchronized List<BookmarkItem> list(String parentId, String query) throws IOException {
@@ -86,6 +115,11 @@ public class BookmarkService {
                 normalizeTitle(title),
                 null,
                 null,
+                BookmarkTitleSource.MANUAL,
+                null,
+                null,
+                null,
+                null,
                 now,
                 now,
                 null
@@ -98,18 +132,26 @@ public class BookmarkService {
     public synchronized BookmarkItem createLink(String parentId, String title, String url, String note) throws IOException {
         List<BookmarkItem> bookmarks = readAllMutable();
         String normalizedParentId = normalizeParentId(parentId, bookmarks);
+        String normalizedUrl = normalizeUrl(url);
+        TitleChoice titleChoice = titleChoice(title, normalizedUrl);
         Instant now = Instant.now();
         BookmarkItem link = new BookmarkItem(
                 UUID.randomUUID().toString(),
                 BookmarkItemType.LINK,
                 normalizedParentId,
-                normalizeTitle(title),
-                normalizeUrl(url),
+                titleChoice.title(),
+                normalizedUrl,
                 normalizeNote(note),
+                titleChoice.source(),
+                null,
+                null,
+                null,
+                null,
                 now,
                 now,
                 null
         );
+        link = tryApplyRemoteMetadata(link);
         bookmarks.add(link);
         writeAll(bookmarks);
         return link;
@@ -118,32 +160,36 @@ public class BookmarkService {
     public synchronized List<BookmarkItem> createLinks(String parentId, String bulkText) throws IOException {
         List<BookmarkItem> bookmarks = readAllMutable();
         String normalizedParentId = normalizeParentId(parentId, bookmarks);
-        List<String> lines = normalizedBulkLines(bulkText);
-        if (lines.isEmpty()) {
+        List<BulkLinkInput> inputs = parseBulkLinks(bulkText);
+        if (inputs.isEmpty()) {
             throw new StorageAccessException("Bulk add text is required.");
         }
-        if (lines.size() % 2 != 0) {
-            throw new StorageAccessException("Bulk add expects title and URL pairs.");
-        }
-        int linkCount = lines.size() / 2;
-        if (linkCount > MAX_BULK_LINKS) {
+        if (inputs.size() > MAX_BULK_LINKS) {
             throw new StorageAccessException("Bulk add is limited to " + MAX_BULK_LINKS + " links at a time.");
         }
 
         Instant now = Instant.now();
         List<BookmarkItem> created = new ArrayList<>();
-        for (int i = 0; i < lines.size(); i += 2) {
-            created.add(new BookmarkItem(
+        for (BulkLinkInput input : inputs) {
+            String normalizedUrl = normalizeUrl(input.url());
+            TitleChoice titleChoice = titleChoice(input.title(), normalizedUrl);
+            BookmarkItem link = new BookmarkItem(
                     UUID.randomUUID().toString(),
                     BookmarkItemType.LINK,
                     normalizedParentId,
-                    normalizeTitle(lines.get(i)),
-                    normalizeUrl(lines.get(i + 1)),
+                    titleChoice.title(),
+                    normalizedUrl,
                     "",
+                    titleChoice.source(),
+                    null,
+                    null,
+                    null,
+                    null,
                     now,
                     now,
                     null
-            ));
+            );
+            created.add(tryApplyRemoteMetadata(link));
         }
 
         bookmarks.addAll(created);
@@ -173,12 +219,42 @@ public class BookmarkService {
             throw new StorageAccessException("Only bookmark links can be updated here.");
         }
 
+        String normalizedUrl = normalizeUrl(url);
+        TitleChoice titleChoice = titleChoice(title, normalizedUrl);
+        boolean urlChanged = !normalizedUrl.equals(current.url());
         BookmarkItem updated = current.withLink(
-                normalizeTitle(title),
-                normalizeUrl(url),
+                titleChoice.title(),
+                normalizedUrl,
                 note == null ? current.note() : normalizeNote(note),
+                titleChoice.source(),
                 Instant.now()
         );
+        if (urlChanged) {
+            updated = updated.withRemoteMetadata(
+                    updated.title(),
+                    updated.effectiveTitleSource(),
+                    null,
+                    null,
+                    null,
+                    null,
+                    updated.updatedAt()
+            );
+        }
+        updated = tryApplyRemoteMetadata(updated);
+        bookmarks.set(index, updated);
+        writeAll(bookmarks);
+        return updated;
+    }
+
+    public synchronized BookmarkItem refreshMetadata(String id) throws IOException {
+        List<BookmarkItem> bookmarks = readAllMutable();
+        int index = indexOf(bookmarks, id);
+        BookmarkItem current = bookmarks.get(index);
+        if (!current.link()) {
+            throw new StorageAccessException("Only bookmark links can fetch metadata.");
+        }
+
+        BookmarkItem updated = fetchAndApplyRemoteMetadata(current);
         bookmarks.set(index, updated);
         writeAll(bookmarks);
         return updated;
@@ -290,6 +366,22 @@ public class BookmarkService {
         return directory;
     }
 
+    public synchronized BookmarkFavicon favicon(String id) throws IOException {
+        BookmarkItem bookmark = require(id, readAllMutable());
+        if (!bookmark.link() || !bookmark.faviconAvailable()) {
+            throw new StorageAccessException("Bookmark favicon was not found.");
+        }
+        Path path = faviconRoot.resolve(bookmark.faviconFileName()).normalize();
+        if (!path.startsWith(faviconRoot) || !Files.isRegularFile(path)) {
+            throw new StorageAccessException("Bookmark favicon was not found.");
+        }
+        return new BookmarkFavicon(path, bookmark.faviconContentType());
+    }
+
+    public boolean metadataFetchEnabled() {
+        return nasProperties.getBookmarks().isMetadataFetchEnabled();
+    }
+
     public synchronized List<BookmarkBreadcrumb> breadcrumbs(String parentId) throws IOException {
         List<BookmarkItem> bookmarks = readAllMutable();
         String normalizedParentId = normalizeParentId(parentId, bookmarks);
@@ -353,6 +445,11 @@ public class BookmarkService {
                 RECOVERED_DIRECTORY_TITLE,
                 null,
                 null,
+                BookmarkTitleSource.MANUAL,
+                null,
+                null,
+                null,
+                null,
                 now,
                 now,
                 null
@@ -382,6 +479,50 @@ public class BookmarkService {
             throw new StorageAccessException("Bookmark title is too long.");
         }
         return normalized;
+    }
+
+    private TitleChoice titleChoice(String title, String normalizedUrl) {
+        String normalizedTitle = title == null ? "" : title.trim();
+        if (!normalizedTitle.isBlank()) {
+            return new TitleChoice(normalizeTitle(normalizedTitle), BookmarkTitleSource.MANUAL);
+        }
+        return new TitleChoice(deriveTitleFromUrl(normalizedUrl), BookmarkTitleSource.URL_DERIVED);
+    }
+
+    private String deriveTitleFromUrl(String normalizedUrl) {
+        try {
+            URI uri = new URI(normalizedUrl);
+            String prefix = normalizedUrl.startsWith("/") ? "EnderVault" : uri.getHost();
+            String path = uri.getPath();
+            String suffix = path == null || path.isBlank() || "/".equals(path)
+                    ? ""
+                    : " / " + decodePath(path.replaceAll("^/+", "").replaceAll("/+$", ""));
+            String title = (prefix == null || prefix.isBlank() ? "Bookmark" : prefix) + suffix;
+            return truncateTitle(title);
+        } catch (URISyntaxException ex) {
+            return "Bookmark";
+        }
+    }
+
+    private String decodePath(String value) {
+        try {
+            return java.net.URLDecoder.decode(value, java.nio.charset.StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException ex) {
+            return value;
+        }
+    }
+
+    private String normalizeRemoteTitle(String title) {
+        String normalized = title == null ? "" : title.trim().replaceAll("\\s+", " ");
+        return normalized.isBlank() ? "Bookmark" : truncateTitle(normalized);
+    }
+
+    private String truncateTitle(String title) {
+        String normalized = title == null ? "Bookmark" : title.trim();
+        if (normalized.length() <= MAX_TITLE_LENGTH) {
+            return normalized;
+        }
+        return normalized.substring(0, MAX_TITLE_LENGTH).trim();
     }
 
     private String normalizeUrl(String url) {
@@ -449,6 +590,39 @@ public class BookmarkService {
                 .toList();
     }
 
+    private List<BulkLinkInput> parseBulkLinks(String bulkText) {
+        List<String> lines = normalizedBulkLines(bulkText);
+        List<BulkLinkInput> inputs = new ArrayList<>();
+        String pendingTitle = null;
+
+        for (String line : lines) {
+            if (validBookmarkUrlLine(line)) {
+                inputs.add(new BulkLinkInput(pendingTitle == null ? "" : pendingTitle, line));
+                pendingTitle = null;
+                continue;
+            }
+
+            if (pendingTitle != null) {
+                throw new StorageAccessException("Bulk add has consecutive titles without a URL.");
+            }
+            pendingTitle = line;
+        }
+
+        if (pendingTitle != null) {
+            throw new StorageAccessException("Bulk add title must be followed by a URL.");
+        }
+        return inputs;
+    }
+
+    private boolean validBookmarkUrlLine(String line) {
+        try {
+            normalizeUrl(line);
+            return true;
+        } catch (StorageAccessException ex) {
+            return false;
+        }
+    }
+
     private String normalizeId(String id) {
         return id == null || id.isBlank() ? null : id.trim();
     }
@@ -513,5 +687,155 @@ public class BookmarkService {
 
     private void writeAll(List<BookmarkItem> bookmarks) throws IOException {
         registry.write(List.copyOf(bookmarks));
+    }
+
+    private BookmarkItem tryApplyRemoteMetadata(BookmarkItem bookmark) {
+        if (!metadataFetchEnabled() || !bookmark.externalLink()) {
+            return bookmark;
+        }
+
+        try {
+            return fetchAndApplyRemoteMetadata(bookmark);
+        } catch (IOException | StorageAccessException ex) {
+            Instant now = Instant.now();
+            return bookmark.withRemoteMetadata(
+                    bookmark.title(),
+                    bookmark.effectiveTitleSource(),
+                    bookmark.faviconFileName(),
+                    bookmark.faviconContentType(),
+                    now,
+                    "FAILED: " + truncateStatus(ex.getMessage()),
+                    now
+            );
+        }
+    }
+
+    private BookmarkItem fetchAndApplyRemoteMetadata(BookmarkItem bookmark) throws IOException {
+        BookmarkMetadataFetchResult result;
+        try {
+            result = metadataFetcher.fetch(bookmark.url());
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new StorageAccessException("Bookmark metadata fetch was interrupted.");
+        }
+
+        String nextTitle = bookmark.title();
+        BookmarkTitleSource nextTitleSource = bookmark.effectiveTitleSource();
+        if (result.hasTitle() && nextTitleSource != BookmarkTitleSource.MANUAL) {
+            nextTitle = normalizeRemoteTitle(result.title());
+            nextTitleSource = BookmarkTitleSource.REMOTE_TITLE;
+        }
+
+        String faviconFileName = bookmark.faviconFileName();
+        String faviconContentType = bookmark.faviconContentType();
+        if (result.hasFavicon()) {
+            BookmarkMetadataFetchResult.Favicon favicon = result.favicon();
+            BookmarkFaviconCacheEntry cachedFavicon = cacheFavicon(favicon);
+            faviconFileName = cachedFavicon.fileName();
+            faviconContentType = cachedFavicon.contentType();
+        }
+
+        Instant now = Instant.now();
+        return bookmark.withRemoteMetadata(
+                nextTitle,
+                nextTitleSource,
+                faviconFileName,
+                faviconContentType,
+                now,
+                "OK",
+                now
+        );
+    }
+
+    private BookmarkFaviconCacheEntry cacheFavicon(BookmarkMetadataFetchResult.Favicon favicon) throws IOException {
+        Files.createDirectories(faviconRoot);
+
+        String sourceUrl = normalizeFaviconSourceUrl(favicon.sourceUrl());
+        List<BookmarkFaviconCacheEntry> entries = new ArrayList<>(faviconRegistry.read());
+        BookmarkFaviconCacheEntry existing = entries.stream()
+                .filter(entry -> sourceUrl.equals(entry.sourceUrl()))
+                .findFirst()
+                .orElse(null);
+        if (existing != null && cachedFaviconExists(existing)) {
+            return existing;
+        }
+        if (existing != null) {
+            entries.removeIf(entry -> sourceUrl.equals(entry.sourceUrl()));
+        }
+
+        String fileName = newFaviconFileName(favicon.extension());
+        Path target = faviconRoot.resolve(fileName).normalize();
+        if (!target.startsWith(faviconRoot)) {
+            throw new StorageAccessException("Bookmark favicon cache path is invalid.");
+        }
+
+        Path tempFile = Files.createTempFile(faviconRoot, "favicon-", ".tmp");
+        try {
+            Files.write(tempFile, favicon.bytes());
+            try {
+                Files.move(tempFile, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException ex) {
+                Files.move(tempFile, target, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            Files.deleteIfExists(tempFile);
+        }
+
+        BookmarkFaviconCacheEntry cachedFavicon = new BookmarkFaviconCacheEntry(
+                sourceUrl,
+                fileName,
+                favicon.contentType(),
+                Instant.now()
+        );
+        entries.add(cachedFavicon);
+        faviconRegistry.write(List.copyOf(entries));
+        return cachedFavicon;
+    }
+
+    private boolean cachedFaviconExists(BookmarkFaviconCacheEntry entry) {
+        if (entry == null || entry.fileName() == null || entry.fileName().isBlank()) {
+            return false;
+        }
+        Path target = faviconRoot.resolve(entry.fileName()).normalize();
+        return target.startsWith(faviconRoot) && Files.isRegularFile(target);
+    }
+
+    private String normalizeFaviconSourceUrl(String sourceUrl) {
+        String normalized = sourceUrl == null ? "" : sourceUrl.trim();
+        return normalized.isBlank() ? "unknown:" + UUID.randomUUID() : normalized;
+    }
+
+    private String newFaviconFileName(String extension) {
+        String safeExtension = safeFaviconExtension(extension);
+        String fileName;
+        do {
+            fileName = UUID.randomUUID() + "." + safeExtension;
+        } while (Files.exists(faviconRoot.resolve(fileName).normalize()));
+        return fileName;
+    }
+
+    private String safeFaviconExtension(String extension) {
+        String normalized = extension == null ? "" : extension.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+        if (normalized.isBlank()) {
+            return "ico";
+        }
+        if (normalized.length() > 12) {
+            return normalized.substring(0, 12);
+        }
+        return normalized;
+    }
+
+    private String truncateStatus(String status) {
+        String normalized = status == null ? "Unknown error" : status.trim().replaceAll("\\s+", " ");
+        return normalized.length() <= 200 ? normalized : normalized.substring(0, 200).trim();
+    }
+
+    private record TitleChoice(String title, BookmarkTitleSource source) {
+    }
+
+    private record BulkLinkInput(String title, String url) {
+    }
+
+    public record BookmarkFavicon(Path path, String contentType) {
     }
 }

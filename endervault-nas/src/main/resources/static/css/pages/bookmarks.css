@@ -82,6 +82,13 @@
     white-space: nowrap;
 }
 
+.bookmark-favicon {
+    width: var(--sidebar-icon-width);
+    height: var(--sidebar-icon-width);
+    object-fit: contain;
+    border-radius: var(--radius-control);
+}
+
 @media (max-width: 860px) {
     .bookmark-link-panel,
     .bookmark-bulk-panel {

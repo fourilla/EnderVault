@@ -5,8 +5,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.sun.net.httpserver.HttpServer;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,14 +22,15 @@ class BookmarkServiceTest {
     @TempDir
     Path root;
 
+    private NasProperties properties;
     private BookmarkService bookmarkService;
 
     @BeforeEach
     void setUp() throws Exception {
-        NasProperties properties = new NasProperties();
+        properties = new NasProperties();
         properties.getStorage().setRoot(root);
         ObjectMapper objectMapper = JsonMapper.builder().findAndAddModules().build();
-        bookmarkService = new BookmarkService(objectMapper, properties);
+        bookmarkService = new BookmarkService(objectMapper, properties, new BookmarkMetadataFetcher(properties));
         bookmarkService.initialize();
     }
 
@@ -114,6 +119,77 @@ class BookmarkServiceTest {
     }
 
     @Test
+    void derivesTitleFromUrlWhenTitleIsBlank() throws Exception {
+        BookmarkItem link = bookmarkService.createLink(null, "", "https://example.com/docs/reference", "");
+
+        assertThat(link.title()).isEqualTo("example.com / docs/reference");
+        assertThat(link.titleSource()).isEqualTo(BookmarkTitleSource.URL_DERIVED);
+    }
+
+    @Test
+    void fetchesRemoteTitleAndFaviconWhenBookmarkMetadataIsEnabled() throws Exception {
+        try (TestBookmarkServer server = TestBookmarkServer.start()) {
+            properties.getBookmarks().setMetadataFetchEnabled(true);
+            properties.getBookmarks().setBlockPrivateNetworks(false);
+            properties.getBookmarks().setAllowedPorts(List.of(server.port()));
+
+            BookmarkItem link = bookmarkService.createLink(null, "", server.pageUrl(), "");
+            BookmarkItem otherLink = bookmarkService.createLink(null, "", server.pageUrl() + "?copy=1", "");
+
+            assertThat(link.title()).isEqualTo("Remote Bookmark");
+            assertThat(link.titleSource()).isEqualTo(BookmarkTitleSource.REMOTE_TITLE);
+            assertThat(link.faviconAvailable()).isTrue();
+            assertThat(otherLink.faviconFileName()).isEqualTo(link.faviconFileName());
+            assertThat(bookmarkService.favicon(link.id()).contentType()).isEqualTo("image/png");
+            assertThat(root.resolve(".endervault").resolve("bookmark-favicons")).isDirectory();
+            assertThat(root.resolve(".endervault").resolve("bookmark-favicon-cache.json")).exists();
+        }
+    }
+
+    @Test
+    void keepsManualTitleWhenRemoteMetadataIsFetched() throws Exception {
+        try (TestBookmarkServer server = TestBookmarkServer.start()) {
+            properties.getBookmarks().setMetadataFetchEnabled(true);
+            properties.getBookmarks().setBlockPrivateNetworks(false);
+            properties.getBookmarks().setAllowedPorts(List.of(server.port()));
+
+            BookmarkItem link = bookmarkService.createLink(null, "Manual Title", server.pageUrl(), "");
+
+            assertThat(link.title()).isEqualTo("Manual Title");
+            assertThat(link.titleSource()).isEqualTo(BookmarkTitleSource.MANUAL);
+            assertThat(link.faviconAvailable()).isTrue();
+        }
+    }
+
+    @Test
+    void fetchesOpenGraphTitleBeforeHtmlTitle() throws Exception {
+        try (TestBookmarkServer server = TestBookmarkServer.start()) {
+            properties.getBookmarks().setMetadataFetchEnabled(true);
+            properties.getBookmarks().setBlockPrivateNetworks(false);
+            properties.getBookmarks().setAllowedPorts(List.of(server.port()));
+
+            BookmarkItem link = bookmarkService.createLink(null, "", server.metadataTitleUrl(), "");
+
+            assertThat(link.title()).isEqualTo("Open Graph Bookmark");
+            assertThat(link.titleSource()).isEqualTo(BookmarkTitleSource.REMOTE_TITLE);
+        }
+    }
+
+    @Test
+    void fetchesWebManifestTitleWhenHtmlHasNoTitle() throws Exception {
+        try (TestBookmarkServer server = TestBookmarkServer.start()) {
+            properties.getBookmarks().setMetadataFetchEnabled(true);
+            properties.getBookmarks().setBlockPrivateNetworks(false);
+            properties.getBookmarks().setAllowedPorts(List.of(server.port()));
+
+            BookmarkItem link = bookmarkService.createLink(null, "", server.manifestTitleUrl(), "");
+
+            assertThat(link.title()).isEqualTo("Manifest Bookmark");
+            assertThat(link.titleSource()).isEqualTo(BookmarkTitleSource.REMOTE_TITLE);
+        }
+    }
+
+    @Test
     void bulkCreatesTitleAndUrlPairs() throws Exception {
         bookmarkService.createLinks(null, """
                 First
@@ -129,19 +205,137 @@ class BookmarkServiceTest {
     }
 
     @Test
-    void rejectsOddBulkLines() {
+    void bulkCreatesUrlOnlyAndTitleUrlLines() throws Exception {
+        bookmarkService.createLinks(null, """
+                https://example.com/auto
+                Custom
+                https://example.com/custom
+                /files
+                """);
+
+        assertThat(bookmarkService.list(null, ""))
+                .extracting(BookmarkItem::title)
+                .containsExactly("Custom", "EnderVault / files", "example.com / auto");
+    }
+
+    @Test
+    void rejectsBulkTitleWithoutUrl() {
         assertThatThrownBy(() -> bookmarkService.createLinks(null, """
                 First
                 https://example.com/first
                 Second
                 """))
                 .isInstanceOf(StorageAccessException.class)
-                .hasMessageContaining("title and URL pairs");
+                .hasMessageContaining("must be followed by a URL");
+    }
+
+    @Test
+    void rejectsConsecutiveBulkTitles() {
+        assertThatThrownBy(() -> bookmarkService.createLinks(null, """
+                First
+                Second
+                https://example.com/second
+                """))
+                .isInstanceOf(StorageAccessException.class)
+                .hasMessageContaining("consecutive titles");
     }
 
     @Test
     void rejectsSchemeRelativeUrls() {
         assertThatThrownBy(() -> bookmarkService.createLink(null, "External", "//example.com", ""))
                 .isInstanceOf(StorageAccessException.class);
+    }
+
+    private record TestBookmarkServer(HttpServer server, int port) implements AutoCloseable {
+
+        private static TestBookmarkServer start() throws Exception {
+            HttpServer server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+            server.createContext("/page", exchange -> {
+                byte[] body = """
+                        <!doctype html>
+                        <html>
+                        <head>
+                            <title>Remote Bookmark</title>
+                            <link rel="icon" href="/favicon.png">
+                        </head>
+                        <body>bookmark</body>
+                        </html>
+                        """.getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().set("Content-Type", "text/html; charset=utf-8");
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.getResponseBody().write(body);
+                exchange.close();
+            });
+            server.createContext("/metadata-title", exchange -> {
+                byte[] body = """
+                        <!doctype html>
+                        <html>
+                        <head>
+                            <meta property="og:title" content="Open Graph Bookmark">
+                            <meta name="twitter:title" content="Twitter Bookmark">
+                            <title>HTML Bookmark</title>
+                        </head>
+                        <body>metadata</body>
+                        </html>
+                        """.getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().set("Content-Type", "text/html; charset=utf-8");
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.getResponseBody().write(body);
+                exchange.close();
+            });
+            server.createContext("/manifest-title", exchange -> {
+                byte[] body = """
+                        <!doctype html>
+                        <html>
+                        <head>
+                            <link rel="manifest" href="/site.webmanifest">
+                        </head>
+                        <body>manifest</body>
+                        </html>
+                        """.getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().set("Content-Type", "text/html; charset=utf-8");
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.getResponseBody().write(body);
+                exchange.close();
+            });
+            server.createContext("/site.webmanifest", exchange -> {
+                byte[] body = """
+                        {
+                          "name": "Manifest Bookmark",
+                          "short_name": "Manifest"
+                        }
+                        """.getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().set("Content-Type", "application/manifest+json");
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.getResponseBody().write(body);
+                exchange.close();
+            });
+            server.createContext("/favicon.png", exchange -> {
+                byte[] body = new byte[]{(byte) 0x89, 'P', 'N', 'G'};
+                exchange.getResponseHeaders().set("Content-Type", "image/png");
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.getResponseBody().write(body);
+                exchange.close();
+            });
+            server.start();
+            return new TestBookmarkServer(server, server.getAddress().getPort());
+        }
+
+        private String pageUrl() {
+            return "http://127.0.0.1:" + port + "/page";
+        }
+
+        private String metadataTitleUrl() {
+            return "http://127.0.0.1:" + port + "/metadata-title";
+        }
+
+        private String manifestTitleUrl() {
+            return "http://127.0.0.1:" + port + "/manifest-title";
+        }
+
+        @Override
+        public void close() {
+            server.stop(0);
+        }
     }
 }

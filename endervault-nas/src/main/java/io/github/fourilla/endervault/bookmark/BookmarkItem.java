@@ -11,6 +11,11 @@ public record BookmarkItem(
         String title,
         String url,
         String note,
+        BookmarkTitleSource titleSource,
+        String faviconFileName,
+        String faviconContentType,
+        Instant metadataFetchedAt,
+        String metadataFetchStatus,
         Instant createdAt,
         Instant updatedAt,
         Instant lastOpenedAt
@@ -24,6 +29,10 @@ public record BookmarkItem(
 
     public boolean link() {
         return type == BookmarkItemType.LINK;
+    }
+
+    public boolean externalLink() {
+        return link() && url != null && !url.isBlank() && !url.startsWith("/");
     }
 
     public String typeLabel() {
@@ -42,6 +51,14 @@ public record BookmarkItem(
         return note == null || note.isBlank() ? "" : note;
     }
 
+    public BookmarkTitleSource effectiveTitleSource() {
+        return titleSource == null ? BookmarkTitleSource.MANUAL : titleSource;
+    }
+
+    public boolean faviconAvailable() {
+        return faviconFileName != null && !faviconFileName.isBlank();
+    }
+
     public String createdLabel() {
         return format(createdAt);
     }
@@ -54,20 +71,117 @@ public record BookmarkItem(
         return format(lastOpenedAt);
     }
 
-    public BookmarkItem withTitle(String newTitle, Instant updatedAt) {
-        return new BookmarkItem(id, type, parentId, newTitle, url, note, createdAt, updatedAt, lastOpenedAt);
+    public String metadataFetchedLabel() {
+        return format(metadataFetchedAt);
     }
 
-    public BookmarkItem withLink(String newTitle, String newUrl, String newNote, Instant updatedAt) {
-        return new BookmarkItem(id, type, parentId, newTitle, newUrl, newNote, createdAt, updatedAt, lastOpenedAt);
+    public BookmarkItem withTitle(String newTitle, Instant updatedAt) {
+        return new BookmarkItem(
+                id,
+                type,
+                parentId,
+                newTitle,
+                url,
+                note,
+                BookmarkTitleSource.MANUAL,
+                faviconFileName,
+                faviconContentType,
+                metadataFetchedAt,
+                metadataFetchStatus,
+                createdAt,
+                updatedAt,
+                lastOpenedAt
+        );
+    }
+
+    public BookmarkItem withLink(
+            String newTitle,
+            String newUrl,
+            String newNote,
+            BookmarkTitleSource newTitleSource,
+            Instant updatedAt
+    ) {
+        return new BookmarkItem(
+                id,
+                type,
+                parentId,
+                newTitle,
+                newUrl,
+                newNote,
+                newTitleSource,
+                faviconFileName,
+                faviconContentType,
+                metadataFetchedAt,
+                metadataFetchStatus,
+                createdAt,
+                updatedAt,
+                lastOpenedAt
+        );
+    }
+
+    public BookmarkItem withRemoteMetadata(
+            String newTitle,
+            BookmarkTitleSource newTitleSource,
+            String newFaviconFileName,
+            String newFaviconContentType,
+            Instant fetchedAt,
+            String status,
+            Instant updatedAt
+    ) {
+        return new BookmarkItem(
+                id,
+                type,
+                parentId,
+                newTitle,
+                url,
+                note,
+                newTitleSource,
+                newFaviconFileName,
+                newFaviconContentType,
+                fetchedAt,
+                status,
+                createdAt,
+                updatedAt,
+                lastOpenedAt
+        );
     }
 
     public BookmarkItem withLastOpenedAt(Instant openedAt) {
-        return new BookmarkItem(id, type, parentId, title, url, note, createdAt, updatedAt, openedAt);
+        return new BookmarkItem(
+                id,
+                type,
+                parentId,
+                title,
+                url,
+                note,
+                titleSource,
+                faviconFileName,
+                faviconContentType,
+                metadataFetchedAt,
+                metadataFetchStatus,
+                createdAt,
+                updatedAt,
+                openedAt
+        );
     }
 
     public BookmarkItem withParentId(String newParentId, Instant updatedAt) {
-        return new BookmarkItem(id, type, newParentId, title, url, note, createdAt, updatedAt, lastOpenedAt);
+        return new BookmarkItem(
+                id,
+                type,
+                newParentId,
+                title,
+                url,
+                note,
+                titleSource,
+                faviconFileName,
+                faviconContentType,
+                metadataFetchedAt,
+                metadataFetchStatus,
+                createdAt,
+                updatedAt,
+                lastOpenedAt
+        );
     }
 
     private String format(Instant value) {

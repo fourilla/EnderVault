@@ -91,6 +91,22 @@ nas.recent.max-items=200
 nas.recent.record-directories=true
 
 # ---------------------------------------------------------------------------
+# Bookmarks
+# ---------------------------------------------------------------------------
+# metadata-fetch-enabled lets the server fetch limited bookmark metadata.
+# It reads Open Graph/Twitter/title/JSON-LD/web manifest title candidates and favicon.
+# It is disabled by default because it opens an SSRF surface.
+nas.bookmarks.metadata-fetch-enabled=false
+nas.bookmarks.block-private-networks=true
+nas.bookmarks.allowed-ports=80,443
+nas.bookmarks.connect-timeout-seconds=5
+nas.bookmarks.response-timeout-seconds=8
+nas.bookmarks.max-redirects=3
+nas.bookmarks.html-max-bytes=524288
+nas.bookmarks.favicon-max-bytes=262144
+nas.bookmarks.favicon-cache-directory=bookmark-favicons
+
+# ---------------------------------------------------------------------------
 # Share links
 # ---------------------------------------------------------------------------
 # default-expiration-days=0 keeps the current "Never" default when blank.
@@ -224,6 +240,7 @@ nas.notifications.telegram.activity.bookmark-directory-create=false
 nas.notifications.telegram.activity.bookmark-link-create=false
 nas.notifications.telegram.activity.bookmark-bulk-create=false
 nas.notifications.telegram.activity.bookmark-update=false
+nas.notifications.telegram.activity.bookmark-metadata-fetch=false
 nas.notifications.telegram.activity.bookmark-delete=false
 nas.notifications.telegram.activity.bookmark-delete-selected=false
 nas.notifications.telegram.activity.bookmark-open=false
