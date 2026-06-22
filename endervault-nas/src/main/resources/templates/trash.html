@@ -50,9 +50,11 @@
                 </thead>
                 <tbody>
                 <tr th:each="record : ${records}">
-                    <td class="item-name">
-                        <i th:class="${record.directory()} ? 'fas fa-folder item-icon' : 'fas fa-file item-icon'" aria-hidden="true"></i>
-                        <span th:text="${record.originalName()}">item</span>
+                    <td>
+                        <span class="item-name">
+                            <i th:class="${record.directory()} ? 'fas fa-folder item-icon' : 'fas fa-file item-icon'" aria-hidden="true"></i>
+                            <span th:text="${record.originalName()}">item</span>
+                        </span>
                     </td>
                     <td th:text="${record.originalPath()}">path</td>
                     <td th:text="${record.typeLabel()}">File</td>

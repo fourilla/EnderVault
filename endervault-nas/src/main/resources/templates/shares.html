@@ -50,7 +50,9 @@
                 <td>
                     <input readonly th:value="${share.url()}">
                 </td>
-                <td class="item-name" th:text="${share.path()}">path</td>
+                <td>
+                    <span class="item-name" th:text="${share.path()}">path</span>
+                </td>
                 <td th:text="${share.type()}">FILE</td>
                 <td th:text="${share.createdLabel()}">created</td>
                 <td th:text="${share.expiresLabel()}">expires</td>

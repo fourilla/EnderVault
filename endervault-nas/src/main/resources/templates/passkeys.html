@@ -81,7 +81,9 @@
                 </thead>
                 <tbody>
                 <tr th:each="passkey : ${passkeys}">
-                    <td class="item-name" th:text="${passkey.displayLabel()}">My laptop</td>
+                    <td>
+                        <span class="item-name" th:text="${passkey.displayLabel()}">My laptop</span>
+                    </td>
                     <td th:title="${passkey.credentialId()}" th:text="${passkey.shortCredentialId()}">credential</td>
                     <td th:text="${passkey.transportLabel()}">internal</td>
                     <td>

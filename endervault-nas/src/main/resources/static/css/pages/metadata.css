@@ -1,0 +1,188 @@
+.metadata-scan-form,
+.metadata-repair-form {
+    display: grid;
+    gap: var(--space-3xl);
+}
+
+.metadata-status-stack {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--space-sm);
+}
+
+.metadata-running-note {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: var(--space-lg);
+    border: 1px solid var(--warning-line);
+    border-radius: var(--radius-panel);
+    background: var(--warning-bg);
+    color: var(--warning);
+    padding: var(--panel-padding);
+}
+
+.metadata-running-note i {
+    display: inline-grid;
+    width: var(--action-icon-size);
+    height: var(--action-icon-size);
+    place-items: center;
+}
+
+.metadata-running-note span {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.metadata-running-note small {
+    color: inherit;
+    opacity: 0.86;
+}
+
+.metadata-area-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-md);
+}
+
+.metadata-area-row {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    align-items: center;
+    gap: var(--space-xl);
+    min-height: 72px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
+    background: var(--panel-muted);
+    cursor: pointer;
+    padding: var(--panel-padding);
+}
+
+.metadata-area-row:hover {
+    border-color: var(--accent);
+    background: var(--panel-elevated);
+}
+
+.metadata-area-row input[type="checkbox"] {
+    width: var(--card-checkbox-size);
+    height: var(--card-checkbox-size);
+    margin: 0;
+}
+
+.metadata-area-row i {
+    display: inline-grid;
+    width: var(--action-icon-size);
+    height: var(--action-icon-size);
+    place-items: center;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
+    color: var(--accent-strong);
+}
+
+.metadata-area-row span {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.metadata-area-row small {
+    color: var(--muted);
+    font-size: var(--font-size-xs);
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+    .metadata-area-list {
+        grid-template-columns: 1fr;
+    }
+}
+
+.metadata-actions-top {
+    gap: var(--space-md);
+    border-top: 1px solid var(--line);
+    border-bottom: 0;
+    padding-top: var(--space-3xl);
+    padding-bottom: 0;
+}
+
+.metadata-actions-top .icon-text-button {
+    gap: var(--space-lg);
+}
+
+.metadata-result-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-lg);
+    color: var(--muted);
+}
+
+.metadata-result-summary span {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.metadata-area-result {
+    display: grid;
+    gap: var(--space-xl);
+    border-top: 1px solid var(--line);
+    padding-top: var(--space-3xl);
+}
+
+.metadata-area-result:first-of-type {
+    border-top: 0;
+    padding-top: 0;
+}
+
+.metadata-area-result h3 {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-md);
+}
+
+.metadata-table-wrap td strong,
+.metadata-table-wrap td small {
+    display: block;
+}
+
+.metadata-table-wrap td small {
+    color: var(--muted);
+    font-size: var(--font-size-xs);
+    margin-top: 2px;
+}
+
+.metadata-selection-enhanced .metadata-table-wrap tbody tr[data-metadata-repairable="true"] {
+    cursor: pointer;
+}
+
+.metadata-table-wrap .select-cell input[type="checkbox"] {
+    width: var(--checkbox-size);
+    height: var(--checkbox-size);
+    margin: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+    vertical-align: middle;
+}
+
+.metadata-repair-messages {
+    display: grid;
+    gap: var(--space-md);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
+    background: var(--panel-muted);
+    padding: var(--panel-padding);
+}
+
+.metadata-repair-messages h3 {
+    margin: 0;
+    font-size: var(--font-size-md);
+}
+
+.metadata-repair-messages ul {
+    display: grid;
+    gap: var(--space-sm);
+    margin: 0;
+    padding-left: var(--space-3xl);
+}

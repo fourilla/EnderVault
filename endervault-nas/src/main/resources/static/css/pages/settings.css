@@ -1,0 +1,286 @@
+.telegram-settings-workspace,
+.general-settings-workspace,
+.account-settings-workspace,
+.passkey-workspace {
+    max-width: var(--settings-workspace-max-width);
+}
+
+.settings-detail-panel {
+    display: grid;
+    gap: var(--space-3xl);
+}
+
+.settings-detail-panel .section-heading p {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: var(--font-size-xs);
+    overflow-wrap: anywhere;
+}
+
+.settings-index-panel {
+    gap: var(--space-4xl);
+}
+
+.settings-section-copy {
+    display: grid;
+    gap: var(--space-2xs);
+}
+
+.settings-section-copy h2,
+.settings-section-copy p {
+    margin: 0;
+}
+
+.settings-section-copy p {
+    color: var(--muted);
+    font-size: var(--font-size-sm);
+}
+
+.settings-link-list {
+    display: grid;
+    gap: var(--space-md);
+}
+
+.settings-link-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-xl);
+    min-height: 72px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
+    background: var(--panel-muted);
+    color: var(--text);
+    padding: var(--panel-padding);
+}
+
+.settings-link-row:hover {
+    border-color: var(--accent);
+    background: var(--panel-elevated);
+    text-decoration: none;
+}
+
+.settings-link-row > i:first-child {
+    display: inline-grid;
+    width: var(--action-icon-size);
+    height: var(--action-icon-size);
+    place-items: center;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
+    color: var(--accent-strong);
+}
+
+.settings-link-row span {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.settings-link-row small {
+    color: var(--muted);
+    font-size: var(--font-size-xs);
+    overflow-wrap: anywhere;
+}
+
+.settings-link-arrow {
+    color: var(--muted);
+    font-size: var(--font-size-sm);
+}
+
+.general-settings-form,
+.account-settings-form {
+    display: grid;
+    gap: var(--space-5xl);
+}
+
+.settings-detail-section {
+    display: grid;
+    gap: var(--space-xl);
+}
+
+.settings-detail-section + .settings-detail-section {
+    border-top: 1px solid var(--line);
+    padding-top: var(--space-4xl);
+}
+
+.settings-actions-top {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: var(--space-3xl);
+}
+
+.general-settings-form .icon-text-button,
+.account-settings-form .icon-text-button {
+    gap: var(--space-lg);
+}
+
+.settings-subsection-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: var(--space-3xl);
+}
+
+.settings-subsection-heading h3 {
+    margin: 0;
+    font-size: var(--font-size-md);
+}
+
+.settings-subsection-heading p {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: var(--font-size-xs);
+}
+
+.settings-heading-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-lg);
+    min-width: max-content;
+}
+
+.settings-heading-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-md);
+    min-width: max-content;
+    color: var(--muted);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.settings-field-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-xl);
+    align-items: stretch;
+}
+
+.account-status-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-xl);
+}
+
+.account-status-grid article {
+    display: grid;
+    gap: var(--space-xs);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
+    background: var(--panel-muted);
+    padding: var(--panel-padding);
+}
+
+.account-status-grid span {
+    color: var(--muted);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+}
+
+.account-status-grid strong {
+    font-size: var(--font-size-lg);
+}
+
+.settings-field-grid label,
+.settings-field {
+    display: grid;
+    gap: var(--space-sm);
+    min-width: 0;
+}
+
+.settings-inline-toggle {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-lg);
+    min-height: 44px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
+    background: var(--panel-muted);
+    padding: var(--space-md) var(--space-lg);
+}
+
+.settings-inline-toggle > span {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.settings-inline-toggle strong {
+    color: var(--text);
+    font-size: var(--font-size-sm);
+}
+
+.settings-inline-toggle small {
+    overflow: hidden;
+    color: var(--muted);
+    font-size: var(--font-size-2xs);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.settings-field-grid label > span,
+.settings-field > label {
+    color: var(--muted);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+}
+
+.settings-switch-input {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    flex: 0 0 auto;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    outline: 0;
+    background: #26313d;
+    appearance: none;
+    cursor: pointer;
+    transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.settings-switch-input::before {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--muted);
+    box-shadow: var(--shadow-soft);
+    transition: transform 0.16s ease, background 0.16s ease;
+}
+
+.settings-switch-input:checked {
+    border-color: rgba(96, 165, 250, 0.75);
+    background: var(--accent);
+}
+
+.settings-switch-input:checked::before {
+    transform: translateX(20px);
+    background: #ffffff;
+}
+
+.settings-switch-input:focus-visible {
+    box-shadow: var(--focus-ring);
+}
+
+.settings-dependent-locked {
+    opacity: 0.48;
+    color: var(--muted);
+}
+
+.settings-dependent-locked input,
+.settings-dependent-locked select,
+.settings-dependent-locked textarea,
+.settings-dependent-locked label,
+.settings-dependent-locked button,
+.settings-dependent-locked a {
+    pointer-events: none;
+}
