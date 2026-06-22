@@ -9,7 +9,12 @@
     <th:block th:replace="~{fragments/assets :: coreScripts}"></th:block>
     <th:block th:replace="~{fragments/assets :: adminActionsScript}"></th:block>
     <th:block th:replace="~{fragments/assets :: transferBufferScript}"></th:block>
-    <th:block th:replace="~{fragments/assets :: fileToolsScript}"></th:block>
+    <th:block th:if="${fileTool.text()}">
+        <th:block th:replace="~{fragments/assets :: fileToolsScript}"></th:block>
+    </th:block>
+    <th:block th:if="${fileTool.comic()}">
+        <th:block th:replace="~{fragments/assets :: comicViewerScript}"></th:block>
+    </th:block>
 </head>
 <body data-server-task-activity="true">
 <div class="app-shell">

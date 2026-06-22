@@ -18,6 +18,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import io.github.fourilla.endervault.favorite.FavoriteService;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
@@ -755,6 +757,19 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void comicDetailPageLoadsComicViewerWithoutTextEditorAssets() throws Exception {
+        String filename = "comic-detail-" + System.nanoTime() + ".cbz";
+        writeComicStub(ROOT.resolve(filename));
+
+        mockMvc.perform(get("/files/detail").param("path", filename))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("data-comic-page-url")))
+                .andExpect(content().string(Matchers.containsString("/js/comic-viewer.js")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/file-tools.js"))))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/webjars/codemirror/"))));
+    }
+
+    @Test
     void uploadCanReturnJsonForXhrProgressFlow() throws Exception {
         String filename = "ajax-upload-" + System.nanoTime() + ".txt";
         MockMultipartFile file = new MockMultipartFile("files", filename, "text/plain", "upload".getBytes());
@@ -918,6 +933,14 @@ class AdminNotificationFlowTest {
             return Files.createTempDirectory("endervault-notifications-");
         } catch (IOException ex) {
             throw new IllegalStateException("Failed to create test storage root.", ex);
+        }
+    }
+
+    private static void writeComicStub(Path path) throws IOException {
+        try (ZipOutputStream zipOutputStream = new ZipOutputStream(Files.newOutputStream(path))) {
+            zipOutputStream.putNextEntry(new ZipEntry("001.png"));
+            zipOutputStream.write(new byte[] {1, 2, 3});
+            zipOutputStream.closeEntry();
         }
     }
 }
