@@ -49,6 +49,7 @@ public class StorageService {
     private final FileActionRegistry fileActionRegistry;
     private final StoragePathResolver pathResolver;
     private final StorageZipWriter zipWriter;
+    private final UploadStagingService uploadStagingService;
 
     public StorageService(NasProperties nasProperties) {
         this(nasProperties, new FileActionRegistry());
@@ -67,6 +68,7 @@ public class StorageService {
         this.fileActionRegistry = fileActionRegistry;
         this.pathResolver = new StoragePathResolver(root, trashRoot, metadataRoot, uploadTempRoot);
         this.zipWriter = new StorageZipWriter();
+        this.uploadStagingService = new UploadStagingService(uploadTempRoot, pathResolver);
     }
 
     @PostConstruct
@@ -437,50 +439,19 @@ public class StorageService {
     }
 
     public StagedUpload stageUpload(MultipartFile file) throws IOException {
-        if (file.isEmpty()) {
-            return null;
-        }
-        String filename = safeSubmittedFilename(file);
-        Files.createDirectories(uploadTempRoot);
-        Path temporaryFile = Files.createTempFile(uploadTempRoot, "upload-", ".tmp");
-        boolean staged = false;
-        try (InputStream inputStream = file.getInputStream()) {
-            Files.copy(inputStream, temporaryFile, StandardCopyOption.REPLACE_EXISTING);
-            StagedUpload stagedUpload = new StagedUpload(temporaryFile, filename, Files.size(temporaryFile));
-            staged = true;
-            return stagedUpload;
-        } finally {
-            if (!staged) {
-                Files.deleteIfExists(temporaryFile);
-            }
-        }
+        return uploadStagingService.stageUpload(file);
     }
 
     public Path createUploadTemporaryFile(String prefix, String suffix) throws IOException {
-        Files.createDirectories(uploadTempRoot);
-        return Files.createTempFile(uploadTempRoot, prefix, suffix);
+        return uploadStagingService.createTemporaryFile(prefix, suffix);
     }
 
     public List<TemporaryFileInfo> listUploadTemporaryFiles() throws IOException {
-        Files.createDirectories(uploadTempRoot);
-        try (Stream<Path> stream = Files.list(uploadTempRoot)) {
-            return stream
-                    .filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))
-                    .filter(path -> !Files.isSymbolicLink(path))
-                    .map(this::toTemporaryFileInfo)
-                    .sorted(Comparator.comparing(TemporaryFileInfo::modifiedAt).reversed())
-                    .toList();
-        }
+        return uploadStagingService.listTemporaryFiles();
     }
 
     public void deleteUploadTemporaryFile(String filename) throws IOException {
-        pathResolver.validateSingleName(filename);
-        Path temporaryFile = uploadTempRoot.resolve(filename).normalize();
-        pathResolver.ensureInsideUploadTempRoot(temporaryFile);
-        if (Files.isRegularFile(temporaryFile, LinkOption.NOFOLLOW_LINKS)
-                && !Files.isSymbolicLink(temporaryFile)) {
-            Files.deleteIfExists(temporaryFile);
-        }
+        uploadStagingService.deleteTemporaryFile(filename);
     }
 
     public FileItem moveTemporaryFileIntoVault(Path temporaryFile, String directoryPath, String filename)
@@ -867,22 +838,6 @@ public class StorageService {
         }
     }
 
-    private TemporaryFileInfo toTemporaryFileInfo(Path path) {
-        try {
-            long size = Files.size(path);
-            Instant modified = Files.getLastModifiedTime(path).toInstant();
-            return new TemporaryFileInfo(
-                    path.getFileName().toString(),
-                    size,
-                    ByteSizeFormatter.humanSize(size),
-                    modified,
-                    MODIFIED_FORMATTER.format(modified)
-            );
-        } catch (IOException ex) {
-            throw new StorageAccessException("Failed to read temporary upload metadata.", ex);
-        }
-    }
-
     private FileDetail toFileDetail(Path relativeBase, Path path) throws IOException {
         boolean directory = Files.isDirectory(path);
         String mediaType = directory ? "directory" : mediaType(path);
@@ -978,17 +933,6 @@ public class StorageService {
             }
         });
         return new StorageOperationSummary(totalBytes[0], totalItems[0]);
-    }
-
-    private String safeSubmittedFilename(MultipartFile file) {
-        String originalFilename = file.getOriginalFilename();
-        if (originalFilename == null || originalFilename.isBlank()) {
-            throw new StorageAccessException("Uploaded file name is blank.");
-        }
-        String cleaned = originalFilename.replace('\\', '/');
-        String filename = Path.of(cleaned).getFileName().toString();
-        pathResolver.validateSingleName(filename);
-        return filename;
     }
 
     private String validateConfiguredDirectory(String directoryName) {
