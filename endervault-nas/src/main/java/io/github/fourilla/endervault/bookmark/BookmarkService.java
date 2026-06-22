@@ -7,8 +7,6 @@ import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -27,14 +25,12 @@ public class BookmarkService {
 
     private static final TypeReference<List<BookmarkItem>> BOOKMARK_LIST = new TypeReference<>() {
     };
-    private static final int MAX_TITLE_LENGTH = 200;
-    private static final int MAX_URL_LENGTH = 4096;
-    private static final int MAX_NOTE_LENGTH = 1000;
     private static final String RECOVERED_DIRECTORY_TITLE = "Recovered Bookmarks";
 
     private final JsonRegistry<List<BookmarkItem>> registry;
     private final BookmarkFaviconCacheService faviconCacheService;
     private final BookmarkBulkLinkParser bulkLinkParser = new BookmarkBulkLinkParser();
+    private final BookmarkInputNormalizer inputNormalizer = new BookmarkInputNormalizer();
     private final NasProperties nasProperties;
     private final BookmarkMetadataFetcher metadataFetcher;
 
@@ -101,7 +97,7 @@ public class BookmarkService {
                 UUID.randomUUID().toString(),
                 BookmarkItemType.DIRECTORY,
                 normalizedParentId,
-                normalizeTitle(title),
+                inputNormalizer.normalizeTitle(title),
                 null,
                 null,
                 BookmarkTitleSource.MANUAL,
@@ -139,8 +135,9 @@ public class BookmarkService {
     private synchronized BookmarkItem newLink(String parentId, String title, String url, String note) throws IOException {
         List<BookmarkItem> bookmarks = readAllMutable();
         String normalizedParentId = normalizeParentId(parentId, bookmarks);
-        String normalizedUrl = normalizeUrl(url);
-        TitleChoice titleChoice = titleChoice(title, normalizedUrl);
+        String normalizedUrl = inputNormalizer.normalizeUrl(url);
+        BookmarkInputNormalizer.BookmarkTitleChoice titleChoice =
+                inputNormalizer.titleChoice(title, normalizedUrl);
         Instant now = Instant.now();
         return new BookmarkItem(
                 UUID.randomUUID().toString(),
@@ -148,7 +145,7 @@ public class BookmarkService {
                 normalizedParentId,
                 titleChoice.title(),
                 normalizedUrl,
-                normalizeNote(note),
+                inputNormalizer.normalizeNote(note),
                 titleChoice.source(),
                 null,
                 null,
@@ -178,7 +175,11 @@ public class BookmarkService {
     }
 
     public List<BulkLinkInput> parseBulkLinkInputs(String bulkText) {
-        return bulkLinkParser.parse(bulkText, this::validBookmarkUrlLine, this::validateBulkInput);
+        return bulkLinkParser.parse(
+                bulkText,
+                inputNormalizer::validUrlLine,
+                inputNormalizer::validateBulkInput
+        );
     }
 
     public synchronized BookmarkItem updateDirectory(String id, String title) throws IOException {
@@ -189,7 +190,7 @@ public class BookmarkService {
             throw new StorageAccessException("Only bookmark directories can be updated here.");
         }
 
-        BookmarkItem updated = current.withTitle(normalizeTitle(title), Instant.now());
+        BookmarkItem updated = current.withTitle(inputNormalizer.normalizeTitle(title), Instant.now());
         bookmarks.set(index, updated);
         writeAll(bookmarks);
         return updated;
@@ -203,13 +204,14 @@ public class BookmarkService {
             throw new StorageAccessException("Only bookmark links can be updated here.");
         }
 
-        String normalizedUrl = normalizeUrl(url);
-        TitleChoice titleChoice = titleChoice(title, normalizedUrl);
+        String normalizedUrl = inputNormalizer.normalizeUrl(url);
+        BookmarkInputNormalizer.BookmarkTitleChoice titleChoice =
+                inputNormalizer.titleChoice(title, normalizedUrl);
         boolean urlChanged = !normalizedUrl.equals(current.url());
         BookmarkItem updated = current.withLink(
                 titleChoice.title(),
                 normalizedUrl,
-                note == null ? current.note() : normalizeNote(note),
+                note == null ? current.note() : inputNormalizer.normalizeNote(note),
                 titleChoice.source(),
                 Instant.now()
         );
@@ -458,130 +460,8 @@ public class BookmarkService {
         return normalizedParentId;
     }
 
-    private String normalizeTitle(String title) {
-        String normalized = title == null ? "" : title.trim();
-        if (normalized.isBlank()) {
-            throw new StorageAccessException("Bookmark title is required.");
-        }
-        if (normalized.length() > MAX_TITLE_LENGTH) {
-            throw new StorageAccessException("Bookmark title is too long.");
-        }
-        return normalized;
-    }
-
-    private void validateBulkInput(BulkLinkInput input) {
-        normalizeUrl(input.url());
-        if (input.title() != null && !input.title().isBlank()) {
-            normalizeTitle(input.title());
-        }
-    }
-
-    private TitleChoice titleChoice(String title, String normalizedUrl) {
-        String normalizedTitle = title == null ? "" : title.trim();
-        if (!normalizedTitle.isBlank()) {
-            return new TitleChoice(normalizeTitle(normalizedTitle), BookmarkTitleSource.MANUAL);
-        }
-        return new TitleChoice(deriveTitleFromUrl(normalizedUrl), BookmarkTitleSource.URL_DERIVED);
-    }
-
-    private String deriveTitleFromUrl(String normalizedUrl) {
-        try {
-            URI uri = new URI(normalizedUrl);
-            String prefix = normalizedUrl.startsWith("/") ? "EnderVault" : uri.getHost();
-            String path = uri.getPath();
-            String suffix = path == null || path.isBlank() || "/".equals(path)
-                    ? ""
-                    : " / " + decodePath(path.replaceAll("^/+", "").replaceAll("/+$", ""));
-            String title = (prefix == null || prefix.isBlank() ? "Bookmark" : prefix) + suffix;
-            return truncateTitle(title);
-        } catch (URISyntaxException ex) {
-            return "Bookmark";
-        }
-    }
-
-    private String decodePath(String value) {
-        try {
-            return java.net.URLDecoder.decode(value, java.nio.charset.StandardCharsets.UTF_8);
-        } catch (IllegalArgumentException ex) {
-            return value;
-        }
-    }
-
-    private String normalizeRemoteTitle(String title) {
-        String normalized = title == null ? "" : title.trim().replaceAll("\\s+", " ");
-        return normalized.isBlank() ? "Bookmark" : truncateTitle(normalized);
-    }
-
-    private String truncateTitle(String title) {
-        String normalized = title == null ? "Bookmark" : title.trim();
-        if (normalized.length() <= MAX_TITLE_LENGTH) {
-            return normalized;
-        }
-        return normalized.substring(0, MAX_TITLE_LENGTH).trim();
-    }
-
-    private String normalizeUrl(String url) {
-        String normalized = url == null ? "" : url.trim();
-        if (normalized.isBlank()) {
-            throw new StorageAccessException("Bookmark URL is required.");
-        }
-        if (normalized.length() > MAX_URL_LENGTH) {
-            throw new StorageAccessException("Bookmark URL is too long.");
-        }
-        try {
-            URI uri = new URI(normalized);
-            if (normalized.startsWith("/") && !normalized.startsWith("//")) {
-                if (uri.getScheme() != null || uri.getHost() != null || containsControlOrBackslash(normalized)) {
-                    throw new StorageAccessException("Bookmark URL is invalid.");
-                }
-                return uri.toString();
-            }
-
-            String scheme = uri.getScheme();
-            if (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) {
-                throw new StorageAccessException("Bookmark URL must use http or https.");
-            }
-            if (uri.getHost() == null || uri.getHost().isBlank()) {
-                throw new StorageAccessException("Bookmark URL host is required.");
-            }
-            if (uri.getUserInfo() != null) {
-                throw new StorageAccessException("Bookmark URL must not contain user info.");
-            }
-            return uri.toString();
-        } catch (URISyntaxException ex) {
-            throw new StorageAccessException("Bookmark URL is invalid.", ex);
-        }
-    }
-
-    private boolean containsControlOrBackslash(String value) {
-        for (int i = 0; i < value.length(); i++) {
-            char ch = value.charAt(i);
-            if (Character.isISOControl(ch) || ch == '\\') {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private String normalizeNote(String note) {
-        String normalized = note == null ? "" : note.trim();
-        if (normalized.length() > MAX_NOTE_LENGTH) {
-            throw new StorageAccessException("Bookmark note is too long.");
-        }
-        return normalized;
-    }
-
     private String normalizeQuery(String query) {
         return query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
-    }
-
-    private boolean validBookmarkUrlLine(String line) {
-        try {
-            normalizeUrl(line);
-            return true;
-        } catch (StorageAccessException ex) {
-            return false;
-        }
     }
 
     private String normalizeId(String id) {
@@ -696,7 +576,7 @@ public class BookmarkService {
         String nextTitle = bookmark.title();
         BookmarkTitleSource nextTitleSource = bookmark.effectiveTitleSource();
         if (result.hasTitle() && nextTitleSource != BookmarkTitleSource.MANUAL) {
-            nextTitle = normalizeRemoteTitle(result.title());
+            nextTitle = inputNormalizer.normalizeRemoteTitle(result.title());
             nextTitleSource = BookmarkTitleSource.REMOTE_TITLE;
         }
 
@@ -733,9 +613,6 @@ public class BookmarkService {
     private String truncateStatus(String status) {
         String normalized = status == null ? "Unknown error" : status.trim().replaceAll("\\s+", " ");
         return normalized.length() <= 200 ? normalized : normalized.substring(0, 200).trim();
-    }
-
-    private record TitleChoice(String title, BookmarkTitleSource source) {
     }
 
     public record BulkLinkInput(String title, String url) {
