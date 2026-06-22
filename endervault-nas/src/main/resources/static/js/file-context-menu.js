@@ -14,20 +14,13 @@ document.addEventListener("DOMContentLoaded", () => {
         showNotification,
         showToast,
         copyText,
-        csrfPair,
-        contextMenus
+        csrfPair
     } = window.EnderVault;
 
     const itemSelector = "[data-context-item='true']";
     const checkboxSelector = 'input[name="items"][form="bulkActionForm"]';
     const contextActions = [];
     const extensionActions = [];
-
-    let activeMenu = null;
-    let activeContext = null;
-    let activeContextTarget = null;
-
-    document.body.classList.add("context-menu-enhanced");
 
     const currentPath = () => bulkForm.querySelector('input[name="path"]')?.value || "";
 
@@ -396,15 +389,6 @@ document.addEventListener("DOMContentLoaded", () => {
         run: () => pasteTransferBuffer("copy")
     });
 
-    const actionLabel = (action, context) =>
-        typeof action.label === "function" ? action.label(context) : action.label;
-
-    const actionIcon = (action, context) =>
-        typeof action.icon === "function" ? action.icon(context) : action.icon;
-
-    const visibleActions = (context) => contextActions
-            .filter((action) => !action.visible || action.visible(context));
-
     const contextForEvent = (event) => {
         const targetItem = event.target.closest(itemSelector);
         if (targetItem) {
@@ -439,139 +423,19 @@ document.addEventListener("DOMContentLoaded", () => {
         };
     };
 
-    const closeMenu = () => {
-        activeMenu?.remove();
-        activeMenu = null;
-        activeContext = null;
-        activeContextTarget?.classList.remove("is-context-target");
-        activeContextTarget = null;
-        document.body.classList.remove("context-menu-open");
-        contextMenus?.clear(closeMenu);
-    };
-
-    const createMenuButton = (action, context) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "context-menu-item";
-        button.dataset.contextAction = action.id;
-        button.setAttribute("role", "menuitem");
-        if (action.danger) {
-            button.classList.add("danger");
-        }
-
-        const iconElement = document.createElement("i");
-        iconElement.className = actionIcon(action, context);
-        iconElement.setAttribute("aria-hidden", "true");
-        const label = document.createElement("span");
-        label.textContent = actionLabel(action, context);
-        button.append(iconElement, label);
-        button.addEventListener("click", async () => {
-            closeMenu();
-            try {
-                await action.run(context);
-            } catch (error) {
-                showToast("error", error.message || "The action failed.");
-            }
-        });
-        return button;
-    };
-
-    const renderMenu = (context, x, y) => {
-        const actions = visibleActions(context);
-        if (!actions.length) {
-            return;
-        }
-
-        closeMenu();
-        contextMenus?.open(closeMenu);
-        const menu = document.createElement("div");
-        menu.id = "fileContextMenu";
-        menu.className = "context-menu";
-        menu.setAttribute("role", "menu");
-        menu.tabIndex = -1;
-
-        let previousGroup = null;
-        actions.forEach((action) => {
-            if (previousGroup && previousGroup !== action.group) {
-                const separator = document.createElement("div");
-                separator.className = "context-menu-separator";
-                separator.setAttribute("role", "separator");
-                menu.append(separator);
-            }
-            previousGroup = action.group;
-            menu.append(createMenuButton(action, context));
-        });
-
-        document.body.append(menu);
-        const rect = menu.getBoundingClientRect();
-        const left = Math.min(x, window.innerWidth - rect.width - 8);
-        const top = Math.min(y, window.innerHeight - rect.height - 8);
-        menu.style.left = `${Math.max(8, left)}px`;
-        menu.style.top = `${Math.max(8, top)}px`;
-        activeMenu = menu;
-        activeContext = context;
-        if (context.item?.element) {
-            context.item.element.classList.add("is-context-target");
-            activeContextTarget = context.item.element;
-        }
-        document.body.classList.add("context-menu-open");
-    };
-
-    document.addEventListener("contextmenu", (event) => {
-        if (activeMenu?.contains(event.target)) {
-            event.preventDefault();
-            return;
-        }
-        const context = contextForEvent(event);
-        if (!context) {
-            closeMenu();
-            return;
-        }
-        event.preventDefault();
-        renderMenu(context, event.clientX, event.clientY);
+    const menu = window.EnderVaultContextMenus?.createActionMenu({
+        menuId: "fileContextMenu",
+        actions: contextActions,
+        contextForEvent,
+        errorMessage: "The action failed.",
+        extraCloseEvents: ["endervault:listing-refreshed"]
     });
-
-    document.addEventListener("click", (event) => {
-        if (activeMenu && !activeMenu.contains(event.target)) {
-            closeMenu();
-        }
-    });
-
-    document.addEventListener("keydown", (event) => {
-        if (!activeMenu) {
-            return;
-        }
-        if (event.key === "Escape") {
-            event.preventDefault();
-            closeMenu();
-            return;
-        }
-        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-            event.preventDefault();
-            const buttons = Array.from(activeMenu.querySelectorAll(".context-menu-item"));
-            const currentIndex = buttons.indexOf(document.activeElement);
-            const direction = event.key === "ArrowDown" ? 1 : -1;
-            const nextIndex = currentIndex < 0
-                    ? 0
-                    : (currentIndex + direction + buttons.length) % buttons.length;
-            buttons[nextIndex]?.focus();
-            return;
-        }
-        if (event.key === "Enter" && document.activeElement?.matches(".context-menu-item")) {
-            event.preventDefault();
-            document.activeElement.click();
-        }
-    });
-
-    window.addEventListener("resize", closeMenu);
-    window.addEventListener("scroll", closeMenu, true);
-    document.addEventListener("endervault:listing-refreshed", closeMenu);
 
     window.EnderVaultContextMenu = {
         registerAction,
         registerExtensionAction,
         extensionActions: () => [...extensionActions],
-        close: closeMenu,
-        activeContext: () => activeContext
+        close: () => menu?.close(),
+        activeContext: () => menu?.activeContext()
     };
 });
