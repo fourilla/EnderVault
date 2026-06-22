@@ -2,10 +2,8 @@ package io.github.fourilla.endervault.web.file;
 
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.config.NasProperties;
-import io.github.fourilla.endervault.favorite.FavoriteService;
-import io.github.fourilla.endervault.recent.RecentService;
-import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
+import io.github.fourilla.endervault.storage.FileLifecycleService;
 import io.github.fourilla.endervault.storage.FileDetail;
 import io.github.fourilla.endervault.storage.FileItem;
 import io.github.fourilla.endervault.storage.StorageScope;
@@ -13,7 +11,6 @@ import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.storage.StorageService.StagedUpload;
 import io.github.fourilla.endervault.task.AppTask;
 import io.github.fourilla.endervault.task.FileOperationTaskService;
-import io.github.fourilla.endervault.thumbnail.ThumbnailService;
 import io.github.fourilla.endervault.trash.TrashRecord;
 import io.github.fourilla.endervault.trash.TrashService;
 import io.github.fourilla.endervault.upload.PendingUploadConflictService;
@@ -49,10 +46,7 @@ import org.springframework.web.util.UriUtils;
 public class AdminFileMutationController {
 
     private final StorageService storageService;
-    private final ShareLinkService shareLinkService;
-    private final FavoriteService favoriteService;
-    private final RecentService recentService;
-    private final ThumbnailService thumbnailService;
+    private final FileLifecycleService fileLifecycleService;
     private final TrashService trashService;
     private final ActivityLogService activityLogService;
     private final FileOperationTaskService fileOperationTaskService;
@@ -61,10 +55,7 @@ public class AdminFileMutationController {
 
     public AdminFileMutationController(
             StorageService storageService,
-            ShareLinkService shareLinkService,
-            FavoriteService favoriteService,
-            RecentService recentService,
-            ThumbnailService thumbnailService,
+            FileLifecycleService fileLifecycleService,
             TrashService trashService,
             ActivityLogService activityLogService,
             FileOperationTaskService fileOperationTaskService,
@@ -72,10 +63,7 @@ public class AdminFileMutationController {
             NasProperties nasProperties
     ) {
         this.storageService = storageService;
-        this.shareLinkService = shareLinkService;
-        this.favoriteService = favoriteService;
-        this.recentService = recentService;
-        this.thumbnailService = thumbnailService;
+        this.fileLifecycleService = fileLifecycleService;
         this.trashService = trashService;
         this.activityLogService = activityLogService;
         this.fileOperationTaskService = fileOperationTaskService;
@@ -248,15 +236,7 @@ public class AdminFileMutationController {
             throw ex;
         }
         FileItem newItem = storageService.describeVaultPath(newPath);
-        thumbnailService.migrateThumbnails(
-                storageService.resolveVaultPath(newItem.path()),
-                oldItem.path(),
-                newItem.path()
-        );
-        shareLinkService.moveVaultPath(oldItem.path(), newItem.path());
-        favoriteService.moveVaultPath(oldItem.path(), newItem.path());
-        recentService.moveVaultPath(oldItem.path(), newItem.path());
-        activityLogService.record("RENAME", request, oldItem.path(), newItem.path(), "Renamed item to " + newItem.name());
+        fileLifecycleService.recordRename(request, oldItem.path(), newItem.path(), "Renamed item to " + newItem.name());
         FlashNotification notification = FlashNotification.success("Item renamed.");
         String redirect = redirectToFiles(path);
         return ActionResponseSupport.redirect(request, redirectAttributes, notification, redirect);
@@ -289,11 +269,7 @@ public class AdminFileMutationController {
             }
             throw ex;
         }
-        thumbnailService.migrateThumbnails(storageService.resolveVaultPath(newPath), detail.path(), newPath);
-        shareLinkService.moveVaultPath(detail.path(), newPath);
-        favoriteService.moveVaultPath(detail.path(), newPath);
-        recentService.moveVaultPath(detail.path(), newPath);
-        activityLogService.record("RENAME", request, detail.path(), newPath, "Renamed item to " + newName);
+        fileLifecycleService.recordRename(request, detail.path(), newPath, "Renamed item to " + newName);
         FlashNotification notification = FlashNotification.success("Item renamed.");
         String redirect = redirectToDetail(newPath);
         return ActionResponseSupport.redirect(request, redirectAttributes, notification, redirect);
@@ -328,15 +304,7 @@ public class AdminFileMutationController {
             throw ex;
         }
         FileItem newItem = storageService.describeVaultPath(newPath);
-        thumbnailService.migrateThumbnails(
-                storageService.resolveVaultPath(newItem.path()),
-                oldItem.path(),
-                newItem.path()
-        );
-        shareLinkService.moveVaultPath(oldItem.path(), newItem.path());
-        favoriteService.moveVaultPath(oldItem.path(), newItem.path());
-        recentService.moveVaultPath(oldItem.path(), newItem.path());
-        activityLogService.record("MOVE", request, oldItem.path(), newItem.path(), "Moved item to " + targetPath);
+        fileLifecycleService.recordMove(request, oldItem.path(), newItem.path(), "Moved item to " + targetPath);
         FlashNotification notification = FlashNotification.success("Item moved.");
         String redirect = redirectToFiles(path);
         return ActionResponseSupport.redirect(request, redirectAttributes, notification, redirect);
@@ -369,11 +337,7 @@ public class AdminFileMutationController {
             }
             throw ex;
         }
-        thumbnailService.migrateThumbnails(storageService.resolveVaultPath(newPath), detail.path(), newPath);
-        shareLinkService.moveVaultPath(detail.path(), newPath);
-        favoriteService.moveVaultPath(detail.path(), newPath);
-        recentService.moveVaultPath(detail.path(), newPath);
-        activityLogService.record("MOVE", request, detail.path(), newPath, "Moved item to " + targetPath);
+        fileLifecycleService.recordMove(request, detail.path(), newPath, "Moved item to " + targetPath);
         FlashNotification notification = FlashNotification.success("Item moved.");
         String redirect = redirectToDetail(newPath);
         return ActionResponseSupport.redirect(request, redirectAttributes, notification, redirect);

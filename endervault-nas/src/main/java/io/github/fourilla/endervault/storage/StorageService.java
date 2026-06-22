@@ -29,8 +29,6 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -49,6 +47,8 @@ public class StorageService {
     private final String trashDirectoryName;
     private final String metadataDirectoryName;
     private final FileActionRegistry fileActionRegistry;
+    private final StoragePathResolver pathResolver;
+    private final StorageZipWriter zipWriter;
 
     public StorageService(NasProperties nasProperties) {
         this(nasProperties, new FileActionRegistry());
@@ -65,6 +65,8 @@ public class StorageService {
         this.metadataRoot = root.resolve(metadataDirectoryName).normalize();
         this.uploadTempRoot = metadataRoot.resolve("uploads").normalize();
         this.fileActionRegistry = fileActionRegistry;
+        this.pathResolver = new StoragePathResolver(root, trashRoot, metadataRoot, uploadTempRoot);
+        this.zipWriter = new StorageZipWriter();
     }
 
     @PostConstruct
@@ -85,15 +87,15 @@ public class StorageService {
             FileSort sort,
             SortDirection direction
     ) throws IOException {
-        Path directory = resolveDirectory(scope, requestedPath);
-        String currentPath = toRelativePath(baseFor(scope), directory);
+        Path directory = pathResolver.resolveDirectory(scope, requestedPath);
+        String currentPath = pathResolver.toRelativePath(pathResolver.baseFor(scope), directory);
         List<FileItem> children;
 
         try (Stream<Path> stream = Files.list(directory)) {
             children = stream
                     .filter(path -> !Files.isSymbolicLink(path))
-                    .filter(path -> !isHiddenSystemPath(scope, path))
-                    .map(path -> toFileItem(baseFor(scope), path))
+                    .filter(path -> !pathResolver.isHiddenSystemPath(scope, path))
+                    .map(path -> toFileItem(pathResolver.baseFor(scope), path))
                     .sorted(itemComparator(sort, direction))
                     .toList();
         }
@@ -153,8 +155,8 @@ public class StorageService {
             return List.of();
         }
 
-        Path searchRoot = resolveDirectory(scope, requestedRoot);
-        if (isHiddenSystemPath(scope, searchRoot)) {
+        Path searchRoot = pathResolver.resolveDirectory(scope, requestedRoot);
+        if (pathResolver.isHiddenSystemPath(scope, searchRoot)) {
             throw new NoSuchFileException(requestedRoot == null ? "" : requestedRoot);
         }
 
@@ -166,7 +168,7 @@ public class StorageService {
     }
 
     public Path resolveFile(StorageScope scope, String directoryPath, String fileName) throws IOException {
-        Path file = resolveChild(scope, directoryPath, fileName, true);
+        Path file = pathResolver.resolveChild(scope, directoryPath, fileName, true);
         if (!Files.isRegularFile(file)) {
             throw new NoSuchFileException(fileName);
         }
@@ -174,7 +176,7 @@ public class StorageService {
     }
 
     public Path resolveVaultFile(String vaultPath) throws IOException {
-        Path file = resolve(StorageScope.VAULT, vaultPath);
+        Path file = pathResolver.resolve(StorageScope.VAULT, vaultPath);
         if (!Files.isRegularFile(file)) {
             throw new NoSuchFileException(vaultPath);
         }
@@ -182,24 +184,24 @@ public class StorageService {
     }
 
     public Path resolveVaultPath(String vaultPath) throws IOException {
-        return resolve(StorageScope.VAULT, vaultPath);
+        return pathResolver.resolve(StorageScope.VAULT, vaultPath);
     }
 
     public FileItem describeVaultPath(String vaultPath) throws IOException {
-        return toFileItem(root, resolve(StorageScope.VAULT, vaultPath));
+        return toFileItem(root, pathResolver.resolve(StorageScope.VAULT, vaultPath));
     }
 
     public FileDetail detail(StorageScope scope, String vaultPath) throws IOException {
-        Path path = resolve(scope, vaultPath);
-        return toFileDetail(baseFor(scope), path);
+        Path path = pathResolver.resolve(scope, vaultPath);
+        return toFileDetail(pathResolver.baseFor(scope), path);
     }
 
     public FileItem describeVaultChild(String directoryPath, String itemName) throws IOException {
-        return toFileItem(root, resolveChild(StorageScope.VAULT, directoryPath, itemName, true));
+        return toFileItem(root, pathResolver.resolveChild(StorageScope.VAULT, directoryPath, itemName, true));
     }
 
     public Path ensureVaultDirectory(String vaultPath) throws IOException {
-        return resolveDirectory(StorageScope.VAULT, vaultPath);
+        return pathResolver.resolveDirectory(StorageScope.VAULT, vaultPath);
     }
 
     public String renameVaultPath(String vaultPath, String newName) throws IOException {
@@ -207,14 +209,14 @@ public class StorageService {
     }
 
     public String renameVaultPath(String vaultPath, String newName, ConflictPolicy conflictPolicy) throws IOException {
-        validateVaultItemPath(vaultPath);
-        Path source = resolve(StorageScope.VAULT, vaultPath);
+        pathResolver.validateVaultItemPath(vaultPath);
+        Path source = pathResolver.resolve(StorageScope.VAULT, vaultPath);
         Path target = source.resolveSibling(newName).normalize();
-        validateSingleName(newName);
-        ensureInsideBase(StorageScope.VAULT, target);
-        ensureParentInsideBase(StorageScope.VAULT, target);
+        pathResolver.validateSingleName(newName);
+        pathResolver.ensureInsideBase(StorageScope.VAULT, target);
+        pathResolver.ensureParentInsideBase(StorageScope.VAULT, target);
         if (source.equals(target)) {
-            return toRelativePath(root, source);
+            return pathResolver.toRelativePath(root, source);
         }
         ConflictTarget resolvedTarget = resolveConflictTarget(
                 target,
@@ -222,7 +224,7 @@ public class StorageService {
                 conflictPolicy
         );
         movePath(source, resolvedTarget.path(), resolvedTarget.overwrite());
-        return toRelativePath(root, resolvedTarget.path());
+        return pathResolver.toRelativePath(root, resolvedTarget.path());
     }
 
     public String moveVaultPath(String vaultPath, String targetDirectoryPath) throws IOException {
@@ -231,13 +233,13 @@ public class StorageService {
 
     public String moveVaultPath(String vaultPath, String targetDirectoryPath, ConflictPolicy conflictPolicy)
             throws IOException {
-        validateVaultItemPath(vaultPath);
-        Path source = resolve(StorageScope.VAULT, vaultPath);
-        Path targetDirectory = resolveDirectory(StorageScope.VAULT, targetDirectoryPath);
+        pathResolver.validateVaultItemPath(vaultPath);
+        Path source = pathResolver.resolve(StorageScope.VAULT, vaultPath);
+        Path targetDirectory = pathResolver.resolveDirectory(StorageScope.VAULT, targetDirectoryPath);
         Path target = targetDirectory.resolve(source.getFileName()).normalize();
-        ensureInsideBase(StorageScope.VAULT, target);
+        pathResolver.ensureInsideBase(StorageScope.VAULT, target);
         if (source.equals(target)) {
-            return toRelativePath(root, source);
+            return pathResolver.toRelativePath(root, source);
         }
         if (targetDirectory.startsWith(source)) {
             throw new StorageAccessException("A directory cannot be moved into itself.");
@@ -248,7 +250,7 @@ public class StorageService {
                 conflictPolicy
         );
         movePath(source, resolvedTarget.path(), resolvedTarget.overwrite());
-        return toRelativePath(root, resolvedTarget.path());
+        return pathResolver.toRelativePath(root, resolvedTarget.path());
     }
 
     public String copyVaultPath(String vaultPath, String targetDirectoryPath) throws IOException {
@@ -275,11 +277,11 @@ public class StorageService {
             ConflictPolicy conflictPolicy
     ) throws IOException {
         StorageProgressListener progress = progressListener == null ? StorageProgressListener.NOOP : progressListener;
-        validateVaultItemPath(vaultPath);
-        Path source = resolve(StorageScope.VAULT, vaultPath);
-        Path targetDirectory = resolveDirectory(StorageScope.VAULT, targetDirectoryPath);
+        pathResolver.validateVaultItemPath(vaultPath);
+        Path source = pathResolver.resolve(StorageScope.VAULT, vaultPath);
+        Path targetDirectory = pathResolver.resolveDirectory(StorageScope.VAULT, targetDirectoryPath);
         Path target = targetDirectory.resolve(source.getFileName()).normalize();
-        ensureInsideBase(StorageScope.VAULT, target);
+        pathResolver.ensureInsideBase(StorageScope.VAULT, target);
         if (Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS) && targetDirectory.startsWith(source)) {
             throw new StorageAccessException("A directory cannot be copied into itself.");
         }
@@ -303,19 +305,19 @@ public class StorageService {
             }
             throw ex;
         }
-        return toRelativePath(root, resolvedTarget.path());
+        return pathResolver.toRelativePath(root, resolvedTarget.path());
     }
 
     public void deleteVaultPath(String vaultPath) throws IOException {
-        validateVaultItemPath(vaultPath);
-        Path path = resolve(StorageScope.VAULT, vaultPath);
+        pathResolver.validateVaultItemPath(vaultPath);
+        Path path = pathResolver.resolve(StorageScope.VAULT, vaultPath);
         deleteRecursively(path);
     }
 
     public void moveVaultPathToTrash(String vaultPath, String trashName) throws IOException {
-        validateVaultItemPath(vaultPath);
-        Path source = resolve(StorageScope.VAULT, vaultPath);
-        Path target = resolveTrashChild(trashName);
+        pathResolver.validateVaultItemPath(vaultPath);
+        Path source = pathResolver.resolve(StorageScope.VAULT, vaultPath);
+        Path target = pathResolver.resolveTrashChild(trashName);
         if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
             throw new FileAlreadyExistsException(trashName);
         }
@@ -328,7 +330,7 @@ public class StorageService {
 
     public String restoreTrashItem(String trashName, String originalPath, ConflictPolicy conflictPolicy)
             throws IOException {
-        Path trashItem = resolveTrashChild(trashName);
+        Path trashItem = pathResolver.resolveTrashChild(trashName);
         if (!Files.exists(trashItem, LinkOption.NOFOLLOW_LINKS)) {
             throw new NoSuchFileException(trashName);
         }
@@ -338,16 +340,16 @@ public class StorageService {
                 conflictPolicy
         );
         movePath(trashItem, target.path(), target.overwrite());
-        return toRelativePath(root, target.path());
+        return pathResolver.toRelativePath(root, target.path());
     }
 
     public boolean trashItemExists(String trashName) {
-        Path trashItem = resolveTrashChild(trashName);
+        Path trashItem = pathResolver.resolveTrashChild(trashName);
         return Files.exists(trashItem, LinkOption.NOFOLLOW_LINKS);
     }
 
     public void deleteTrashItemIfExists(String trashName) throws IOException {
-        Path trashItem = resolveTrashChild(trashName);
+        Path trashItem = pathResolver.resolveTrashChild(trashName);
         if (Files.exists(trashItem, LinkOption.NOFOLLOW_LINKS)) {
             deleteRecursively(trashItem);
         }
@@ -363,18 +365,18 @@ public class StorageService {
     }
 
     public DirectoryListing listSharedDirectory(String sharedBasePath, String requestedPath) throws IOException {
-        Path sharedBase = resolveDirectory(StorageScope.VAULT, sharedBasePath);
-        Path directory = resolveSharedPath(sharedBase, requestedPath);
+        Path sharedBase = pathResolver.resolveDirectory(StorageScope.VAULT, sharedBasePath);
+        Path directory = pathResolver.resolveSharedPath(sharedBase, requestedPath);
         if (!Files.isDirectory(directory)) {
             throw new NoSuchFileException(requestedPath == null ? "" : requestedPath);
         }
 
-        String currentPath = toRelativePath(sharedBase, directory);
+        String currentPath = pathResolver.toRelativePath(sharedBase, directory);
         List<FileItem> children;
         try (Stream<Path> stream = Files.list(directory)) {
             children = stream
                     .filter(path -> !Files.isSymbolicLink(path))
-                    .filter(path -> !isVaultSystemPath(path))
+                    .filter(path -> !pathResolver.isVaultSystemPath(path))
                     .map(path -> toFileItem(sharedBase, path))
                     .sorted(itemComparator(FileSort.NAME, SortDirection.ASC))
                     .toList();
@@ -390,13 +392,13 @@ public class StorageService {
     }
 
     public Path resolveSharedFile(String sharedBasePath, String requestedPath, String fileName) throws IOException {
-        validateSingleName(fileName);
-        Path sharedBase = resolveDirectory(StorageScope.VAULT, sharedBasePath);
-        Path directory = resolveSharedPath(sharedBase, requestedPath);
+        pathResolver.validateSingleName(fileName);
+        Path sharedBase = pathResolver.resolveDirectory(StorageScope.VAULT, sharedBasePath);
+        Path directory = pathResolver.resolveSharedPath(sharedBase, requestedPath);
         Path file = directory.resolve(fileName).normalize();
-        ensureInsideSharedBase(sharedBase, file);
-        rejectVaultSystemPath(file);
-        ensureExistingPathInsideSharedBase(sharedBase, file);
+        pathResolver.ensureInsideSharedBase(sharedBase, file);
+        pathResolver.rejectVaultSystemPath(file);
+        pathResolver.ensureExistingPathInsideSharedBase(sharedBase, file);
         if (!Files.isRegularFile(file)) {
             throw new NoSuchFileException(fileName);
         }
@@ -404,7 +406,7 @@ public class StorageService {
     }
 
     public FileItem describeSharedFile(String sharedBasePath, String requestedPath, String fileName) throws IOException {
-        Path sharedBase = resolveDirectory(StorageScope.VAULT, sharedBasePath);
+        Path sharedBase = pathResolver.resolveDirectory(StorageScope.VAULT, sharedBasePath);
         Path file = resolveSharedFile(sharedBasePath, requestedPath, fileName);
         return toFileItem(sharedBase, file);
     }
@@ -472,9 +474,9 @@ public class StorageService {
     }
 
     public void deleteUploadTemporaryFile(String filename) throws IOException {
-        validateSingleName(filename);
+        pathResolver.validateSingleName(filename);
         Path temporaryFile = uploadTempRoot.resolve(filename).normalize();
-        ensureInsideUploadTempRoot(temporaryFile);
+        pathResolver.ensureInsideUploadTempRoot(temporaryFile);
         if (Files.isRegularFile(temporaryFile, LinkOption.NOFOLLOW_LINKS)
                 && !Files.isSymbolicLink(temporaryFile)) {
             Files.deleteIfExists(temporaryFile);
@@ -492,7 +494,7 @@ public class StorageService {
             String filename,
             ConflictPolicy conflictPolicy
     ) throws IOException {
-        Path target = resolveChild(StorageScope.VAULT, directoryPath, filename, false);
+        Path target = pathResolver.resolveChild(StorageScope.VAULT, directoryPath, filename, false);
         ConflictTarget resolvedTarget = resolveConflictTarget(target, false, conflictPolicy);
         movePath(temporaryFile, resolvedTarget.path(), resolvedTarget.overwrite());
         return toFileItem(root, resolvedTarget.path());
@@ -518,8 +520,8 @@ public class StorageService {
         long totalBytes = 0L;
         long totalItems = 0L;
         for (String vaultPath : vaultPaths == null ? List.<String>of() : vaultPaths) {
-            validateVaultItemPath(vaultPath);
-            StorageOperationSummary summary = summarizePath(resolve(StorageScope.VAULT, vaultPath));
+            pathResolver.validateVaultItemPath(vaultPath);
+            StorageOperationSummary summary = summarizePath(pathResolver.resolve(StorageScope.VAULT, vaultPath));
             totalBytes += summary.totalBytes();
             totalItems += summary.totalItems();
         }
@@ -559,7 +561,7 @@ public class StorageService {
                     rejectSymbolicLink(directory);
                     Path relative = source.relativize(directory);
                     Path targetDirectory = target.resolve(relative).normalize();
-                    ensureInsideBase(StorageScope.VAULT, targetDirectory);
+                    pathResolver.ensureInsideBase(StorageScope.VAULT, targetDirectory);
                     Files.createDirectory(targetDirectory);
                     progress.onItemProcessed();
                     return FileVisitResult.CONTINUE;
@@ -571,7 +573,7 @@ public class StorageService {
                     rejectSymbolicLink(file);
                     Path relative = source.relativize(file);
                     Path targetFile = target.resolve(relative).normalize();
-                    ensureInsideBase(StorageScope.VAULT, targetFile);
+                    pathResolver.ensureInsideBase(StorageScope.VAULT, targetFile);
                     copyFile(file, targetFile, progress);
                     return FileVisitResult.CONTINUE;
                 }
@@ -657,7 +659,7 @@ public class StorageService {
         Path parent = requestedTarget.getParent();
         for (int counter = 1; counter <= 9999; counter++) {
             Path candidate = parent.resolve(stem + " - " + counter + extension).normalize();
-            ensureInsideBase(StorageScope.VAULT, candidate);
+            pathResolver.ensureInsideBase(StorageScope.VAULT, candidate);
             if (!Files.exists(candidate, LinkOption.NOFOLLOW_LINKS)) {
                 return candidate;
             }
@@ -681,7 +683,7 @@ public class StorageService {
     }
 
     public void createDirectory(String directoryPath, String name) throws IOException {
-        Path target = resolveChild(StorageScope.VAULT, directoryPath, name, false);
+        Path target = pathResolver.resolveChild(StorageScope.VAULT, directoryPath, name, false);
         Files.createDirectory(target);
     }
 
@@ -691,10 +693,10 @@ public class StorageService {
 
     public String rename(String directoryPath, String itemName, String newName, ConflictPolicy conflictPolicy)
             throws IOException {
-        Path source = resolveChild(StorageScope.VAULT, directoryPath, itemName, true);
-        Path target = resolveChild(StorageScope.VAULT, directoryPath, newName, false);
+        Path source = pathResolver.resolveChild(StorageScope.VAULT, directoryPath, itemName, true);
+        Path target = pathResolver.resolveChild(StorageScope.VAULT, directoryPath, newName, false);
         if (source.equals(target)) {
-            return toRelativePath(root, source);
+            return pathResolver.toRelativePath(root, source);
         }
         ConflictTarget resolvedTarget = resolveConflictTarget(
                 target,
@@ -702,7 +704,7 @@ public class StorageService {
                 conflictPolicy
         );
         movePath(source, resolvedTarget.path(), resolvedTarget.overwrite());
-        return toRelativePath(root, resolvedTarget.path());
+        return pathResolver.toRelativePath(root, resolvedTarget.path());
     }
 
     public String move(String sourceDirectoryPath, String itemName, String targetDirectoryPath) throws IOException {
@@ -715,11 +717,11 @@ public class StorageService {
             String targetDirectoryPath,
             ConflictPolicy conflictPolicy
     ) throws IOException {
-        Path source = resolveChild(StorageScope.VAULT, sourceDirectoryPath, itemName, true);
-        Path targetDirectory = resolveDirectory(StorageScope.VAULT, targetDirectoryPath);
-        Path target = resolveChild(StorageScope.VAULT, targetDirectoryPath, source.getFileName().toString(), false);
+        Path source = pathResolver.resolveChild(StorageScope.VAULT, sourceDirectoryPath, itemName, true);
+        Path targetDirectory = pathResolver.resolveDirectory(StorageScope.VAULT, targetDirectoryPath);
+        Path target = pathResolver.resolveChild(StorageScope.VAULT, targetDirectoryPath, source.getFileName().toString(), false);
         if (source.equals(target)) {
-            return toRelativePath(root, source);
+            return pathResolver.toRelativePath(root, source);
         }
         if (targetDirectory.startsWith(source)) {
             throw new StorageAccessException("A directory cannot be moved into itself.");
@@ -730,146 +732,57 @@ public class StorageService {
                 conflictPolicy
         );
         movePath(source, resolvedTarget.path(), resolvedTarget.overwrite());
-        return toRelativePath(root, resolvedTarget.path());
+        return pathResolver.toRelativePath(root, resolvedTarget.path());
     }
 
     public void delete(String directoryPath, List<String> itemNames) throws IOException {
         for (String itemName : itemNames) {
-            Path item = resolveChild(StorageScope.VAULT, directoryPath, itemName, true);
+            Path item = pathResolver.resolveChild(StorageScope.VAULT, directoryPath, itemName, true);
             deleteRecursively(item);
         }
     }
 
     public void writeZip(StorageScope scope, String directoryPath, List<String> itemNames, OutputStream outputStream)
             throws IOException {
-        try (ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream)) {
+        try (StorageZipWriter.EntryWriter zip = zipWriter.open(outputStream)) {
             for (String itemName : itemNames) {
-                Path item = resolveChild(scope, directoryPath, itemName, true);
-                writeZipEntry(item, item.getFileName().toString(), zipOutputStream);
+                Path item = pathResolver.resolveChild(scope, directoryPath, itemName, true);
+                zip.write(item, item.getFileName().toString());
             }
         }
     }
 
     public void writeVaultPathsZip(List<String> vaultPaths, OutputStream outputStream) throws IOException {
-        try (ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream)) {
+        try (StorageZipWriter.EntryWriter zip = zipWriter.open(outputStream)) {
             for (String vaultPath : vaultPaths) {
-                validateVaultItemPath(vaultPath);
-                Path item = resolve(StorageScope.VAULT, vaultPath);
-                writeZipEntry(item, toRelativePath(root, item), zipOutputStream);
+                pathResolver.validateVaultItemPath(vaultPath);
+                Path item = pathResolver.resolve(StorageScope.VAULT, vaultPath);
+                zip.write(item, pathResolver.toRelativePath(root, item));
             }
         }
     }
 
     public void writeSharedZip(String sharedBasePath, String directoryPath, List<String> itemNames,
             OutputStream outputStream) throws IOException {
-        Path sharedBase = resolveDirectory(StorageScope.VAULT, sharedBasePath);
-        Path directory = resolveSharedPath(sharedBase, directoryPath);
+        Path sharedBase = pathResolver.resolveDirectory(StorageScope.VAULT, sharedBasePath);
+        Path directory = pathResolver.resolveSharedPath(sharedBase, directoryPath);
 
-        try (ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream)) {
+        try (StorageZipWriter.EntryWriter zip = zipWriter.open(outputStream)) {
             for (String itemName : itemNames) {
-                validateSingleName(itemName);
+                pathResolver.validateSingleName(itemName);
                 Path item = directory.resolve(itemName).normalize();
-                ensureInsideSharedBase(sharedBase, item);
-                rejectVaultSystemPath(item);
-                ensureExistingPathInsideSharedBase(sharedBase, item);
-                writeZipEntry(item, item.getFileName().toString(), zipOutputStream);
+                pathResolver.ensureInsideSharedBase(sharedBase, item);
+                pathResolver.rejectVaultSystemPath(item);
+                pathResolver.ensureExistingPathInsideSharedBase(sharedBase, item);
+                zip.write(item, item.getFileName().toString());
             }
         }
-    }
-
-    private Path resolveDirectory(StorageScope scope, String requestedPath) throws IOException {
-        Path directory = resolve(scope, requestedPath);
-        if (!Files.isDirectory(directory)) {
-            throw new NoSuchFileException(requestedPath == null ? "" : requestedPath);
-        }
-        return directory;
-    }
-
-    private Path resolveChild(StorageScope scope, String directoryPath, String itemName, boolean mustExist)
-            throws IOException {
-        validateSingleName(itemName);
-        Path directory = resolveDirectory(scope, directoryPath);
-        Path child = directory.resolve(itemName).normalize();
-        ensureInsideBase(scope, child);
-        rejectHiddenSystemPath(scope, child);
-
-        if (mustExist) {
-            ensureExistingPathInsideBase(scope, child);
-        } else {
-            ensureParentInsideBase(scope, child);
-        }
-        return child;
-    }
-
-    private Path resolve(StorageScope scope, String requestedPath) throws IOException {
-        Path base = baseFor(scope);
-        Path relative = sanitizeRelativePath(requestedPath);
-        Path candidate = base.resolve(relative).normalize();
-        ensureInsideBase(scope, candidate);
-        ensureExistingPathInsideBase(scope, candidate);
-        rejectHiddenSystemPath(scope, candidate);
-        return candidate;
-    }
-
-    private Path sanitizeRelativePath(String requestedPath) {
-        if (requestedPath == null || requestedPath.isBlank() || "/".equals(requestedPath)) {
-            return Path.of("");
-        }
-
-        String cleaned = requestedPath.replace('\\', '/');
-        Path relative = Path.of(cleaned).normalize();
-        if (relative.isAbsolute()) {
-            throw new StorageAccessException("Absolute paths are not allowed.");
-        }
-        for (Path segment : relative) {
-            String value = segment.toString();
-            if (value.isBlank() || ".".equals(value) || "..".equals(value) || value.contains(":")) {
-                throw new StorageAccessException("Invalid path segment: " + value);
-            }
-        }
-        return relative;
-    }
-
-    private Path resolveSharedPath(Path sharedBase, String requestedPath) throws IOException {
-        Path relative = sanitizeRelativePath(requestedPath);
-        Path candidate = sharedBase.resolve(relative).normalize();
-        ensureInsideSharedBase(sharedBase, candidate);
-        ensureExistingPathInsideSharedBase(sharedBase, candidate);
-        rejectVaultSystemPath(candidate);
-        return candidate;
-    }
-
-    private Path resolveTrashChild(String trashName) {
-        validateSingleName(trashName);
-        Path child = trashRoot.resolve(trashName).normalize();
-        ensureInsideTrashRoot(child);
-        return child;
     }
 
     private ConflictTarget resolveRestoreTarget(String vaultPath, boolean sourceDirectory, ConflictPolicy conflictPolicy)
             throws IOException {
-        validateVaultItemPath(vaultPath);
-        Path target = root.resolve(sanitizeRelativePath(vaultPath)).normalize();
-        ensureInsideBase(StorageScope.VAULT, target);
-        rejectHiddenSystemPath(StorageScope.VAULT, target);
-        ensureParentInsideBase(StorageScope.VAULT, target);
+        Path target = pathResolver.resolveRestoreTargetPath(vaultPath);
         return resolveConflictTarget(target, sourceDirectory, conflictPolicy);
-    }
-
-    private void validateSingleName(String itemName) {
-        if (itemName == null || itemName.isBlank()) {
-            throw new StorageAccessException("Name is required.");
-        }
-        if (itemName.contains("/") || itemName.contains("\\") || ".".equals(itemName) || "..".equals(itemName)
-                || itemName.contains(":")) {
-            throw new StorageAccessException("Invalid name: " + itemName);
-        }
-    }
-
-    private void validateVaultItemPath(String vaultPath) {
-        if (vaultPath == null || vaultPath.isBlank() || "/".equals(vaultPath)) {
-            throw new StorageAccessException("Path is required.");
-        }
     }
 
     private void searchRecursively(
@@ -881,11 +794,11 @@ public class StorageService {
         try (Stream<Path> stream = Files.list(directory)) {
             for (Path child : stream
                     .filter(path -> !Files.isSymbolicLink(path))
-                    .filter(path -> !isHiddenSystemPath(scope, path))
+                    .filter(path -> !pathResolver.isHiddenSystemPath(scope, path))
                     .sorted(pathNameComparator())
                     .collect(Collectors.toList())) {
                 if (matchesSearchQuery(child, normalizedQuery)) {
-                    results.add(toFileItem(baseFor(scope), child));
+                    results.add(toFileItem(pathResolver.baseFor(scope), child));
                 }
                 if (Files.isDirectory(child, LinkOption.NOFOLLOW_LINKS)) {
                     searchRecursively(scope, child, normalizedQuery, results);
@@ -900,66 +813,6 @@ public class StorageService {
 
     private String normalizeSearchQuery(String query) {
         return query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
-    }
-
-    private Path baseFor(StorageScope scope) {
-        return switch (scope) {
-            case VAULT -> root;
-        };
-    }
-
-    private void ensureInsideBase(StorageScope scope, Path candidate) {
-        Path base = baseFor(scope);
-        if (!candidate.normalize().startsWith(base)) {
-            throw new StorageAccessException("Path is outside the allowed storage area.");
-        }
-    }
-
-    private void ensureExistingPathInsideBase(StorageScope scope, Path candidate) throws IOException {
-        Path base = baseFor(scope).toRealPath();
-        Path realCandidate = candidate.toRealPath();
-        if (!realCandidate.startsWith(base)) {
-            throw new StorageAccessException("Path is outside the allowed storage area.");
-        }
-    }
-
-    private void ensureParentInsideBase(StorageScope scope, Path candidate) throws IOException {
-        Path parent = candidate.getParent();
-        if (parent == null) {
-            throw new StorageAccessException("Invalid target path.");
-        }
-        ensureExistingPathInsideBase(scope, parent);
-    }
-
-    private void ensureInsideSharedBase(Path sharedBase, Path candidate) {
-        if (!candidate.normalize().startsWith(sharedBase)) {
-            throw new StorageAccessException("Path is outside the shared directory.");
-        }
-    }
-
-    private void ensureInsideTrashRoot(Path candidate) {
-        if (!candidate.normalize().startsWith(trashRoot)) {
-            throw new StorageAccessException("Path is outside trash.");
-        }
-    }
-
-    private void ensureInsideUploadTempRoot(Path candidate) {
-        if (!candidate.normalize().startsWith(uploadTempRoot)) {
-            throw new StorageAccessException("Path is outside upload temporary storage.");
-        }
-    }
-
-    private void ensureExistingPathInsideSharedBase(Path sharedBase, Path candidate) throws IOException {
-        Path realSharedBase = sharedBase.toRealPath();
-        Path realCandidate = candidate.toRealPath();
-        if (!realCandidate.startsWith(realSharedBase)) {
-            throw new StorageAccessException("Path is outside the shared directory.");
-        }
-    }
-
-    private String toRelativePath(Path base, Path path) {
-        Path relative = base.relativize(path);
-        return relative.toString().replace('\\', '/');
     }
 
     private Optional<String> parentPathOf(String currentPath) {
@@ -994,7 +847,7 @@ public class StorageService {
             boolean directory = Files.isDirectory(path);
             String mediaType = directory ? "directory" : mediaType(path);
             long size = directory ? 0L : Files.size(path);
-            String relativePath = toRelativePath(relativeBase, path);
+            String relativePath = pathResolver.toRelativePath(relativeBase, path);
             Instant modified = Files.getLastModifiedTime(path).toInstant();
             String extension = extensionOf(path, directory);
             return new FileItem(
@@ -1034,7 +887,7 @@ public class StorageService {
         boolean directory = Files.isDirectory(path);
         String mediaType = directory ? "directory" : mediaType(path);
         long size = directory ? 0L : Files.size(path);
-        String relativePath = toRelativePath(relativeBase, path);
+        String relativePath = pathResolver.toRelativePath(relativeBase, path);
         BasicFileAttributes attributes = Files.readAttributes(path, BasicFileAttributes.class);
         String extension = extensionOf(path, directory);
         return new FileDetail(
@@ -1058,7 +911,7 @@ public class StorageService {
     private long childCount(Path directory) throws IOException {
         try (Stream<Path> children = Files.list(directory)) {
             return children
-                    .filter(path -> !isHiddenSystemPath(StorageScope.VAULT, path))
+                    .filter(path -> !pathResolver.isHiddenSystemPath(StorageScope.VAULT, path))
                     .count();
         }
     }
@@ -1099,34 +952,6 @@ public class StorageService {
                 .thenComparing(path -> path.getFileName().toString().toLowerCase(Locale.ROOT));
     }
 
-    private boolean isHiddenSystemPath(StorageScope scope, Path path) {
-        return scope == StorageScope.VAULT && isVaultSystemPath(path);
-    }
-
-    private boolean isVaultSystemPath(Path path) {
-        Path normalizedPath = path.toAbsolutePath().normalize();
-        return normalizedPath.startsWith(trashRoot) || normalizedPath.startsWith(metadataRoot);
-    }
-
-    private void rejectHiddenSystemPath(StorageScope scope, Path path) throws IOException {
-        if (isHiddenSystemPath(scope, path) || isRealVaultSystemPath(path)) {
-            throw new NoSuchFileException(toRelativePath(baseFor(scope), path));
-        }
-    }
-
-    private void rejectVaultSystemPath(Path path) throws IOException {
-        if (isVaultSystemPath(path) || isRealVaultSystemPath(path)) {
-            throw new NoSuchFileException(toRelativePath(root, path));
-        }
-    }
-
-    private boolean isRealVaultSystemPath(Path path) throws IOException {
-        if (!Files.exists(path, LinkOption.NOFOLLOW_LINKS)) {
-            return false;
-        }
-        return isVaultSystemPath(path.toRealPath());
-    }
-
     private StorageOperationSummary summarizePath(Path path) throws IOException {
         rejectSymbolicLink(path);
         if (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
@@ -1162,12 +987,18 @@ public class StorageService {
         }
         String cleaned = originalFilename.replace('\\', '/');
         String filename = Path.of(cleaned).getFileName().toString();
-        validateSingleName(filename);
+        pathResolver.validateSingleName(filename);
         return filename;
     }
 
     private String validateConfiguredDirectory(String directoryName) {
-        validateSingleName(directoryName);
+        if (directoryName == null || directoryName.isBlank()) {
+            throw new StorageAccessException("Storage system directory name is required.");
+        }
+        if (directoryName.contains("/") || directoryName.contains("\\") || ".".equals(directoryName)
+                || "..".equals(directoryName) || directoryName.contains(":")) {
+            throw new StorageAccessException("Invalid storage system directory: " + directoryName);
+        }
         return directoryName;
     }
 
@@ -1184,29 +1015,6 @@ public class StorageService {
             }
         }
         Files.deleteIfExists(path);
-    }
-
-    private void writeZipEntry(Path source, String entryName, ZipOutputStream zipOutputStream) throws IOException {
-        if (Files.isSymbolicLink(source)) {
-            return;
-        }
-        String normalizedEntryName = entryName.replace('\\', '/');
-        if (Files.isDirectory(source)) {
-            zipOutputStream.putNextEntry(new ZipEntry(normalizedEntryName + "/"));
-            zipOutputStream.closeEntry();
-            try (Stream<Path> children = Files.list(source)) {
-                for (Path child : children.sorted(pathNameComparator()).collect(Collectors.toList())) {
-                    writeZipEntry(child, normalizedEntryName + "/" + child.getFileName(), zipOutputStream);
-                }
-            }
-            return;
-        }
-
-        zipOutputStream.putNextEntry(new ZipEntry(normalizedEntryName));
-        try (InputStream inputStream = Files.newInputStream(source)) {
-            inputStream.transferTo(zipOutputStream);
-        }
-        zipOutputStream.closeEntry();
     }
 
     public record StagedUpload(Path temporaryFile, String filename, long size) {

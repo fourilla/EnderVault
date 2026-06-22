@@ -3,14 +3,11 @@ package io.github.fourilla.endervault.task;
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.auth.ClientIpResolver;
 import io.github.fourilla.endervault.common.StorageAccessException;
-import io.github.fourilla.endervault.favorite.FavoriteService;
-import io.github.fourilla.endervault.recent.RecentService;
-import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
+import io.github.fourilla.endervault.storage.FileLifecycleService;
 import io.github.fourilla.endervault.storage.StorageOperationSummary;
 import io.github.fourilla.endervault.storage.StorageProgressListener;
 import io.github.fourilla.endervault.storage.StorageService;
-import io.github.fourilla.endervault.thumbnail.ThumbnailService;
 import io.github.fourilla.endervault.trash.TrashRecord;
 import io.github.fourilla.endervault.trash.TrashService;
 import io.github.fourilla.endervault.transfer.TransferBufferItem;
@@ -28,10 +25,7 @@ public class FileOperationTaskService {
 
     private final TaskManagerService taskManagerService;
     private final StorageService storageService;
-    private final ShareLinkService shareLinkService;
-    private final FavoriteService favoriteService;
-    private final RecentService recentService;
-    private final ThumbnailService thumbnailService;
+    private final FileLifecycleService fileLifecycleService;
     private final TrashService trashService;
     private final ActivityLogService activityLogService;
     private final ClientIpResolver clientIpResolver;
@@ -39,20 +33,14 @@ public class FileOperationTaskService {
     public FileOperationTaskService(
             TaskManagerService taskManagerService,
             StorageService storageService,
-            ShareLinkService shareLinkService,
-            FavoriteService favoriteService,
-            RecentService recentService,
-            ThumbnailService thumbnailService,
+            FileLifecycleService fileLifecycleService,
             TrashService trashService,
             ActivityLogService activityLogService,
             ClientIpResolver clientIpResolver
     ) {
         this.taskManagerService = taskManagerService;
         this.storageService = storageService;
-        this.shareLinkService = shareLinkService;
-        this.favoriteService = favoriteService;
-        this.recentService = recentService;
-        this.thumbnailService = thumbnailService;
+        this.fileLifecycleService = fileLifecycleService;
         this.trashService = trashService;
         this.activityLogService = activityLogService;
         this.clientIpResolver = clientIpResolver;
@@ -225,23 +213,16 @@ public class FileOperationTaskService {
 
     private void finishMovedItem(TransferBufferItem item, String newPath, RequestSnapshot request)
             throws IOException {
-        thumbnailService.migrateThumbnails(storageService.resolveVaultPath(newPath), item.path(), newPath);
-        shareLinkService.moveVaultPath(item.path(), newPath);
-        favoriteService.moveVaultPath(item.path(), newPath);
-        recentService.moveVaultPath(item.path(), newPath);
-        activityLogService.record("MOVE", request.actor(), request.ip(), item.path(), newPath, true, "Moved item", Map.of());
+        fileLifecycleService.recordMove(request.actor(), request.ip(), item.path(), newPath, "Moved item");
     }
 
     private void finishCopiedItem(TransferBufferItem item, String newPath, String targetPath, RequestSnapshot request) {
-        activityLogService.record(
-                "COPY",
+        fileLifecycleService.recordCopy(
                 request.actor(),
                 request.ip(),
                 item.path(),
                 newPath,
-                true,
-                "Copied item to " + targetPath,
-                Map.of()
+                "Copied item to " + targetPath
         );
     }
 
@@ -252,15 +233,14 @@ public class FileOperationTaskService {
             RequestSnapshot request,
             Exception failure
     ) {
-        activityLogService.record(
+        fileLifecycleService.recordFailedTransfer(
                 operation.activityType(),
                 request.actor(),
                 request.ip(),
                 item.path(),
                 targetPath,
-                false,
                 "Could not " + operation.label().toLowerCase(Locale.ROOT) + " item",
-                Map.of("reason", failure.getClass().getSimpleName())
+                failure
         );
     }
 

@@ -1,18 +1,14 @@
 package io.github.fourilla.endervault.web.file;
 
-import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.common.StorageAccessException;
-import io.github.fourilla.endervault.favorite.FavoriteService;
-import io.github.fourilla.endervault.recent.RecentService;
-import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
+import io.github.fourilla.endervault.storage.FileLifecycleService;
 import io.github.fourilla.endervault.storage.FileDetail;
 import io.github.fourilla.endervault.storage.FileItem;
 import io.github.fourilla.endervault.storage.StorageScope;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.task.AppTask;
 import io.github.fourilla.endervault.task.FileOperationTaskService;
-import io.github.fourilla.endervault.thumbnail.ThumbnailService;
 import io.github.fourilla.endervault.transfer.TransferBuffer;
 import io.github.fourilla.endervault.transfer.TransferBufferItem;
 import io.github.fourilla.endervault.transfer.TransferBufferService;
@@ -30,7 +26,6 @@ import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -43,30 +38,18 @@ import org.springframework.web.util.UriComponentsBuilder;
 public class AdminFileTransferBufferController {
 
     private final StorageService storageService;
-    private final ShareLinkService shareLinkService;
-    private final FavoriteService favoriteService;
-    private final RecentService recentService;
-    private final ThumbnailService thumbnailService;
-    private final ActivityLogService activityLogService;
+    private final FileLifecycleService fileLifecycleService;
     private final TransferBufferService transferBufferService;
     private final FileOperationTaskService fileOperationTaskService;
 
     public AdminFileTransferBufferController(
             StorageService storageService,
-            ShareLinkService shareLinkService,
-            FavoriteService favoriteService,
-            RecentService recentService,
-            ThumbnailService thumbnailService,
-            ActivityLogService activityLogService,
+            FileLifecycleService fileLifecycleService,
             TransferBufferService transferBufferService,
             FileOperationTaskService fileOperationTaskService
     ) {
         this.storageService = storageService;
-        this.shareLinkService = shareLinkService;
-        this.favoriteService = favoriteService;
-        this.recentService = recentService;
-        this.thumbnailService = thumbnailService;
-        this.activityLogService = activityLogService;
+        this.fileLifecycleService = fileLifecycleService;
         this.transferBufferService = transferBufferService;
         this.fileOperationTaskService = fileOperationTaskService;
     }
@@ -278,15 +261,11 @@ public class AdminFileTransferBufferController {
 
     private void finishMovedItem(TransferBufferItem item, String newPath, HttpServletRequest request)
             throws IOException {
-        thumbnailService.migrateThumbnails(storageService.resolveVaultPath(newPath), item.path(), newPath);
-        shareLinkService.moveVaultPath(item.path(), newPath);
-        favoriteService.moveVaultPath(item.path(), newPath);
-        recentService.moveVaultPath(item.path(), newPath);
-        activityLogService.record("MOVE", request, item.path(), newPath, "Moved item");
+        fileLifecycleService.recordMove(request, item.path(), newPath, "Moved item");
     }
 
     private void finishCopiedItem(TransferBufferItem item, String newPath, String targetPath, HttpServletRequest request) {
-        activityLogService.record("COPY", request, item.path(), newPath, "Copied item to " + targetPath);
+        fileLifecycleService.recordCopy(request, item.path(), newPath, "Copied item to " + targetPath);
     }
 
     private void recordFailedTransfer(
@@ -296,14 +275,13 @@ public class AdminFileTransferBufferController {
             HttpServletRequest request,
             Exception failure
     ) {
-        activityLogService.record(
+        fileLifecycleService.recordFailedTransfer(
                 operation.activityType(),
                 request,
                 item.path(),
                 targetPath,
-                false,
                 "Could not " + operation.label().toLowerCase(Locale.ROOT) + " item",
-                Map.of("reason", failure.getClass().getSimpleName())
+                failure
         );
     }
 
