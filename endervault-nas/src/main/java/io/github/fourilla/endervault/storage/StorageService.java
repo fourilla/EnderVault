@@ -6,19 +6,12 @@ import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.filetool.FileActionRegistry;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.FileAlreadyExistsException;
-import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -41,6 +34,7 @@ public class StorageService {
     private final UploadStagingService uploadStagingService;
     private final StorageListingService listingService;
     private final StorageConflictResolver conflictResolver;
+    private final StorageTreeOperations treeOperations;
 
     public StorageService(NasProperties nasProperties) {
         this(nasProperties, new FileActionRegistry());
@@ -60,6 +54,7 @@ public class StorageService {
         this.uploadStagingService = new UploadStagingService(uploadTempRoot, pathResolver);
         this.listingService = new StorageListingService(root, trashRoot, pathResolver, fileActionRegistry);
         this.conflictResolver = new StorageConflictResolver(nasProperties, pathResolver);
+        this.treeOperations = new StorageTreeOperations(pathResolver, uploadStagingService);
     }
 
     @PostConstruct
@@ -164,7 +159,7 @@ public class StorageService {
                 Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS),
                 conflictPolicy
         );
-        movePath(source, resolvedTarget.path(), resolvedTarget.overwrite());
+        treeOperations.move(source, resolvedTarget.path(), resolvedTarget.overwrite());
         return pathResolver.toRelativePath(root, resolvedTarget.path());
     }
 
@@ -190,7 +185,7 @@ public class StorageService {
                 Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS),
                 conflictPolicy
         );
-        movePath(source, resolvedTarget.path(), resolvedTarget.overwrite());
+        treeOperations.move(source, resolvedTarget.path(), resolvedTarget.overwrite());
         return pathResolver.toRelativePath(root, resolvedTarget.path());
     }
 
@@ -227,7 +222,7 @@ public class StorageService {
             throw new StorageAccessException("A directory cannot be copied into itself.");
         }
 
-        rejectSymbolicLink(source);
+        treeOperations.rejectSymbolicLink(source);
         StorageConflictResolver.StorageConflictTarget resolvedTarget = conflictResolver.resolve(
                 target,
                 Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS),
@@ -236,13 +231,13 @@ public class StorageService {
         try {
             progress.checkCanceled();
             if (Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS)) {
-                copyDirectory(source, resolvedTarget.path(), progress);
+                treeOperations.copyDirectory(source, resolvedTarget.path(), progress);
             } else {
-                copyFile(source, resolvedTarget.path(), progress, resolvedTarget.overwrite());
+                treeOperations.copyFile(source, resolvedTarget.path(), progress, resolvedTarget.overwrite());
             }
         } catch (IOException | RuntimeException ex) {
             if (!resolvedTarget.overwrite() && Files.exists(resolvedTarget.path(), LinkOption.NOFOLLOW_LINKS)) {
-                deleteRecursively(resolvedTarget.path());
+                treeOperations.deleteRecursively(resolvedTarget.path());
             }
             throw ex;
         }
@@ -252,7 +247,7 @@ public class StorageService {
     public void deleteVaultPath(String vaultPath) throws IOException {
         pathResolver.validateVaultItemPath(vaultPath);
         Path path = pathResolver.resolve(StorageScope.VAULT, vaultPath);
-        deleteRecursively(path);
+        treeOperations.deleteRecursively(path);
     }
 
     public void moveVaultPathToTrash(String vaultPath, String trashName) throws IOException {
@@ -262,7 +257,7 @@ public class StorageService {
         if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
             throw new FileAlreadyExistsException(trashName);
         }
-        movePath(source, target);
+        treeOperations.move(source, target);
     }
 
     public String restoreTrashItem(String trashName, String originalPath) throws IOException {
@@ -280,7 +275,7 @@ public class StorageService {
                 Files.isDirectory(trashItem, LinkOption.NOFOLLOW_LINKS),
                 conflictPolicy
         );
-        movePath(trashItem, target.path(), target.overwrite());
+        treeOperations.move(trashItem, target.path(), target.overwrite());
         return pathResolver.toRelativePath(root, target.path());
     }
 
@@ -292,7 +287,7 @@ public class StorageService {
     public void deleteTrashItemIfExists(String trashName) throws IOException {
         Path trashItem = pathResolver.resolveTrashChild(trashName);
         if (Files.exists(trashItem, LinkOption.NOFOLLOW_LINKS)) {
-            deleteRecursively(trashItem);
+            treeOperations.deleteRecursively(trashItem);
         }
     }
 
@@ -300,7 +295,7 @@ public class StorageService {
         Files.createDirectories(trashRoot);
         try (Stream<Path> children = Files.list(trashRoot)) {
             for (Path child : children.collect(Collectors.toList())) {
-                deleteRecursively(child);
+                treeOperations.deleteRecursively(child);
             }
         }
     }
@@ -383,7 +378,7 @@ public class StorageService {
         Path target = pathResolver.resolveChild(StorageScope.VAULT, directoryPath, filename, false);
         StorageConflictResolver.StorageConflictTarget resolvedTarget =
                 conflictResolver.resolve(target, false, conflictPolicy);
-        movePath(temporaryFile, resolvedTarget.path(), resolvedTarget.overwrite());
+        treeOperations.move(temporaryFile, resolvedTarget.path(), resolvedTarget.overwrite());
         return listingService.toFileItem(root, resolvedTarget.path());
     }
 
@@ -408,118 +403,15 @@ public class StorageService {
         long totalItems = 0L;
         for (String vaultPath : vaultPaths == null ? List.<String>of() : vaultPaths) {
             pathResolver.validateVaultItemPath(vaultPath);
-            StorageOperationSummary summary = summarizePath(pathResolver.resolve(StorageScope.VAULT, vaultPath));
+            StorageOperationSummary summary = treeOperations.summarize(pathResolver.resolve(StorageScope.VAULT, vaultPath));
             totalBytes += summary.totalBytes();
             totalItems += summary.totalItems();
         }
         return new StorageOperationSummary(totalBytes, totalItems);
     }
 
-    private void movePath(Path source, Path target) throws IOException {
-        movePath(source, target, false);
-    }
-
-    private void movePath(Path source, Path target, boolean overwrite) throws IOException {
-        StandardCopyOption[] options = overwrite
-                ? new StandardCopyOption[] { StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING }
-                : new StandardCopyOption[] { StandardCopyOption.ATOMIC_MOVE };
-        try {
-            Files.move(source, target, options);
-        } catch (AtomicMoveNotSupportedException ex) {
-            if (overwrite) {
-                Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
-            } else {
-                Files.move(source, target);
-            }
-        }
-    }
-
-    private void copyDirectory(Path source, Path target) throws IOException {
-        copyDirectory(source, target, StorageProgressListener.NOOP);
-    }
-
-    private void copyDirectory(Path source, Path target, StorageProgressListener progress) throws IOException {
-        try {
-            Files.walkFileTree(source, new SimpleFileVisitor<>() {
-                @Override
-                public FileVisitResult preVisitDirectory(Path directory, BasicFileAttributes attributes)
-                        throws IOException {
-                    progress.checkCanceled();
-                    rejectSymbolicLink(directory);
-                    Path relative = source.relativize(directory);
-                    Path targetDirectory = target.resolve(relative).normalize();
-                    pathResolver.ensureInsideBase(StorageScope.VAULT, targetDirectory);
-                    Files.createDirectory(targetDirectory);
-                    progress.onItemProcessed();
-                    return FileVisitResult.CONTINUE;
-                }
-
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) throws IOException {
-                    progress.checkCanceled();
-                    rejectSymbolicLink(file);
-                    Path relative = source.relativize(file);
-                    Path targetFile = target.resolve(relative).normalize();
-                    pathResolver.ensureInsideBase(StorageScope.VAULT, targetFile);
-                    copyFile(file, targetFile, progress);
-                    return FileVisitResult.CONTINUE;
-                }
-            });
-        } catch (IOException | RuntimeException ex) {
-            if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
-                deleteRecursively(target);
-            }
-            throw ex;
-        }
-    }
-
-    private void copyFile(Path source, Path target, StorageProgressListener progress) throws IOException {
-        copyFile(source, target, progress, false);
-    }
-
-    private void copyFile(Path source, Path target, StorageProgressListener progress, boolean overwrite)
-            throws IOException {
-        if (!overwrite) {
-            copyFileDirect(source, target, progress);
-            return;
-        }
-
-        Path temporaryFile = createUploadTemporaryFile("copy-overwrite-", ".tmp");
-        try {
-            Files.deleteIfExists(temporaryFile);
-            copyFileDirect(source, temporaryFile, progress);
-            movePath(temporaryFile, target, true);
-            temporaryFile = null;
-        } finally {
-            if (temporaryFile != null) {
-                Files.deleteIfExists(temporaryFile);
-            }
-        }
-    }
-
-    private void copyFileDirect(Path source, Path target, StorageProgressListener progress) throws IOException {
-        progress.checkCanceled();
-        try (InputStream inputStream = Files.newInputStream(source);
-                OutputStream outputStream = Files.newOutputStream(target, StandardOpenOption.CREATE_NEW)) {
-            byte[] buffer = new byte[64 * 1024];
-            int read;
-            while ((read = inputStream.read(buffer)) != -1) {
-                progress.checkCanceled();
-                outputStream.write(buffer, 0, read);
-                progress.onBytesProcessed(read);
-            }
-        }
-        progress.onItemProcessed();
-    }
-
     public ConflictPolicy defaultConflictPolicy() {
         return conflictResolver.defaultPolicy();
-    }
-
-    private void rejectSymbolicLink(Path path) {
-        if (Files.isSymbolicLink(path)) {
-            throw new StorageAccessException("Symbolic links cannot be copied.");
-        }
     }
 
     public void createDirectory(String directoryPath, String name) throws IOException {
@@ -543,7 +435,7 @@ public class StorageService {
                 Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS),
                 conflictPolicy
         );
-        movePath(source, resolvedTarget.path(), resolvedTarget.overwrite());
+        treeOperations.move(source, resolvedTarget.path(), resolvedTarget.overwrite());
         return pathResolver.toRelativePath(root, resolvedTarget.path());
     }
 
@@ -571,14 +463,14 @@ public class StorageService {
                 Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS),
                 conflictPolicy
         );
-        movePath(source, resolvedTarget.path(), resolvedTarget.overwrite());
+        treeOperations.move(source, resolvedTarget.path(), resolvedTarget.overwrite());
         return pathResolver.toRelativePath(root, resolvedTarget.path());
     }
 
     public void delete(String directoryPath, List<String> itemNames) throws IOException {
         for (String itemName : itemNames) {
             Path item = pathResolver.resolveChild(StorageScope.VAULT, directoryPath, itemName, true);
-            deleteRecursively(item);
+            treeOperations.deleteRecursively(item);
         }
     }
 
@@ -619,34 +511,6 @@ public class StorageService {
         }
     }
 
-    private StorageOperationSummary summarizePath(Path path) throws IOException {
-        rejectSymbolicLink(path);
-        if (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
-            return new StorageOperationSummary(Files.size(path), 1L);
-        }
-
-        final long[] totalBytes = {0L};
-        final long[] totalItems = {0L};
-        Files.walkFileTree(path, new SimpleFileVisitor<>() {
-            @Override
-            public FileVisitResult preVisitDirectory(Path directory, BasicFileAttributes attributes)
-                    throws IOException {
-                rejectSymbolicLink(directory);
-                totalItems[0]++;
-                return FileVisitResult.CONTINUE;
-            }
-
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) throws IOException {
-                rejectSymbolicLink(file);
-                totalItems[0]++;
-                totalBytes[0] += attributes.size();
-                return FileVisitResult.CONTINUE;
-            }
-        });
-        return new StorageOperationSummary(totalBytes[0], totalItems[0]);
-    }
-
     private String validateConfiguredDirectory(String directoryName) {
         if (directoryName == null || directoryName.isBlank()) {
             throw new StorageAccessException("Storage system directory name is required.");
@@ -656,21 +520,6 @@ public class StorageService {
             throw new StorageAccessException("Invalid storage system directory: " + directoryName);
         }
         return directoryName;
-    }
-
-    private void deleteRecursively(Path path) throws IOException {
-        if (Files.isSymbolicLink(path)) {
-            Files.delete(path);
-            return;
-        }
-        if (Files.isDirectory(path)) {
-            try (Stream<Path> children = Files.list(path)) {
-                for (Path child : children.collect(Collectors.toList())) {
-                    deleteRecursively(child);
-                }
-            }
-        }
-        Files.deleteIfExists(path);
     }
 
     public record StagedUpload(Path temporaryFile, String filename, long size) {
