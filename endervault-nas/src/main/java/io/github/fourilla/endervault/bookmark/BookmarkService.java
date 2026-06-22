@@ -10,8 +10,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -25,12 +23,12 @@ public class BookmarkService {
 
     private static final TypeReference<List<BookmarkItem>> BOOKMARK_LIST = new TypeReference<>() {
     };
-    private static final String RECOVERED_DIRECTORY_TITLE = "Recovered Bookmarks";
 
     private final JsonRegistry<List<BookmarkItem>> registry;
     private final BookmarkFaviconCacheService faviconCacheService;
     private final BookmarkBulkLinkParser bulkLinkParser = new BookmarkBulkLinkParser();
     private final BookmarkInputNormalizer inputNormalizer = new BookmarkInputNormalizer();
+    private final BookmarkTree tree = new BookmarkTree();
     private final NasProperties nasProperties;
     private final BookmarkMetadataFetcher metadataFetcher;
 
@@ -68,20 +66,20 @@ public class BookmarkService {
 
     public synchronized List<BookmarkItem> list(String parentId, String query) throws IOException {
         List<BookmarkItem> bookmarks = readAllMutable();
-        String normalizedParentId = normalizeParentId(parentId, bookmarks);
+        String normalizedParentId = tree.normalizeParentId(parentId, bookmarks);
         String normalizedQuery = normalizeQuery(query);
         if (normalizedQuery.isBlank()) {
             return bookmarks.stream()
-                    .filter(bookmark -> sameParent(bookmark.parentId(), normalizedParentId))
-                    .sorted(bookmarkComparator())
+                    .filter(bookmark -> tree.sameParent(bookmark.parentId(), normalizedParentId))
+                    .sorted(tree.comparator())
                     .toList();
         }
 
-        Set<String> visibleDirectoryIds = descendantDirectoryIds(bookmarks, normalizedParentId);
+        Set<String> visibleDirectoryIds = tree.descendantDirectoryIds(bookmarks, normalizedParentId);
         return bookmarks.stream()
-                .filter(bookmark -> visibleDirectoryIds.contains(normalizeId(bookmark.parentId())))
+                .filter(bookmark -> visibleDirectoryIds.contains(tree.normalizeId(bookmark.parentId())))
                 .filter(bookmark -> matches(bookmark, normalizedQuery))
-                .sorted(bookmarkComparator())
+                .sorted(tree.comparator())
                 .toList();
     }
 
@@ -91,7 +89,7 @@ public class BookmarkService {
 
     public synchronized BookmarkItem createDirectory(String parentId, String title) throws IOException {
         List<BookmarkItem> bookmarks = readAllMutable();
-        String normalizedParentId = normalizeParentId(parentId, bookmarks);
+        String normalizedParentId = tree.normalizeParentId(parentId, bookmarks);
         Instant now = Instant.now();
         BookmarkItem directory = new BookmarkItem(
                 UUID.randomUUID().toString(),
@@ -134,7 +132,7 @@ public class BookmarkService {
 
     private synchronized BookmarkItem newLink(String parentId, String title, String url, String note) throws IOException {
         List<BookmarkItem> bookmarks = readAllMutable();
-        String normalizedParentId = normalizeParentId(parentId, bookmarks);
+        String normalizedParentId = tree.normalizeParentId(parentId, bookmarks);
         String normalizedUrl = inputNormalizer.normalizeUrl(url);
         BookmarkInputNormalizer.BookmarkTitleChoice titleChoice =
                 inputNormalizer.titleChoice(title, normalizedUrl);
@@ -159,7 +157,7 @@ public class BookmarkService {
 
     private synchronized BookmarkItem addPreparedLink(BookmarkItem link) throws IOException {
         List<BookmarkItem> bookmarks = readAllMutable();
-        normalizeParentId(link.parentId(), bookmarks);
+        tree.normalizeParentId(link.parentId(), bookmarks);
         bookmarks.add(link);
         writeAll(bookmarks);
         return link;
@@ -184,7 +182,7 @@ public class BookmarkService {
 
     public synchronized BookmarkItem updateDirectory(String id, String title) throws IOException {
         List<BookmarkItem> bookmarks = readAllMutable();
-        int index = indexOf(bookmarks, id);
+        int index = tree.indexOf(bookmarks, id);
         BookmarkItem current = bookmarks.get(index);
         if (!current.directory()) {
             throw new StorageAccessException("Only bookmark directories can be updated here.");
@@ -198,7 +196,7 @@ public class BookmarkService {
 
     public synchronized BookmarkItem updateLink(String id, String title, String url, String note) throws IOException {
         List<BookmarkItem> bookmarks = readAllMutable();
-        int index = indexOf(bookmarks, id);
+        int index = tree.indexOf(bookmarks, id);
         BookmarkItem current = bookmarks.get(index);
         if (!current.link()) {
             throw new StorageAccessException("Only bookmark links can be updated here.");
@@ -234,7 +232,7 @@ public class BookmarkService {
 
     public synchronized BookmarkItem refreshMetadata(String id) throws IOException {
         List<BookmarkItem> bookmarks = readAllMutable();
-        int index = indexOf(bookmarks, id);
+        int index = tree.indexOf(bookmarks, id);
         BookmarkItem current = bookmarks.get(index);
         if (!current.link()) {
             throw new StorageAccessException("Only bookmark links can fetch metadata.");
@@ -248,7 +246,7 @@ public class BookmarkService {
 
     public synchronized BookmarkItem recordOpen(String id) throws IOException {
         List<BookmarkItem> bookmarks = readAllMutable();
-        int index = indexOf(bookmarks, id);
+        int index = tree.indexOf(bookmarks, id);
         BookmarkItem current = bookmarks.get(index);
         if (!current.link()) {
             throw new StorageAccessException("Only bookmark links can be opened.");
@@ -261,7 +259,7 @@ public class BookmarkService {
     }
 
     public synchronized BookmarkItem find(String id) throws IOException {
-        String normalizedId = normalizeId(id);
+        String normalizedId = tree.normalizeId(id);
         if (normalizedId == null) {
             return null;
         }
@@ -273,8 +271,8 @@ public class BookmarkService {
 
     public synchronized BookmarkItem delete(String id) throws IOException {
         List<BookmarkItem> bookmarks = readAllMutable();
-        BookmarkItem target = require(id, bookmarks);
-        Set<String> idsToRemove = target.directory() ? descendantsIncludingSelf(bookmarks, target.id()) : Set.of(target.id());
+        BookmarkItem target = tree.require(id, bookmarks);
+        Set<String> idsToRemove = target.directory() ? tree.descendantsIncludingSelf(bookmarks, target.id()) : Set.of(target.id());
         bookmarks.removeIf(bookmark -> idsToRemove.contains(bookmark.id()));
         writeAll(bookmarks);
         return target;
@@ -282,7 +280,7 @@ public class BookmarkService {
 
     public synchronized BookmarkItem moveToRoot(String id) throws IOException {
         List<BookmarkItem> bookmarks = readAllMutable();
-        int index = indexOf(bookmarks, id);
+        int index = tree.indexOf(bookmarks, id);
         BookmarkItem current = bookmarks.get(index);
         BookmarkItem updated = current.withParentId(null, Instant.now());
         bookmarks.set(index, updated);
@@ -292,9 +290,9 @@ public class BookmarkService {
 
     public synchronized BookmarkItem moveToRecoveredDirectory(String id) throws IOException {
         List<BookmarkItem> bookmarks = readAllMutable();
-        int index = indexOf(bookmarks, id);
+        int index = tree.indexOf(bookmarks, id);
         BookmarkItem current = bookmarks.get(index);
-        BookmarkItem recoveredDirectory = ensureRecoveredDirectory(bookmarks);
+        BookmarkItem recoveredDirectory = tree.ensureRecoveredDirectory(bookmarks);
         if (current.id().equals(recoveredDirectory.id())) {
             BookmarkItem updated = current.withParentId(null, Instant.now());
             bookmarks.set(index, updated);
@@ -315,16 +313,16 @@ public class BookmarkService {
 
         List<BookmarkItem> bookmarks = readAllMutable();
         Set<String> requestedIds = ids.stream()
-                .map(this::normalizeId)
+                .map(tree::normalizeId)
                 .filter(id -> id != null)
                 .collect(java.util.stream.Collectors.toSet());
-        Set<String> idsToRemove = new HashSet<>();
+        Set<String> idsToRemove = new java.util.HashSet<>();
         for (BookmarkItem bookmark : bookmarks) {
             if (!requestedIds.contains(bookmark.id())) {
                 continue;
             }
             if (bookmark.directory()) {
-                idsToRemove.addAll(descendantsIncludingSelf(bookmarks, bookmark.id()));
+                idsToRemove.addAll(tree.descendantsIncludingSelf(bookmarks, bookmark.id()));
             } else {
                 idsToRemove.add(bookmark.id());
             }
@@ -340,24 +338,15 @@ public class BookmarkService {
     }
 
     public synchronized BookmarkItem currentDirectory(String parentId) throws IOException {
-        List<BookmarkItem> bookmarks = readAllMutable();
-        String normalizedParentId = normalizeParentId(parentId, bookmarks);
-        if (normalizedParentId == null) {
-            return null;
-        }
-        BookmarkItem directory = require(normalizedParentId, bookmarks);
-        if (!directory.directory()) {
-            throw new StorageAccessException("Bookmark directory not found.");
-        }
-        return directory;
+        return tree.currentDirectory(parentId, readAllMutable());
     }
 
     public synchronized String normalizeExistingParentId(String parentId) throws IOException {
-        return normalizeParentId(parentId, readAllMutable());
+        return tree.normalizeParentId(parentId, readAllMutable());
     }
 
     public synchronized BookmarkFavicon favicon(String id) throws IOException {
-        return faviconCacheService.favicon(require(id, readAllMutable()));
+        return faviconCacheService.favicon(tree.require(id, readAllMutable()));
     }
 
     public synchronized List<BookmarkFaviconCacheFile> orphanFaviconCacheFiles() throws IOException {
@@ -373,104 +362,11 @@ public class BookmarkService {
     }
 
     public synchronized List<BookmarkBreadcrumb> breadcrumbs(String parentId) throws IOException {
-        List<BookmarkItem> bookmarks = readAllMutable();
-        String normalizedParentId = normalizeParentId(parentId, bookmarks);
-        List<BookmarkBreadcrumb> breadcrumbs = new ArrayList<>();
-        breadcrumbs.add(new BookmarkBreadcrumb(null, "Bookmarks"));
-        if (normalizedParentId == null) {
-            return List.copyOf(breadcrumbs);
-        }
-
-        List<BookmarkBreadcrumb> ancestors = new ArrayList<>();
-        String cursor = normalizedParentId;
-        Set<String> seen = new HashSet<>();
-        while (cursor != null) {
-            if (!seen.add(cursor)) {
-                throw new StorageAccessException("Bookmark directory tree is invalid.");
-            }
-            BookmarkItem directory = require(cursor, bookmarks);
-            if (!directory.directory()) {
-                throw new StorageAccessException("Bookmark directory not found.");
-            }
-            ancestors.add(new BookmarkBreadcrumb(directory.id(), directory.title()));
-            cursor = normalizeId(directory.parentId());
-        }
-        for (int i = ancestors.size() - 1; i >= 0; i--) {
-            breadcrumbs.add(ancestors.get(i));
-        }
-        return List.copyOf(breadcrumbs);
-    }
-
-    private int indexOf(List<BookmarkItem> bookmarks, String id) {
-        for (int i = 0; i < bookmarks.size(); i++) {
-            if (bookmarks.get(i).id().equals(id)) {
-                return i;
-            }
-        }
-        throw new StorageAccessException("Bookmark item not found.");
-    }
-
-    private BookmarkItem require(String id, List<BookmarkItem> bookmarks) {
-        return bookmarks.stream()
-                .filter(bookmark -> bookmark.id().equals(id))
-                .findFirst()
-                .orElseThrow(() -> new StorageAccessException("Bookmark item not found."));
-    }
-
-    private BookmarkItem ensureRecoveredDirectory(List<BookmarkItem> bookmarks) {
-        String titleKey = RECOVERED_DIRECTORY_TITLE.toLowerCase(Locale.ROOT);
-        for (BookmarkItem bookmark : bookmarks) {
-            if (bookmark.directory()
-                    && normalizeId(bookmark.parentId()) == null
-                    && titleKey.equals(bookmark.title() == null ? "" : bookmark.title().toLowerCase(Locale.ROOT))) {
-                return bookmark;
-            }
-        }
-
-        Instant now = Instant.now();
-        BookmarkItem recoveredDirectory = new BookmarkItem(
-                UUID.randomUUID().toString(),
-                BookmarkItemType.DIRECTORY,
-                null,
-                RECOVERED_DIRECTORY_TITLE,
-                null,
-                null,
-                BookmarkTitleSource.MANUAL,
-                null,
-                null,
-                null,
-                null,
-                now,
-                now,
-                null
-        );
-        bookmarks.add(recoveredDirectory);
-        return recoveredDirectory;
-    }
-
-    private String normalizeParentId(String parentId, List<BookmarkItem> bookmarks) {
-        String normalizedParentId = normalizeId(parentId);
-        if (normalizedParentId == null) {
-            return null;
-        }
-        BookmarkItem parent = require(normalizedParentId, bookmarks);
-        if (!parent.directory()) {
-            throw new StorageAccessException("Bookmark parent must be a directory.");
-        }
-        return normalizedParentId;
+        return tree.breadcrumbs(parentId, readAllMutable());
     }
 
     private String normalizeQuery(String query) {
         return query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
-    }
-
-    private String normalizeId(String id) {
-        return id == null || id.isBlank() ? null : id.trim();
-    }
-
-    private boolean sameParent(String candidateParentId, String parentId) {
-        String normalizedCandidate = normalizeId(candidateParentId);
-        return parentId == null ? normalizedCandidate == null : parentId.equals(normalizedCandidate);
     }
 
     private boolean matches(BookmarkItem bookmark, String query) {
@@ -480,46 +376,6 @@ public class BookmarkService {
 
     private boolean contains(String value, String query) {
         return value != null && value.toLowerCase(Locale.ROOT).contains(query);
-    }
-
-    private Set<String> descendantDirectoryIds(List<BookmarkItem> bookmarks, String parentId) {
-        Set<String> directoryIds = new HashSet<>();
-        directoryIds.add(parentId);
-        boolean changed = true;
-        while (changed) {
-            changed = false;
-            for (BookmarkItem bookmark : bookmarks) {
-                if (bookmark.directory()
-                        && !directoryIds.contains(bookmark.id())
-                        && directoryIds.contains(normalizeId(bookmark.parentId()))) {
-                    directoryIds.add(bookmark.id());
-                    changed = true;
-                }
-            }
-        }
-        return directoryIds;
-    }
-
-    private Set<String> descendantsIncludingSelf(List<BookmarkItem> bookmarks, String id) {
-        Set<String> ids = new HashSet<>();
-        ids.add(id);
-        boolean changed = true;
-        while (changed) {
-            changed = false;
-            for (BookmarkItem bookmark : bookmarks) {
-                if (!ids.contains(bookmark.id()) && ids.contains(normalizeId(bookmark.parentId()))) {
-                    ids.add(bookmark.id());
-                    changed = true;
-                }
-            }
-        }
-        return ids;
-    }
-
-    private Comparator<BookmarkItem> bookmarkComparator() {
-        return Comparator.comparing(BookmarkItem::directory).reversed()
-                .thenComparing(bookmark -> bookmark.title().toLowerCase(Locale.ROOT))
-                .thenComparing(BookmarkItem::id);
     }
 
     private List<BookmarkItem> readAllMutable() throws IOException {
