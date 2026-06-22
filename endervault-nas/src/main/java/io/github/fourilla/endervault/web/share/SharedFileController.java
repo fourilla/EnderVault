@@ -25,7 +25,6 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
-import java.util.Locale;
 import org.springframework.core.io.Resource;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ContentDisposition;
@@ -39,7 +38,6 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.util.UriComponentsBuilder;
 
 @Controller
 public class SharedFileController {
@@ -127,7 +125,7 @@ public class SharedFileController {
         }
 
         FileItem item = storageService.describeSharedFile(shareLink.path(), path, itemName);
-        String vaultPath = sharedItemVaultPath(shareLink.path(), path, itemName);
+        String vaultPath = SharedFileRoutes.itemVaultPath(shareLink.path(), path, itemName);
         FileDetail detail = storageService.detail(StorageScope.VAULT, vaultPath);
         activityLogService.record("SHARE_ACCESS", request, shareLink.path(), item.path(),
                 "Accessed shared file " + item.name() + " from share link " + token);
@@ -171,7 +169,7 @@ public class SharedFileController {
 
         List<String> items = SelectedItems.from(request);
         if (items.isEmpty()) {
-            response.sendRedirect(sharedDirectoryUrl(token, path));
+            response.sendRedirect(SharedFileRoutes.directoryUrl(token, path));
             return;
         }
 
@@ -204,13 +202,13 @@ public class SharedFileController {
     ) throws IOException {
         ShareLink shareLink = shareLinkService.requireUsable(token);
         Path file = resolveSharedDownloadTarget(shareLink, path, item);
-        if (!isComic(file)) {
+        if (!SharedFileRoutes.isComic(file)) {
             throw new NoSuchFileException(item == null ? token : item);
         }
 
         activityLogService.record("SHARE_PREVIEW", request, shareLink.path(), item, "Previewed comic from share link " + token);
         model.addAttribute("comicTitle", file.getFileName().toString());
-        model.addAttribute("comicPageUrlPrefix", sharedComicPageUrlPrefix(token, path, item));
+        model.addAttribute("comicPageUrlPrefix", SharedFileRoutes.comicPageUrlPrefix(token, path, item));
         model.addAttribute("comicManifest", comicArchiveService.manifest(file));
         return "comic-preview";
     }
@@ -224,7 +222,7 @@ public class SharedFileController {
     ) throws IOException {
         ShareLink shareLink = shareLinkService.requireUsable(token);
         Path file = resolveSharedDownloadTarget(shareLink, path, item);
-        if (!isComic(file)) {
+        if (!SharedFileRoutes.isComic(file)) {
             throw new NoSuchFileException(item == null ? token : item);
         }
 
@@ -274,60 +272,4 @@ public class SharedFileController {
         return "shared-file";
     }
 
-    private String sharedItemVaultPath(String sharedBasePath, String path, String item) {
-        StringBuilder builder = new StringBuilder();
-        appendVaultPathSegment(builder, sharedBasePath);
-        appendVaultPathSegment(builder, path);
-        appendVaultPathSegment(builder, item);
-        return builder.toString();
-    }
-
-    private void appendVaultPathSegment(StringBuilder builder, String segment) {
-        if (segment == null || segment.isBlank()) {
-            return;
-        }
-        String cleaned = segment.replace('\\', '/');
-        while (cleaned.startsWith("/")) {
-            cleaned = cleaned.substring(1);
-        }
-        while (cleaned.endsWith("/")) {
-            cleaned = cleaned.substring(0, cleaned.length() - 1);
-        }
-        if (cleaned.isBlank()) {
-            return;
-        }
-        if (!builder.isEmpty()) {
-            builder.append('/');
-        }
-        builder.append(cleaned);
-    }
-
-    private String sharedComicPageUrlPrefix(String token, String path, String item) {
-        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/s/{token}/comic/page");
-        if (path != null && !path.isBlank()) {
-            builder.queryParam("path", path);
-        }
-        if (item != null && !item.isBlank()) {
-            builder.queryParam("item", item);
-        }
-        String baseUrl = builder.buildAndExpand(token)
-                .encode()
-                .toUriString();
-        return baseUrl + (baseUrl.contains("?") ? "&" : "?") + "page=";
-    }
-
-    private String sharedDirectoryUrl(String token, String path) {
-        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/s/{token}");
-        if (path != null && !path.isBlank()) {
-            builder.queryParam("path", path);
-        }
-        return builder.buildAndExpand(token)
-                .encode()
-                .toUriString();
-    }
-
-    private boolean isComic(Path file) {
-        String filename = file.getFileName().toString().toLowerCase(Locale.ROOT);
-        return filename.endsWith(".cbz");
-    }
 }
