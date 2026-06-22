@@ -1,6 +1,5 @@
 package io.github.fourilla.endervault.web.file;
 
-import static io.github.fourilla.endervault.web.file.FileRedirects.clean;
 import static io.github.fourilla.endervault.web.file.FileRedirects.redirectToDetail;
 import static io.github.fourilla.endervault.web.file.FileRedirects.redirectToFiles;
 import static io.github.fourilla.endervault.web.file.FileRedirects.targetPath;
@@ -18,6 +17,7 @@ import io.github.fourilla.endervault.trash.TrashRecord;
 import io.github.fourilla.endervault.trash.TrashService;
 import io.github.fourilla.endervault.web.support.ActionResponse;
 import io.github.fourilla.endervault.web.support.ActionResponseSupport;
+import io.github.fourilla.endervault.web.support.FileConflictPolicies;
 import io.github.fourilla.endervault.web.support.FileConflictPayload;
 import io.github.fourilla.endervault.web.support.FileConflictResponse;
 import io.github.fourilla.endervault.web.support.FlashNotification;
@@ -86,7 +86,7 @@ public class AdminFileMutationController {
             HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
-        if (isCancelConflictPolicy(conflictPolicy)) {
+        if (FileConflictPolicies.cancels(conflictPolicy, storageService.defaultConflictPolicy())) {
             return canceledMutation(request, redirectAttributes, redirectToFiles(path));
         }
         FileItem oldItem = storageService.describeVaultChild(path, item);
@@ -94,7 +94,7 @@ public class AdminFileMutationController {
         try {
             newPath = storageService.rename(path, item, newName, mutationPolicy(conflictPolicy));
         } catch (FileAlreadyExistsException ex) {
-            if (asksConflictPolicy(conflictPolicy, request)) {
+            if (FileConflictPolicies.asksForJson(conflictPolicy, request)) {
                 return conflictResponse(
                         "rename",
                         oldItem.name(),
@@ -120,7 +120,7 @@ public class AdminFileMutationController {
             HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
-        if (isCancelConflictPolicy(conflictPolicy)) {
+        if (FileConflictPolicies.cancels(conflictPolicy, storageService.defaultConflictPolicy())) {
             return canceledMutation(request, redirectAttributes, redirectToDetail(path));
         }
         FileDetail detail = detailForPath(path);
@@ -128,7 +128,7 @@ public class AdminFileMutationController {
         try {
             newPath = storageService.renameVaultPath(detail.path(), newName, mutationPolicy(conflictPolicy));
         } catch (FileAlreadyExistsException ex) {
-            if (asksConflictPolicy(conflictPolicy, request)) {
+            if (FileConflictPolicies.asksForJson(conflictPolicy, request)) {
                 return conflictResponse(
                         "rename",
                         detail.name(),
@@ -154,7 +154,7 @@ public class AdminFileMutationController {
             HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
-        if (isCancelConflictPolicy(conflictPolicy)) {
+        if (FileConflictPolicies.cancels(conflictPolicy, storageService.defaultConflictPolicy())) {
             return canceledMutation(request, redirectAttributes, redirectToFiles(path));
         }
         FileItem oldItem = storageService.describeVaultChild(path, item);
@@ -162,7 +162,7 @@ public class AdminFileMutationController {
         try {
             newPath = storageService.move(path, item, targetPath, mutationPolicy(conflictPolicy));
         } catch (FileAlreadyExistsException ex) {
-            if (asksConflictPolicy(conflictPolicy, request)) {
+            if (FileConflictPolicies.asksForJson(conflictPolicy, request)) {
                 return conflictResponse(
                         "move",
                         oldItem.name(),
@@ -188,7 +188,7 @@ public class AdminFileMutationController {
             HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
-        if (isCancelConflictPolicy(conflictPolicy)) {
+        if (FileConflictPolicies.cancels(conflictPolicy, storageService.defaultConflictPolicy())) {
             return canceledMutation(request, redirectAttributes, redirectToDetail(path));
         }
         FileDetail detail = detailForPath(path);
@@ -196,7 +196,7 @@ public class AdminFileMutationController {
         try {
             newPath = storageService.moveVaultPath(detail.path(), targetPath, mutationPolicy(conflictPolicy));
         } catch (FileAlreadyExistsException ex) {
-            if (asksConflictPolicy(conflictPolicy, request)) {
+            if (FileConflictPolicies.asksForJson(conflictPolicy, request)) {
                 return conflictResponse(
                         "move",
                         detail.name(),
@@ -274,28 +274,7 @@ public class AdminFileMutationController {
     }
 
     private ConflictPolicy mutationPolicy(String conflictPolicy) {
-        if (asksConflictPolicy(conflictPolicy)) {
-            return ConflictPolicy.CANCEL;
-        }
-        if ("default".equalsIgnoreCase(clean(conflictPolicy))) {
-            return storageService.defaultConflictPolicy();
-        }
-        return ConflictPolicy.from(conflictPolicy);
-    }
-
-    private boolean asksConflictPolicy(String conflictPolicy, HttpServletRequest request) {
-        return asksConflictPolicy(conflictPolicy) && ActionResponseSupport.wantsJson(request);
-    }
-
-    private boolean asksConflictPolicy(String conflictPolicy) {
-        return "ask".equalsIgnoreCase(clean(conflictPolicy));
-    }
-
-    private boolean isCancelConflictPolicy(String conflictPolicy) {
-        String cleanPolicy = clean(conflictPolicy);
-        return "cancel".equalsIgnoreCase(cleanPolicy)
-                || ("default".equalsIgnoreCase(cleanPolicy)
-                && storageService.defaultConflictPolicy() == ConflictPolicy.CANCEL);
+        return FileConflictPolicies.mutationPolicy(conflictPolicy, storageService.defaultConflictPolicy());
     }
 
     private Object canceledMutation(

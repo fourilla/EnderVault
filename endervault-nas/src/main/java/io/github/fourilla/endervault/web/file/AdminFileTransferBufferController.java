@@ -14,6 +14,7 @@ import io.github.fourilla.endervault.transfer.TransferBufferItem;
 import io.github.fourilla.endervault.transfer.TransferBufferService;
 import io.github.fourilla.endervault.transfer.TransferOperation;
 import io.github.fourilla.endervault.web.support.ActionResponseSupport;
+import io.github.fourilla.endervault.web.support.FileConflictPolicies;
 import io.github.fourilla.endervault.web.support.FileConflictPayload;
 import io.github.fourilla.endervault.web.support.FileConflictResponse;
 import io.github.fourilla.endervault.web.support.FlashNotification;
@@ -83,7 +84,7 @@ public class AdminFileTransferBufferController {
                 redirectAttributes,
                 notification,
                 redirectToFiles(path, page),
-                TransferBufferActionResponse.ok(notification, TransferBufferPayload.from(buffer))
+                TransferBufferActionResponse.ok(notification, buffer)
         );
     }
 
@@ -104,7 +105,7 @@ public class AdminFileTransferBufferController {
                 redirectAttributes,
                 notification,
                 redirectToDetail(detail.path()),
-                TransferBufferActionResponse.ok(notification, TransferBufferPayload.from(buffer))
+                TransferBufferActionResponse.ok(notification, buffer)
         );
     }
 
@@ -128,18 +129,18 @@ public class AdminFileTransferBufferController {
         }
 
         TransferOperation transferOperation = TransferOperation.from(operation);
-        if (isCancelConflictPolicy(conflictPolicy)) {
+        if (FileConflictPolicies.cancels(conflictPolicy, storageService.defaultConflictPolicy())) {
             FlashNotification notification = FlashNotification.warning("Action canceled.");
             return ActionResponseSupport.ok(
                     request,
                     redirectAttributes,
                     notification,
                     redirectToFiles(path, null),
-                    TransferBufferActionResponse.ok(notification, TransferBufferPayload.from(buffer))
+                    TransferBufferActionResponse.ok(notification, buffer)
             );
         }
 
-        if (asksConflictPolicy(conflictPolicy, request)) {
+        if (FileConflictPolicies.asksForJson(conflictPolicy, request)) {
             TransferBufferItem conflict = firstConflictingTarget(transferOperation, buffer.items(), path);
             if (conflict != null) {
                 return conflictResponse(
@@ -164,7 +165,7 @@ public class AdminFileTransferBufferController {
             FlashNotification notification = FlashNotification.info(transferOperation.label() + " task queued.");
             return ResponseEntity.accepted().body(TransferBufferActionResponse.ok(
                     notification,
-                    TransferBufferPayload.from(TransferBuffer.empty()),
+                    TransferBuffer.empty(),
                     TaskPayload.from(task)
             ));
         }
@@ -208,7 +209,7 @@ public class AdminFileTransferBufferController {
                 redirectAttributes,
                 notification,
                 redirectToReturn(path, returnTo),
-                TransferBufferActionResponse.ok(notification, TransferBufferPayload.from(TransferBuffer.empty()))
+                TransferBufferActionResponse.ok(notification, TransferBuffer.empty())
         );
     }
 
@@ -228,7 +229,7 @@ public class AdminFileTransferBufferController {
                 redirectAttributes,
                 notification,
                 redirectToReturn(path, returnTo),
-                TransferBufferActionResponse.ok(notification, TransferBufferPayload.from(buffer))
+                TransferBufferActionResponse.ok(notification, buffer)
         );
     }
 
@@ -343,29 +344,7 @@ public class AdminFileTransferBufferController {
     }
 
     private ConflictPolicy transferConflictPolicy(String conflictPolicy) {
-        if (asksConflictPolicy(conflictPolicy) || "default".equalsIgnoreCase(clean(conflictPolicy))) {
-            return storageService.defaultConflictPolicy();
-        }
-        return ConflictPolicy.from(conflictPolicy);
-    }
-
-    private boolean asksConflictPolicy(String conflictPolicy, HttpServletRequest request) {
-        return asksConflictPolicy(conflictPolicy) && ActionResponseSupport.wantsJson(request);
-    }
-
-    private boolean asksConflictPolicy(String conflictPolicy) {
-        return "ask".equalsIgnoreCase(clean(conflictPolicy));
-    }
-
-    private boolean isCancelConflictPolicy(String conflictPolicy) {
-        String cleanPolicy = clean(conflictPolicy);
-        return "cancel".equalsIgnoreCase(cleanPolicy)
-                || ("default".equalsIgnoreCase(cleanPolicy)
-                && storageService.defaultConflictPolicy() == ConflictPolicy.CANCEL);
-    }
-
-    private String clean(String value) {
-        return value == null ? "" : value.trim();
+        return FileConflictPolicies.transferPolicy(conflictPolicy, storageService.defaultConflictPolicy());
     }
 
     private String joinPath(String directoryPath, String itemName) {
@@ -407,51 +386,6 @@ public class AdminFileTransferBufferController {
                 && !returnTo.startsWith("//")
                 && !returnTo.contains("\r")
                 && !returnTo.contains("\n");
-    }
-
-    private record TransferBufferActionResponse(
-            boolean ok,
-            FlashNotification notification,
-            TransferBufferPayload transferBuffer,
-            TaskPayload task
-    ) {
-        static TransferBufferActionResponse ok(FlashNotification notification, TransferBufferPayload transferBuffer) {
-            return ok(notification, transferBuffer, null);
-        }
-
-        static TransferBufferActionResponse ok(
-                FlashNotification notification,
-                TransferBufferPayload transferBuffer,
-                TaskPayload task
-        ) {
-            return new TransferBufferActionResponse(true, notification, transferBuffer, task);
-        }
-    }
-
-    private record TransferBufferPayload(
-            boolean active,
-            int count,
-            List<TransferBufferItemPayload> items
-    ) {
-        static TransferBufferPayload from(TransferBuffer buffer) {
-            return new TransferBufferPayload(
-                    buffer.active(),
-                    buffer.count(),
-                    buffer.items().stream()
-                            .map(TransferBufferItemPayload::from)
-                            .toList()
-            );
-        }
-    }
-
-    private record TransferBufferItemPayload(
-            String path,
-            String name,
-            String iconClass
-    ) {
-        static TransferBufferItemPayload from(TransferBufferItem item) {
-            return new TransferBufferItemPayload(item.path(), item.name(), item.iconClass());
-        }
     }
 
     private record TransferAttempt(
