@@ -11,6 +11,7 @@ import io.github.fourilla.endervault.favorite.FavoriteService;
 import io.github.fourilla.endervault.task.AppTask;
 import io.github.fourilla.endervault.task.BookmarkBulkTaskService;
 import io.github.fourilla.endervault.web.support.ActionResponseSupport;
+import io.github.fourilla.endervault.web.support.BookmarkLinkClickAction;
 import io.github.fourilla.endervault.web.support.FlashNotification;
 import io.github.fourilla.endervault.web.support.FlashNotifications;
 import io.github.fourilla.endervault.web.task.TaskActionResponse;
@@ -31,7 +32,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import org.springframework.web.util.UriComponentsBuilder;
 
 @Controller
 public class AdminBookmarkController {
@@ -62,17 +62,17 @@ public class AdminBookmarkController {
             @RequestParam(value = "q", required = false) String query,
             Model model
     ) throws IOException {
-        String currentDirectoryId = normalizeId(directoryId);
-        String normalizedQuery = normalizeQuery(query);
+        String currentDirectoryId = BookmarkRoutes.normalizeId(directoryId);
+        String normalizedQuery = BookmarkRoutes.normalizeQuery(query);
         List<BookmarkItem> bookmarkItems = bookmarkService.list(currentDirectoryId, normalizedQuery);
         model.addAttribute("bookmarkItems", bookmarkItems);
         model.addAttribute("bookmarkDirectories", bookmarkItems.stream().filter(BookmarkItem::directory).toList());
         model.addAttribute("bookmarkLinks", bookmarkItems.stream().filter(BookmarkItem::link).toList());
         model.addAttribute("bookmarkBreadcrumbs", bookmarkService.breadcrumbs(currentDirectoryId));
         model.addAttribute("currentBookmarkDirectory", bookmarkService.currentDirectory(currentDirectoryId));
-        model.addAttribute("currentBookmarkDirectoryId", normalizeId(currentDirectoryId));
+        model.addAttribute("currentBookmarkDirectoryId", BookmarkRoutes.normalizeId(currentDirectoryId));
         model.addAttribute("bookmarkMetadataFetchEnabled", bookmarkService.metadataFetchEnabled());
-        model.addAttribute("bookmarkLinkClickAction", bookmarkLinkClickAction());
+        model.addAttribute("bookmarkLinkClickAction", BookmarkLinkClickAction.from(nasProperties));
         model.addAttribute("favoriteBookmarkIds", favoriteService.favoriteBookmarkIds());
         model.addAttribute("query", normalizedQuery);
         model.addAttribute("searchPerformed", !normalizedQuery.isBlank());
@@ -91,7 +91,7 @@ public class AdminBookmarkController {
             return "redirect:/files/bookmarks";
         }
 
-        String parentId = normalizeId(bookmark.parentId());
+        String parentId = BookmarkRoutes.normalizeId(bookmark.parentId());
         model.addAttribute("bookmark", bookmark);
         model.addAttribute("bookmarkBreadcrumbs", bookmarkService.breadcrumbs(parentId));
         model.addAttribute("currentBookmarkDirectory", bookmarkService.currentDirectory(parentId));
@@ -124,7 +124,7 @@ public class AdminBookmarkController {
         } catch (StorageAccessException ex) {
             FlashNotifications.error(redirectAttributes, ex.getMessage());
         }
-        return redirectToBookmarks(parentId, null);
+        return BookmarkRoutes.redirectToBookmarks(parentId, null);
     }
 
     @PostMapping("/files/bookmarks/links")
@@ -150,7 +150,7 @@ public class AdminBookmarkController {
         } catch (StorageAccessException ex) {
             FlashNotifications.error(redirectAttributes, ex.getMessage());
         }
-        return redirectToBookmarks(parentId, null);
+        return BookmarkRoutes.redirectToBookmarks(parentId, null);
     }
 
     @PostMapping("/files/bookmarks/bulk")
@@ -160,7 +160,7 @@ public class AdminBookmarkController {
             HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
-        String redirect = redirectToBookmarks(parentId, null);
+        String redirect = BookmarkRoutes.redirectToBookmarks(parentId, null);
         try {
             AppTask task = bookmarkBulkTaskService.queueCreateLinks(parentId, bulkText, request);
             FlashNotification notification = FlashNotification.info("Bookmark bulk add task queued.");
@@ -204,9 +204,9 @@ public class AdminBookmarkController {
             FlashNotifications.error(redirectAttributes, ex.getMessage());
         }
         if (returnToDetail) {
-            return redirectToBookmarkDetail(id);
+            return BookmarkRoutes.redirectToBookmarkDetail(id);
         }
-        return redirectToBookmarks(parentId, query);
+        return BookmarkRoutes.redirectToBookmarks(parentId, query);
     }
 
     @PostMapping("/files/bookmarks/links/update")
@@ -236,9 +236,9 @@ public class AdminBookmarkController {
             FlashNotifications.error(redirectAttributes, ex.getMessage());
         }
         if (returnToDetail) {
-            return redirectToBookmarkDetail(id);
+            return BookmarkRoutes.redirectToBookmarkDetail(id);
         }
-        return redirectToBookmarks(parentId, query);
+        return BookmarkRoutes.redirectToBookmarks(parentId, query);
     }
 
     @PostMapping("/files/bookmarks/delete")
@@ -263,7 +263,7 @@ public class AdminBookmarkController {
         } catch (StorageAccessException ex) {
             FlashNotifications.error(redirectAttributes, ex.getMessage());
         }
-        return redirectToBookmarks(parentId, query);
+        return BookmarkRoutes.redirectToBookmarks(parentId, query);
     }
 
     @PostMapping("/files/bookmarks/delete-selected")
@@ -274,10 +274,10 @@ public class AdminBookmarkController {
             HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
-        List<String> selectedIds = safeIds(bookmarkIds);
+        List<String> selectedIds = BookmarkRoutes.safeIds(bookmarkIds);
         if (selectedIds.isEmpty()) {
             FlashNotifications.warning(redirectAttributes, "Select at least one bookmark item.");
-            return redirectToBookmarks(parentId, query);
+            return BookmarkRoutes.redirectToBookmarks(parentId, query);
         }
 
         int deletedCount = bookmarkService.deleteAll(selectedIds);
@@ -294,7 +294,7 @@ public class AdminBookmarkController {
         } else {
             FlashNotifications.warning(redirectAttributes, "Selected bookmark items no longer exist.");
         }
-        return redirectToBookmarks(parentId, query);
+        return BookmarkRoutes.redirectToBookmarks(parentId, query);
     }
 
     @PostMapping("/files/bookmarks/metadata")
@@ -321,9 +321,9 @@ public class AdminBookmarkController {
             FlashNotifications.error(redirectAttributes, ex.getMessage());
         }
         if (returnToDetail) {
-            return redirectToBookmarkDetail(id);
+            return BookmarkRoutes.redirectToBookmarkDetail(id);
         }
-        return redirectToBookmarks(parentId, query);
+        return BookmarkRoutes.redirectToBookmarks(parentId, query);
     }
 
     @GetMapping("/files/bookmarks/open")
@@ -346,65 +346,10 @@ public class AdminBookmarkController {
     @GetMapping("/files/bookmarks/favicon")
     public ResponseEntity<Resource> favicon(@RequestParam("id") String id) throws IOException {
         BookmarkFavicon favicon = bookmarkService.favicon(id);
-        MediaType mediaType = parseMediaType(favicon.contentType());
+        MediaType mediaType = BookmarkRoutes.mediaType(favicon.contentType());
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noCache())
                 .header(HttpHeaders.CONTENT_TYPE, mediaType.toString())
                 .body(new PathResource(favicon.path()));
-    }
-
-    private String redirectToBookmarks(String directoryId, String query) {
-        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/files/bookmarks");
-        String normalizedDirectoryId = normalizeId(directoryId);
-        if (normalizedDirectoryId != null) {
-            builder.queryParam("directory", normalizedDirectoryId);
-        }
-        String normalizedQuery = normalizeQuery(query);
-        if (!normalizedQuery.isBlank()) {
-            builder.queryParam("q", normalizedQuery);
-        }
-        return "redirect:" + builder.build().encode().toUriString();
-    }
-
-    private String redirectToBookmarkDetail(String id) {
-        return "redirect:" + UriComponentsBuilder.fromPath("/files/bookmarks/detail")
-                .queryParam("id", id)
-                .build()
-                .encode()
-                .toUriString();
-    }
-
-    private String normalizeId(String id) {
-        return id == null || id.isBlank() ? null : id.trim();
-    }
-
-    private String bookmarkLinkClickAction() {
-        String value = nasProperties.getBookmarks().getLinkClickAction();
-        return "detail".equalsIgnoreCase(value) ? "detail" : "open";
-    }
-
-    private String normalizeQuery(String query) {
-        return query == null ? "" : query.trim();
-    }
-
-    private List<String> safeIds(List<String> ids) {
-        if (ids == null) {
-            return List.of();
-        }
-        return ids.stream()
-                .filter(id -> id != null && !id.isBlank())
-                .map(String::trim)
-                .distinct()
-                .toList();
-    }
-
-    private MediaType parseMediaType(String contentType) {
-        try {
-            return contentType == null || contentType.isBlank()
-                    ? MediaType.APPLICATION_OCTET_STREAM
-                    : MediaType.parseMediaType(contentType);
-        } catch (IllegalArgumentException ex) {
-            return MediaType.APPLICATION_OCTET_STREAM;
-        }
     }
 }

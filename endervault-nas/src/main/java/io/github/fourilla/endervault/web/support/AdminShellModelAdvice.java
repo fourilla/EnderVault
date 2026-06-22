@@ -116,8 +116,7 @@ public class AdminShellModelAdvice {
 
     @ModelAttribute("bookmarkLinkClickAction")
     public String bookmarkLinkClickAction() {
-        String value = nasProperties.getBookmarks().getLinkClickAction();
-        return "detail".equalsIgnoreCase(value) ? "detail" : "open";
+        return BookmarkLinkClickAction.from(nasProperties);
     }
 
     public record TaskUiConfig(

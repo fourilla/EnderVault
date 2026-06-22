@@ -4,6 +4,7 @@ import io.github.fourilla.endervault.favorite.FavoriteItem;
 import io.github.fourilla.endervault.favorite.FavoriteService;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.web.support.ActionResponseSupport;
+import io.github.fourilla.endervault.web.support.BookmarkLinkClickAction;
 import io.github.fourilla.endervault.web.support.FavoriteActionResponse;
 import io.github.fourilla.endervault.web.support.FavoritePayload;
 import io.github.fourilla.endervault.web.support.FlashNotification;
@@ -134,11 +135,6 @@ public class AdminFavoriteController {
     }
 
     private FavoritePayload favoritePayload(FavoriteItem favorite) {
-        return FavoritePayload.from(favorite, bookmarkLinkClickAction());
-    }
-
-    private String bookmarkLinkClickAction() {
-        String value = nasProperties.getBookmarks().getLinkClickAction();
-        return "detail".equalsIgnoreCase(value) ? "detail" : "open";
+        return FavoritePayload.from(favorite, BookmarkLinkClickAction.from(nasProperties));
     }
 }

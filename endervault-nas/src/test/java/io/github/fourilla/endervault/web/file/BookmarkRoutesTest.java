@@ -1,0 +1,31 @@
+package io.github.fourilla.endervault.web.file;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.List;
+import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
+
+class BookmarkRoutesTest {
+
+    @Test
+    void buildsBookmarkRedirectWithNormalizedParameters() {
+        assertThat(BookmarkRoutes.redirectToBookmarks(" docs ", " spring docs "))
+                .isEqualTo("redirect:/files/bookmarks?directory=docs&q=spring%20docs");
+        assertThat(BookmarkRoutes.redirectToBookmarks("", ""))
+                .isEqualTo("redirect:/files/bookmarks");
+    }
+
+    @Test
+    void normalizesSelectedIds() {
+        assertThat(BookmarkRoutes.safeIds(List.of(" a ", "", "a", "b")))
+                .containsExactly("a", "b");
+    }
+
+    @Test
+    void fallsBackWhenMediaTypeIsInvalid() {
+        assertThat(BookmarkRoutes.mediaType("image/png")).isEqualTo(MediaType.IMAGE_PNG);
+        assertThat(BookmarkRoutes.mediaType("not a type")).isEqualTo(MediaType.APPLICATION_OCTET_STREAM);
+        assertThat(BookmarkRoutes.mediaType(null)).isEqualTo(MediaType.APPLICATION_OCTET_STREAM);
+    }
+}
