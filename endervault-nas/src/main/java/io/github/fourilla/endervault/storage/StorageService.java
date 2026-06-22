@@ -20,13 +20,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,9 +30,6 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class StorageService {
 
-    private static final DateTimeFormatter MODIFIED_FORMATTER =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
-
     private final NasProperties nasProperties;
     private final Path root;
     private final Path trashRoot;
@@ -46,10 +37,10 @@ public class StorageService {
     private final Path uploadTempRoot;
     private final String trashDirectoryName;
     private final String metadataDirectoryName;
-    private final FileActionRegistry fileActionRegistry;
     private final StoragePathResolver pathResolver;
     private final StorageZipWriter zipWriter;
     private final UploadStagingService uploadStagingService;
+    private final StorageListingService listingService;
 
     public StorageService(NasProperties nasProperties) {
         this(nasProperties, new FileActionRegistry());
@@ -65,10 +56,10 @@ public class StorageService {
         this.trashRoot = root.resolve(trashDirectoryName).normalize();
         this.metadataRoot = root.resolve(metadataDirectoryName).normalize();
         this.uploadTempRoot = metadataRoot.resolve("uploads").normalize();
-        this.fileActionRegistry = fileActionRegistry;
         this.pathResolver = new StoragePathResolver(root, trashRoot, metadataRoot, uploadTempRoot);
         this.zipWriter = new StorageZipWriter();
         this.uploadStagingService = new UploadStagingService(uploadTempRoot, pathResolver);
+        this.listingService = new StorageListingService(root, trashRoot, pathResolver, fileActionRegistry);
     }
 
     @PostConstruct
@@ -89,48 +80,11 @@ public class StorageService {
             FileSort sort,
             SortDirection direction
     ) throws IOException {
-        Path directory = pathResolver.resolveDirectory(scope, requestedPath);
-        String currentPath = pathResolver.toRelativePath(pathResolver.baseFor(scope), directory);
-        List<FileItem> children;
-
-        try (Stream<Path> stream = Files.list(directory)) {
-            children = stream
-                    .filter(path -> !Files.isSymbolicLink(path))
-                    .filter(path -> !pathResolver.isHiddenSystemPath(scope, path))
-                    .map(path -> toFileItem(pathResolver.baseFor(scope), path))
-                    .sorted(itemComparator(sort, direction))
-                    .toList();
-        }
-
-        List<FileItem> directories = children.stream().filter(FileItem::directory).toList();
-        List<FileItem> files = children.stream().filter(item -> !item.directory()).toList();
-
-        return new DirectoryListing(
-                currentPath,
-                parentPathOf(currentPath).orElse(null),
-                breadcrumbsFor(currentPath),
-                directories,
-                files
-        );
+        return listingService.list(scope, requestedPath, sort, direction);
     }
 
     public DirectoryListing listTrash() throws IOException {
-        Files.createDirectories(trashRoot);
-        List<FileItem> children;
-        try (Stream<Path> stream = Files.list(trashRoot)) {
-            children = stream
-                    .map(path -> toFileItem(trashRoot, path))
-                    .sorted(itemComparator(FileSort.NAME, SortDirection.ASC))
-                    .toList();
-        }
-
-        return new DirectoryListing(
-                "",
-                null,
-                List.of(new Breadcrumb("Trash", "")),
-                children.stream().filter(FileItem::directory).toList(),
-                children.stream().filter(item -> !item.directory()).toList()
-        );
+        return listingService.listTrash();
     }
 
     public StorageUsage storageUsage() {
@@ -152,21 +106,7 @@ public class StorageService {
     }
 
     public List<FileItem> search(StorageScope scope, String requestedRoot, String query) throws IOException {
-        String normalizedQuery = normalizeSearchQuery(query);
-        if (normalizedQuery.isEmpty()) {
-            return List.of();
-        }
-
-        Path searchRoot = pathResolver.resolveDirectory(scope, requestedRoot);
-        if (pathResolver.isHiddenSystemPath(scope, searchRoot)) {
-            throw new NoSuchFileException(requestedRoot == null ? "" : requestedRoot);
-        }
-
-        List<FileItem> results = new ArrayList<>();
-        searchRecursively(scope, searchRoot, normalizedQuery, results);
-        return results.stream()
-                .sorted(Comparator.comparing(item -> item.path().toLowerCase(Locale.ROOT)))
-                .toList();
+        return listingService.search(scope, requestedRoot, query);
     }
 
     public Path resolveFile(StorageScope scope, String directoryPath, String fileName) throws IOException {
@@ -190,16 +130,15 @@ public class StorageService {
     }
 
     public FileItem describeVaultPath(String vaultPath) throws IOException {
-        return toFileItem(root, pathResolver.resolve(StorageScope.VAULT, vaultPath));
+        return listingService.describeVaultPath(vaultPath);
     }
 
     public FileDetail detail(StorageScope scope, String vaultPath) throws IOException {
-        Path path = pathResolver.resolve(scope, vaultPath);
-        return toFileDetail(pathResolver.baseFor(scope), path);
+        return listingService.detail(scope, vaultPath);
     }
 
     public FileItem describeVaultChild(String directoryPath, String itemName) throws IOException {
-        return toFileItem(root, pathResolver.resolveChild(StorageScope.VAULT, directoryPath, itemName, true));
+        return listingService.describeVaultChild(directoryPath, itemName);
     }
 
     public Path ensureVaultDirectory(String vaultPath) throws IOException {
@@ -367,30 +306,7 @@ public class StorageService {
     }
 
     public DirectoryListing listSharedDirectory(String sharedBasePath, String requestedPath) throws IOException {
-        Path sharedBase = pathResolver.resolveDirectory(StorageScope.VAULT, sharedBasePath);
-        Path directory = pathResolver.resolveSharedPath(sharedBase, requestedPath);
-        if (!Files.isDirectory(directory)) {
-            throw new NoSuchFileException(requestedPath == null ? "" : requestedPath);
-        }
-
-        String currentPath = pathResolver.toRelativePath(sharedBase, directory);
-        List<FileItem> children;
-        try (Stream<Path> stream = Files.list(directory)) {
-            children = stream
-                    .filter(path -> !Files.isSymbolicLink(path))
-                    .filter(path -> !pathResolver.isVaultSystemPath(path))
-                    .map(path -> toFileItem(sharedBase, path))
-                    .sorted(itemComparator(FileSort.NAME, SortDirection.ASC))
-                    .toList();
-        }
-
-        return new DirectoryListing(
-                currentPath,
-                parentPathOf(currentPath).orElse(null),
-                breadcrumbsFor(currentPath),
-                children.stream().filter(FileItem::directory).toList(),
-                children.stream().filter(item -> !item.directory()).toList()
-        );
+        return listingService.listSharedDirectory(sharedBasePath, requestedPath);
     }
 
     public Path resolveSharedFile(String sharedBasePath, String requestedPath, String fileName) throws IOException {
@@ -410,12 +326,11 @@ public class StorageService {
     public FileItem describeSharedFile(String sharedBasePath, String requestedPath, String fileName) throws IOException {
         Path sharedBase = pathResolver.resolveDirectory(StorageScope.VAULT, sharedBasePath);
         Path file = resolveSharedFile(sharedBasePath, requestedPath, fileName);
-        return toFileItem(sharedBase, file);
+        return listingService.toFileItem(sharedBase, file);
     }
 
     public String mediaType(Path file) throws IOException {
-        String mediaType = Files.probeContentType(file);
-        return mediaType == null ? "application/octet-stream" : mediaType;
+        return listingService.mediaType(file);
     }
 
     public FileItem upload(String directoryPath, MultipartFile file) throws IOException {
@@ -468,7 +383,7 @@ public class StorageService {
         Path target = pathResolver.resolveChild(StorageScope.VAULT, directoryPath, filename, false);
         ConflictTarget resolvedTarget = resolveConflictTarget(target, false, conflictPolicy);
         movePath(temporaryFile, resolvedTarget.path(), resolvedTarget.overwrite());
-        return toFileItem(root, resolvedTarget.path());
+        return listingService.toFileItem(root, resolvedTarget.path());
     }
 
     public FileItem moveStagedUploadIntoVault(
@@ -754,157 +669,6 @@ public class StorageService {
             throws IOException {
         Path target = pathResolver.resolveRestoreTargetPath(vaultPath);
         return resolveConflictTarget(target, sourceDirectory, conflictPolicy);
-    }
-
-    private void searchRecursively(
-            StorageScope scope,
-            Path directory,
-            String normalizedQuery,
-            List<FileItem> results
-    ) throws IOException {
-        try (Stream<Path> stream = Files.list(directory)) {
-            for (Path child : stream
-                    .filter(path -> !Files.isSymbolicLink(path))
-                    .filter(path -> !pathResolver.isHiddenSystemPath(scope, path))
-                    .sorted(pathNameComparator())
-                    .collect(Collectors.toList())) {
-                if (matchesSearchQuery(child, normalizedQuery)) {
-                    results.add(toFileItem(pathResolver.baseFor(scope), child));
-                }
-                if (Files.isDirectory(child, LinkOption.NOFOLLOW_LINKS)) {
-                    searchRecursively(scope, child, normalizedQuery, results);
-                }
-            }
-        }
-    }
-
-    private boolean matchesSearchQuery(Path path, String normalizedQuery) {
-        return path.getFileName().toString().toLowerCase(Locale.ROOT).contains(normalizedQuery);
-    }
-
-    private String normalizeSearchQuery(String query) {
-        return query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
-    }
-
-    private Optional<String> parentPathOf(String currentPath) {
-        if (currentPath == null || currentPath.isBlank()) {
-            return Optional.empty();
-        }
-        int index = currentPath.lastIndexOf('/');
-        return Optional.of(index < 0 ? "" : currentPath.substring(0, index));
-    }
-
-    private List<Breadcrumb> breadcrumbsFor(String currentPath) {
-        List<Breadcrumb> breadcrumbs = new ArrayList<>();
-        breadcrumbs.add(new Breadcrumb("Root", ""));
-        if (currentPath == null || currentPath.isBlank()) {
-            return breadcrumbs;
-        }
-
-        String[] segments = currentPath.split("/");
-        StringBuilder path = new StringBuilder();
-        for (String segment : segments) {
-            if (path.length() > 0) {
-                path.append('/');
-            }
-            path.append(segment);
-            breadcrumbs.add(new Breadcrumb(segment, path.toString()));
-        }
-        return breadcrumbs;
-    }
-
-    private FileItem toFileItem(Path relativeBase, Path path) {
-        try {
-            boolean directory = Files.isDirectory(path);
-            String mediaType = directory ? "directory" : mediaType(path);
-            long size = directory ? 0L : Files.size(path);
-            String relativePath = pathResolver.toRelativePath(relativeBase, path);
-            Instant modified = Files.getLastModifiedTime(path).toInstant();
-            String extension = extensionOf(path, directory);
-            return new FileItem(
-                    path.getFileName().toString(),
-                    relativePath,
-                    directory,
-                    size,
-                    directory ? "-" : ByteSizeFormatter.humanSize(size),
-                    MODIFIED_FORMATTER.format(modified),
-                    modified,
-                    mediaType,
-                    fileActionRegistry.previewPageAvailable(path.getFileName().toString(), directory, mediaType, extension),
-                    mediaType.startsWith("video/")
-            );
-        } catch (IOException ex) {
-            throw new StorageAccessException("Failed to read file metadata.", ex);
-        }
-    }
-
-    private FileDetail toFileDetail(Path relativeBase, Path path) throws IOException {
-        boolean directory = Files.isDirectory(path);
-        String mediaType = directory ? "directory" : mediaType(path);
-        long size = directory ? 0L : Files.size(path);
-        String relativePath = pathResolver.toRelativePath(relativeBase, path);
-        BasicFileAttributes attributes = Files.readAttributes(path, BasicFileAttributes.class);
-        String extension = extensionOf(path, directory);
-        return new FileDetail(
-                path.getFileName().toString(),
-                relativePath,
-                parentPathOf(relativePath).orElse(null),
-                directory,
-                size,
-                directory ? "-" : ByteSizeFormatter.humanSize(size),
-                directory ? childCount(path) : 0L,
-                MODIFIED_FORMATTER.format(attributes.creationTime().toInstant()),
-                MODIFIED_FORMATTER.format(attributes.lastModifiedTime().toInstant()),
-                MODIFIED_FORMATTER.format(attributes.lastAccessTime().toInstant()),
-                mediaType,
-                extension,
-                fileActionRegistry.previewPageAvailable(path.getFileName().toString(), directory, mediaType, extension),
-                mediaType.startsWith("video/")
-        );
-    }
-
-    private long childCount(Path directory) throws IOException {
-        try (Stream<Path> children = Files.list(directory)) {
-            return children
-                    .filter(path -> !pathResolver.isHiddenSystemPath(StorageScope.VAULT, path))
-                    .count();
-        }
-    }
-
-    private String extensionOf(Path path, boolean directory) {
-        if (directory) {
-            return "";
-        }
-        String name = path.getFileName().toString();
-        int index = name.lastIndexOf('.');
-        if (index <= 0 || index == name.length() - 1) {
-            return "";
-        }
-        return name.substring(index + 1).toLowerCase(Locale.ROOT);
-    }
-
-    private Comparator<FileItem> itemComparator(FileSort sort, SortDirection direction) {
-        Comparator<FileItem> nameComparator = Comparator.comparing(
-                item -> item.name().toLowerCase(Locale.ROOT)
-        );
-        Comparator<FileItem> primary = switch (sort) {
-            case SIZE -> Comparator.comparingLong(FileItem::size);
-            case MODIFIED -> Comparator.comparing(FileItem::modifiedAt);
-            case TYPE -> Comparator.comparing(
-                    (FileItem item) -> item.typeLabel().toLowerCase(Locale.ROOT)
-            ).thenComparing(item -> item.mediaType().toLowerCase(Locale.ROOT));
-            case NAME -> nameComparator;
-        };
-        if (direction == SortDirection.DESC) {
-            primary = primary.reversed();
-        }
-        return primary.thenComparing(nameComparator);
-    }
-
-    private Comparator<Path> pathNameComparator() {
-        return Comparator
-                .comparing((Path path) -> !Files.isDirectory(path))
-                .thenComparing(path -> path.getFileName().toString().toLowerCase(Locale.ROOT));
     }
 
     private StorageOperationSummary summarizePath(Path path) throws IOException {
