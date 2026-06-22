@@ -30,7 +30,7 @@ public class BookmarkService {
     private final BookmarkInputNormalizer inputNormalizer = new BookmarkInputNormalizer();
     private final BookmarkTree tree = new BookmarkTree();
     private final NasProperties nasProperties;
-    private final BookmarkMetadataFetcher metadataFetcher;
+    private final BookmarkRemoteMetadataApplier remoteMetadataApplier;
 
     public BookmarkService(
             ObjectMapper objectMapper,
@@ -38,7 +38,6 @@ public class BookmarkService {
             BookmarkMetadataFetcher metadataFetcher
     ) {
         this.nasProperties = nasProperties;
-        this.metadataFetcher = metadataFetcher;
         NasProperties.Storage storage = nasProperties.getStorage();
         Path metadataRoot = storage.getRoot()
                 .toAbsolutePath()
@@ -55,6 +54,12 @@ public class BookmarkService {
                 objectMapper,
                 metadataRoot,
                 nasProperties.getBookmarks().getFaviconCacheDirectory()
+        );
+        this.remoteMetadataApplier = new BookmarkRemoteMetadataApplier(
+                inputNormalizer,
+                metadataFetcher,
+                faviconCacheService,
+                this::metadataFetchEnabled
         );
     }
 
@@ -125,7 +130,7 @@ public class BookmarkService {
     ) throws IOException {
         BookmarkItem link = newLink(parentId, title, url, note);
         checkCanceled(cancellationRequested);
-        link = tryApplyRemoteMetadata(link, cancellationRequested);
+        link = remoteMetadataApplier.tryApply(link, cancellationRequested);
         checkCanceled(cancellationRequested);
         return addPreparedLink(link);
     }
@@ -224,7 +229,7 @@ public class BookmarkService {
                     updated.updatedAt()
             );
         }
-        updated = tryApplyRemoteMetadata(updated);
+        updated = remoteMetadataApplier.tryApply(updated);
         bookmarks.set(index, updated);
         writeAll(bookmarks);
         return updated;
@@ -238,7 +243,7 @@ public class BookmarkService {
             throw new StorageAccessException("Only bookmark links can fetch metadata.");
         }
 
-        BookmarkItem updated = fetchAndApplyRemoteMetadata(current);
+        BookmarkItem updated = remoteMetadataApplier.refresh(current);
         bookmarks.set(index, updated);
         writeAll(bookmarks);
         return updated;
@@ -386,89 +391,11 @@ public class BookmarkService {
         registry.write(List.copyOf(bookmarks));
     }
 
-    private BookmarkItem tryApplyRemoteMetadata(BookmarkItem bookmark) {
-        return tryApplyRemoteMetadata(bookmark, () -> false);
-    }
-
-    private BookmarkItem tryApplyRemoteMetadata(BookmarkItem bookmark, BooleanSupplier cancellationRequested) {
-        if (!metadataFetchEnabled() || !bookmark.externalLink()) {
-            return bookmark;
-        }
-
-        try {
-            return fetchAndApplyRemoteMetadata(bookmark, cancellationRequested);
-        } catch (IOException | StorageAccessException ex) {
-            Instant now = Instant.now();
-            return bookmark.withRemoteMetadata(
-                    bookmark.title(),
-                    bookmark.effectiveTitleSource(),
-                    bookmark.faviconFileName(),
-                    bookmark.faviconContentType(),
-                    now,
-                    "FAILED: " + truncateStatus(ex.getMessage()),
-                    now
-            );
-        }
-    }
-
-    private BookmarkItem fetchAndApplyRemoteMetadata(BookmarkItem bookmark) throws IOException {
-        return fetchAndApplyRemoteMetadata(bookmark, () -> false);
-    }
-
-    private BookmarkItem fetchAndApplyRemoteMetadata(
-            BookmarkItem bookmark,
-            BooleanSupplier cancellationRequested
-    ) throws IOException {
-        checkCanceled(cancellationRequested);
-        BookmarkMetadataFetchResult result;
-        try {
-            result = metadataFetcher.fetch(bookmark.url());
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            throw new StorageAccessException("Bookmark metadata fetch was interrupted.");
-        }
-        checkCanceled(cancellationRequested);
-
-        String nextTitle = bookmark.title();
-        BookmarkTitleSource nextTitleSource = bookmark.effectiveTitleSource();
-        if (result.hasTitle() && nextTitleSource != BookmarkTitleSource.MANUAL) {
-            nextTitle = inputNormalizer.normalizeRemoteTitle(result.title());
-            nextTitleSource = BookmarkTitleSource.REMOTE_TITLE;
-        }
-
-        String faviconFileName = bookmark.faviconFileName();
-        String faviconContentType = bookmark.faviconContentType();
-        if (result.hasFavicon()) {
-            checkCanceled(cancellationRequested);
-            BookmarkMetadataFetchResult.Favicon favicon = result.favicon();
-            BookmarkFaviconCacheEntry cachedFavicon = faviconCacheService.cache(favicon);
-            checkCanceled(cancellationRequested);
-            faviconFileName = cachedFavicon.fileName();
-            faviconContentType = cachedFavicon.contentType();
-        }
-
-        Instant now = Instant.now();
-        return bookmark.withRemoteMetadata(
-                nextTitle,
-                nextTitleSource,
-                faviconFileName,
-                faviconContentType,
-                now,
-                "OK",
-                now
-        );
-    }
-
     private void checkCanceled(BooleanSupplier cancellationRequested) {
         if (Thread.currentThread().isInterrupted()
                 || (cancellationRequested != null && cancellationRequested.getAsBoolean())) {
             throw new CancellationException("Bookmark link creation was canceled.");
         }
-    }
-
-    private String truncateStatus(String status) {
-        String normalized = status == null ? "Unknown error" : status.trim().replaceAll("\\s+", " ");
-        return normalized.length() <= 200 ? normalized : normalized.substring(0, 200).trim();
     }
 
     public record BulkLinkInput(String title, String url) {
