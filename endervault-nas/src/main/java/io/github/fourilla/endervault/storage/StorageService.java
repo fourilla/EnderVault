@@ -30,7 +30,6 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class StorageService {
 
-    private final NasProperties nasProperties;
     private final Path root;
     private final Path trashRoot;
     private final Path metadataRoot;
@@ -41,6 +40,7 @@ public class StorageService {
     private final StorageZipWriter zipWriter;
     private final UploadStagingService uploadStagingService;
     private final StorageListingService listingService;
+    private final StorageConflictResolver conflictResolver;
 
     public StorageService(NasProperties nasProperties) {
         this(nasProperties, new FileActionRegistry());
@@ -48,7 +48,6 @@ public class StorageService {
 
     @Autowired
     public StorageService(NasProperties nasProperties, FileActionRegistry fileActionRegistry) {
-        this.nasProperties = nasProperties;
         NasProperties.Storage storage = nasProperties.getStorage();
         this.root = storage.getRoot().toAbsolutePath().normalize();
         this.trashDirectoryName = validateConfiguredDirectory(storage.getTrashDirectory());
@@ -60,6 +59,7 @@ public class StorageService {
         this.zipWriter = new StorageZipWriter();
         this.uploadStagingService = new UploadStagingService(uploadTempRoot, pathResolver);
         this.listingService = new StorageListingService(root, trashRoot, pathResolver, fileActionRegistry);
+        this.conflictResolver = new StorageConflictResolver(nasProperties, pathResolver);
     }
 
     @PostConstruct
@@ -159,7 +159,7 @@ public class StorageService {
         if (source.equals(target)) {
             return pathResolver.toRelativePath(root, source);
         }
-        ConflictTarget resolvedTarget = resolveConflictTarget(
+        StorageConflictResolver.StorageConflictTarget resolvedTarget = conflictResolver.resolve(
                 target,
                 Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS),
                 conflictPolicy
@@ -185,7 +185,7 @@ public class StorageService {
         if (targetDirectory.startsWith(source)) {
             throw new StorageAccessException("A directory cannot be moved into itself.");
         }
-        ConflictTarget resolvedTarget = resolveConflictTarget(
+        StorageConflictResolver.StorageConflictTarget resolvedTarget = conflictResolver.resolve(
                 target,
                 Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS),
                 conflictPolicy
@@ -228,7 +228,7 @@ public class StorageService {
         }
 
         rejectSymbolicLink(source);
-        ConflictTarget resolvedTarget = resolveConflictTarget(
+        StorageConflictResolver.StorageConflictTarget resolvedTarget = conflictResolver.resolve(
                 target,
                 Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS),
                 conflictPolicy
@@ -275,7 +275,7 @@ public class StorageService {
         if (!Files.exists(trashItem, LinkOption.NOFOLLOW_LINKS)) {
             throw new NoSuchFileException(trashName);
         }
-        ConflictTarget target = resolveRestoreTarget(
+        StorageConflictResolver.StorageConflictTarget target = conflictResolver.resolveRestoreTarget(
                 originalPath,
                 Files.isDirectory(trashItem, LinkOption.NOFOLLOW_LINKS),
                 conflictPolicy
@@ -381,7 +381,8 @@ public class StorageService {
             ConflictPolicy conflictPolicy
     ) throws IOException {
         Path target = pathResolver.resolveChild(StorageScope.VAULT, directoryPath, filename, false);
-        ConflictTarget resolvedTarget = resolveConflictTarget(target, false, conflictPolicy);
+        StorageConflictResolver.StorageConflictTarget resolvedTarget =
+                conflictResolver.resolve(target, false, conflictPolicy);
         movePath(temporaryFile, resolvedTarget.path(), resolvedTarget.overwrite());
         return listingService.toFileItem(root, resolvedTarget.path());
     }
@@ -512,54 +513,7 @@ public class StorageService {
     }
 
     public ConflictPolicy defaultConflictPolicy() {
-        return ConflictPolicy.from(nasProperties.getStorage().getDefaultConflictPolicy());
-    }
-
-    private ConflictTarget resolveConflictTarget(Path requestedTarget, boolean sourceDirectory, ConflictPolicy policy)
-            throws IOException {
-        if (!Files.exists(requestedTarget, LinkOption.NOFOLLOW_LINKS)) {
-            return new ConflictTarget(requestedTarget, false);
-        }
-
-        ConflictPolicy effectivePolicy = effectiveConflictPolicy(policy);
-        return switch (effectivePolicy) {
-            case CANCEL -> throw new FileAlreadyExistsException(requestedTarget.getFileName().toString());
-            case RENAME -> new ConflictTarget(nextAvailableTarget(requestedTarget, sourceDirectory), false);
-            case OVERWRITE -> {
-                validateOverwriteTarget(requestedTarget, sourceDirectory);
-                yield new ConflictTarget(requestedTarget, true);
-            }
-        };
-    }
-
-    private ConflictPolicy effectiveConflictPolicy(ConflictPolicy policy) {
-        ConflictPolicy effective = policy == null ? defaultConflictPolicy() : policy;
-        return effective == null ? ConflictPolicy.CANCEL : effective;
-    }
-
-    private Path nextAvailableTarget(Path requestedTarget, boolean directory) throws IOException {
-        String filename = requestedTarget.getFileName().toString();
-        int extensionIndex = directory ? -1 : filename.lastIndexOf('.');
-        String stem = extensionIndex > 0 ? filename.substring(0, extensionIndex) : filename;
-        String extension = extensionIndex > 0 ? filename.substring(extensionIndex) : "";
-        Path parent = requestedTarget.getParent();
-        for (int counter = 1; counter <= 9999; counter++) {
-            Path candidate = parent.resolve(stem + " - " + counter + extension).normalize();
-            pathResolver.ensureInsideBase(StorageScope.VAULT, candidate);
-            if (!Files.exists(candidate, LinkOption.NOFOLLOW_LINKS)) {
-                return candidate;
-            }
-        }
-        throw new FileAlreadyExistsException(requestedTarget.getFileName().toString());
-    }
-
-    private void validateOverwriteTarget(Path target, boolean sourceDirectory) {
-        if (sourceDirectory || Files.isDirectory(target, LinkOption.NOFOLLOW_LINKS)) {
-            throw new StorageAccessException("Directory overwrite is not supported yet.");
-        }
-        if (Files.isSymbolicLink(target) || !Files.isRegularFile(target, LinkOption.NOFOLLOW_LINKS)) {
-            throw new StorageAccessException("Only regular files can be overwritten.");
-        }
+        return conflictResolver.defaultPolicy();
     }
 
     private void rejectSymbolicLink(Path path) {
@@ -584,7 +538,7 @@ public class StorageService {
         if (source.equals(target)) {
             return pathResolver.toRelativePath(root, source);
         }
-        ConflictTarget resolvedTarget = resolveConflictTarget(
+        StorageConflictResolver.StorageConflictTarget resolvedTarget = conflictResolver.resolve(
                 target,
                 Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS),
                 conflictPolicy
@@ -612,7 +566,7 @@ public class StorageService {
         if (targetDirectory.startsWith(source)) {
             throw new StorageAccessException("A directory cannot be moved into itself.");
         }
-        ConflictTarget resolvedTarget = resolveConflictTarget(
+        StorageConflictResolver.StorageConflictTarget resolvedTarget = conflictResolver.resolve(
                 target,
                 Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS),
                 conflictPolicy
@@ -663,12 +617,6 @@ public class StorageService {
                 zip.write(item, item.getFileName().toString());
             }
         }
-    }
-
-    private ConflictTarget resolveRestoreTarget(String vaultPath, boolean sourceDirectory, ConflictPolicy conflictPolicy)
-            throws IOException {
-        Path target = pathResolver.resolveRestoreTargetPath(vaultPath);
-        return resolveConflictTarget(target, sourceDirectory, conflictPolicy);
     }
 
     private StorageOperationSummary summarizePath(Path path) throws IOException {
@@ -735,8 +683,5 @@ public class StorageService {
             Instant modifiedAt,
             String modifiedLabel
     ) {
-    }
-
-    private record ConflictTarget(Path path, boolean overwrite) {
     }
 }
