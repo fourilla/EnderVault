@@ -16,14 +16,7 @@
 <div th:replace="~{fragments/notifications :: toasts}"></div>
 
 <main class="workspace">
-    <section class="pathbar">
-        <a class="ghost icon-button" th:href="@{/admin/dashboard}" title="Back to dashboard" aria-label="Back to dashboard">
-            <i class="fas fa-arrow-left" aria-hidden="true"></i>
-        </a>
-        <div class="pathbar-title-group">
-            <h1>Logs</h1>
-        </div>
-    </section>
+    <section th:replace="~{fragments/admin-shell :: pathbar('Logs', @{/admin/dashboard}, 'Back to dashboard')}"></section>
 
     <section class="dashboard-grid logs-layout" aria-label="Activity logs">
         <article class="dashboard-panel logs-panel">

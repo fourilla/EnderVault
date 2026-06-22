@@ -73,5 +73,14 @@
         </button>
     </form>
 </header>
+
+<section class="pathbar" th:fragment="pathbar(title, backHref, backLabel)">
+    <a class="ghost icon-button" th:href="${backHref}" th:title="${backLabel}" th:attr="aria-label=${backLabel}">
+        <i class="fas fa-arrow-left" aria-hidden="true"></i>
+    </a>
+    <div class="pathbar-title-group">
+        <h1 th:text="${title}">Page</h1>
+    </div>
+</section>
 </body>
 </html>

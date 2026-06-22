@@ -15,14 +15,7 @@
 <div th:replace="~{fragments/notifications :: toasts}"></div>
 
 <main class="workspace">
-    <section class="pathbar">
-        <a class="ghost icon-button" th:href="@{/admin/utils/remote-download}" title="Back" aria-label="Back">
-            <i class="fas fa-arrow-left" aria-hidden="true"></i>
-        </a>
-        <div class="pathbar-title-group">
-            <h1>Confirm Download</h1>
-        </div>
-    </section>
+    <section th:replace="~{fragments/admin-shell :: pathbar('Confirm Download', @{/admin/utils/remote-download}, 'Back')}"></section>
 
     <section class="dashboard-panel remote-confirm-page">
         <header class="section-heading">
