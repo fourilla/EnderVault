@@ -1,8 +1,8 @@
 package io.github.fourilla.endervault.web.share;
 
 import io.github.fourilla.endervault.activity.ActivityLogService;
-import io.github.fourilla.endervault.filetool.ComicArchiveService;
-import io.github.fourilla.endervault.filetool.ComicPageResource;
+import io.github.fourilla.endervault.filetool.comic.ComicArchiveService;
+import io.github.fourilla.endervault.filetool.comic.ComicPageResource;
 import io.github.fourilla.endervault.filetool.FileToolDescriptor;
 import io.github.fourilla.endervault.filetool.FileToolService;
 import io.github.fourilla.endervault.share.ShareLink;

@@ -1,4 +1,4 @@
-package io.github.fourilla.endervault.filetool;
+package io.github.fourilla.endervault.filetool.comic;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

@@ -2,7 +2,7 @@ package io.github.fourilla.endervault.thumbnail;
 
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
-import io.github.fourilla.endervault.filetool.ComicArchiveService;
+import io.github.fourilla.endervault.filetool.comic.ComicArchiveService;
 import io.github.fourilla.endervault.task.TaskContext;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;

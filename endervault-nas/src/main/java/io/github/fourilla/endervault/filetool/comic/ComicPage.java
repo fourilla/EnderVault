@@ -1,4 +1,4 @@
-package io.github.fourilla.endervault.filetool;
+package io.github.fourilla.endervault.filetool.comic;
 
 public record ComicPage(
         int index,

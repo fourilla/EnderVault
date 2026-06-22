@@ -1,4 +1,4 @@
-package io.github.fourilla.endervault.filetool;
+package io.github.fourilla.endervault.filetool.comic;
 
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;

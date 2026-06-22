@@ -9,7 +9,7 @@ import io.github.fourilla.endervault.web.dashboard.AdminDashboardController;
 import io.github.fourilla.endervault.web.dashboard.AdminLogController;
 import io.github.fourilla.endervault.web.dashboard.AdminTelegramSettingsController;
 import io.github.fourilla.endervault.web.auth.AdminPasskeyController;
-import io.github.fourilla.endervault.web.file.AdminBookmarkController;
+import io.github.fourilla.endervault.web.bookmark.AdminBookmarkController;
 import io.github.fourilla.endervault.web.file.AdminFavoriteController;
 import io.github.fourilla.endervault.web.file.AdminFileController;
 import io.github.fourilla.endervault.web.file.AdminFileDetailController;

@@ -1,4 +1,4 @@
-package io.github.fourilla.endervault.web.file;
+package io.github.fourilla.endervault.web.bookmark;
 
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.bookmark.BookmarkItem;

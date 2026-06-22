@@ -1,4 +1,4 @@
-package io.github.fourilla.endervault.web.file;
+package io.github.fourilla.endervault.web.bookmark;
 
 import java.util.List;
 import org.springframework.http.MediaType;

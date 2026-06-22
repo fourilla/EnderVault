@@ -1,7 +1,7 @@
 package io.github.fourilla.endervault.thumbnail;
 
-import io.github.fourilla.endervault.filetool.ComicArchiveService;
-import io.github.fourilla.endervault.filetool.ComicPageResource;
+import io.github.fourilla.endervault.filetool.comic.ComicArchiveService;
+import io.github.fourilla.endervault.filetool.comic.ComicPageResource;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics2D;

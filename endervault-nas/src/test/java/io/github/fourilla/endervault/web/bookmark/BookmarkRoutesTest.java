@@ -1,4 +1,4 @@
-package io.github.fourilla.endervault.web.file;
+package io.github.fourilla.endervault.web.bookmark;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

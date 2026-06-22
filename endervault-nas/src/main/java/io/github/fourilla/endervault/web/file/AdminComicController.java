@@ -1,7 +1,7 @@
 package io.github.fourilla.endervault.web.file;
 
-import io.github.fourilla.endervault.filetool.ComicArchiveService;
-import io.github.fourilla.endervault.filetool.ComicPageResource;
+import io.github.fourilla.endervault.filetool.comic.ComicArchiveService;
+import io.github.fourilla.endervault.filetool.comic.ComicPageResource;
 import io.github.fourilla.endervault.recent.RecentService;
 import io.github.fourilla.endervault.storage.FileDetail;
 import io.github.fourilla.endervault.storage.StorageScope;
