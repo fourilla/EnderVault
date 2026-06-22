@@ -44,14 +44,16 @@
                 <tr th:each="favorite, iter : ${favoriteItems}" th:attr="data-favorite-row-path=${favorite.path()}">
                     <td>
                         <a class="item-name"
-                           th:href="${favorite.directory()} ? @{/files(path=${favorite.path()})} : @{/files/detail(path=${favorite.path()})}"
-                           th:title="${favorite.path()}">
+                           th:href="${favorite.openUrl(bookmarkLinkClickAction)}"
+                           th:target="${favorite.opensInNewTab(bookmarkLinkClickAction)} ? '_blank' : null"
+                           th:rel="${favorite.opensInNewTab(bookmarkLinkClickAction)} ? 'noopener noreferrer' : null"
+                           th:title="${favorite.targetLabel()}">
                             <i th:class="${favorite.iconClass()} + ' item-icon'" aria-hidden="true"></i>
                             <span th:text="${favorite.name()}">favorite</span>
                         </a>
                     </td>
                     <td th:text="${favorite.typeLabel()}">File</td>
-                    <td class="path-cell" th:text="${favorite.path()}">path</td>
+                    <td><span class="path-cell" th:title="${favorite.targetLabel()}" th:text="${favorite.targetLabel()}">target</span></td>
                     <td th:text="${favorite.createdLabel()}">created</td>
                     <td>
                         <div class="table-actions">

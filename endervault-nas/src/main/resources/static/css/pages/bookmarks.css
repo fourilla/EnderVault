@@ -36,23 +36,6 @@
     resize: vertical;
 }
 
-.bookmark-url-cell {
-    min-width: 180px;
-    max-width: 360px;
-}
-
-.bookmark-url-content {
-    display: grid;
-    gap: var(--space-2xs);
-    min-width: 0;
-}
-
-.bookmark-url-content .path-cell {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
 .bookmark-link-name {
     display: inline-grid;
     grid-template-columns: 24px minmax(0, 1fr);
@@ -81,7 +64,9 @@
 
 .bookmark-link-title {
     min-width: 0;
-    overflow-wrap: anywhere;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .bookmark-detail-title-row {

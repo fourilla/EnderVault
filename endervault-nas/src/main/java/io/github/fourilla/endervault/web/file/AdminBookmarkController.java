@@ -7,6 +7,7 @@ import io.github.fourilla.endervault.bookmark.BookmarkService;
 import io.github.fourilla.endervault.bookmark.BookmarkService.BookmarkFavicon;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.favorite.FavoriteService;
 import io.github.fourilla.endervault.task.AppTask;
 import io.github.fourilla.endervault.task.BookmarkBulkTaskService;
 import io.github.fourilla.endervault.web.support.ActionResponseSupport;
@@ -37,17 +38,20 @@ public class AdminBookmarkController {
 
     private final BookmarkService bookmarkService;
     private final BookmarkBulkTaskService bookmarkBulkTaskService;
+    private final FavoriteService favoriteService;
     private final ActivityLogService activityLogService;
     private final NasProperties nasProperties;
 
     public AdminBookmarkController(
             BookmarkService bookmarkService,
             BookmarkBulkTaskService bookmarkBulkTaskService,
+            FavoriteService favoriteService,
             ActivityLogService activityLogService,
             NasProperties nasProperties
     ) {
         this.bookmarkService = bookmarkService;
         this.bookmarkBulkTaskService = bookmarkBulkTaskService;
+        this.favoriteService = favoriteService;
         this.activityLogService = activityLogService;
         this.nasProperties = nasProperties;
     }
@@ -69,6 +73,7 @@ public class AdminBookmarkController {
         model.addAttribute("currentBookmarkDirectoryId", normalizeId(currentDirectoryId));
         model.addAttribute("bookmarkMetadataFetchEnabled", bookmarkService.metadataFetchEnabled());
         model.addAttribute("bookmarkLinkClickAction", bookmarkLinkClickAction());
+        model.addAttribute("favoriteBookmarkIds", favoriteService.favoriteBookmarkIds());
         model.addAttribute("query", normalizedQuery);
         model.addAttribute("searchPerformed", !normalizedQuery.isBlank());
         return "bookmarks";
@@ -94,6 +99,7 @@ public class AdminBookmarkController {
         model.addAttribute("bookmarkMetadataFetchEnabled", bookmarkService.metadataFetchEnabled());
         model.addAttribute("metadataFetchAttempted", BookmarkLogMetadata.metadataFetchAttempted(bookmark));
         model.addAttribute("metadataFetchStatus", BookmarkLogMetadata.metadataFetchStatus(bookmark));
+        model.addAttribute("favorite", favoriteService.isBookmarkFavorite(bookmark.id()));
         return "bookmark-detail";
     }
 

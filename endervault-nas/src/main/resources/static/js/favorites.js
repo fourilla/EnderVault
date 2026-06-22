@@ -12,6 +12,9 @@ document.addEventListener("DOMContentLoaded", () => {
     let activeSidebarFavorite = null;
 
     const favoriteUrl = (favorite) => {
+        if (favorite.openUrl) {
+            return favorite.openUrl;
+        }
         const query = new URLSearchParams({ path: favorite.path }).toString();
         return favorite.directory ? `/files?${query}` : `/files/detail?${query}`;
     };
@@ -37,6 +40,11 @@ document.addEventListener("DOMContentLoaded", () => {
         document.querySelectorAll("[data-context-item]").forEach((item) => {
             if (item.dataset.itemPath === path) {
                 item.dataset.itemFavorite = String(active);
+            }
+        });
+        document.querySelectorAll("[data-bookmark-context-item]").forEach((item) => {
+            if (`bookmark:${item.dataset.bookmarkId}` === path) {
+                item.dataset.bookmarkFavorite = String(active);
             }
         });
     };
@@ -81,6 +89,13 @@ document.addEventListener("DOMContentLoaded", () => {
         link.href = favoriteUrl(favorite);
         link.title = favorite.path;
         link.dataset.favoriteSidebarPath = favorite.path;
+        link.dataset.favoriteDirectOpenUrl = favorite.directOpenUrl || favorite.openUrl || link.href;
+        link.dataset.favoriteDetailUrl = favorite.detailUrl || favorite.openUrl || link.href;
+        link.dataset.favoriteBookmarkLink = String((favorite.path || "").startsWith("bookmark:") && Boolean(favorite.directOpenUrl));
+        if (favorite.openInNewTab) {
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+        }
         link.innerHTML = `
             <i aria-hidden="true"></i>
             <span></span>
@@ -143,6 +158,23 @@ document.addEventListener("DOMContentLoaded", () => {
         const formData = formDataWithCsrf();
         formData.append("path", path);
         const body = await requestJson("/files/favorites/toggle", {
+            method: "POST",
+            body: formData
+        });
+        handleFavoriteResponse({
+            dataset: {
+                favoriteAction: "toggle",
+                favoritePath: path
+            }
+        }, body);
+        return body;
+    };
+
+    const toggleBookmark = async (id) => {
+        const path = `bookmark:${id}`;
+        const formData = formDataWithCsrf();
+        formData.append("id", id);
+        const body = await requestJson("/files/favorites/toggle-bookmark", {
             method: "POST",
             body: formData
         });
@@ -252,13 +284,34 @@ document.addEventListener("DOMContentLoaded", () => {
         menu.className = "context-menu";
         menu.setAttribute("role", "menu");
 
-        menu.append(sidebarMenuButton({
-            icon: "fas fa-arrow-up-right-from-square",
-            label: "Open",
-            action: () => {
-                window.location.href = link.href;
-            }
-        }));
+        if (link.dataset.favoriteBookmarkLink === "true") {
+            menu.append(sidebarMenuButton({
+                icon: "fas fa-arrow-up-right-from-square",
+                label: "Open in new tab",
+                action: () => {
+                    window.open(link.dataset.favoriteDirectOpenUrl || link.href, "_blank", "noopener,noreferrer");
+                }
+            }));
+            menu.append(sidebarMenuButton({
+                icon: "fas fa-circle-info",
+                label: "Details",
+                action: () => {
+                    window.location.href = link.dataset.favoriteDetailUrl || link.href;
+                }
+            }));
+        } else {
+            menu.append(sidebarMenuButton({
+                icon: "fas fa-arrow-up-right-from-square",
+                label: "Open",
+                action: () => {
+                    if (link.target === "_blank") {
+                        window.open(link.href, "_blank", "noopener,noreferrer");
+                        return;
+                    }
+                    window.location.href = link.href;
+                }
+            }));
+        }
 
         if (sidebarSibling(link, "up") || sidebarSibling(link, "down")) {
             menu.append(sidebarMenuSeparator());
@@ -357,6 +410,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     window.EnderVaultFavorites = {
         togglePath,
+        toggleBookmark,
         bind: bindFavoriteForms
     };
 });

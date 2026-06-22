@@ -2,5 +2,7 @@ package io.github.fourilla.endervault.favorite;
 
 public enum FavoriteTargetType {
     FILE,
-    DIRECTORY
+    DIRECTORY,
+    BOOKMARK_LINK,
+    BOOKMARK_DIRECTORY
 }

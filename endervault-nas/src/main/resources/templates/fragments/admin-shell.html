@@ -30,9 +30,14 @@
             </summary>
             <div class="sidebar-favorites-list" data-sidebar-favorites-list>
                 <a th:each="favorite : ${favorites}"
-                   th:href="${favorite.directory()} ? @{/files(path=${favorite.path()})} : @{/files/detail(path=${favorite.path()})}"
-                   th:title="${favorite.path()}"
-                   th:attr="data-favorite-sidebar-path=${favorite.path()}">
+                   th:href="${favorite.openUrl(bookmarkLinkClickAction)}"
+                   th:title="${favorite.targetLabel()}"
+                   th:target="${favorite.opensInNewTab(bookmarkLinkClickAction)} ? '_blank' : null"
+                   th:rel="${favorite.opensInNewTab(bookmarkLinkClickAction)} ? 'noopener noreferrer' : null"
+                   th:attr="data-favorite-sidebar-path=${favorite.path()},
+                            data-favorite-direct-open-url=${favorite.directOpenUrl()},
+                            data-favorite-detail-url=${favorite.detailUrl()},
+                            data-favorite-bookmark-link=${favorite.bookmarkLink()}">
                     <i th:class="${favorite.iconClass()}" aria-hidden="true"></i>
                     <span th:text="${favorite.name()}">favorite</span>
                 </a>

@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
+import io.github.fourilla.endervault.bookmark.BookmarkMetadataFetcher;
+import io.github.fourilla.endervault.bookmark.BookmarkService;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.favorite.FavoriteService;
 import io.github.fourilla.endervault.recent.RecentService;
@@ -43,7 +45,9 @@ class TrashServiceTest {
         ObjectMapper objectMapper = JsonMapper.builder().findAndAddModules().build();
         shareLinkService = new ShareLinkService(storageService, objectMapper, properties);
         shareLinkService.initialize();
-        favoriteService = new FavoriteService(storageService, objectMapper, properties);
+        BookmarkService bookmarkService = new BookmarkService(objectMapper, properties, new BookmarkMetadataFetcher(properties));
+        bookmarkService.initialize();
+        favoriteService = new FavoriteService(storageService, bookmarkService, objectMapper, properties);
         favoriteService.initialize();
         recentService = new RecentService(storageService, objectMapper, properties);
         recentService.initialize();

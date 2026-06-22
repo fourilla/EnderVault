@@ -196,6 +196,11 @@ button.shared-download-button:disabled:hover {
     padding-top: var(--space-xl);
 }
 
+.manage-delete .row-form,
+.manage-delete button {
+    width: 100%;
+}
+
 .preview-surface {
     display: grid;
     min-height: 220px;

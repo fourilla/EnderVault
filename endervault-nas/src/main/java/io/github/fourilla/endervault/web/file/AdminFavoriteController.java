@@ -2,6 +2,7 @@ package io.github.fourilla.endervault.web.file;
 
 import io.github.fourilla.endervault.favorite.FavoriteItem;
 import io.github.fourilla.endervault.favorite.FavoriteService;
+import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.FavoriteActionResponse;
 import io.github.fourilla.endervault.web.support.FavoritePayload;
@@ -21,9 +22,11 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 public class AdminFavoriteController {
 
     private final FavoriteService favoriteService;
+    private final NasProperties nasProperties;
 
-    public AdminFavoriteController(FavoriteService favoriteService) {
+    public AdminFavoriteController(FavoriteService favoriteService, NasProperties nasProperties) {
         this.favoriteService = favoriteService;
+        this.nasProperties = nasProperties;
     }
 
     @GetMapping("/files/favorites")
@@ -44,7 +47,30 @@ public class AdminFavoriteController {
                 : FlashNotification.success("Added to favorites.");
         Object jsonBody = favorite == null
                 ? FavoriteActionResponse.removed(notification, path)
-                : FavoriteActionResponse.added(notification, FavoritePayload.from(favorite));
+                : FavoriteActionResponse.added(notification, favoritePayload(favorite));
+        return ActionResponseSupport.ok(
+                request,
+                redirectAttributes,
+                notification,
+                redirectBack(request, "redirect:/files/favorites"),
+                jsonBody
+        );
+    }
+
+    @PostMapping("/files/favorites/toggle-bookmark")
+    public Object toggleBookmark(
+            @RequestParam("id") String id,
+            HttpServletRequest request,
+            RedirectAttributes redirectAttributes
+    ) throws IOException {
+        FavoriteItem favorite = favoriteService.toggleBookmark(id);
+        String path = "bookmark:" + (id == null ? "" : id.trim());
+        FlashNotification notification = favorite == null
+                ? FlashNotification.success("Removed from favorites.")
+                : FlashNotification.success("Added to favorites.");
+        Object jsonBody = favorite == null
+                ? FavoriteActionResponse.removed(notification, path)
+                : FavoriteActionResponse.added(notification, favoritePayload(favorite));
         return ActionResponseSupport.ok(
                 request,
                 redirectAttributes,
@@ -105,5 +131,14 @@ public class AdminFavoriteController {
         } catch (IllegalArgumentException ex) {
             return fallback;
         }
+    }
+
+    private FavoritePayload favoritePayload(FavoriteItem favorite) {
+        return FavoritePayload.from(favorite, bookmarkLinkClickAction());
+    }
+
+    private String bookmarkLinkClickAction() {
+        String value = nasProperties.getBookmarks().getLinkClickAction();
+        return "detail".equalsIgnoreCase(value) ? "detail" : "open";
     }
 }

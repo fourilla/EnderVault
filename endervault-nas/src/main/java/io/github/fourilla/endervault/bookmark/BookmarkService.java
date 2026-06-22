@@ -2,6 +2,7 @@ package io.github.fourilla.endervault.bookmark;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.fourilla.endervault.common.ByteSizeFormatter;
 import io.github.fourilla.endervault.common.JsonRegistry;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
@@ -11,9 +12,12 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -28,6 +32,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class BookmarkService {
 
+    private static final DateTimeFormatter MODIFIED_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
     private static final TypeReference<List<BookmarkItem>> BOOKMARK_LIST = new TypeReference<>() {
     };
     private static final TypeReference<List<BookmarkFaviconCacheEntry>> FAVICON_CACHE_LIST = new TypeReference<>() {
@@ -387,6 +393,63 @@ public class BookmarkService {
             throw new StorageAccessException("Bookmark favicon was not found.");
         }
         return new BookmarkFavicon(path, bookmark.faviconContentType());
+    }
+
+    public synchronized List<BookmarkFaviconCacheFile> orphanFaviconCacheFiles() throws IOException {
+        Set<String> referencedFileNames = referencedFaviconFileNames(readAllMutable());
+        List<BookmarkFaviconCacheEntry> registeredEntries = faviconRegistry.read();
+        Set<String> registeredFileNames = new HashSet<>();
+        Set<String> reportedFileNames = new HashSet<>();
+        List<BookmarkFaviconCacheFile> orphanFiles = new ArrayList<>();
+
+        for (BookmarkFaviconCacheEntry entry : registeredEntries) {
+            String fileName = cleanFaviconFileName(entry.fileName());
+            if (fileName == null) {
+                continue;
+            }
+            registeredFileNames.add(fileName);
+            if (!referencedFileNames.contains(fileName) && reportedFileNames.add(fileName)) {
+                orphanFiles.add(toFaviconCacheFile(fileName, true));
+            }
+        }
+
+        if (Files.isDirectory(faviconRoot, LinkOption.NOFOLLOW_LINKS)) {
+            try (var paths = Files.list(faviconRoot)) {
+                for (Path path : paths
+                        .filter(candidate -> Files.isRegularFile(candidate, LinkOption.NOFOLLOW_LINKS))
+                        .filter(candidate -> !Files.isSymbolicLink(candidate))
+                        .toList()) {
+                    String fileName = path.getFileName().toString();
+                    if (fileName.endsWith(".tmp")
+                            || referencedFileNames.contains(fileName)
+                            || !reportedFileNames.add(fileName)) {
+                        continue;
+                    }
+                    orphanFiles.add(toFaviconCacheFile(fileName, registeredFileNames.contains(fileName)));
+                }
+            }
+        }
+
+        return orphanFiles.stream().sorted().toList();
+    }
+
+    public synchronized void deleteFaviconCacheFile(String fileName) throws IOException {
+        String normalizedFileName = requireFaviconFileName(fileName);
+        if (referencedFaviconFileNames(readAllMutable()).contains(normalizedFileName)) {
+            throw new StorageAccessException("Bookmark favicon cache is still referenced.");
+        }
+
+        List<BookmarkFaviconCacheEntry> entries = new ArrayList<>(faviconRegistry.read());
+        boolean changed = entries.removeIf(entry -> normalizedFileName.equals(cleanFaviconFileName(entry.fileName())));
+        if (changed) {
+            faviconRegistry.write(List.copyOf(entries));
+        }
+
+        Path target = faviconRoot.resolve(normalizedFileName).normalize();
+        if (!target.startsWith(faviconRoot)) {
+            throw new StorageAccessException("Bookmark favicon cache path is invalid.");
+        }
+        Files.deleteIfExists(target);
     }
 
     public boolean metadataFetchEnabled() {
@@ -844,6 +907,60 @@ public class BookmarkService {
         }
         Path target = faviconRoot.resolve(entry.fileName()).normalize();
         return target.startsWith(faviconRoot) && Files.isRegularFile(target);
+    }
+
+    private Set<String> referencedFaviconFileNames(List<BookmarkItem> bookmarks) {
+        Set<String> fileNames = new HashSet<>();
+        for (BookmarkItem bookmark : bookmarks) {
+            if (bookmark == null || !bookmark.faviconAvailable()) {
+                continue;
+            }
+            String fileName = cleanFaviconFileName(bookmark.faviconFileName());
+            if (fileName != null) {
+                fileNames.add(fileName);
+            }
+        }
+        return fileNames;
+    }
+
+    private BookmarkFaviconCacheFile toFaviconCacheFile(String fileName, boolean registered) {
+        Path target = faviconRoot.resolve(fileName).normalize();
+        try {
+            long size = Files.isRegularFile(target, LinkOption.NOFOLLOW_LINKS) ? Files.size(target) : 0L;
+            Instant modified = Files.isRegularFile(target, LinkOption.NOFOLLOW_LINKS)
+                    ? Files.getLastModifiedTime(target).toInstant()
+                    : null;
+            return new BookmarkFaviconCacheFile(
+                    fileName,
+                    size,
+                    ByteSizeFormatter.humanSize(size),
+                    modified,
+                    modified == null ? "missing file" : MODIFIED_FORMATTER.format(modified),
+                    registered
+            );
+        } catch (IOException ex) {
+            throw new StorageAccessException("Failed to read bookmark favicon cache metadata.", ex);
+        }
+    }
+
+    private String requireFaviconFileName(String fileName) {
+        String normalized = cleanFaviconFileName(fileName);
+        if (normalized == null) {
+            throw new StorageAccessException("Bookmark favicon cache file name is invalid.");
+        }
+        return normalized;
+    }
+
+    private String cleanFaviconFileName(String fileName) {
+        String normalized = fileName == null ? "" : fileName.trim();
+        if (normalized.isBlank()
+                || normalized.contains("/")
+                || normalized.contains("\\")
+                || normalized.equals(".")
+                || normalized.equals("..")) {
+            return null;
+        }
+        return normalized;
     }
 
     private String normalizeFaviconSourceUrl(String sourceUrl) {

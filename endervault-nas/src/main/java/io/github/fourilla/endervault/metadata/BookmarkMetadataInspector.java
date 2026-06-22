@@ -1,5 +1,6 @@
 package io.github.fourilla.endervault.metadata;
 
+import io.github.fourilla.endervault.bookmark.BookmarkFaviconCacheFile;
 import io.github.fourilla.endervault.bookmark.BookmarkItem;
 import io.github.fourilla.endervault.bookmark.BookmarkService;
 import io.github.fourilla.endervault.task.TaskContext;
@@ -77,11 +78,21 @@ public class BookmarkMetadataInspector implements MetadataInspector {
                 issues.add(moveToRecoveredIssue(item, "Bookmark directory tree has a cycle", "Move this item to Recovered Bookmarks."));
             }
         }
+        for (BookmarkFaviconCacheFile file : bookmarkService.orphanFaviconCacheFiles()) {
+            if (context != null) {
+                context.checkCanceled();
+            }
+            issues.add(orphanFaviconIssue(file));
+        }
         return List.copyOf(issues);
     }
 
     @Override
     public String repair(MetadataIssueAction action, String subject) throws IOException {
+        if (action == MetadataIssueAction.DELETE_BOOKMARK_FAVICON_CACHE) {
+            bookmarkService.deleteFaviconCacheFile(subject);
+            return "Deleted bookmark favicon cache: " + subject;
+        }
         if (action != MetadataIssueAction.MOVE_BOOKMARK_TO_ROOT
                 && action != MetadataIssueAction.MOVE_BOOKMARK_TO_RECOVERED_DIRECTORY) {
             throw new IllegalArgumentException("Unsupported bookmark repair action.");
@@ -99,6 +110,19 @@ public class BookmarkMetadataInspector implements MetadataInspector {
                 title,
                 item.title() + " (" + item.id() + ")",
                 recommendation
+        );
+    }
+
+    private MetadataIssue orphanFaviconIssue(BookmarkFaviconCacheFile file) {
+        String registryState = file.registered() ? "registered cache entry" : "unregistered cache file";
+        return new MetadataIssue(
+                area(),
+                MetadataIssueSeverity.INFO,
+                MetadataIssueAction.DELETE_BOOKMARK_FAVICON_CACHE,
+                file.fileName(),
+                "Bookmark favicon cache is not referenced",
+                file.fileName() + " (" + registryState + ", " + file.sizeLabel() + ", modified " + file.modifiedLabel() + ")",
+                "Delete this orphan bookmark favicon cache."
         );
     }
 

@@ -114,6 +114,12 @@ public class AdminShellModelAdvice {
         );
     }
 
+    @ModelAttribute("bookmarkLinkClickAction")
+    public String bookmarkLinkClickAction() {
+        String value = nasProperties.getBookmarks().getLinkClickAction();
+        return "detail".equalsIgnoreCase(value) ? "detail" : "open";
+    }
+
     public record TaskUiConfig(
             boolean activityPanelEnabled,
             int completedDisplayMs,

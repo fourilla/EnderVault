@@ -134,6 +134,7 @@
                     th:attr="data-bookmark-id=${directory.id()},
                              data-bookmark-title=${directory.title()},
                              data-bookmark-type='directory',
+                             data-bookmark-favorite=${favoriteBookmarkIds.contains(directory.id())},
                              data-bookmark-open-url=@{/files/bookmarks(directory=${directory.id()})},
                              data-bookmark-detail-url=@{/files/bookmarks/detail(id=${directory.id()})},
                              data-bookmark-delete-url=@{/files/bookmarks/delete}">
@@ -152,6 +153,17 @@
                     <td th:text="${directory.updatedLabel()}">updated</td>
                     <td>
                         <div class="table-actions">
+                            <form class="row-form" method="post" th:action="@{/files/favorites/toggle-bookmark}"
+                                  data-favorite-action="toggle" th:attr="data-favorite-path=|bookmark:${directory.id()}|">
+                                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                                <input type="hidden" name="id" th:value="${directory.id()}">
+                                <button class="ghost icon-button action-icon favorite-toggle" type="submit"
+                                        th:classappend="${favoriteBookmarkIds.contains(directory.id())} ? ' is-favorite' : ''"
+                                        th:title="${favoriteBookmarkIds.contains(directory.id()) ? 'Remove from favorites' : 'Add to favorites'}"
+                                        th:attr="aria-label=${favoriteBookmarkIds.contains(directory.id()) ? 'Remove from favorites' : 'Add to favorites'}">
+                                    <i class="fas fa-star" aria-hidden="true"></i>
+                                </button>
+                            </form>
                             <a class="button-link ghost icon-button action-icon"
                                th:href="@{/files/bookmarks(directory=${directory.id()})}" title="Open directory" aria-label="Open directory">
                                 <i class="fas fa-folder-open" aria-hidden="true"></i>
@@ -181,9 +193,7 @@
                     <th th:replace="~{fragments/tables :: selectHeader('Select all bookmark links in this table')}"></th>
                     <th>Name</th>
                     <th>Type</th>
-                    <th>URL</th>
                     <th>Updated</th>
-                    <th>Last opened</th>
                     <th>Actions</th>
                 </tr>
                 </thead>
@@ -195,6 +205,7 @@
                              data-bookmark-type='link',
                              data-bookmark-url=${link.safeUrl()},
                              data-bookmark-external=${link.externalLink()},
+                             data-bookmark-favorite=${favoriteBookmarkIds.contains(link.id())},
                              data-bookmark-metadata-enabled=${bookmarkMetadataFetchEnabled},
                              data-bookmark-open-url=@{/files/bookmarks/open(id=${link.id()})},
                              data-bookmark-detail-url=@{/files/bookmarks/detail(id=${link.id()})},
@@ -219,15 +230,20 @@
                         </a>
                     </td>
                     <td th:text="${link.typeLabel()}">Link</td>
-                    <td class="bookmark-url-cell">
-                        <div class="bookmark-url-content">
-                            <span class="path-cell" th:title="${link.safeUrl()}" th:text="${link.safeUrl()}">url</span>
-                        </div>
-                    </td>
                     <td th:text="${link.updatedLabel()}">updated</td>
-                    <td th:text="${link.lastOpenedLabel()}">last opened</td>
                     <td>
                         <div class="table-actions">
+                            <form class="row-form" method="post" th:action="@{/files/favorites/toggle-bookmark}"
+                                  data-favorite-action="toggle" th:attr="data-favorite-path=|bookmark:${link.id()}|">
+                                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                                <input type="hidden" name="id" th:value="${link.id()}">
+                                <button class="ghost icon-button action-icon favorite-toggle" type="submit"
+                                        th:classappend="${favoriteBookmarkIds.contains(link.id())} ? ' is-favorite' : ''"
+                                        th:title="${favoriteBookmarkIds.contains(link.id()) ? 'Remove from favorites' : 'Add to favorites'}"
+                                        th:attr="aria-label=${favoriteBookmarkIds.contains(link.id()) ? 'Remove from favorites' : 'Add to favorites'}">
+                                    <i class="fas fa-star" aria-hidden="true"></i>
+                                </button>
+                            </form>
                             <a class="button-link ghost icon-button action-icon"
                                th:href="@{/files/bookmarks/open(id=${link.id()})}" target="_blank" rel="noopener noreferrer"
                                title="Open link" aria-label="Open link">

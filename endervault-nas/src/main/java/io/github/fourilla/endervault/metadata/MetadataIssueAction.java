@@ -9,6 +9,7 @@ public enum MetadataIssueAction {
     REMOVE_TRASH_RECORD("Remove trash record", true),
     DELETE_ORPHAN_TRASH_ITEM("Delete orphan trash item", true),
     DELETE_THUMBNAIL_CACHE("Delete cache file", true),
+    DELETE_BOOKMARK_FAVICON_CACHE("Delete favicon cache", true),
     DELETE_UPLOAD_TEMP("Delete temporary file", true),
     MOVE_BOOKMARK_TO_ROOT("Move bookmark to recovered", true),
     MOVE_BOOKMARK_TO_RECOVERED_DIRECTORY("Move bookmark to recovered", true);

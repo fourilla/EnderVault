@@ -1,9 +1,7 @@
 package io.github.fourilla.endervault.metadata;
 
-import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.favorite.FavoriteItem;
 import io.github.fourilla.endervault.favorite.FavoriteService;
-import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.task.TaskContext;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -14,11 +12,9 @@ import org.springframework.stereotype.Component;
 public class FavoriteMetadataInspector implements MetadataInspector {
 
     private final FavoriteService favoriteService;
-    private final StorageService storageService;
 
-    public FavoriteMetadataInspector(FavoriteService favoriteService, StorageService storageService) {
+    public FavoriteMetadataInspector(FavoriteService favoriteService) {
         this.favoriteService = favoriteService;
-        this.storageService = storageService;
     }
 
     @Override
@@ -38,9 +34,7 @@ public class FavoriteMetadataInspector implements MetadataInspector {
             if (context != null) {
                 context.checkCanceled();
             }
-            try {
-                storageService.describeVaultPath(favorite.path());
-            } catch (IOException | StorageAccessException ex) {
+            if (!favoriteService.targetExists(favorite)) {
                 issues.add(new MetadataIssue(
                         area(),
                         MetadataIssueSeverity.WARNING,

@@ -38,6 +38,17 @@
             </div>
 
             <div class="detail-actions">
+                <form class="row-form" method="post" th:action="@{/files/favorites/toggle-bookmark}"
+                      data-favorite-action="toggle" th:attr="data-favorite-path=|bookmark:${bookmark.id()}|">
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                    <input type="hidden" name="id" th:value="${bookmark.id()}">
+                    <button class="ghost icon-button favorite-toggle" type="submit"
+                            th:classappend="${favorite} ? ' is-favorite' : ''"
+                            th:title="${favorite ? 'Remove from favorites' : 'Add to favorites'}"
+                            th:attr="aria-label=${favorite ? 'Remove from favorites' : 'Add to favorites'}">
+                        <i class="fas fa-star" aria-hidden="true"></i>
+                    </button>
+                </form>
                 <a class="button-link icon-button" th:if="${bookmark.directory()}"
                    th:href="@{/files/bookmarks(directory=${bookmark.id()})}"
                    title="Open directory" aria-label="Open directory">
@@ -170,7 +181,7 @@
                         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                         <input type="hidden" name="id" th:value="${bookmark.id()}">
                         <input type="hidden" name="parentId" th:value="${currentBookmarkDirectoryId}">
-                        <button class="danger" type="submit">
+                        <button class="danger icon-text-button" type="submit">
                             <i class="fas fa-trash-can" aria-hidden="true"></i>
                             Delete
                         </button>

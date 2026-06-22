@@ -117,8 +117,14 @@ tr:last-child td {
 }
 
 .item-name {
+    display: inline-block;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
     font-weight: 600;
-    overflow-wrap: anywhere;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+    white-space: nowrap;
 }
 
 .item-icon {
@@ -135,7 +141,12 @@ tr:last-child td {
 }
 
 .path-cell {
-    overflow-wrap: anywhere;
+    display: inline-block;
+    max-width: min(48vw, 560px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+    white-space: nowrap;
 }
 
 .status-badge {

@@ -47,6 +47,7 @@ document.addEventListener("DOMContentLoaded", () => {
         type: item.dataset.bookmarkType || "",
         url: item.dataset.bookmarkUrl || "",
         external: item.dataset.bookmarkExternal === "true",
+        favorite: item.dataset.bookmarkFavorite === "true",
         metadataEnabled: item.dataset.bookmarkMetadataEnabled === "true",
         openUrl: item.dataset.bookmarkOpenUrl || "",
         detailUrl: item.dataset.bookmarkDetailUrl || "",
@@ -146,6 +147,12 @@ document.addEventListener("DOMContentLoaded", () => {
         showToast(copied ? "success" : "warning", copied ? "Bookmark URL copied." : "Clipboard is not available.");
     };
 
+    const toggleFavorite = async (item) => {
+        const body = await window.EnderVaultFavorites?.toggleBookmark(item.id);
+        item.favorite = Boolean(body?.active);
+        item.element.dataset.bookmarkFavorite = String(item.favorite);
+    };
+
     const registerAction = (action) => {
         actions.push(action);
         return action;
@@ -154,7 +161,7 @@ document.addEventListener("DOMContentLoaded", () => {
     registerAction({
         id: "open",
         group: "primary",
-        label: (context) => context.item.directory ? "Open directory" : "Open link",
+        label: (context) => context.item.directory ? "Open directory" : "Open in new tab",
         icon: (context) => context.item.directory ? "fas fa-folder-open" : "fas fa-arrow-up-right-from-square",
         visible: (context) => context.mode === "single",
         run: (context) => navigateTo(context.item.openUrl, context.item.link)
@@ -176,6 +183,15 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: "fas fa-copy",
         visible: (context) => context.mode === "single" && context.item.link && Boolean(context.item.url),
         run: (context) => copyBookmarkUrl(context.item)
+    });
+
+    registerAction({
+        id: "toggle-favorite",
+        group: "organize",
+        label: (context) => context.item.favorite ? "Remove from favorites" : "Add to favorites",
+        icon: "fas fa-star",
+        visible: (context) => context.mode === "single",
+        run: (context) => toggleFavorite(context.item)
     });
 
     registerAction({
