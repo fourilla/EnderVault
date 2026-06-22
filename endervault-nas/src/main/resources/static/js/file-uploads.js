@@ -200,43 +200,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
 
-    const ensureConflictDialog = () => {
-        let dialog = document.getElementById("uploadConflictDialog");
-        if (dialog) {
-            return dialog;
-        }
-
-        dialog = document.createElement("dialog");
-        dialog.id = "uploadConflictDialog";
-        dialog.className = "upload-conflict-dialog";
-        dialog.innerHTML = `
-            <form method="dialog" class="upload-conflict-card">
-                <header class="upload-conflict-header">
-                    <div>
-                        <h2>File name conflict</h2>
-                        <p data-conflict-message></p>
-                    </div>
-                    <button class="ghost icon-button action-icon" value="default" type="submit" title="Use default policy" aria-label="Use default policy">
-                        <i class="fas fa-xmark" aria-hidden="true"></i>
-                    </button>
-                </header>
-                <div class="upload-conflict-actions">
-                    <button class="ghost icon-text-button" value="rename" type="submit">
-                        <span>Rename and Continue</span>
-                    </button>
-                    <button class="danger icon-text-button" value="overwrite" type="submit">
-                        <span>Overwrite</span>
-                    </button>
-                    <button class="ghost icon-text-button" value="cancel" type="submit">
-                        <span>Cancel</span>
-                    </button>
-                </div>
-            </form>
-        `;
-        document.body.append(dialog);
-        return dialog;
-    };
-
     const showNextConflictDialog = () => {
         if (uploadState.conflictDialogOpen || uploadState.conflictQueue.length === 0) {
             return;
@@ -248,31 +211,25 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        const dialog = ensureConflictDialog();
-        const message = dialog.querySelector("[data-conflict-message]");
         const defaultPolicy = upload.conflict.defaultPolicy || "cancel";
-        message.textContent = `"${upload.conflict.fileName}" already exists. Choose how to finish this upload. Closing uses the default policy: ${defaultPolicy}.`;
-        dialog.returnValue = "default";
+        const askPolicy = window.EnderVault.askFileConflictPolicy
+            ? window.EnderVault.askFileConflictPolicy({
+                ...upload.conflict,
+                defaultPolicy,
+                message: `"${upload.conflict.fileName}" already exists. Choose how to finish this upload.`
+            })
+            : Promise.resolve("default");
 
         uploadState.conflictDialogOpen = true;
-        const finish = () => {
+        askPolicy.then((policy) => {
             uploadState.conflictDialogOpen = false;
-            dialog.removeEventListener("close", onClose);
             showNextConflictDialog();
-        };
-        const onClose = () => {
-            const policy = dialog.returnValue || "default";
-            finish();
             resolveUploadConflict(upload, policy);
-        };
-        dialog.addEventListener("close", onClose);
-
-        if (typeof dialog.showModal === "function") {
-            dialog.showModal();
-        } else {
-            dialog.returnValue = "default";
-            onClose();
-        }
+        }).catch(() => {
+            uploadState.conflictDialogOpen = false;
+            showNextConflictDialog();
+            resolveUploadConflict(upload, "default");
+        });
     };
 
     const queueUploadConflict = (upload, conflict) => {

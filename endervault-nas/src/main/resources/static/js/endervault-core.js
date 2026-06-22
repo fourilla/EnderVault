@@ -296,6 +296,7 @@
         submitJsonForm,
         requestJsonResolvingConflicts,
         submitJsonFormResolvingConflicts,
+        askFileConflictPolicy,
         showNotification,
         showToast,
         copyText,
