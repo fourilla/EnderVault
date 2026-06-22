@@ -1,5 +1,9 @@
 package io.github.fourilla.endervault.web.file;
 
+import static io.github.fourilla.endervault.web.file.FileRedirects.clean;
+import static io.github.fourilla.endervault.web.file.FileRedirects.redirectToFiles;
+import static io.github.fourilla.endervault.web.file.FileRedirects.targetPath;
+
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
@@ -26,7 +30,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import org.springframework.web.util.UriComponentsBuilder;
 
 @Controller
 public class AdminFileUploadController {
@@ -255,37 +258,6 @@ public class AdminFileUploadController {
         }
         ConflictPolicy policy = ConflictPolicy.from(conflictPolicy);
         return policy == null ? storageService.defaultConflictPolicy() : policy;
-    }
-
-    private String targetPath(String directoryPath, String filename) {
-        if (directoryPath == null || directoryPath.isBlank()) {
-            return filename;
-        }
-        return directoryPath + "/" + filename;
-    }
-
-    private String clean(String value) {
-        return value == null ? "" : value.trim();
-    }
-
-    private String redirectToFiles(
-            String path,
-            String view,
-            String sort,
-            String direction,
-            Integer page,
-            Integer size
-    ) {
-        int pageNumber = page == null ? 1 : Math.max(1, page);
-
-        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/files");
-        if (path != null && !path.isBlank()) {
-            builder.queryParam("path", path);
-        }
-        if (pageNumber > 1) {
-            builder.queryParam("page", pageNumber);
-        }
-        return "redirect:" + builder.build().encode().toUriString();
     }
 
     private record UploadConflictActionResponse(

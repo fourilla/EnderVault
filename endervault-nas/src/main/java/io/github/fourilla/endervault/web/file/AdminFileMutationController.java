@@ -1,5 +1,10 @@
 package io.github.fourilla.endervault.web.file;
 
+import static io.github.fourilla.endervault.web.file.FileRedirects.clean;
+import static io.github.fourilla.endervault.web.file.FileRedirects.redirectToDetail;
+import static io.github.fourilla.endervault.web.file.FileRedirects.redirectToFiles;
+import static io.github.fourilla.endervault.web.file.FileRedirects.targetPath;
+
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
 import io.github.fourilla.endervault.storage.FileLifecycleService;
@@ -21,7 +26,6 @@ import io.github.fourilla.endervault.web.task.TaskPayload;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -30,8 +34,6 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import org.springframework.web.util.UriComponentsBuilder;
-import org.springframework.web.util.UriUtils;
 
 @Controller
 public class AdminFileMutationController {
@@ -325,49 +327,6 @@ public class AdminFileMutationController {
                 ),
                 ActionResponseSupport.redirectUrl(redirect)
         ));
-    }
-
-    private String targetPath(String directoryPath, String filename) {
-        if (directoryPath == null || directoryPath.isBlank()) {
-            return filename;
-        }
-        return directoryPath + "/" + filename;
-    }
-
-    private String clean(String value) {
-        return value == null ? "" : value.trim();
-    }
-
-    private String redirectToFiles(String path) {
-        return redirectToFiles(path, null);
-    }
-
-    private String redirectToFiles(String path, String view) {
-        return redirectToFiles(path, view, null, null, null, null);
-    }
-
-    private String redirectToFiles(
-            String path,
-            String view,
-            String sort,
-            String direction,
-            Integer page,
-            Integer size
-    ) {
-        int pageNumber = page == null ? 1 : Math.max(1, page);
-
-        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/files");
-        if (path != null && !path.isBlank()) {
-            builder.queryParam("path", path);
-        }
-        if (pageNumber > 1) {
-            builder.queryParam("page", pageNumber);
-        }
-        return "redirect:" + builder.build().encode().toUriString();
-    }
-
-    private String redirectToDetail(String path) {
-        return "redirect:/files/detail?path=" + UriUtils.encodeQueryParam(path, StandardCharsets.UTF_8);
     }
 
     private record FileTaskActionResponse(
