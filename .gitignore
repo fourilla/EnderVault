@@ -1,4 +1,27 @@
+/target/
+/logs/
+/storage/
+/docs/
+
+# Local machine overrides and secrets.
+/endervault-nas.properties
+/*.local.properties
+
+# Legacy/reference files that should not be published.
 기존코드.zip
 mynas/
 
+# Local IDE/workspace files.
 /.metadata/
+/.agents/
+/.codex/
+.idea/
+.vscode/
+*.iml
+
+.classpath
+.project
+.settings/
+.apt_generated/
+.apt_generated_tests/
+bin/
