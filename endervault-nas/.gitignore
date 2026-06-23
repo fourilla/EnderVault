@@ -1,6 +1,7 @@
 /target/
 /logs/
 /storage/
+/docs/
 
 # Local machine overrides and secrets.
 /endervault-nas.properties
