@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.DosFileAttributeView;
+import java.util.Locale;
 
 final class StorageHiddenPolicy {
 
@@ -37,6 +38,10 @@ final class StorageHiddenPolicy {
     }
 
     static boolean setDosHiddenIfSupported(Path path, boolean hidden) throws IOException {
+        if (!isWindows()) {
+            return false;
+        }
+
         DosFileAttributeView view = Files.getFileAttributeView(
                 path,
                 DosFileAttributeView.class,
@@ -46,7 +51,7 @@ final class StorageHiddenPolicy {
             return false;
         }
         view.setHidden(hidden);
-        return true;
+        return isHidden(path) == hidden;
     }
 
     static String hiddenName(String name) {
@@ -59,5 +64,13 @@ final class StorageHiddenPolicy {
             throw new StorageAccessException("Cannot unhide item with only dot characters.");
         }
         return visible;
+    }
+
+    static boolean isWindowsOs(String osName) {
+        return osName != null && osName.toLowerCase(Locale.ROOT).contains("win");
+    }
+
+    private static boolean isWindows() {
+        return isWindowsOs(System.getProperty("os.name"));
     }
 }
