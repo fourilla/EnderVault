@@ -135,3 +135,97 @@ td .action-icon i {
     font-size: var(--font-size-xs);
     font-weight: 700;
 }
+
+.file-new-panel {
+    width: 260px;
+}
+
+.file-new-actions {
+    display: grid;
+    gap: var(--space-lg);
+}
+
+.file-new-actions button,
+.file-new-noscript-form button {
+    width: 100%;
+}
+
+.file-new-actions button {
+    justify-content: flex-start;
+    text-align: left;
+}
+
+.file-new-noscript-form {
+    margin-top: var(--space-lg);
+    padding-top: var(--space-lg);
+    border-top: 1px solid var(--line);
+}
+
+.file-new-noscript-form:first-child {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+}
+
+.text-input-dialog {
+    width: min(420px, calc(100vw - 32px));
+    border: 0;
+    border-radius: var(--radius-panel);
+    background: transparent;
+    color: var(--text);
+    padding: 0;
+}
+
+.text-input-dialog::backdrop {
+    background: rgba(5, 8, 12, 0.64);
+}
+
+.text-input-card {
+    display: grid;
+    gap: var(--space-4xl);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
+    background: var(--panel-elevated);
+    box-shadow: 0 18px 50px var(--shadow);
+    padding: var(--space-5xl);
+}
+
+.text-input-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3xl);
+}
+
+.text-input-header h2,
+.text-input-header p,
+.text-input-error {
+    margin: 0;
+}
+
+.text-input-header h2 {
+    font-size: var(--font-size-lg);
+}
+
+.text-input-header p,
+.text-input-field,
+.text-input-error {
+    color: var(--muted);
+    font-size: var(--font-size-sm);
+}
+
+.text-input-field {
+    display: grid;
+    gap: var(--space-xs);
+    font-weight: 700;
+}
+
+.text-input-error {
+    color: var(--danger);
+}
+
+.text-input-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-lg);
+}

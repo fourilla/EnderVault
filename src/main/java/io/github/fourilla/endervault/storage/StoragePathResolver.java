@@ -6,8 +6,39 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.util.Locale;
+import java.util.Set;
 
 final class StoragePathResolver {
+
+    private static final int MAX_SINGLE_NAME_LENGTH = 255;
+    private static final String INVALID_NAME_CHARS = "<>:\"/\\|?*";
+    private static final Set<String> WINDOWS_RESERVED_NAMES = Set.of(
+            "CON",
+            "PRN",
+            "AUX",
+            "NUL",
+            "COM1",
+            "COM2",
+            "COM3",
+            "COM4",
+            "COM5",
+            "COM6",
+            "COM7",
+            "COM8",
+            "COM9",
+            "LPT1",
+            "LPT2",
+            "LPT3",
+            "LPT4",
+            "LPT5",
+            "LPT6",
+            "LPT7",
+            "LPT8",
+            "LPT9",
+            "CONIN$",
+            "CONOUT$"
+    );
 
     private final Path root;
     private final Path trashRoot;
@@ -87,12 +118,27 @@ final class StoragePathResolver {
     }
 
     void validateSingleName(String itemName) {
+        validateSingleNameValue(itemName);
+    }
+
+    static void validateSingleNameValue(String itemName) {
         if (itemName == null || itemName.isBlank()) {
             throw new StorageAccessException("Name is required.");
         }
-        if (itemName.contains("/") || itemName.contains("\\") || ".".equals(itemName) || "..".equals(itemName)
-                || itemName.contains(":")) {
+        if (!itemName.equals(itemName.trim())) {
+            throw new StorageAccessException("Name cannot start or end with whitespace.");
+        }
+        if (itemName.length() > MAX_SINGLE_NAME_LENGTH) {
+            throw new StorageAccessException("Name is too long.");
+        }
+        if (".".equals(itemName) || "..".equals(itemName) || itemName.endsWith(".")) {
             throw new StorageAccessException("Invalid name: " + itemName);
+        }
+        if (containsInvalidNameCharacter(itemName)) {
+            throw new StorageAccessException("Invalid name: " + itemName);
+        }
+        if (isWindowsReservedName(itemName)) {
+            throw new StorageAccessException("Reserved device names are not allowed: " + itemName);
         }
     }
 
@@ -201,5 +247,21 @@ final class StoragePathResolver {
             return false;
         }
         return isVaultSystemPath(path.toRealPath());
+    }
+
+    private static boolean containsInvalidNameCharacter(String itemName) {
+        for (int i = 0; i < itemName.length(); i++) {
+            char character = itemName.charAt(i);
+            if (Character.isISOControl(character) || INVALID_NAME_CHARS.indexOf(character) >= 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isWindowsReservedName(String itemName) {
+        int extensionIndex = itemName.indexOf('.');
+        String baseName = extensionIndex < 0 ? itemName : itemName.substring(0, extensionIndex);
+        return WINDOWS_RESERVED_NAMES.contains(baseName.toUpperCase(Locale.ROOT));
     }
 }

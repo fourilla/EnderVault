@@ -77,6 +77,25 @@ public class AdminFileMutationController {
         return ActionResponseSupport.redirect(request, redirectAttributes, notification, redirect);
     }
 
+    @PostMapping("/files/files")
+    public Object createFile(
+            @RequestParam(value = "path", required = false) String path,
+            @RequestParam("name") String name,
+            @RequestParam(value = "view", required = false) String view,
+            @RequestParam(value = "sort", required = false) String sort,
+            @RequestParam(value = "dir", required = false) String direction,
+            @RequestParam(value = "size", required = false) Integer size,
+            HttpServletRequest request,
+            RedirectAttributes redirectAttributes
+    ) throws IOException {
+        storageService.createFile(path, name);
+        FileItem file = storageService.describeVaultChild(path, name);
+        activityLogService.record("CREATE_FILE", request, file.path(), null, "Created file " + name);
+        FlashNotification notification = FlashNotification.success("File created.");
+        String redirect = redirectToFiles(path, view, sort, direction, 1, size);
+        return ActionResponseSupport.redirect(request, redirectAttributes, notification, redirect);
+    }
+
     @PostMapping("/files/rename")
     public Object rename(
             @RequestParam(value = "path", required = false) String path,

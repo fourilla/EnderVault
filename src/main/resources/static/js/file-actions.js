@@ -1,6 +1,9 @@
 document.addEventListener("DOMContentLoaded", () => {
     const bulkActionForm = document.getElementById("bulkActionForm");
     const deleteSelectedButton = document.getElementById("deleteSelectedButton");
+    const createFileForm = document.getElementById("createFileForm");
+    const fileNameInput = document.getElementById("newFileNameInput");
+    const createFileButton = document.getElementById("createFileButton");
     const createDirectoryForm = document.getElementById("createDirectoryForm");
     const directoryNameInput = document.getElementById("newDirectoryNameInput");
     const createDirectoryButton = document.getElementById("createDirectoryButton");
@@ -15,34 +18,71 @@ document.addEventListener("DOMContentLoaded", () => {
             body: new FormData(form)
         });
 
-    if (createDirectoryForm && directoryNameInput && createDirectoryButton) {
-        createDirectoryButton.addEventListener("click", async () => {
-            const directoryName = window.prompt("Directory name");
-            if (!directoryName) {
+    const closeParentMenu = (button) => {
+        const menu = button?.closest("details.settings-menu");
+        if (menu) {
+            menu.open = false;
+        }
+    };
+
+    const createItem = ({ form, input, button, title, label, placeholder, failureFallback }) => {
+        if (!form || !input || !button) {
+            return;
+        }
+
+        button.addEventListener("click", async () => {
+            const itemName = await window.EnderVault.askTextInput({
+                title,
+                label,
+                placeholder,
+                confirmLabel: "Create"
+            });
+            if (!itemName) {
                 return;
             }
 
-            const trimmedName = directoryName.trim();
+            const trimmedName = itemName.trim();
             if (!trimmedName) {
                 return;
             }
 
-            directoryNameInput.disabled = false;
-            directoryNameInput.value = trimmedName;
-            createDirectoryButton.disabled = true;
+            input.disabled = false;
+            input.value = trimmedName;
+            button.disabled = true;
             try {
-                const body = await submitFormJson(createDirectoryForm);
+                const body = await submitFormJson(form);
                 showActionNotification(body.notification);
                 await window.EnderVaultFileBrowser.refreshListing(body.redirectUrl || window.location.href);
+                closeParentMenu(button);
             } catch (error) {
-                window.EnderVault.showToast("error", error.message || "Directory creation failed.");
+                window.EnderVault.showToast("error", error.message || failureFallback);
             } finally {
-                directoryNameInput.value = "";
-                directoryNameInput.disabled = true;
-                createDirectoryButton.disabled = false;
+                input.value = "";
+                input.disabled = true;
+                button.disabled = false;
             }
         });
-    }
+    };
+
+    createItem({
+        form: createFileForm,
+        input: fileNameInput,
+        button: createFileButton,
+        title: "New file",
+        label: "File name",
+        placeholder: "note.txt",
+        failureFallback: "File creation failed."
+    });
+
+    createItem({
+        form: createDirectoryForm,
+        input: directoryNameInput,
+        button: createDirectoryButton,
+        title: "New directory",
+        label: "Directory name",
+        placeholder: "New directory",
+        failureFallback: "Directory creation failed."
+    });
 
     if (bulkActionForm && deleteSelectedButton) {
         deleteSelectedButton.addEventListener("click", async (event) => {

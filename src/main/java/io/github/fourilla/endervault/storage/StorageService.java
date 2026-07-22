@@ -419,6 +419,11 @@ public class StorageService {
         Files.createDirectory(target);
     }
 
+    public void createFile(String directoryPath, String name) throws IOException {
+        Path target = pathResolver.resolveChild(StorageScope.VAULT, directoryPath, name, false);
+        Files.createFile(target);
+    }
+
     public String rename(String directoryPath, String itemName, String newName) throws IOException {
         return rename(directoryPath, itemName, newName, null);
     }
@@ -515,8 +520,9 @@ public class StorageService {
         if (directoryName == null || directoryName.isBlank()) {
             throw new StorageAccessException("Storage system directory name is required.");
         }
-        if (directoryName.contains("/") || directoryName.contains("\\") || ".".equals(directoryName)
-                || "..".equals(directoryName) || directoryName.contains(":")) {
+        try {
+            StoragePathResolver.validateSingleNameValue(directoryName);
+        } catch (StorageAccessException ex) {
             throw new StorageAccessException("Invalid storage system directory: " + directoryName);
         }
         return directoryName;

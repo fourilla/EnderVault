@@ -238,6 +238,34 @@ class StorageServiceTest {
     }
 
     @Test
+    void createsEmptyVaultFile() throws Exception {
+        storageService.createFile("", "note.txt");
+
+        assertThat(root.resolve("note.txt")).isRegularFile();
+        assertThat(Files.size(root.resolve("note.txt"))).isZero();
+    }
+
+    @Test
+    void rejectsWindowsReservedChildNames() {
+        assertThatThrownBy(() -> storageService.createFile("", "con.txt"))
+                .isInstanceOf(StorageAccessException.class);
+    }
+
+    @Test
+    void rejectsChildNamesWithInvalidCharacters() {
+        assertThatThrownBy(() -> storageService.createFile("", "bad|name.txt"))
+                .isInstanceOf(StorageAccessException.class);
+    }
+
+    @Test
+    void rejectsChildNamesWithTrailingDotOrWhitespace() {
+        assertThatThrownBy(() -> storageService.createFile("", "note.txt."))
+                .isInstanceOf(StorageAccessException.class);
+        assertThatThrownBy(() -> storageService.createFile("", "note.txt "))
+                .isInstanceOf(StorageAccessException.class);
+    }
+
+    @Test
     void uploadsAndRenamesFilesWithinVault() throws Exception {
         MockMultipartFile file = new MockMultipartFile("files", "demo.txt", "text/plain", "demo".getBytes());
 

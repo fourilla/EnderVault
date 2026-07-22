@@ -160,6 +160,121 @@
         resolve("default");
     });
 
+    const ensureTextInputDialog = () => {
+        let dialog = document.getElementById("textInputDialog");
+        if (dialog) {
+            return dialog;
+        }
+
+        dialog = document.createElement("dialog");
+        dialog.id = "textInputDialog";
+        dialog.className = "text-input-dialog";
+        dialog.innerHTML = `
+            <form method="dialog" class="text-input-card" novalidate>
+                <header class="text-input-header">
+                    <div>
+                        <h2 data-text-input-title>Input</h2>
+                        <p data-text-input-message hidden></p>
+                    </div>
+                    <button class="ghost icon-button action-icon" value="cancel" type="submit" title="Cancel" aria-label="Cancel">
+                        <i class="fas fa-xmark" aria-hidden="true"></i>
+                    </button>
+                </header>
+                <label class="text-input-field">
+                    <span data-text-input-label>Name</span>
+                    <input data-text-input-control type="text" autocomplete="off">
+                </label>
+                <p class="text-input-error" data-text-input-error hidden>Name is required.</p>
+                <div class="text-input-actions">
+                    <button class="ghost icon-text-button" value="cancel" type="submit">Cancel</button>
+                    <button class="primary icon-text-button" value="confirm" type="submit" data-text-input-confirm>Create</button>
+                </div>
+            </form>
+        `;
+        document.body.append(dialog);
+        return dialog;
+    };
+
+    const askTextInput = ({
+        title = "Input",
+        message = "",
+        label = "Name",
+        placeholder = "",
+        initialValue = "",
+        confirmLabel = "Create"
+    } = {}) => new Promise((resolve) => {
+        const dialog = ensureTextInputDialog();
+        const form = dialog.querySelector("form");
+        const titleElement = dialog.querySelector("[data-text-input-title]");
+        const messageElement = dialog.querySelector("[data-text-input-message]");
+        const labelElement = dialog.querySelector("[data-text-input-label]");
+        const input = dialog.querySelector("[data-text-input-control]");
+        const error = dialog.querySelector("[data-text-input-error]");
+        const confirm = dialog.querySelector("[data-text-input-confirm]");
+
+        if (typeof dialog.showModal !== "function") {
+            const fallback = window.prompt(title, initialValue || "");
+            resolve(fallback == null ? null : fallback.trim());
+            return;
+        }
+
+        titleElement.textContent = title;
+        labelElement.textContent = label;
+        confirm.textContent = confirmLabel;
+        input.value = initialValue || "";
+        input.placeholder = placeholder || "";
+        error.hidden = true;
+        if (message) {
+            messageElement.textContent = message;
+            messageElement.hidden = false;
+        } else {
+            messageElement.textContent = "";
+            messageElement.hidden = true;
+        }
+
+        const onSubmit = (event) => {
+            if (event.submitter?.value !== "confirm") {
+                return;
+            }
+            if (input.value.trim()) {
+                return;
+            }
+            event.preventDefault();
+            error.hidden = false;
+            input.focus();
+        };
+
+        const onInputKeydown = (event) => {
+            if (event.key !== "Enter" || event.isComposing || event.keyCode === 229) {
+                return;
+            }
+            event.preventDefault();
+            if (!input.value.trim()) {
+                error.hidden = false;
+                input.focus();
+                return;
+            }
+            dialog.close("confirm");
+        };
+
+        const onClose = () => {
+            form.removeEventListener("submit", onSubmit);
+            input.removeEventListener("keydown", onInputKeydown);
+            dialog.removeEventListener("close", onClose);
+            const value = dialog.returnValue === "confirm" ? input.value.trim() : null;
+            form.reset();
+            resolve(value);
+        };
+
+        form.addEventListener("submit", onSubmit);
+        input.addEventListener("keydown", onInputKeydown);
+        dialog.addEventListener("close", onClose);
+        dialog.returnValue = "cancel";
+        dialog.showModal();
+        input.focus();
+        input.select();
+    });
+
     const requestJsonResolvingConflicts = async (
             url,
             { method = "GET", body = null, headers = {} } = {}
@@ -297,6 +412,7 @@
         requestJsonResolvingConflicts,
         submitJsonFormResolvingConflicts,
         askFileConflictPolicy,
+        askTextInput,
         showNotification,
         showToast,
         copyText,

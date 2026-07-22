@@ -1,7 +1,9 @@
 document.addEventListener("DOMContentLoaded", () => {
     const workspace = document.querySelector(".workspace");
+    const appMain = document.querySelector(".app-main");
     const bulkForm = document.getElementById("bulkActionForm");
     const uploadButton = document.getElementById("uploadButton");
+    const createFileButton = document.getElementById("createFileButton");
     const createDirectoryButton = document.getElementById("createDirectoryButton");
 
     if (!workspace || !bulkForm) {
@@ -363,6 +365,15 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     registerAction({
+        id: "new-file",
+        group: "background",
+        label: "New file",
+        icon: "fas fa-file-circle-plus",
+        visible: (context) => context.mode === "background" && Boolean(createFileButton),
+        run: () => createFileButton.click()
+    });
+
+    registerAction({
         id: "new-directory",
         group: "background",
         label: "New directory",
@@ -407,7 +418,10 @@ document.addEventListener("DOMContentLoaded", () => {
             };
         }
 
-        if (!workspace.contains(event.target)) {
+        const inWorkspace = workspace.contains(event.target);
+        const inMainBackground = appMain?.contains(event.target)
+                && !event.target.closest(".topbar, header, aside, dialog, .context-menu");
+        if (!inWorkspace && !inMainBackground) {
             return null;
         }
 
