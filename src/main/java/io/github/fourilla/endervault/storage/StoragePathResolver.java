@@ -225,12 +225,13 @@ final class StoragePathResolver {
         }
 
         String cleaned = requestedPath.replace('\\', '/');
+        for (String segment : cleaned.split("/", -1)) {
+            validateRelativePathSegment(segment);
+        }
+
         Path rawPath = Path.of(cleaned);
         if (rawPath.isAbsolute()) {
             throw new StorageAccessException("Absolute paths are not allowed.");
-        }
-        for (String segment : cleaned.split("/", -1)) {
-            validateRelativePathSegment(segment);
         }
 
         Path relative = rawPath.normalize();

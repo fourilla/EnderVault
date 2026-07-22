@@ -74,8 +74,9 @@ class BrowserPreferenceCookiesTest {
         BrowserPreferenceCookies.clear(response, BrowserPreferenceCookies.FILES);
 
         List<String> headers = response.getHeaders(HttpHeaders.SET_COOKIE);
-        assertThat(headers).hasSize(4);
+        assertThat(headers).hasSize(5);
         assertThat(headers).allSatisfy(header -> assertThat(header).contains("Max-Age=0"));
+        assertThat(headers).anySatisfy(header -> assertThat(header).contains("endervault.files.hidden="));
     }
 
     @Test
@@ -84,6 +85,8 @@ class BrowserPreferenceCookiesTest {
                 .isEqualTo(BrowserPreferenceCookies.FILES.viewCookie());
         assertThat(BrowserPreferenceCookies.RECENT.pageSizeCookie())
                 .isEqualTo(BrowserPreferenceCookies.FILES.pageSizeCookie());
+        assertThat(BrowserPreferenceCookies.RECENT.hiddenCookie())
+                .isEqualTo(BrowserPreferenceCookies.FILES.hiddenCookie());
         assertThat(BrowserPreferenceCookies.RECENT.sortCookie())
                 .isNotEqualTo(BrowserPreferenceCookies.FILES.sortCookie());
         assertThat(BrowserPreferenceCookies.RECENT.directionCookie())
