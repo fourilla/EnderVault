@@ -249,6 +249,28 @@ tr:last-child td {
     outline-offset: 2px;
 }
 
+@media (hover: hover) and (pointer: fine) {
+    .table-wrap tbody tr:not(.is-selected):not(.is-context-target):hover td {
+        background: var(--item-hover-bg);
+    }
+
+    .table-wrap tbody tr:not(.is-selected):not(.is-context-target):hover .item-name {
+        color: var(--accent-strong);
+    }
+
+    .browser-card:not(.is-selected):not(.is-context-target):hover,
+    .readonly-file-card:hover {
+        border-color: var(--item-hover-line);
+        background: var(--panel-muted);
+        box-shadow: 0 0 0 1px rgba(121, 210, 200, 0.12);
+    }
+
+    .browser-card:not(.is-selected):not(.is-context-target):hover .card-name,
+    .readonly-file-card:hover .readonly-file-name {
+        color: var(--accent-strong);
+    }
+}
+
 .card-check {
     position: absolute;
     z-index: 2;

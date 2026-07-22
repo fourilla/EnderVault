@@ -5,6 +5,8 @@
     --panel-elevated: #1d2530;
     --panel-muted: #202933;
     --line: #2f3a47;
+    --item-hover-bg: rgba(91, 189, 180, 0.08);
+    --item-hover-line: rgba(121, 210, 200, 0.45);
     --text: #edf3f7;
     --muted: #9ba8b7;
     --accent: #5bbdb4;

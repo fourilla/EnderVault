@@ -397,6 +397,7 @@ body.is-comic-viewer-fullscreen {
     gap: var(--space-md);
     margin-left: auto;
     overflow-x: auto;
+    padding: var(--space-xs);
     scrollbar-width: thin;
 }
 
