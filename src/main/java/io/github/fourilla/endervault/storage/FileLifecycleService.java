@@ -48,6 +48,26 @@ public class FileLifecycleService {
         activityLogService.record("MOVE", request, oldPath, newPath, message);
     }
 
+    public void recordHiddenChange(
+            HttpServletRequest request,
+            String oldPath,
+            String newPath,
+            boolean hidden,
+            String message
+    ) throws IOException {
+        if (!oldPath.equals(newPath)) {
+            afterVaultPathMoved(oldPath, newPath);
+        }
+        activityLogService.record(
+                "HIDDEN_CHANGE",
+                request,
+                oldPath,
+                newPath,
+                message,
+                Map.of("hidden", String.valueOf(hidden))
+        );
+    }
+
     public void recordMove(String actor, String ip, String oldPath, String newPath, String message)
             throws IOException {
         afterVaultPathMoved(oldPath, newPath);

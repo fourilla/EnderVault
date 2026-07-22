@@ -58,6 +58,7 @@ public class AdminFileController {
             @RequestParam(value = "view", required = false) String view,
             @RequestParam(value = "sort", required = false) String sort,
             @RequestParam(value = "dir", required = false) String direction,
+            @RequestParam(value = "hidden", required = false) String hidden,
             @RequestParam(value = "page", required = false) Integer page,
             @RequestParam(value = "size", required = false) Integer size,
             HttpServletRequest request,
@@ -68,7 +69,8 @@ public class AdminFileController {
         FileSort fileSort = fileBrowserSort(request, response, sort);
         SortDirection sortDirection = fileBrowserDirection(request, response, direction);
         int pageSize = fileBrowserPageSize(request, response, size);
-        DirectoryListing listing = storageService.list(StorageScope.VAULT, path, fileSort, sortDirection);
+        boolean showHidden = fileBrowserShowHidden(request, response, hidden);
+        DirectoryListing listing = storageService.list(StorageScope.VAULT, path, fileSort, sortDirection, showHidden);
         recentService.recordVaultPath(listing.path());
         FilePage filePage = pageFiles(listing.files(), page, pageSize);
 
@@ -80,6 +82,8 @@ public class AdminFileController {
         model.addAttribute("viewToggleIcon", viewToggleIcon(normalizedView));
         model.addAttribute("sort", fileSort.parameter());
         model.addAttribute("dir", sortDirection.parameter());
+        model.addAttribute("hidden", hiddenMode(showHidden));
+        model.addAttribute("showHidden", showHidden);
         model.addAttribute("pageSizes", pageSizeOptions());
         model.addAttribute("filePage", filePage);
         model.addAttribute("favoritePaths", favoriteService.favoritePaths());
@@ -91,6 +95,7 @@ public class AdminFileController {
     public String search(
             @RequestParam(value = "path", required = false) String path,
             @RequestParam(value = "q", required = false) String query,
+            @RequestParam(value = "hidden", required = false) String hidden,
             @RequestParam(value = "page", required = false) Integer page,
             @RequestParam(value = "size", required = false) Integer size,
             HttpServletRequest request,
@@ -98,16 +103,25 @@ public class AdminFileController {
             Model model
     ) throws IOException {
         int pageSize = fileBrowserPageSize(request, response, size);
+        boolean showHidden = fileBrowserShowHidden(request, response, hidden);
         String normalizedQuery = normalizeSearchQuery(query);
-        DirectoryListing listing = storageService.list(StorageScope.VAULT, path);
+        DirectoryListing listing = storageService.list(
+                StorageScope.VAULT,
+                path,
+                FileSort.NAME,
+                SortDirection.ASC,
+                showHidden
+        );
         List<FileItem> results = normalizedQuery.isEmpty()
                 ? List.of()
-                : storageService.search(StorageScope.VAULT, listing.path(), normalizedQuery);
+                : storageService.search(StorageScope.VAULT, listing.path(), normalizedQuery, showHidden);
         FilePage resultPage = pageFiles(results, page, pageSize);
 
         model.addAttribute("listing", listing);
         model.addAttribute("path", listing.path());
         model.addAttribute("query", normalizedQuery);
+        model.addAttribute("hidden", hiddenMode(showHidden));
+        model.addAttribute("showHidden", showHidden);
         model.addAttribute("searchPerformed", !normalizedQuery.isEmpty());
         model.addAttribute("pageSizes", pageSizeOptions());
         model.addAttribute("resultPage", resultPage);
@@ -119,6 +133,7 @@ public class AdminFileController {
             @RequestParam(value = "path", required = false) String path,
             @RequestParam(value = "sort", required = false) String sort,
             @RequestParam(value = "dir", required = false) String direction,
+            @RequestParam(value = "hidden", required = false) String hidden,
             @RequestParam(value = "page", required = false) Integer page,
             @RequestParam(value = "size", required = false) Integer size,
             HttpServletRequest request,
@@ -128,13 +143,16 @@ public class AdminFileController {
         FileSort fileSort = readOnlySort(request, response, sort);
         SortDirection sortDirection = readOnlyDirection(request, response, direction);
         int pageSize = readOnlyPageSize(request, response, size);
-        DirectoryListing listing = storageService.list(StorageScope.VAULT, path, fileSort, sortDirection);
+        boolean showHidden = readOnlyShowHidden(request, response, hidden);
+        DirectoryListing listing = storageService.list(StorageScope.VAULT, path, fileSort, sortDirection, showHidden);
         FilePage filePage = pageFiles(listing.files(), page, pageSize);
 
         model.addAttribute("listing", listing);
         model.addAttribute("path", listing.path());
         model.addAttribute("sort", fileSort.parameter());
         model.addAttribute("dir", sortDirection.parameter());
+        model.addAttribute("hidden", hiddenMode(showHidden));
+        model.addAttribute("showHidden", showHidden);
         model.addAttribute("pageSizes", pageSizeOptions());
         model.addAttribute("filePage", filePage);
         return "read-only";
@@ -257,6 +275,10 @@ public class AdminFileController {
         );
     }
 
+    private boolean fileBrowserShowHidden(HttpServletRequest request, HttpServletResponse response, String hidden) {
+        return showHiddenPreference(request, response, BrowserPreferenceCookies.FILES.hiddenCookie(), hidden);
+    }
+
     private FileSort readOnlySort(HttpServletRequest request, HttpServletResponse response, String sort) {
         String normalizedSort = BrowserPreferenceCookies.value(
                 request,
@@ -287,6 +309,37 @@ public class AdminFileController {
                 size,
                 value -> value == null ? READ_ONLY_PAGE_SIZE : normalizePageSize(value)
         );
+    }
+
+    private boolean readOnlyShowHidden(HttpServletRequest request, HttpServletResponse response, String hidden) {
+        return showHiddenPreference(request, response, BrowserPreferenceCookies.READ_ONLY.hiddenCookie(), hidden);
+    }
+
+    private boolean showHiddenPreference(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            String cookieName,
+            String hidden
+    ) {
+        String normalizedHidden = BrowserPreferenceCookies.value(
+                request,
+                response,
+                cookieName,
+                hidden,
+                this::normalizeHiddenMode
+        );
+        return "show".equals(normalizedHidden);
+    }
+
+    private String normalizeHiddenMode(String hidden) {
+        if (hidden == null || hidden.isBlank()) {
+            return "hide";
+        }
+        return "show".equalsIgnoreCase(hidden) || "true".equalsIgnoreCase(hidden) ? "show" : "hide";
+    }
+
+    private String hiddenMode(boolean showHidden) {
+        return showHidden ? "show" : "hide";
     }
 
     private FileSort normalizeSort(String sort) {

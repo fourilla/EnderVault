@@ -125,6 +125,7 @@ nas.share.custom-token-max-length=64
 nas.share.random-token-bytes=24
 nas.share.directory-share-enabled=true
 nas.share.direct-download-link-enabled=true
+nas.share.directory-show-hidden-items=false
 
 # ---------------------------------------------------------------------------
 # File tools
@@ -213,6 +214,7 @@ nas.notifications.telegram.activity.create-directory=false
 nas.notifications.telegram.activity.create-file=false
 nas.notifications.telegram.activity.text-save=false
 nas.notifications.telegram.activity.rename=false
+nas.notifications.telegram.activity.hidden-change=false
 nas.notifications.telegram.activity.move=false
 nas.notifications.telegram.activity.copy=false
 nas.notifications.telegram.activity.download=false

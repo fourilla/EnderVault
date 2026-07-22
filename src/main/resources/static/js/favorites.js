@@ -88,6 +88,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const link = document.createElement("a");
         link.href = favoriteUrl(favorite);
         link.title = favorite.path;
+        link.classList.toggle("is-hidden-item", Boolean(favorite.hidden));
         link.dataset.favoriteSidebarPath = favorite.path;
         link.dataset.favoriteDirectOpenUrl = favorite.directOpenUrl || favorite.openUrl || link.href;
         link.dataset.favoriteDetailUrl = favorite.detailUrl || favorite.openUrl || link.href;

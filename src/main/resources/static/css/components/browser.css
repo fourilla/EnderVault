@@ -196,6 +196,35 @@ tr:last-child td {
     color: var(--danger);
 }
 
+.hidden-badge {
+    margin-left: var(--space-sm);
+}
+
+.card-hidden-badge {
+    position: absolute;
+    z-index: 3;
+    top: var(--space-lg);
+    right: var(--space-lg);
+    margin-left: 0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+}
+
+.is-hidden-item {
+    opacity: 0.68;
+}
+
+.is-hidden-item:hover,
+.is-hidden-item:focus-within,
+.is-hidden-item.is-selected,
+.is-hidden-item.is-context-target {
+    opacity: 1;
+}
+
+.browser-card.is-hidden-item .card-thumb,
+.readonly-file-card.is-hidden-item .readonly-thumb {
+    filter: grayscale(0.22);
+}
+
 .empty {
     color: var(--muted);
     text-align: center;

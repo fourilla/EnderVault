@@ -62,6 +62,15 @@ public class RecentService {
 
     public synchronized List<RecentListItem> list(String query, RecentSort sort, SortDirection direction)
             throws IOException {
+        return list(query, sort, direction, true);
+    }
+
+    public synchronized List<RecentListItem> list(
+            String query,
+            RecentSort sort,
+            SortDirection direction,
+            boolean showHidden
+    ) throws IOException {
         List<RecentItem> records = readAllMutable();
         List<RecentItem> existingRecords = new ArrayList<>();
         List<RecentListItem> items = new ArrayList<>();
@@ -70,7 +79,9 @@ public class RecentService {
             try {
                 FileItem item = storageService.describeVaultPath(record.path());
                 existingRecords.add(record);
-                items.add(new RecentListItem(item, record.lastAccessedAt()));
+                if (showHidden || !item.hidden()) {
+                    items.add(new RecentListItem(item, record.lastAccessedAt()));
+                }
             } catch (IOException | StorageAccessException ignored) {
                 // Stale records are removed below.
             }

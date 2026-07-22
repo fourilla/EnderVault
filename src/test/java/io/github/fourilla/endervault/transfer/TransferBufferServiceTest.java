@@ -94,6 +94,7 @@ class TransferBufferServiceTest {
                 Instant.EPOCH,
                 directory ? "directory" : "text/plain",
                 !directory,
+                false,
                 false
         );
     }

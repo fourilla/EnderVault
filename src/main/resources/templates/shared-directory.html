@@ -46,21 +46,27 @@
                 </tr>
                 </thead>
                 <tbody>
-                <tr th:each="dir : ${listing.directories()}">
+                <tr th:each="dir : ${listing.directories()}"
+                    th:classappend="${dir.hidden()} ? 'is-hidden-item' : ''">
                     <td class="select-cell"><input form="bulkActionForm" type="checkbox" name="items" th:value="${dir.name()}"></td>
                     <td><a class="item-name directory" th:href="@{/s/{token}(token=${token}, path=${dir.path()})}">
                         <i class="fas fa-folder item-icon" aria-hidden="true"></i>
                         <span th:text="${dir.name()}">directory</span>
-                    </a></td>
+                    </a>
+                        <span class="status-badge expired hidden-badge" th:if="${dir.hidden()}">Hidden</span>
+                    </td>
                     <td>Directory</td>
                     <td>-</td>
                     <td th:text="${dir.modifiedLabel()}">-</td>
                     <td>-</td>
                 </tr>
-                <tr th:each="file : ${listing.files()}">
+                <tr th:each="file : ${listing.files()}"
+                    th:classappend="${file.hidden()} ? 'is-hidden-item' : ''">
                     <td class="select-cell"><input form="bulkActionForm" type="checkbox" name="items" th:value="${file.name()}"></td>
                     <td><a class="item-name" th:href="${filePreview.sharedDirectoryFileUrl(token, file)}"
-                           th:text="${file.name()}">file</a></td>
+                           th:text="${file.name()}">file</a>
+                        <span class="status-badge expired hidden-badge" th:if="${file.hidden()}">Hidden</span>
+                    </td>
                     <td th:text="${file.mediaType()}">type</td>
                     <td th:text="${file.sizeLabel()}">0 B</td>
                     <td th:text="${file.modifiedLabel()}">-</td>

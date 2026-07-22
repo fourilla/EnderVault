@@ -44,7 +44,21 @@ final class StorageListingService {
 
     DirectoryListing list(StorageScope scope, String requestedPath, FileSort sort, SortDirection direction)
             throws IOException {
+        return list(scope, requestedPath, sort, direction, false);
+    }
+
+    DirectoryListing list(
+            StorageScope scope,
+            String requestedPath,
+            FileSort sort,
+            SortDirection direction,
+            boolean showHidden
+    )
+            throws IOException {
         Path directory = pathResolver.resolveDirectory(scope, requestedPath);
+        if (!showHidden && StorageHiddenPolicy.containsHiddenElement(pathResolver.baseFor(scope), directory)) {
+            throw new NoSuchFileException(requestedPath == null ? "" : requestedPath);
+        }
         String currentPath = pathResolver.toRelativePath(pathResolver.baseFor(scope), directory);
         List<FileItem> children;
 
@@ -52,6 +66,7 @@ final class StorageListingService {
             children = stream
                     .filter(path -> !Files.isSymbolicLink(path))
                     .filter(path -> !pathResolver.isHiddenSystemPath(scope, path))
+                    .filter(path -> showHidden || !isHidden(path))
                     .map(path -> toFileItem(pathResolver.baseFor(scope), path))
                     .sorted(itemComparator(sort, direction))
                     .toList();
@@ -79,6 +94,10 @@ final class StorageListingService {
     }
 
     List<FileItem> search(StorageScope scope, String requestedRoot, String query) throws IOException {
+        return search(scope, requestedRoot, query, false);
+    }
+
+    List<FileItem> search(StorageScope scope, String requestedRoot, String query, boolean showHidden) throws IOException {
         String normalizedQuery = normalizeSearchQuery(query);
         if (normalizedQuery.isEmpty()) {
             return List.of();
@@ -88,18 +107,29 @@ final class StorageListingService {
         if (pathResolver.isHiddenSystemPath(scope, searchRoot)) {
             throw new NoSuchFileException(requestedRoot == null ? "" : requestedRoot);
         }
+        if (!showHidden && StorageHiddenPolicy.containsHiddenElement(pathResolver.baseFor(scope), searchRoot)) {
+            throw new NoSuchFileException(requestedRoot == null ? "" : requestedRoot);
+        }
 
         List<FileItem> results = new ArrayList<>();
-        searchRecursively(scope, searchRoot, normalizedQuery, results);
+        searchRecursively(scope, searchRoot, normalizedQuery, showHidden, results);
         return results.stream()
                 .sorted(Comparator.comparing(item -> item.path().toLowerCase(Locale.ROOT)))
                 .toList();
     }
 
     DirectoryListing listSharedDirectory(String sharedBasePath, String requestedPath) throws IOException {
+        return listSharedDirectory(sharedBasePath, requestedPath, false);
+    }
+
+    DirectoryListing listSharedDirectory(String sharedBasePath, String requestedPath, boolean showHidden)
+            throws IOException {
         Path sharedBase = pathResolver.resolveDirectory(StorageScope.VAULT, sharedBasePath);
         Path directory = pathResolver.resolveSharedPath(sharedBase, requestedPath);
         if (!Files.isDirectory(directory)) {
+            throw new NoSuchFileException(requestedPath == null ? "" : requestedPath);
+        }
+        if (!showHidden && StorageHiddenPolicy.containsHiddenElement(sharedBase, directory)) {
             throw new NoSuchFileException(requestedPath == null ? "" : requestedPath);
         }
 
@@ -109,6 +139,7 @@ final class StorageListingService {
             children = stream
                     .filter(path -> !Files.isSymbolicLink(path))
                     .filter(path -> !pathResolver.isVaultSystemPath(path))
+                    .filter(path -> showHidden || !isHidden(path))
                     .map(path -> toFileItem(sharedBase, path))
                     .sorted(itemComparator(FileSort.NAME, SortDirection.ASC))
                     .toList();
@@ -158,7 +189,8 @@ final class StorageListingService {
                     modified,
                     mediaType,
                     fileActionRegistry.previewPageAvailable(path.getFileName().toString(), directory, mediaType, extension),
-                    mediaType.startsWith("video/")
+                    mediaType.startsWith("video/"),
+                    isHidden(path)
             );
         } catch (IOException ex) {
             throw new StorageAccessException("Failed to read file metadata.", ex);
@@ -184,19 +216,21 @@ final class StorageListingService {
             StorageScope scope,
             Path directory,
             String normalizedQuery,
+            boolean showHidden,
             List<FileItem> results
     ) throws IOException {
         try (Stream<Path> stream = Files.list(directory)) {
             for (Path child : stream
                     .filter(path -> !Files.isSymbolicLink(path))
                     .filter(path -> !pathResolver.isHiddenSystemPath(scope, path))
+                    .filter(path -> showHidden || !isHidden(path))
                     .sorted(pathNameComparator())
                     .collect(Collectors.toList())) {
                 if (matchesSearchQuery(child, normalizedQuery)) {
                     results.add(toFileItem(pathResolver.baseFor(scope), child));
                 }
                 if (Files.isDirectory(child, LinkOption.NOFOLLOW_LINKS)) {
-                    searchRecursively(scope, child, normalizedQuery, results);
+                    searchRecursively(scope, child, normalizedQuery, showHidden, results);
                 }
             }
         }
@@ -258,7 +292,8 @@ final class StorageListingService {
                 mediaType,
                 extension,
                 fileActionRegistry.previewPageAvailable(path.getFileName().toString(), directory, mediaType, extension),
-                mediaType.startsWith("video/")
+                mediaType.startsWith("video/"),
+                isHidden(path)
         );
     }
 
@@ -304,5 +339,13 @@ final class StorageListingService {
         return Comparator
                 .comparing((Path path) -> !Files.isDirectory(path))
                 .thenComparing(path -> path.getFileName().toString().toLowerCase(Locale.ROOT));
+    }
+
+    private boolean isHidden(Path path) {
+        try {
+            return StorageHiddenPolicy.isHidden(path);
+        } catch (IOException ex) {
+            throw new StorageAccessException("Failed to read hidden file metadata.", ex);
+        }
     }
 }

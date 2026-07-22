@@ -1,7 +1,7 @@
 package io.github.fourilla.endervault.web.support;
 
 import io.github.fourilla.endervault.config.NasProperties;
-import io.github.fourilla.endervault.favorite.FavoriteItem;
+import io.github.fourilla.endervault.favorite.FavoriteDisplayItem;
 import io.github.fourilla.endervault.favorite.FavoriteService;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.storage.StorageUsage;
@@ -24,6 +24,7 @@ import io.github.fourilla.endervault.web.settings.AdminGeneralSettingsController
 import io.github.fourilla.endervault.web.settings.AdminSettingsController;
 import io.github.fourilla.endervault.web.share.AdminShareController;
 import io.github.fourilla.endervault.web.trash.AdminTrashController;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -77,9 +78,9 @@ public class AdminShellModelAdvice {
     }
 
     @ModelAttribute("favorites")
-    public List<FavoriteItem> favorites() {
+    public List<FavoriteDisplayItem> favorites(HttpServletRequest request) {
         try {
-            return favoriteService.listExisting();
+            return favoriteService.listExistingDisplay(showHiddenFavorites(request));
         } catch (Exception ex) {
             return List.of();
         }
@@ -117,6 +118,25 @@ public class AdminShellModelAdvice {
     @ModelAttribute("bookmarkLinkClickAction")
     public String bookmarkLinkClickAction() {
         return BookmarkLinkClickAction.from(nasProperties);
+    }
+
+    private boolean showHiddenFavorites(HttpServletRequest request) {
+        String requestedHidden = request.getParameter("hidden");
+        String hidden = requestedHidden == null
+                ? BrowserPreferenceCookies.value(
+                        request,
+                        BrowserPreferenceCookies.FILES.hiddenCookie(),
+                        this::normalizeHiddenMode
+                )
+                : normalizeHiddenMode(requestedHidden);
+        return "show".equals(hidden);
+    }
+
+    private String normalizeHiddenMode(String hidden) {
+        if (hidden == null || hidden.isBlank()) {
+            return "hide";
+        }
+        return "show".equalsIgnoreCase(hidden) || "true".equalsIgnoreCase(hidden) ? "show" : "hide";
     }
 
     public record TaskUiConfig(

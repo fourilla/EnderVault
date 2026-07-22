@@ -5,6 +5,7 @@ import io.github.fourilla.endervault.favorite.FavoriteService;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.BookmarkLinkClickAction;
+import io.github.fourilla.endervault.web.support.BrowserPreferenceCookies;
 import io.github.fourilla.endervault.web.support.FavoriteActionResponse;
 import io.github.fourilla.endervault.web.support.FavoritePayload;
 import io.github.fourilla.endervault.web.support.FlashNotification;
@@ -31,8 +32,8 @@ public class AdminFavoriteController {
     }
 
     @GetMapping("/files/favorites")
-    public String favorites(Model model) throws IOException {
-        model.addAttribute("favoriteItems", favoriteService.list());
+    public String favorites(HttpServletRequest request, Model model) throws IOException {
+        model.addAttribute("favoriteItems", favoriteService.listDisplay(showHiddenFavorites(request)));
         return "favorites";
     }
 
@@ -135,6 +136,25 @@ public class AdminFavoriteController {
     }
 
     private FavoritePayload favoritePayload(FavoriteItem favorite) {
-        return FavoritePayload.from(favorite, BookmarkLinkClickAction.from(nasProperties));
+        return FavoritePayload.from(favorite, BookmarkLinkClickAction.from(nasProperties), favoriteService.hidden(favorite));
+    }
+
+    private boolean showHiddenFavorites(HttpServletRequest request) {
+        String requestedHidden = request.getParameter("hidden");
+        String hidden = requestedHidden == null
+                ? BrowserPreferenceCookies.value(
+                        request,
+                        BrowserPreferenceCookies.FILES.hiddenCookie(),
+                        this::normalizeHiddenMode
+                )
+                : normalizeHiddenMode(requestedHidden);
+        return "show".equals(hidden);
+    }
+
+    private String normalizeHiddenMode(String hidden) {
+        if (hidden == null || hidden.isBlank()) {
+            return "hide";
+        }
+        return "show".equalsIgnoreCase(hidden) || "true".equalsIgnoreCase(hidden) ? "show" : "hide";
     }
 }

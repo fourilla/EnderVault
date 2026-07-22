@@ -10,13 +10,18 @@ public record FavoritePayload(
         String openUrl,
         String directOpenUrl,
         String detailUrl,
-        boolean openInNewTab
+        boolean openInNewTab,
+        boolean hidden
 ) {
     public static FavoritePayload from(FavoriteItem favorite) {
         return from(favorite, "open");
     }
 
     public static FavoritePayload from(FavoriteItem favorite, String bookmarkLinkClickAction) {
+        return from(favorite, bookmarkLinkClickAction, false);
+    }
+
+    public static FavoritePayload from(FavoriteItem favorite, String bookmarkLinkClickAction, boolean hidden) {
         return new FavoritePayload(
                 favorite.path(),
                 favorite.name(),
@@ -25,7 +30,8 @@ public record FavoritePayload(
                 favorite.openUrl(bookmarkLinkClickAction),
                 favorite.directOpenUrl(),
                 favorite.detailUrl(),
-                favorite.opensInNewTab(bookmarkLinkClickAction)
+                favorite.opensInNewTab(bookmarkLinkClickAction),
+                hidden
         );
     }
 }

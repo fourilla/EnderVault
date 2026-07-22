@@ -62,6 +62,7 @@ class FilePreviewSupportTest {
                 Instant.EPOCH,
                 mediaType,
                 previewable,
+                false,
                 false
         );
     }

@@ -55,6 +55,7 @@ class StorageServiceTest {
                 Instant.EPOCH,
                 "application/zip",
                 false,
+                false,
                 false
         );
         FileItem withoutExtension = new FileItem(
@@ -67,6 +68,7 @@ class StorageServiceTest {
                 Instant.EPOCH,
                 "text/plain",
                 true,
+                false,
                 false
         );
 

@@ -874,6 +874,8 @@ public class NasProperties {
 
         private boolean directDownloadLinkEnabled = true;
 
+        private boolean directoryShowHiddenItems = false;
+
         public boolean isEnabled() {
             return enabled;
         }
@@ -952,6 +954,14 @@ public class NasProperties {
 
         public void setDirectDownloadLinkEnabled(boolean directDownloadLinkEnabled) {
             this.directDownloadLinkEnabled = directDownloadLinkEnabled;
+        }
+
+        public boolean isDirectoryShowHiddenItems() {
+            return directoryShowHiddenItems;
+        }
+
+        public void setDirectoryShowHiddenItems(boolean directoryShowHiddenItems) {
+            this.directoryShowHiddenItems = directoryShowHiddenItems;
         }
     }
 

@@ -23,7 +23,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const ajaxAction = (form, submitter = null) =>
         submitter?.dataset?.ajaxAction || form.dataset.ajaxAction || "";
 
-    const conflictAwareActions = new Set(["detail-rename", "detail-move"]);
+    const conflictAwareActions = new Set(["detail-rename", "detail-move", "detail-hidden"]);
 
     const submitAction = (form, submitter = null) => ({
         url: submitter?.getAttribute("formaction") || form.getAttribute("action") || form.action,
@@ -245,7 +245,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     const handleSuccess = (form, body, action = ajaxAction(form)) => {
-        if (["detail-rename", "detail-move", "detail-delete"].includes(action)
+        if (["detail-rename", "detail-move", "detail-hidden", "detail-delete"].includes(action)
                 && navigateWithNotification(body)) {
             return;
         }

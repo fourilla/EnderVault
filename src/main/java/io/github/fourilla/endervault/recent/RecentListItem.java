@@ -52,6 +52,10 @@ public record RecentListItem(
         return item.streamable();
     }
 
+    public boolean hidden() {
+        return item.hidden();
+    }
+
     public boolean image() {
         return item.image();
     }

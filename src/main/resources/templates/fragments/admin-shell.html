@@ -30,6 +30,7 @@
             </summary>
             <div class="sidebar-favorites-list" data-sidebar-favorites-list>
                 <a th:each="favorite : ${favorites}"
+                   th:classappend="${favorite.hidden()} ? 'is-hidden-item' : ''"
                    th:href="${favorite.openUrl(bookmarkLinkClickAction)}"
                    th:title="${favorite.targetLabel()}"
                    th:target="${favorite.opensInNewTab(bookmarkLinkClickAction)} ? '_blank' : null"

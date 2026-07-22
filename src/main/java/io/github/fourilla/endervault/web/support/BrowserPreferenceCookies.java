@@ -16,21 +16,24 @@ public final class BrowserPreferenceCookies {
             "endervault.files.view",
             "endervault.files.sort",
             "endervault.files.dir",
-            "endervault.files.size"
+            "endervault.files.size",
+            "endervault.files.hidden"
     );
 
     public static final Scope RECENT = new Scope(
             FILES.viewCookie(),
             "endervault.recent.sort",
             "endervault.recent.dir",
-            FILES.pageSizeCookie()
+            FILES.pageSizeCookie(),
+            FILES.hiddenCookie()
     );
 
     public static final Scope READ_ONLY = new Scope(
             null,
             "endervault.readonly.sort",
             "endervault.readonly.dir",
-            "endervault.readonly.size"
+            "endervault.readonly.size",
+            "endervault.readonly.hidden"
     );
 
     private static final Duration MAX_AGE = Duration.ofDays(365);
@@ -56,6 +59,16 @@ public final class BrowserPreferenceCookies {
                 .orElseGet(() -> normalizer.apply(null));
     }
 
+    public static String value(
+            HttpServletRequest request,
+            String cookieName,
+            Function<String, String> normalizer
+    ) {
+        return cookieValue(request, cookieName)
+                .map(normalizer)
+                .orElseGet(() -> normalizer.apply(null));
+    }
+
     public static int intValue(
             HttpServletRequest request,
             HttpServletResponse response,
@@ -76,7 +89,14 @@ public final class BrowserPreferenceCookies {
     }
 
     public static void clear(HttpServletResponse response, Scope scope) {
-        clear(response, scope.viewCookie(), scope.sortCookie(), scope.directionCookie(), scope.pageSizeCookie());
+        clear(
+                response,
+                scope.viewCookie(),
+                scope.sortCookie(),
+                scope.directionCookie(),
+                scope.pageSizeCookie(),
+                scope.hiddenCookie()
+        );
     }
 
     private static Optional<String> cookieValue(HttpServletRequest request, String cookieName) {
@@ -135,6 +155,12 @@ public final class BrowserPreferenceCookies {
         }
     }
 
-    public record Scope(String viewCookie, String sortCookie, String directionCookie, String pageSizeCookie) {
+    public record Scope(
+            String viewCookie,
+            String sortCookie,
+            String directionCookie,
+            String pageSizeCookie,
+            String hiddenCookie
+    ) {
     }
 }

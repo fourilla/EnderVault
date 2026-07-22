@@ -40,7 +40,9 @@
                 </tr>
                 </thead>
                 <tbody>
-                <tr th:each="favorite, iter : ${favoriteItems}" th:attr="data-favorite-row-path=${favorite.path()}">
+                <tr th:each="favorite, iter : ${favoriteItems}"
+                    th:classappend="${favorite.hidden()} ? 'is-hidden-item' : ''"
+                    th:attr="data-favorite-row-path=${favorite.path()}">
                     <td>
                         <a class="item-name"
                            th:href="${favorite.openUrl(bookmarkLinkClickAction)}"
@@ -50,6 +52,7 @@
                             <i th:class="${favorite.iconClass()} + ' item-icon'" aria-hidden="true"></i>
                             <span th:text="${favorite.name()}">favorite</span>
                         </a>
+                        <span class="status-badge expired hidden-badge" th:if="${favorite.hidden()}">Hidden</span>
                     </td>
                     <td th:text="${favorite.typeLabel()}">File</td>
                     <td><span class="path-cell" th:title="${favorite.targetLabel()}" th:text="${favorite.targetLabel()}">target</span></td>

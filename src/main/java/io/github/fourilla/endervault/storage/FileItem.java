@@ -13,7 +13,8 @@ public record FileItem(
         Instant modifiedAt,
         String mediaType,
         boolean previewable,
-        boolean streamable
+        boolean streamable,
+        boolean hidden
 ) {
     public boolean image() {
         return mediaType.startsWith("image/");

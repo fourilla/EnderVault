@@ -58,7 +58,7 @@
                 </form>
             </div>
 
-            <div class="toolbar-actions browser-controls" aria-label="View and sorting controls">
+            <div class="toolbar-actions browser-controls" aria-label="View option controls">
                 <a class="button-link ghost icon-button"
                    th:href="@{/files/recent(q=${query}, view=${nextView}, page=${filePage.page()})}"
                    th:title="${viewToggleLabel}"
@@ -67,7 +67,7 @@
                 </a>
 
                 <details class="settings-menu">
-                    <summary class="icon-button menu-summary" title="Sort and paging" aria-label="Sort and paging">
+                    <summary class="icon-button menu-summary" title="View options" aria-label="View options">
                         <i class="fas fa-ellipsis-vertical" aria-hidden="true"></i>
                     </summary>
                     <div class="settings-panel">
@@ -100,6 +100,13 @@
                                             th:selected="${option == filePage.size()}">200</option>
                                 </select>
                             </label>
+                            <label>
+                                Visibility
+                                <select name="hidden">
+                                    <option value="hide" th:selected="${hidden == 'hide'}">Visible only</option>
+                                    <option value="show" th:selected="${hidden == 'show'}">Show hidden</option>
+                                </select>
+                            </label>
                             <button type="submit">Apply</button>
                         </form>
                         <form class="settings-reset-form" method="post" th:action="@{/files/preferences/reset}">
@@ -108,7 +115,7 @@
                             <input type="hidden" name="q" th:value="${query}">
                             <button class="ghost" type="submit">
                                 <i class="fas fa-rotate-left" aria-hidden="true"></i>
-                                Reset to defaults
+                                Reset view options
                             </button>
                         </form>
                     </div>
@@ -135,7 +142,8 @@
                 </tr>
                 </thead>
                 <tbody>
-                <tr th:each="directory : ${recentDirectories}">
+                <tr th:each="directory : ${recentDirectories}"
+                    th:classappend="${directory.hidden()} ? 'is-hidden-item' : ''">
                     <td class="select-cell">
                         <input form="bulkActionForm" type="checkbox" name="paths" th:value="${directory.path()}">
                     </td>
@@ -143,7 +151,9 @@
                            th:href="@{/files(path=${directory.path()})}">
                         <i class="fas fa-folder item-icon" aria-hidden="true"></i>
                         <span th:text="${directory.name()}">directory</span>
-                    </a></td>
+                    </a>
+                        <span class="status-badge expired hidden-badge" th:if="${directory.hidden()}">Hidden</span>
+                    </td>
                     <td>Directory</td>
                     <td th:text="${directory.accessedLabel()}">-</td>
                     <td th:text="${directory.modifiedLabel()}">-</td>
@@ -189,11 +199,15 @@
                 </tr>
                 </thead>
                 <tbody>
-                <tr th:each="file : ${filePage.items()}">
+                <tr th:each="file : ${filePage.items()}"
+                    th:classappend="${file.hidden()} ? 'is-hidden-item' : ''">
                     <td class="select-cell">
                         <input form="bulkActionForm" type="checkbox" name="paths" th:value="${file.path()}">
                     </td>
-                    <td><a class="item-name" th:href="@{/files/detail(path=${file.path()})}" th:text="${file.name()}">file</a></td>
+                    <td>
+                        <a class="item-name" th:href="@{/files/detail(path=${file.path()})}" th:text="${file.name()}">file</a>
+                        <span class="status-badge expired hidden-badge" th:if="${file.hidden()}">Hidden</span>
+                    </td>
                     <td th:text="${file.mediaType()}">type</td>
                     <td th:text="${file.sizeLabel()}">0 B</td>
                     <td th:text="${file.accessedLabel()}">-</td>
@@ -220,8 +234,10 @@
         </div>
 
         <div class="browser-grid" th:if="${view == 'grid'}">
-            <article class="browser-card" th:each="file : ${filePage.items()}">
+            <article class="browser-card" th:each="file : ${filePage.items()}"
+                     th:classappend="${file.hidden()} ? 'is-hidden-item' : ''">
                 <input form="bulkActionForm" class="card-check" type="checkbox" name="paths" th:value="${file.path()}">
+                <span class="status-badge expired hidden-badge card-hidden-badge" th:if="${file.hidden()}">Hidden</span>
                 <a class="card-thumb" th:href="@{/files/detail(path=${file.path()})}">
                     <img class="thumb-media" th:if="${file.image()}" loading="lazy"
                          th:src="@{/files/detail/preview(path=${file.path()})}"

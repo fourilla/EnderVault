@@ -18,6 +18,7 @@ public final class ActivityTypeCatalog {
             new ActivityTypeOption("create-file", "CREATE_FILE", "Create file", "File management", false),
             new ActivityTypeOption("text-save", "TEXT_SAVE", "Text save", "File management", false),
             new ActivityTypeOption("rename", "RENAME", "Rename", "File management", false),
+            new ActivityTypeOption("hidden-change", "HIDDEN_CHANGE", "Hidden state change", "File management", false),
             new ActivityTypeOption("move", "MOVE", "Move", "File management", false),
             new ActivityTypeOption("copy", "COPY", "Copy", "File management", false),
             new ActivityTypeOption("download", "DOWNLOAD", "Download", "File management", false),

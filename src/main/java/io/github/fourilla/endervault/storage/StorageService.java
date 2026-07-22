@@ -35,6 +35,7 @@ public class StorageService {
     private final StorageListingService listingService;
     private final StorageConflictResolver conflictResolver;
     private final StorageTreeOperations treeOperations;
+    private final NasProperties.Share shareProperties;
 
     public StorageService(NasProperties nasProperties) {
         this(nasProperties, new FileActionRegistry());
@@ -55,6 +56,7 @@ public class StorageService {
         this.listingService = new StorageListingService(root, trashRoot, pathResolver, fileActionRegistry);
         this.conflictResolver = new StorageConflictResolver(nasProperties, pathResolver);
         this.treeOperations = new StorageTreeOperations(pathResolver, uploadStagingService);
+        this.shareProperties = nasProperties.getShare();
     }
 
     @PostConstruct
@@ -76,6 +78,16 @@ public class StorageService {
             SortDirection direction
     ) throws IOException {
         return listingService.list(scope, requestedPath, sort, direction);
+    }
+
+    public DirectoryListing list(
+            StorageScope scope,
+            String requestedPath,
+            FileSort sort,
+            SortDirection direction,
+            boolean showHidden
+    ) throws IOException {
+        return listingService.list(scope, requestedPath, sort, direction, showHidden);
     }
 
     public DirectoryListing listTrash() throws IOException {
@@ -104,6 +116,11 @@ public class StorageService {
         return listingService.search(scope, requestedRoot, query);
     }
 
+    public List<FileItem> search(StorageScope scope, String requestedRoot, String query, boolean showHidden)
+            throws IOException {
+        return listingService.search(scope, requestedRoot, query, showHidden);
+    }
+
     public Path resolveFile(StorageScope scope, String directoryPath, String fileName) throws IOException {
         Path file = pathResolver.resolveChild(scope, directoryPath, fileName, true);
         if (!Files.isRegularFile(file)) {
@@ -126,6 +143,12 @@ public class StorageService {
 
     public FileItem describeVaultPath(String vaultPath) throws IOException {
         return listingService.describeVaultPath(vaultPath);
+    }
+
+    public boolean vaultPathContainsHiddenElement(String vaultPath) throws IOException {
+        pathResolver.validateVaultItemPath(vaultPath);
+        Path target = pathResolver.resolve(StorageScope.VAULT, vaultPath);
+        return StorageHiddenPolicy.containsHiddenElement(root, target);
     }
 
     public FileDetail detail(StorageScope scope, String vaultPath) throws IOException {
@@ -161,6 +184,26 @@ public class StorageService {
         );
         treeOperations.move(source, resolvedTarget.path(), resolvedTarget.overwrite());
         return pathResolver.toRelativePath(root, resolvedTarget.path());
+    }
+
+    public String setHiddenVaultPath(String vaultPath, boolean hidden, ConflictPolicy conflictPolicy)
+            throws IOException {
+        pathResolver.validateVaultItemPath(vaultPath);
+        Path source = pathResolver.resolve(StorageScope.VAULT, vaultPath);
+        boolean currentlyHidden = StorageHiddenPolicy.isHidden(source);
+        if (currentlyHidden == hidden) {
+            return pathResolver.toRelativePath(root, source);
+        }
+
+        if (StorageHiddenPolicy.setDosHiddenIfSupported(source, hidden)) {
+            return pathResolver.toRelativePath(root, source);
+        }
+
+        String name = source.getFileName().toString();
+        String targetName = hidden
+                ? StorageHiddenPolicy.hiddenName(name)
+                : StorageHiddenPolicy.visibleName(name);
+        return renameVaultPath(vaultPath, targetName, conflictPolicy);
     }
 
     public String moveVaultPath(String vaultPath, String targetDirectoryPath) throws IOException {
@@ -301,7 +344,11 @@ public class StorageService {
     }
 
     public DirectoryListing listSharedDirectory(String sharedBasePath, String requestedPath) throws IOException {
-        return listingService.listSharedDirectory(sharedBasePath, requestedPath);
+        return listingService.listSharedDirectory(
+                sharedBasePath,
+                requestedPath,
+                shareProperties.isDirectoryShowHiddenItems()
+        );
     }
 
     public Path resolveSharedFile(String sharedBasePath, String requestedPath, String fileName) throws IOException {
@@ -312,6 +359,7 @@ public class StorageService {
         pathResolver.ensureInsideSharedBase(sharedBase, file);
         pathResolver.rejectVaultSystemPath(file);
         pathResolver.ensureExistingPathInsideSharedBase(sharedBase, file);
+        rejectHiddenSharedPathIfNeeded(sharedBase, file);
         if (!Files.isRegularFile(file)) {
             throw new NoSuchFileException(fileName);
         }
@@ -503,6 +551,7 @@ public class StorageService {
             OutputStream outputStream) throws IOException {
         Path sharedBase = pathResolver.resolveDirectory(StorageScope.VAULT, sharedBasePath);
         Path directory = pathResolver.resolveSharedPath(sharedBase, directoryPath);
+        rejectHiddenSharedPathIfNeeded(sharedBase, directory);
 
         try (StorageZipWriter.EntryWriter zip = zipWriter.open(outputStream)) {
             for (String itemName : itemNames) {
@@ -511,8 +560,16 @@ public class StorageService {
                 pathResolver.ensureInsideSharedBase(sharedBase, item);
                 pathResolver.rejectVaultSystemPath(item);
                 pathResolver.ensureExistingPathInsideSharedBase(sharedBase, item);
+                rejectHiddenSharedPathIfNeeded(sharedBase, item);
                 zip.write(item, item.getFileName().toString());
             }
+        }
+    }
+
+    private void rejectHiddenSharedPathIfNeeded(Path sharedBase, Path target) throws IOException {
+        if (!shareProperties.isDirectoryShowHiddenItems()
+                && StorageHiddenPolicy.containsHiddenElement(sharedBase, target)) {
+            throw new NoSuchFileException(pathResolver.toRelativePath(sharedBase, target));
         }
     }
 

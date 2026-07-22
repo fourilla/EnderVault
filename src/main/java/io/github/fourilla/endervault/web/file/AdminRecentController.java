@@ -67,6 +67,7 @@ public class AdminRecentController {
             @RequestParam(value = "view", required = false) String view,
             @RequestParam(value = "sort", required = false) String sort,
             @RequestParam(value = "dir", required = false) String direction,
+            @RequestParam(value = "hidden", required = false) String hidden,
             @RequestParam(value = "page", required = false) Integer page,
             @RequestParam(value = "size", required = false) Integer size,
             HttpServletRequest request,
@@ -77,9 +78,10 @@ public class AdminRecentController {
         RecentSort recentSort = recentSort(request, response, sort);
         SortDirection sortDirection = recentDirection(request, response, direction, recentSort);
         int pageSize = recentPageSize(request, response, size);
+        boolean showHidden = recentShowHidden(request, response, hidden);
         String normalizedQuery = normalizeQuery(query);
 
-        List<RecentListItem> items = recentService.list(normalizedQuery, recentSort, sortDirection);
+        List<RecentListItem> items = recentService.list(normalizedQuery, recentSort, sortDirection, showHidden);
         List<RecentListItem> directories = items.stream().filter(RecentListItem::directory).toList();
         List<RecentListItem> files = items.stream().filter(item -> !item.directory()).toList();
         RecentPage filePage = pageFiles(files, page, pageSize);
@@ -94,6 +96,8 @@ public class AdminRecentController {
         model.addAttribute("viewToggleIcon", viewToggleIcon(normalizedView));
         model.addAttribute("sort", recentSort.parameter());
         model.addAttribute("dir", sortDirection.parameter());
+        model.addAttribute("hidden", hiddenMode(showHidden));
+        model.addAttribute("showHidden", showHidden);
         model.addAttribute("pageSizes", pageSizeOptions());
         model.addAttribute("favoritePaths", favoriteService.favoritePaths());
         model.addAttribute("recentTotalItems", items.size());
@@ -248,6 +252,28 @@ public class AdminRecentController {
                 size,
                 this::normalizePageSize
         );
+    }
+
+    private boolean recentShowHidden(HttpServletRequest request, HttpServletResponse response, String hidden) {
+        String normalizedHidden = BrowserPreferenceCookies.value(
+                request,
+                response,
+                BrowserPreferenceCookies.RECENT.hiddenCookie(),
+                hidden,
+                this::normalizeHiddenMode
+        );
+        return "show".equals(normalizedHidden);
+    }
+
+    private String normalizeHiddenMode(String hidden) {
+        if (hidden == null || hidden.isBlank()) {
+            return "hide";
+        }
+        return "show".equalsIgnoreCase(hidden) || "true".equalsIgnoreCase(hidden) ? "show" : "hide";
+    }
+
+    private String hiddenMode(boolean showHidden) {
+        return showHidden ? "show" : "hide";
     }
 
     private RecentSort normalizeSort(String sort) {

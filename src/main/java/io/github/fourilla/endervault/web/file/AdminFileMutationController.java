@@ -232,6 +232,47 @@ public class AdminFileMutationController {
         return ActionResponseSupport.redirect(request, redirectAttributes, notification, redirect);
     }
 
+    @PostMapping("/files/detail/hidden")
+    public Object setHiddenFromDetail(
+            @RequestParam("path") String path,
+            @RequestParam("hidden") boolean hidden,
+            @RequestParam(value = "conflictPolicy", required = false) String conflictPolicy,
+            HttpServletRequest request,
+            RedirectAttributes redirectAttributes
+    ) throws IOException {
+        if (FileConflictPolicies.cancels(conflictPolicy, storageService.defaultConflictPolicy())) {
+            return canceledMutation(request, redirectAttributes, redirectToDetail(path));
+        }
+        FileDetail detail = detailForPath(path);
+        String newPath;
+        try {
+            newPath = storageService.setHiddenVaultPath(detail.path(), hidden, mutationPolicy(conflictPolicy));
+        } catch (FileAlreadyExistsException ex) {
+            if (FileConflictPolicies.asksForJson(conflictPolicy, request)) {
+                String targetName = hidden ? "." + detail.name() : detail.name().replaceFirst("^\\.+", "");
+                return conflictResponse(
+                        hidden ? "hide" : "unhide",
+                        detail.name(),
+                        targetPath(detail.parentPath(), targetName),
+                        "An item named \"" + targetName + "\" already exists.",
+                        redirectToDetail(path)
+                );
+            }
+            throw ex;
+        }
+
+        fileLifecycleService.recordHiddenChange(
+                request,
+                detail.path(),
+                newPath,
+                hidden,
+                hidden ? "Marked item as hidden" : "Marked item as visible"
+        );
+        FlashNotification notification = FlashNotification.success(hidden ? "Item hidden." : "Item visible.");
+        String redirect = redirectToDetail(newPath);
+        return ActionResponseSupport.redirect(request, redirectAttributes, notification, redirect);
+    }
+
     @PostMapping("/files/delete")
     public Object delete(
             @RequestParam(value = "path", required = false) String path,

@@ -56,16 +56,44 @@ public class FavoriteService {
     }
 
     public synchronized List<FavoriteItem> list() throws IOException {
+        return list(true);
+    }
+
+    public synchronized List<FavoriteItem> list(boolean showHidden) throws IOException {
         return readAllMutable().stream()
                 .map(this::enrich)
+                .filter(favorite -> showHidden || !containsHiddenVaultPath(favorite))
+                .toList();
+    }
+
+    public synchronized List<FavoriteDisplayItem> listDisplay(boolean showHidden) throws IOException {
+        return readAllMutable().stream()
+                .map(this::enrich)
+                .map(this::display)
+                .filter(favorite -> showHidden || !favorite.hidden())
                 .toList();
     }
 
     public synchronized List<FavoriteItem> listExisting() throws IOException {
+        return listExisting(true);
+    }
+
+    public synchronized List<FavoriteItem> listExisting(boolean showHidden) throws IOException {
         List<FavoriteItem> favorites = readAllMutable();
         return favorites.stream()
                 .filter(this::exists)
                 .map(this::enrich)
+                .filter(favorite -> showHidden || !containsHiddenVaultPath(favorite))
+                .toList();
+    }
+
+    public synchronized List<FavoriteDisplayItem> listExistingDisplay(boolean showHidden) throws IOException {
+        List<FavoriteItem> favorites = readAllMutable();
+        return favorites.stream()
+                .filter(this::exists)
+                .map(this::enrich)
+                .map(this::display)
+                .filter(favorite -> showHidden || !favorite.hidden())
                 .toList();
     }
 
@@ -210,6 +238,10 @@ public class FavoriteService {
         return exists(favorite);
     }
 
+    public synchronized boolean hidden(FavoriteItem favorite) {
+        return containsHiddenVaultPath(favorite);
+    }
+
     private boolean exists(FavoriteItem favorite) {
         if (favorite.bookmark()) {
             try {
@@ -224,6 +256,21 @@ public class FavoriteService {
         } catch (IOException | StorageAccessException ex) {
             return false;
         }
+    }
+
+    private boolean containsHiddenVaultPath(FavoriteItem favorite) {
+        if (favorite.bookmark()) {
+            return false;
+        }
+        try {
+            return storageService.vaultPathContainsHiddenElement(favorite.path());
+        } catch (IOException | StorageAccessException ex) {
+            return false;
+        }
+    }
+
+    private FavoriteDisplayItem display(FavoriteItem favorite) {
+        return new FavoriteDisplayItem(favorite, containsHiddenVaultPath(favorite));
     }
 
     private int indexOf(List<FavoriteItem> favorites, String vaultPath) {

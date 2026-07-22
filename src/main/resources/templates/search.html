@@ -32,9 +32,9 @@
         </form>
 
         <div class="toolbar-cluster" th:if="${searchPerformed}" aria-label="Search result controls">
-            <div class="toolbar-actions browser-controls" aria-label="Paging controls">
+            <div class="toolbar-actions browser-controls" aria-label="Search view option controls">
                 <details class="settings-menu">
-                    <summary class="icon-button menu-summary" title="Search result paging" aria-label="Search result paging">
+                    <summary class="icon-button menu-summary" title="Search view options" aria-label="Search view options">
                         <i class="fas fa-ellipsis-vertical" aria-hidden="true"></i>
                     </summary>
                     <div class="settings-panel">
@@ -49,6 +49,13 @@
                                             th:value="${option}"
                                             th:text="${option}"
                                             th:selected="${option == resultPage.size()}">200</option>
+                                </select>
+                            </label>
+                            <label>
+                                Visibility
+                                <select name="hidden">
+                                    <option value="hide" th:selected="${hidden == 'hide'}">Visible only</option>
+                                    <option value="show" th:selected="${hidden == 'show'}">Show hidden</option>
                                 </select>
                             </label>
                             <button type="submit">Apply</button>
@@ -85,7 +92,8 @@
                 </tr>
                 </thead>
                 <tbody>
-                <tr th:each="item : ${resultPage.items()}">
+                <tr th:each="item : ${resultPage.items()}"
+                    th:classappend="${item.hidden()} ? 'is-hidden-item' : ''">
                     <td>
                         <a class="item-name directory" th:if="${item.directory()}" th:href="@{/files(path=${item.path()})}">
                             <i class="fas fa-folder item-icon" aria-hidden="true"></i>
@@ -93,6 +101,7 @@
                         </a>
                         <a class="item-name" th:unless="${item.directory()}" th:href="@{/files/detail(path=${item.path()})}"
                            th:text="${item.name()}">file</a>
+                        <span class="status-badge expired hidden-badge" th:if="${item.hidden()}">Hidden</span>
                     </td>
                     <td>
                         <a class="muted" th:href="@{/files(path=${item.parentPath()})}"

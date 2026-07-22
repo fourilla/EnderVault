@@ -14,7 +14,8 @@ public record FileDetail(
         String mediaType,
         String extension,
         boolean previewable,
-        boolean streamable
+        boolean streamable,
+        boolean hidden
 ) {
     public boolean hasParent() {
         return parentPath != null;
