@@ -146,13 +146,14 @@ public class SharedFileController {
             @PathVariable(value = "filename", required = false) String filename,
             @RequestParam(value = "path", required = false) String path,
             @RequestParam(value = "item", required = false) String item,
+            @RequestHeader HttpHeaders headers,
             HttpServletRequest request
     ) throws IOException {
         ShareLink shareLink = shareLinkService.requireUsable(token);
         Path file = resolveSharedDownloadTarget(shareLink, path, item);
         activityLogService.record("SHARE_DOWNLOAD", request, shareLink.path(), item,
                 "Downloaded from share link " + token);
-        return fileResponseService.attachment(file);
+        return fileResponseService.attachment(file, headers);
     }
 
     @GetMapping("/s/{token}/download.zip")
@@ -174,6 +175,7 @@ public class SharedFileController {
         }
 
         response.setContentType("application/zip");
+        response.setHeader(HttpHeaders.ACCEPT_RANGES, "none");
         response.setHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"shared-files.zip\"");
         activityLogService.record("SHARE_DOWNLOAD_ZIP", request, shareLink.path(), path,
                 "Downloaded shared ZIP with " + items.size() + " item(s)");

@@ -10,12 +10,12 @@ import io.github.fourilla.endervault.storage.SortDirection;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.BrowserPreferenceCookies;
+import io.github.fourilla.endervault.web.support.FileResponseService;
 import io.github.fourilla.endervault.web.support.FlashNotification;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -23,11 +23,11 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -43,19 +43,22 @@ public class AdminRecentController {
     private final FavoriteService favoriteService;
     private final StorageService storageService;
     private final ActivityLogService activityLogService;
+    private final FileResponseService fileResponseService;
 
     public AdminRecentController(
             NasProperties nasProperties,
             RecentService recentService,
             FavoriteService favoriteService,
             StorageService storageService,
-            ActivityLogService activityLogService
+            ActivityLogService activityLogService,
+            FileResponseService fileResponseService
     ) {
         this.nasProperties = nasProperties;
         this.recentService = recentService;
         this.favoriteService = favoriteService;
         this.storageService = storageService;
         this.activityLogService = activityLogService;
+        this.fileResponseService = fileResponseService;
     }
 
     @GetMapping("/files/recent")
@@ -139,6 +142,7 @@ public class AdminRecentController {
     @GetMapping("/files/recent/download.zip")
     public void downloadSelected(
             @RequestParam(value = "paths", required = false) List<String> paths,
+            @RequestHeader HttpHeaders headers,
             HttpServletRequest request,
             HttpServletResponse response
     ) throws IOException {
@@ -152,11 +156,8 @@ public class AdminRecentController {
             RecentListItem item = recentItem(selectedPaths.get(0));
             if (!item.directory()) {
                 activityLogService.record("DOWNLOAD", request, item.path(), null, "Downloaded " + item.name());
-                response.setContentType(MediaType.APPLICATION_OCTET_STREAM_VALUE);
                 Path file = storageService.resolveVaultFile(item.path());
-                response.setContentLengthLong(Files.size(file));
-                response.setHeader(HttpHeaders.CONTENT_DISPOSITION, contentDisposition(item.name()));
-                Files.copy(file, response.getOutputStream());
+                fileResponseService.writeAttachment(file, headers, response);
                 return;
             }
         }
@@ -170,6 +171,7 @@ public class AdminRecentController {
                 Map.of("count", String.valueOf(selectedPaths.size()))
         );
         response.setContentType("application/zip");
+        response.setHeader(HttpHeaders.ACCEPT_RANGES, "none");
         response.setHeader(HttpHeaders.CONTENT_DISPOSITION, zipContentDisposition(selectedPaths));
         storageService.writeVaultPathsZip(selectedPaths, response.getOutputStream());
     }

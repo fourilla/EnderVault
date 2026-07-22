@@ -79,9 +79,28 @@ class FileResponseServiceTest {
         ResponseEntity<Resource> response = fileResponseService.attachment(file);
 
         assertThat(response.getHeaders().getFirst("X-Content-Type-Options")).isEqualTo("nosniff");
+        assertThat(response.getHeaders().getFirst(HttpHeaders.ACCEPT_RANGES)).isEqualTo("bytes");
         assertThat(response.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
                 .contains("attachment")
                 .contains("report.txt");
+    }
+
+    @Test
+    void attachmentStreamsRequestedByteRange() throws Exception {
+        Path file = root.resolve("archive.bin");
+        Files.writeString(file, "abcdefghij", StandardCharsets.UTF_8);
+        HttpHeaders requestHeaders = new HttpHeaders();
+        requestHeaders.set(HttpHeaders.RANGE, "bytes=3-6");
+
+        ResponseEntity<Resource> response = fileResponseService.attachment(file, requestHeaders);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.PARTIAL_CONTENT);
+        assertThat(response.getHeaders().getFirst(HttpHeaders.CONTENT_RANGE)).isEqualTo("bytes 3-6/10");
+        assertThat(response.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION)).contains("attachment");
+        assertThat(response.getHeaders().getContentLength()).isEqualTo(4L);
+
+        Resource resource = response.getBody();
+        assertThat(new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8)).isEqualTo("defg");
     }
 
     @Test

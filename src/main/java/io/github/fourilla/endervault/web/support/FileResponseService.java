@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.web.support;
 
 import io.github.fourilla.endervault.storage.StorageService;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -8,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import org.springframework.core.io.AbstractResource;
 import org.springframework.core.io.FileSystemResource;
@@ -40,18 +42,39 @@ public class FileResponseService {
     }
 
     public ResponseEntity<Resource> attachment(Path file) throws IOException {
-        Resource resource = new FileSystemResource(file);
-        return ResponseEntity.ok()
-                .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .contentLength(Files.size(file))
-                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition("attachment", file))
-                .header(X_CONTENT_TYPE_OPTIONS, NOSNIFF)
-                .body(resource);
+        return fileResponse(file, new HttpHeaders(), MediaType.APPLICATION_OCTET_STREAM, "attachment");
+    }
+
+    public ResponseEntity<Resource> attachment(Path file, HttpHeaders requestHeaders) throws IOException {
+        return fileResponse(file, requestHeaders, MediaType.APPLICATION_OCTET_STREAM, "attachment");
+    }
+
+    public void writeAttachment(Path file, HttpHeaders requestHeaders, HttpServletResponse response) throws IOException {
+        ResponseEntity<Resource> entity = attachment(file, requestHeaders);
+        response.setStatus(entity.getStatusCode().value());
+        for (Map.Entry<String, List<String>> header : entity.getHeaders().entrySet()) {
+            for (String value : header.getValue()) {
+                response.addHeader(header.getKey(), value);
+            }
+        }
+        Resource body = entity.getBody();
+        if (body != null) {
+            try (InputStream inputStream = body.getInputStream()) {
+                inputStream.transferTo(response.getOutputStream());
+            }
+        }
     }
 
     public ResponseEntity<?> inline(Path file, HttpHeaders requestHeaders) throws IOException {
-        Resource resource = new FileSystemResource(file);
-        MediaType mediaType = inlineMediaType(file);
+        return fileResponse(file, requestHeaders, inlineMediaType(file), "inline");
+    }
+
+    private ResponseEntity<Resource> fileResponse(
+            Path file,
+            HttpHeaders requestHeaders,
+            MediaType mediaType,
+            String dispositionType
+    ) throws IOException {
         long fileSize = Files.size(file);
         List<HttpRange> ranges = requestHeaders.getRange();
 
@@ -74,16 +97,17 @@ public class FileResponseService {
                     .contentLength(contentLength)
                     .header(HttpHeaders.ACCEPT_RANGES, "bytes")
                     .header(HttpHeaders.CONTENT_RANGE, "bytes %d-%d/%d".formatted(start, end, fileSize))
-                    .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition("inline", file))
+                    .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition(dispositionType, file))
                     .header(X_CONTENT_TYPE_OPTIONS, NOSNIFF)
                     .body(rangeResource);
         }
 
+        Resource resource = new FileSystemResource(file);
         return ResponseEntity.ok()
                 .contentType(mediaType)
                 .contentLength(fileSize)
                 .header(HttpHeaders.ACCEPT_RANGES, "bytes")
-                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition("inline", file))
+                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition(dispositionType, file))
                 .header(X_CONTENT_TYPE_OPTIONS, NOSNIFF)
                 .body(resource);
     }

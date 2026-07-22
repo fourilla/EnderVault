@@ -62,25 +62,27 @@ public class AdminFileTransferController {
     public ResponseEntity<?> download(
             @RequestParam(value = "path", required = false) String path,
             @RequestParam("item") String item,
+            @RequestHeader HttpHeaders headers,
             HttpServletRequest request
     ) throws IOException {
         FileItem fileItem = storageService.describeVaultChild(path, item);
         recentService.recordVaultPath(fileItem.path());
         activityLogService.record("DOWNLOAD", request, fileItem.path(), null, "Downloaded " + fileItem.name());
         Path file = storageService.resolveFile(StorageScope.VAULT, path, item);
-        return fileResponseService.attachment(file);
+        return fileResponseService.attachment(file, headers);
     }
 
     @GetMapping("/files/detail/download")
     public ResponseEntity<?> downloadFromDetail(
             @RequestParam("path") String path,
+            @RequestHeader HttpHeaders headers,
             HttpServletRequest request
     ) throws IOException {
         FileDetail detail = detailForPath(path);
         recentService.recordVaultPath(detail.path());
         activityLogService.record("DOWNLOAD", request, detail.path(), null, "Downloaded " + detail.name());
         Path file = storageService.resolveVaultFile(path);
-        return fileResponseService.attachment(file);
+        return fileResponseService.attachment(file, headers);
     }
 
     @GetMapping("/files/thumbnail")
@@ -107,6 +109,7 @@ public class AdminFileTransferController {
             @RequestParam(value = "dir", required = false) String direction,
             @RequestParam(value = "page", required = false) Integer page,
             @RequestParam(value = "size", required = false) Integer size,
+            @RequestHeader HttpHeaders headers,
             HttpServletRequest request,
             HttpServletResponse response,
             RedirectAttributes redirectAttributes
@@ -124,13 +127,14 @@ public class AdminFileTransferController {
                 recentService.recordVaultPath(item.path());
                 activityLogService.record("DOWNLOAD", request, item.path(), null, "Downloaded " + item.name());
                 Path file = storageService.resolveFile(StorageScope.VAULT, path, item.name());
-                writeAttachment(file, response);
+                fileResponseService.writeAttachment(file, headers, response);
                 return;
             }
         }
 
         activityLogService.record("DOWNLOAD_ZIP", request, path, null, "Downloaded ZIP with " + items.size() + " item(s)");
         response.setContentType("application/zip");
+        response.setHeader(HttpHeaders.ACCEPT_RANGES, "none");
         response.setHeader(HttpHeaders.CONTENT_DISPOSITION, zipContentDisposition(items));
         storageService.writeZip(StorageScope.VAULT, path, items, response.getOutputStream());
     }
@@ -148,6 +152,7 @@ public class AdminFileTransferController {
 
         activityLogService.record("DOWNLOAD_ZIP", request, detail.path(), null, "Downloaded ZIP for " + detail.name());
         response.setContentType("application/zip");
+        response.setHeader(HttpHeaders.ACCEPT_RANGES, "none");
         response.setHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"endervault.zip\"");
         storageService.writeZip(
                 StorageScope.VAULT,
@@ -210,19 +215,6 @@ public class AdminFileTransferController {
                 .filename(filename, StandardCharsets.UTF_8)
                 .build()
                 .toString();
-    }
-
-    private void writeAttachment(Path file, HttpServletResponse response) throws IOException {
-        response.setContentType(MediaType.APPLICATION_OCTET_STREAM_VALUE);
-        response.setContentLengthLong(Files.size(file));
-        response.setHeader(
-                HttpHeaders.CONTENT_DISPOSITION,
-                ContentDisposition.attachment()
-                        .filename(file.getFileName().toString(), StandardCharsets.UTF_8)
-                        .build()
-                        .toString()
-        );
-        Files.copy(file, response.getOutputStream());
     }
 
     private ResponseEntity<Resource> thumbnailResponse(Path file, String vaultPath) throws IOException {

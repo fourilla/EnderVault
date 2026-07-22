@@ -42,7 +42,7 @@
                       data-favorite-action="toggle" th:attr="data-favorite-path=|bookmark:${bookmark.id()}|">
                     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                     <input type="hidden" name="id" th:value="${bookmark.id()}">
-                    <button class="ghost icon-button favorite-toggle" type="submit"
+                    <button class="ghost icon-button action-icon favorite-toggle" type="submit"
                             th:classappend="${favorite} ? ' is-favorite' : ''"
                             th:title="${favorite ? 'Remove from favorites' : 'Add to favorites'}"
                             th:attr="aria-label=${favorite ? 'Remove from favorites' : 'Add to favorites'}">
