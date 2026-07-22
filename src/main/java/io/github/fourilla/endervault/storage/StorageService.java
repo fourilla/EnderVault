@@ -60,9 +60,9 @@ public class StorageService {
     @PostConstruct
     public void initialize() throws IOException {
         Files.createDirectories(root);
-        Files.createDirectories(trashRoot);
-        Files.createDirectories(metadataRoot);
-        Files.createDirectories(uploadTempRoot);
+        createSystemDirectory(trashRoot, "Trash");
+        createSystemDirectory(metadataRoot, "Metadata");
+        createSystemDirectory(uploadTempRoot, "Upload temporary");
     }
 
     public DirectoryListing list(StorageScope scope, String requestedPath) throws IOException {
@@ -526,6 +526,16 @@ public class StorageService {
             throw new StorageAccessException("Invalid storage system directory: " + directoryName);
         }
         return directoryName;
+    }
+
+    private void createSystemDirectory(Path directory, String label) throws IOException {
+        if (Files.isSymbolicLink(directory)) {
+            throw new StorageAccessException(label + " directory cannot be a symbolic link.");
+        }
+        Files.createDirectories(directory);
+        if (!Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)) {
+            throw new StorageAccessException(label + " path is not a directory.");
+        }
     }
 
     public record StagedUpload(Path temporaryFile, String filename, long size) {

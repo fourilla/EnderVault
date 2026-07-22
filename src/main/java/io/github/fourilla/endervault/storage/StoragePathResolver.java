@@ -177,6 +177,7 @@ final class StoragePathResolver {
     }
 
     void ensureExistingPathInsideBase(StorageScope scope, Path candidate) throws IOException {
+        rejectSymbolicPathElements(baseFor(scope), candidate);
         Path base = baseFor(scope).toRealPath();
         Path realCandidate = candidate.toRealPath();
         if (!realCandidate.startsWith(base)) {
@@ -199,6 +200,7 @@ final class StoragePathResolver {
     }
 
     void ensureExistingPathInsideSharedBase(Path sharedBase, Path candidate) throws IOException {
+        rejectSymbolicPathElements(sharedBase, candidate);
         Path realSharedBase = sharedBase.toRealPath();
         Path realCandidate = candidate.toRealPath();
         if (!realCandidate.startsWith(realSharedBase)) {
@@ -223,22 +225,52 @@ final class StoragePathResolver {
         }
 
         String cleaned = requestedPath.replace('\\', '/');
-        Path relative = Path.of(cleaned).normalize();
+        Path rawPath = Path.of(cleaned);
+        if (rawPath.isAbsolute()) {
+            throw new StorageAccessException("Absolute paths are not allowed.");
+        }
+        for (String segment : cleaned.split("/", -1)) {
+            validateRelativePathSegment(segment);
+        }
+
+        Path relative = rawPath.normalize();
         if (relative.isAbsolute()) {
             throw new StorageAccessException("Absolute paths are not allowed.");
         }
         for (Path segment : relative) {
             String value = segment.toString();
-            if (value.isBlank() || ".".equals(value) || "..".equals(value) || value.contains(":")) {
-                throw new StorageAccessException("Invalid path segment: " + value);
-            }
+            validateRelativePathSegment(value);
         }
         return relative;
+    }
+
+    private static void validateRelativePathSegment(String value) {
+        if (value == null || value.isBlank() || ".".equals(value) || "..".equals(value) || value.contains(":")) {
+            throw new StorageAccessException("Invalid path segment: " + value);
+        }
+        validateSingleNameValue(value);
     }
 
     private void ensureInsideTrashRoot(Path candidate) {
         if (!candidate.normalize().startsWith(trashRoot)) {
             throw new StorageAccessException("Path is outside trash.");
+        }
+    }
+
+    private void rejectSymbolicPathElements(Path base, Path candidate) throws IOException {
+        Path normalizedBase = base.toAbsolutePath().normalize();
+        Path normalizedCandidate = candidate.toAbsolutePath().normalize();
+        if (!normalizedCandidate.startsWith(normalizedBase)) {
+            throw new StorageAccessException("Path is outside the allowed storage area.");
+        }
+
+        Path relative = normalizedBase.relativize(normalizedCandidate);
+        Path current = normalizedBase;
+        for (Path segment : relative) {
+            current = current.resolve(segment);
+            if (Files.isSymbolicLink(current)) {
+                throw new StorageAccessException("Symbolic links are not allowed.");
+            }
         }
     }
 

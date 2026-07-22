@@ -210,10 +210,38 @@ class StorageServiceTest {
     }
 
     @Test
+    void vaultScopeRejectsTraversalAliasesBeforeNormalization() throws Exception {
+        Files.createDirectories(root.resolve("docs"));
+        Files.writeString(root.resolve("visible.txt"), "visible");
+
+        assertThatThrownBy(() -> storageService.detail(StorageScope.VAULT, "docs/../visible.txt"))
+                .isInstanceOf(StorageAccessException.class);
+    }
+
+    @Test
+    void vaultScopeRejectsInvalidRelativePathSegments() {
+        assertThatThrownBy(() -> storageService.detail(StorageScope.VAULT, "CON.txt"))
+                .isInstanceOf(StorageAccessException.class);
+        assertThatThrownBy(() -> storageService.detail(StorageScope.VAULT, "docs/note.txt."))
+                .isInstanceOf(StorageAccessException.class);
+        assertThatThrownBy(() -> storageService.detail(StorageScope.VAULT, "docs/note.txt "))
+                .isInstanceOf(StorageAccessException.class);
+    }
+
+    @Test
     void sharedDirectoryCannotEscapeSharedRoot() throws Exception {
         Files.createDirectories(root.resolve("shared"));
 
         assertThatThrownBy(() -> storageService.listSharedDirectory("shared", "../"))
+                .isInstanceOf(StorageAccessException.class);
+    }
+
+    @Test
+    void sharedDirectoryRejectsTraversalAliasesBeforeNormalization() throws Exception {
+        Files.createDirectories(root.resolve("shared").resolve("docs"));
+        Files.writeString(root.resolve("shared").resolve("visible.txt"), "visible");
+
+        assertThatThrownBy(() -> storageService.listSharedDirectory("shared", "docs/../"))
                 .isInstanceOf(StorageAccessException.class);
     }
 

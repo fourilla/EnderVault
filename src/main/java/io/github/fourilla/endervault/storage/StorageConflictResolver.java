@@ -57,7 +57,9 @@ final class StorageConflictResolver {
         String extension = extensionIndex > 0 ? filename.substring(extensionIndex) : "";
         Path parent = requestedTarget.getParent();
         for (int counter = 1; counter <= 9999; counter++) {
-            Path candidate = parent.resolve(stem + " - " + counter + extension).normalize();
+            String candidateName = stem + " - " + counter + extension;
+            pathResolver.validateSingleName(candidateName);
+            Path candidate = parent.resolve(candidateName).normalize();
             pathResolver.ensureInsideBase(StorageScope.VAULT, candidate);
             if (!Files.exists(candidate, LinkOption.NOFOLLOW_LINKS)) {
                 return candidate;
