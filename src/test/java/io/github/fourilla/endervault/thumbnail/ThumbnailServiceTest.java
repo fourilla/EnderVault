@@ -14,6 +14,8 @@ import java.util.Base64;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import javax.imageio.ImageIO;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -122,6 +124,25 @@ class ThumbnailServiceTest {
     }
 
     @Test
+    void generatesPdfThumbnailFromFirstPage() throws Exception {
+        thumbnailService.shutdown();
+        thumbnailService = newThumbnailService(true);
+        Path pdf = root.resolve("document.pdf");
+        writePdf(pdf);
+
+        ThumbnailFile firstResponse = thumbnailService.pdfThumbnail(pdf, "document.pdf");
+
+        assertThat(firstResponse.generated()).isFalse();
+        Path cacheFile = thumbnailService.pdfCacheFile(pdf, "document.pdf");
+        waitForFile(cacheFile);
+
+        ThumbnailFile cachedResponse = thumbnailService.pdfThumbnail(pdf, "document.pdf");
+        assertThat(cachedResponse.generated()).isTrue();
+        assertThat(cachedResponse.mediaType()).isEqualTo("image/jpeg");
+        assertThat(cachedResponse.path()).isEqualTo(cacheFile);
+    }
+
+    @Test
     void migratesCachedComicThumbnailWhenPathChanges() throws Exception {
         thumbnailService.shutdown();
         thumbnailService = newThumbnailService(true);
@@ -181,6 +202,13 @@ class ThumbnailServiceTest {
                     "UklGRhwAAABXRUJQVlA4TA8AAAAvA8AAAAcQ9Y/+ByKi/wEA"
             ));
             zipOutputStream.closeEntry();
+        }
+    }
+
+    private void writePdf(Path pdf) throws Exception {
+        try (PDDocument document = new PDDocument()) {
+            document.addPage(new PDPage());
+            document.save(pdf.toFile());
         }
     }
 

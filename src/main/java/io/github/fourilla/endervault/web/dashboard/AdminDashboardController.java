@@ -99,6 +99,7 @@ public class AdminDashboardController {
         return new DashboardView.ThumbnailSummary(
                 stats.videoEnabled(),
                 stats.comicEnabled(),
+                stats.pdfEnabled(),
                 stats.cachedFiles(),
                 stats.sizeBytes(),
                 stats.sizeLabel(),

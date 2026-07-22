@@ -392,6 +392,8 @@ public class NasProperties {
 
         private boolean comicEnabled = true;
 
+        private boolean pdfEnabled = true;
+
         @NotBlank
         private String cacheDirectory = "thumbnails";
 
@@ -411,6 +413,14 @@ public class NasProperties {
 
         public void setComicEnabled(boolean comicEnabled) {
             this.comicEnabled = comicEnabled;
+        }
+
+        public boolean isPdfEnabled() {
+            return pdfEnabled;
+        }
+
+        public void setPdfEnabled(boolean pdfEnabled) {
+            this.pdfEnabled = pdfEnabled;
         }
 
         public String getCacheDirectory() {

@@ -28,6 +28,7 @@ public class ThumbnailService {
 
     private final boolean videoEnabled;
     private final boolean comicEnabled;
+    private final boolean pdfEnabled;
     private final ExecutorService executor;
     private final Set<Path> inProgress = ConcurrentHashMap.newKeySet();
     private final ThumbnailCacheStore cacheStore;
@@ -46,6 +47,7 @@ public class ThumbnailService {
         this.cacheStore = new ThumbnailCacheStore(vaultRoot, trashRoot, metadataRoot, cacheDirectory);
         this.videoEnabled = thumbnails.isVideoEnabled();
         this.comicEnabled = thumbnails.isComicEnabled();
+        this.pdfEnabled = thumbnails.isPdfEnabled();
         this.executor = Executors.newFixedThreadPool(
                 Math.max(1, thumbnails.getGeneratorThreads()),
                 thumbnailThreadFactory()
@@ -65,6 +67,9 @@ public class ThumbnailService {
         }
         if (!Files.exists(cacheStore.comicPlaceholderFile())) {
             thumbnailGenerator.writeComicPlaceholder(cacheStore.cacheRoot(), cacheStore.comicPlaceholderFile());
+        }
+        if (!Files.exists(cacheStore.pdfPlaceholderFile())) {
+            thumbnailGenerator.writePdfPlaceholder(cacheStore.cacheRoot(), cacheStore.pdfPlaceholderFile());
         }
     }
 
@@ -101,12 +106,29 @@ public class ThumbnailService {
         return cacheStore.comicPlaceholder();
     }
 
+    public ThumbnailFile pdfThumbnail(Path pdfFile, String vaultPath) throws IOException {
+        if (!pdfEnabled) {
+            return cacheStore.pdfPlaceholder();
+        }
+
+        Path cacheFile = cacheStore.pdfCacheFile(pdfFile, vaultPath);
+        if (Files.exists(cacheFile)) {
+            return new ThumbnailFile(cacheFile, "image/jpeg", true);
+        }
+
+        scheduleGeneration(pdfFile.toAbsolutePath().normalize(), cacheFile, thumbnailGenerator::generatePdfThumbnail);
+        return cacheStore.pdfPlaceholder();
+    }
+
     public ThumbnailFile thumbnail(Path file, String vaultPath) throws IOException {
         if (classifier.isVideoFile(file)) {
             return videoThumbnail(file, vaultPath);
         }
         if (classifier.isComicFile(file)) {
             return comicThumbnail(file, vaultPath);
+        }
+        if (classifier.isPdfFile(file)) {
+            return pdfThumbnail(file, vaultPath);
         }
         throw new NoSuchFileException(vaultPath);
     }
@@ -120,7 +142,7 @@ public class ThumbnailService {
     }
 
     public ThumbnailCacheScan scanCache(TaskContext context) throws IOException {
-        return cacheStore.scan(context, classifier, videoEnabled, comicEnabled);
+        return cacheStore.scan(context, classifier, videoEnabled, comicEnabled, pdfEnabled);
     }
 
     public void deleteCacheFile(String relativePath) throws IOException {
@@ -128,11 +150,19 @@ public class ThumbnailService {
     }
 
     public ThumbnailCacheStats cacheStats() throws IOException {
-        return cacheStore.stats(videoEnabled, comicEnabled, inProgress.size());
+        return cacheStore.stats(videoEnabled, comicEnabled, pdfEnabled, inProgress.size());
     }
 
     public void migrateThumbnails(Path currentPath, String oldVaultPath, String newVaultPath) {
-        cacheStore.migrateThumbnails(currentPath, oldVaultPath, newVaultPath, classifier, videoEnabled, comicEnabled);
+        cacheStore.migrateThumbnails(
+                currentPath,
+                oldVaultPath,
+                newVaultPath,
+                classifier,
+                videoEnabled,
+                comicEnabled,
+                pdfEnabled
+        );
     }
 
     public void migrateVideoThumbnails(Path currentPath, String oldVaultPath, String newVaultPath) {
@@ -145,6 +175,10 @@ public class ThumbnailService {
 
     Path comicCacheFile(Path comicFile, String vaultPath) throws IOException {
         return cacheStore.comicCacheFile(comicFile, vaultPath);
+    }
+
+    Path pdfCacheFile(Path pdfFile, String vaultPath) throws IOException {
+        return cacheStore.pdfCacheFile(pdfFile, vaultPath);
     }
 
     private void scheduleGeneration(Path sourceFile, Path cacheFile, ThumbnailGeneration generation) {

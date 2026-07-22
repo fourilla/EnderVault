@@ -8,7 +8,7 @@ import java.util.Locale;
 final class ThumbnailClassifier {
 
     boolean supports(Path file) throws IOException {
-        return isVideoFile(file) || isComicFile(file);
+        return isVideoFile(file) || isComicFile(file) || isPdfFile(file);
     }
 
     boolean isVideoFile(Path file) throws IOException {
@@ -27,5 +27,13 @@ final class ThumbnailClassifier {
 
     boolean isComicFile(Path file) {
         return file.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".cbz");
+    }
+
+    boolean isPdfFile(Path file) throws IOException {
+        String contentType = Files.probeContentType(file);
+        if ("application/pdf".equalsIgnoreCase(contentType)) {
+            return true;
+        }
+        return file.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".pdf");
     }
 }

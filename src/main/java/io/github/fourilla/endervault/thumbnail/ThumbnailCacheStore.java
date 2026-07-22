@@ -41,8 +41,10 @@ final class ThumbnailCacheStore {
     private final Path cacheRoot;
     private final Path videoCacheRoot;
     private final Path comicCacheRoot;
+    private final Path pdfCacheRoot;
     private final Path videoPlaceholderFile;
     private final Path comicPlaceholderFile;
+    private final Path pdfPlaceholderFile;
 
     ThumbnailCacheStore(Path vaultRoot, Path trashRoot, Path metadataRoot, String cacheDirectory) {
         this.vaultRoot = vaultRoot;
@@ -51,13 +53,16 @@ final class ThumbnailCacheStore {
         this.cacheRoot = metadataRoot.resolve(cacheDirectory);
         this.videoCacheRoot = cacheRoot.resolve("videos");
         this.comicCacheRoot = cacheRoot.resolve("comics");
+        this.pdfCacheRoot = cacheRoot.resolve("pdfs");
         this.videoPlaceholderFile = cacheRoot.resolve("video-placeholder.png");
         this.comicPlaceholderFile = cacheRoot.resolve("comic-placeholder.png");
+        this.pdfPlaceholderFile = cacheRoot.resolve("pdf-placeholder.png");
     }
 
     void initialize() throws IOException {
         Files.createDirectories(videoCacheRoot);
         Files.createDirectories(comicCacheRoot);
+        Files.createDirectories(pdfCacheRoot);
     }
 
     Path cacheRoot() {
@@ -72,12 +77,20 @@ final class ThumbnailCacheStore {
         return comicPlaceholderFile;
     }
 
+    Path pdfPlaceholderFile() {
+        return pdfPlaceholderFile;
+    }
+
     ThumbnailFile videoPlaceholder() {
         return new ThumbnailFile(videoPlaceholderFile, "image/png", false);
     }
 
     ThumbnailFile comicPlaceholder() {
         return new ThumbnailFile(comicPlaceholderFile, "image/png", false);
+    }
+
+    ThumbnailFile pdfPlaceholder() {
+        return new ThumbnailFile(pdfPlaceholderFile, "image/png", false);
     }
 
     Path videoCacheFile(Path videoFile, String vaultPath) throws IOException {
@@ -88,17 +101,22 @@ final class ThumbnailCacheStore {
         return cacheFile(comicCacheRoot, comicFile, vaultPath);
     }
 
+    Path pdfCacheFile(Path pdfFile, String vaultPath) throws IOException {
+        return cacheFile(pdfCacheRoot, pdfFile, vaultPath);
+    }
+
     ThumbnailCacheScan scan(
             TaskContext context,
             ThumbnailClassifier classifier,
             boolean videoEnabled,
-            boolean comicEnabled
+            boolean comicEnabled,
+            boolean pdfEnabled
     ) throws IOException {
-        Set<Path> expectedFiles = expectedCacheFiles(context, classifier, videoEnabled, comicEnabled);
+        Set<Path> expectedFiles = expectedCacheFiles(context, classifier, videoEnabled, comicEnabled, pdfEnabled);
         List<ThumbnailCacheFile> orphanFiles = new ArrayList<>();
         List<ThumbnailCacheFile> temporaryFiles = new ArrayList<>();
 
-        for (Path thumbnailRoot : List.of(videoCacheRoot, comicCacheRoot)) {
+        for (Path thumbnailRoot : List.of(videoCacheRoot, comicCacheRoot, pdfCacheRoot)) {
             checkCanceled(context);
             if (!Files.exists(thumbnailRoot)) {
                 continue;
@@ -139,7 +157,9 @@ final class ThumbnailCacheStore {
         }
         Path cacheFile = cacheRoot.resolve(relativePath.replace('\\', '/')).normalize();
         Path normalized = cacheFile.toAbsolutePath().normalize();
-        if (!normalized.startsWith(videoCacheRoot) && !normalized.startsWith(comicCacheRoot)) {
+        if (!normalized.startsWith(videoCacheRoot)
+                && !normalized.startsWith(comicCacheRoot)
+                && !normalized.startsWith(pdfCacheRoot)) {
             throw new StorageAccessException("Path is outside thumbnail cache.");
         }
         if (Files.isRegularFile(normalized, LinkOption.NOFOLLOW_LINKS) && !Files.isSymbolicLink(normalized)) {
@@ -147,11 +167,16 @@ final class ThumbnailCacheStore {
         }
     }
 
-    ThumbnailCacheStats stats(boolean videoEnabled, boolean comicEnabled, int inProgressCount) throws IOException {
+    ThumbnailCacheStats stats(
+            boolean videoEnabled,
+            boolean comicEnabled,
+            boolean pdfEnabled,
+            int inProgressCount
+    ) throws IOException {
         long cachedFiles = 0L;
         long sizeBytes = 0L;
 
-        for (Path thumbnailRoot : List.of(videoCacheRoot, comicCacheRoot)) {
+        for (Path thumbnailRoot : List.of(videoCacheRoot, comicCacheRoot, pdfCacheRoot)) {
             if (!Files.exists(thumbnailRoot)) {
                 continue;
             }
@@ -170,6 +195,7 @@ final class ThumbnailCacheStore {
         return new ThumbnailCacheStats(
                 videoEnabled,
                 comicEnabled,
+                pdfEnabled,
                 cachedFiles,
                 sizeBytes,
                 ByteSizeFormatter.humanSize(sizeBytes),
@@ -183,9 +209,10 @@ final class ThumbnailCacheStore {
             String newVaultPath,
             ThumbnailClassifier classifier,
             boolean videoEnabled,
-            boolean comicEnabled
+            boolean comicEnabled,
+            boolean pdfEnabled
     ) {
-        if ((!videoEnabled && !comicEnabled)
+        if ((!videoEnabled && !comicEnabled && !pdfEnabled)
                 || oldVaultPath == null
                 || newVaultPath == null
                 || oldVaultPath.equals(newVaultPath)) {
@@ -232,7 +259,8 @@ final class ThumbnailCacheStore {
             TaskContext context,
             ThumbnailClassifier classifier,
             boolean videoEnabled,
-            boolean comicEnabled
+            boolean comicEnabled,
+            boolean pdfEnabled
     ) throws IOException {
         Set<Path> expected = new HashSet<>();
         if (!Files.exists(vaultRoot)) {
@@ -262,6 +290,9 @@ final class ThumbnailCacheStore {
                 }
                 if (comicEnabled && classifier.isComicFile(file)) {
                     expected.add(comicCacheFile(file, vaultPath).toAbsolutePath().normalize());
+                }
+                if (pdfEnabled && classifier.isPdfFile(file)) {
+                    expected.add(pdfCacheFile(file, vaultPath).toAbsolutePath().normalize());
                 }
                 return FileVisitResult.CONTINUE;
             }
@@ -310,6 +341,8 @@ final class ThumbnailCacheStore {
             cacheRootForFile = videoCacheRoot;
         } else if (classifier.isComicFile(currentFile)) {
             cacheRootForFile = comicCacheRoot;
+        } else if (classifier.isPdfFile(currentFile)) {
+            cacheRootForFile = pdfCacheRoot;
         } else {
             return;
         }

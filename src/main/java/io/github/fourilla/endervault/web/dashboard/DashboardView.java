@@ -32,13 +32,14 @@ public record DashboardView(
     public record ThumbnailSummary(
             boolean videoEnabled,
             boolean comicEnabled,
+            boolean pdfEnabled,
             long cachedFiles,
             long sizeBytes,
             String sizeLabel,
             int inProgressCount
     ) {
         public String enabledLabel() {
-            return videoEnabled || comicEnabled ? "Enabled" : "Disabled";
+            return videoEnabled || comicEnabled || pdfEnabled ? "Enabled" : "Disabled";
         }
     }
 }

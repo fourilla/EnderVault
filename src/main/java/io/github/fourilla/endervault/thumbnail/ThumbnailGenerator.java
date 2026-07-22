@@ -17,6 +17,9 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Locale;
 import javax.imageio.ImageIO;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.rendering.PDFRenderer;
 import org.bytedeco.ffmpeg.global.avutil;
 import org.bytedeco.javacv.FFmpegFrameGrabber;
 import org.bytedeco.javacv.Frame;
@@ -97,6 +100,28 @@ final class ThumbnailGenerator {
         }
     }
 
+    void generatePdfThumbnail(Path pdfFile, Path cacheFile) throws IOException {
+        if (!Files.exists(pdfFile) || Files.exists(cacheFile)) {
+            return;
+        }
+
+        Files.createDirectories(cacheFile.getParent());
+        Path tempFile = cacheFile.resolveSibling(cacheFile.getFileName() + ".tmp");
+        try (PDDocument document = Loader.loadPDF(pdfFile.toFile())) {
+            if (document.getNumberOfPages() <= 0) {
+                throw new IOException("PDF has no pages: " + pdfFile);
+            }
+
+            PDFRenderer renderer = new PDFRenderer(document);
+            BufferedImage firstPage = renderer.renderImageWithDPI(0, 120.0f);
+            ImageIO.write(scaleForThumbnail(firstPage), "jpg", tempFile.toFile());
+            moveIntoPlace(tempFile, cacheFile);
+        } catch (Exception ex) {
+            Files.deleteIfExists(tempFile);
+            throw new IOException("Failed to generate PDF thumbnail.", ex);
+        }
+    }
+
     void writeVideoPlaceholder(Path cacheRoot, Path videoPlaceholderFile) throws IOException {
         Files.createDirectories(cacheRoot);
         BufferedImage image = new BufferedImage(MAX_WIDTH, MAX_HEIGHT, BufferedImage.TYPE_INT_RGB);
@@ -140,6 +165,29 @@ final class ThumbnailGenerator {
             graphics.dispose();
         }
         ImageIO.write(image, "png", comicPlaceholderFile.toFile());
+    }
+
+    void writePdfPlaceholder(Path cacheRoot, Path pdfPlaceholderFile) throws IOException {
+        Files.createDirectories(cacheRoot);
+        BufferedImage image = new BufferedImage(MAX_WIDTH, MAX_HEIGHT, BufferedImage.TYPE_INT_RGB);
+        Graphics2D graphics = image.createGraphics();
+        try {
+            graphics.setColor(new Color(238, 242, 245));
+            graphics.fillRect(0, 0, MAX_WIDTH, MAX_HEIGHT);
+            graphics.setColor(new Color(182, 45, 57));
+            graphics.fillRoundRect(170, 54, 140, 132, 12, 12);
+            graphics.setColor(new Color(255, 229, 232));
+            graphics.fillRoundRect(192, 78, 96, 84, 6, 6);
+            graphics.setColor(new Color(182, 45, 57));
+            graphics.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 34));
+            graphics.drawString("PDF", 203, 132);
+            graphics.setColor(new Color(101, 113, 132));
+            graphics.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 18));
+            graphics.drawString("Preparing thumbnail", 146, 218);
+        } finally {
+            graphics.dispose();
+        }
+        ImageIO.write(image, "png", pdfPlaceholderFile.toFile());
     }
 
     static int previewFrame(double durationSeconds, double frameRate, int lengthInFrames) {
