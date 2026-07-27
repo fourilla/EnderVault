@@ -56,9 +56,6 @@ final class StorageListingService {
     )
             throws IOException {
         Path directory = pathResolver.resolveDirectory(scope, requestedPath);
-        if (!showHidden && StorageHiddenPolicy.containsHiddenElement(pathResolver.baseFor(scope), directory)) {
-            throw new NoSuchFileException(requestedPath == null ? "" : requestedPath);
-        }
         String currentPath = pathResolver.toRelativePath(pathResolver.baseFor(scope), directory);
         List<FileItem> children;
 

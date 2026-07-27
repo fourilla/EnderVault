@@ -166,6 +166,43 @@ class StorageServiceTest {
     }
 
     @Test
+    void vaultListAllowsDirectHiddenDirectoryAccessButFiltersHiddenChildren() throws Exception {
+        Files.createDirectories(root.resolve("secret"));
+        Files.writeString(root.resolve("secret").resolve("visible.txt"), "visible");
+        Files.writeString(root.resolve("secret").resolve("hidden.txt"), "hidden");
+        String hiddenDirectory = storageService.setHiddenVaultPath("secret", true, ConflictPolicy.CANCEL);
+        storageService.setHiddenVaultPath(hiddenDirectory + "/hidden.txt", true, ConflictPolicy.CANCEL);
+
+        DirectoryListing rootListing = storageService.list(
+                StorageScope.VAULT,
+                "",
+                FileSort.NAME,
+                SortDirection.ASC,
+                false
+        );
+        DirectoryListing hiddenListing = storageService.list(
+                StorageScope.VAULT,
+                hiddenDirectory,
+                FileSort.NAME,
+                SortDirection.ASC,
+                false
+        );
+
+        assertThat(rootListing.directories()).extracting(FileItem::path).doesNotContain(hiddenDirectory);
+        assertThat(hiddenListing.files()).extracting(FileItem::name).containsExactly("visible.txt");
+    }
+
+    @Test
+    void vaultSearchRejectsHiddenRootWhenHiddenItemsAreNotVisible() throws Exception {
+        Files.createDirectories(root.resolve("secret"));
+        Files.writeString(root.resolve("secret").resolve("visible-match.txt"), "visible");
+        String hiddenDirectory = storageService.setHiddenVaultPath("secret", true, ConflictPolicy.CANCEL);
+
+        assertThatThrownBy(() -> storageService.search(StorageScope.VAULT, hiddenDirectory, "match", false))
+                .isInstanceOf(NoSuchFileException.class);
+    }
+
+    @Test
     void sharedDirectoryHidesInternalSystemDirectories() throws Exception {
         Files.writeString(root.resolve(".trash").resolve("deleted.txt"), "deleted");
         Files.writeString(root.resolve(".endervault").resolve("metadata.json"), "metadata");
@@ -188,6 +225,19 @@ class StorageServiceTest {
         Files.writeString(root.resolve(".endervault").resolve("metadata.json"), "metadata");
 
         assertThatThrownBy(() -> storageService.listSharedDirectory("", ".endervault/metadata.json"))
+                .isInstanceOf(NoSuchFileException.class);
+    }
+
+    @Test
+    void sharedDirectoryRejectsDirectHiddenDirectoryAccess() throws Exception {
+        Files.createDirectories(root.resolve("shared").resolve("secret"));
+        Files.writeString(root.resolve("shared").resolve("secret").resolve("visible.txt"), "visible");
+        String hiddenDirectory = storageService.setHiddenVaultPath("shared/secret", true, ConflictPolicy.CANCEL);
+        String hiddenSharedPath = hiddenDirectory.substring("shared/".length());
+
+        assertThatThrownBy(() -> storageService.listSharedDirectory("shared", hiddenSharedPath))
+                .isInstanceOf(NoSuchFileException.class);
+        assertThatThrownBy(() -> storageService.resolveSharedFile("shared", hiddenSharedPath, "visible.txt"))
                 .isInstanceOf(NoSuchFileException.class);
     }
 
