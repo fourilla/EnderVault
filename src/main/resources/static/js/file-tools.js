@@ -176,7 +176,7 @@ const initializeTextEditor = (form) => {
                 throw new Error("Markdown renderer is unavailable.");
             }
             await new Promise((resolve) => window.requestAnimationFrame(resolve));
-            window.EnderVaultMarkdown.renderInto(markdownPreviewBody, source, path);
+            await window.EnderVaultMarkdown.renderInto(markdownPreviewBody, source, path);
             if (markdownPreviewStatus) {
                 markdownPreviewStatus.hidden = true;
             }

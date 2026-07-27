@@ -5,7 +5,14 @@
     const SAFE_LINK_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
     const SAFE_IMAGE_PROTOCOLS = new Set(["http:", "https:"]);
     const ALERT_PATTERN = /^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/i;
+    const SPECIAL_FENCE_LANGUAGES = new Set(["mermaid", "math", "latex", "tex"]);
+    const MAX_HIGHLIGHT_SOURCE_CHARS = 250_000;
+    const MAX_MERMAID_BLOCKS = 24;
+    const MAX_MERMAID_SOURCE_CHARS = 100_000;
+    const MAX_MATH_DOCUMENT_CHARS = 1_000_000;
     let renderer = null;
+    let mermaidInitialized = false;
+    let mermaidSequence = 0;
 
     const markdownRenderer = () => {
         if (renderer) {
@@ -19,7 +26,8 @@
             html: false,
             linkify: true,
             typographer: false,
-            breaks: false
+            breaks: false,
+            highlight: highlightCode
         });
         if (typeof window.markdownitTaskLists === "function") {
             renderer.use(window.markdownitTaskLists, {
@@ -33,12 +41,39 @@
         return renderer;
     };
 
-    const renderInto = (target, source, sourcePath = "") => {
+    const highlightCode = (source, language) => {
+        const normalizedLanguage = normalizeFenceLanguage(language);
+        if (!normalizedLanguage
+            || SPECIAL_FENCE_LANGUAGES.has(normalizedLanguage)
+            || source.length > MAX_HIGHLIGHT_SOURCE_CHARS
+            || !window.hljs?.getLanguage(normalizedLanguage)) {
+            return "";
+        }
+
+        try {
+            return window.hljs.highlight(source, {
+                language: normalizedLanguage,
+                ignoreIllegals: true
+            }).value;
+        } catch (error) {
+            return "";
+        }
+    };
+
+    const normalizeFenceLanguage = (language) => (language || "")
+        .trim()
+        .split(/\s+/, 1)[0]
+        .toLowerCase()
+        .replace(/[^a-z0-9_+-]/g, "");
+
+    const renderInto = async (target, source, sourcePath = "") => {
         if (!(target instanceof Element)) {
             throw new Error("Markdown preview target is unavailable.");
         }
 
-        const rendered = markdownRenderer().render(source || "");
+        clearMathTypesetting(target);
+        const markdownSource = source || "";
+        const rendered = markdownRenderer().render(markdownSource);
         const fragment = window.DOMPurify.sanitize(rendered, {
             RETURN_DOM_FRAGMENT: true,
             USE_PROFILES: { html: true },
@@ -51,7 +86,185 @@
         enhanceGithubAlerts(fragment);
         rewriteLinks(fragment, sourcePath);
         rewriteImages(fragment, sourcePath);
+        prepareSpecialFences(fragment);
         target.replaceChildren(fragment);
+
+        await renderMermaidBlocks(target);
+        await typesetMath(target, markdownSource, sourcePath);
+    };
+
+    const prepareSpecialFences = (fragment) => {
+        fragment.querySelectorAll("pre > code[class*='language-']").forEach((code) => {
+            const languageClass = Array.from(code.classList)
+                .find((className) => className.startsWith("language-"));
+            const language = normalizeFenceLanguage(languageClass?.slice("language-".length));
+            const pre = code.parentElement;
+            if (!pre) {
+                return;
+            }
+
+            if (language === "mermaid") {
+                pre.classList.add("markdown-mermaid-source");
+                pre.dataset.markdownMermaid = "true";
+                return;
+            }
+            if (language === "math" || language === "latex" || language === "tex") {
+                const mathBlock = document.createElement("div");
+                mathBlock.className = "markdown-math-block";
+                mathBlock.dataset.markdownMath = "true";
+                mathBlock.textContent = `\\[\n${code.textContent || ""}\n\\]`;
+                pre.replaceWith(mathBlock);
+            }
+        });
+    };
+
+    const renderMermaidBlocks = async (target) => {
+        const blocks = Array.from(target.querySelectorAll("[data-markdown-mermaid]"));
+        if (blocks.length === 0) {
+            return;
+        }
+
+        let mermaid;
+        try {
+            mermaid = mermaidApi();
+            initializeMermaid(mermaid);
+        } catch (error) {
+            blocks.forEach((block) => showExtensionFailure(
+                block,
+                "Mermaid renderer is unavailable. The diagram source is shown below."
+            ));
+            return;
+        }
+
+        for (const [index, block] of blocks.entries()) {
+            if (index >= MAX_MERMAID_BLOCKS) {
+                showExtensionFailure(
+                    block,
+                    `Only the first ${MAX_MERMAID_BLOCKS} Mermaid diagrams are rendered per preview.`
+                );
+                continue;
+            }
+
+            const source = block.textContent || "";
+            if (source.length > MAX_MERMAID_SOURCE_CHARS) {
+                showExtensionFailure(
+                    block,
+                    `This Mermaid block exceeds the ${MAX_MERMAID_SOURCE_CHARS.toLocaleString()} character limit.`
+                );
+                continue;
+            }
+
+            const container = document.createElement("div");
+            container.className = "markdown-mermaid";
+            container.setAttribute("role", "img");
+            container.setAttribute("aria-label", "Mermaid diagram");
+            block.replaceWith(container);
+
+            try {
+                const diagramId = `endervault-mermaid-${++mermaidSequence}`;
+                const rendered = await mermaid.render(diagramId, source);
+                const diagram = window.DOMPurify.sanitize(rendered.svg, {
+                    RETURN_DOM_FRAGMENT: true,
+                    USE_PROFILES: { svg: true, svgFilters: true },
+                    FORBID_TAGS: ["foreignObject", "script"],
+                    FORBID_ATTR: ["onerror", "onload", "onclick"]
+                });
+                container.replaceChildren(diagram);
+            } catch (error) {
+                container.replaceWith(block);
+                showExtensionFailure(
+                    block,
+                    "Mermaid diagram could not be rendered. Check the diagram syntax."
+                );
+            }
+        }
+    };
+
+    const mermaidApi = () => {
+        const api = window.mermaid
+            || window.__esbuild_esm_mermaid_nm?.mermaid?.default;
+        if (!api || typeof api.initialize !== "function" || typeof api.render !== "function") {
+            throw new Error("Mermaid renderer is unavailable.");
+        }
+        return api;
+    };
+
+    const initializeMermaid = (mermaid) => {
+        if (mermaidInitialized) {
+            return;
+        }
+        mermaid.initialize({
+            startOnLoad: false,
+            securityLevel: "strict",
+            suppressErrorRendering: true,
+            theme: "dark",
+            flowchart: {
+                htmlLabels: false
+            }
+        });
+        mermaidInitialized = true;
+    };
+
+    const typesetMath = async (target, source, sourcePath) => {
+        if (!containsMathNotation(target, source)) {
+            return;
+        }
+        if (source.length > MAX_MATH_DOCUMENT_CHARS) {
+            appendExtensionNotice(
+                target,
+                `Math rendering was skipped because this document exceeds ${MAX_MATH_DOCUMENT_CHARS.toLocaleString()} characters.`
+            );
+            return;
+        }
+
+        const mathJax = window.MathJax;
+        if (!mathJax?.startup?.promise) {
+            appendExtensionNotice(target, "MathJax is unavailable. Math source is shown as text.");
+            return;
+        }
+
+        try {
+            await mathJax.startup.promise;
+            if (typeof mathJax.typesetPromise !== "function") {
+                throw new Error("MathJax typesetting API is unavailable.");
+            }
+            await mathJax.typesetPromise([target]);
+            rewriteLinks(target, sourcePath);
+        } catch (error) {
+            appendExtensionNotice(target, "One or more math expressions could not be rendered.");
+        }
+    };
+
+    const containsMathNotation = (target, source) =>
+        target.querySelector("[data-markdown-math]")
+        || source.includes("$$")
+        || source.includes("\\(")
+        || source.includes("\\[")
+        || /(^|[^\\])\$[^$\r\n]+\$/m.test(source);
+
+    const clearMathTypesetting = (target) => {
+        if (typeof window.MathJax?.typesetClear === "function") {
+            window.MathJax.typesetClear([target]);
+        }
+    };
+
+    const showExtensionFailure = (sourceBlock, message) => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "markdown-extension-fallback";
+        const notice = createExtensionNotice(message);
+        sourceBlock.replaceWith(wrapper);
+        wrapper.append(notice, sourceBlock);
+    };
+
+    const appendExtensionNotice = (target, message) => {
+        target.append(createExtensionNotice(message));
+    };
+
+    const createExtensionNotice = (message) => {
+        const notice = document.createElement("p");
+        notice.className = "markdown-extension-notice";
+        notice.textContent = message;
+        return notice;
     };
 
     const secureTaskListInputs = (fragment) => {
@@ -278,7 +491,7 @@
         }
     };
 
-    const initializeStandalonePreview = (container) => {
+    const initializeStandalonePreview = async (container) => {
         const source = container.querySelector("[data-markdown-source]");
         const target = container.querySelector("[data-markdown-document-body]");
         const status = container.querySelector("[data-markdown-document-status]");
@@ -291,7 +504,11 @@
             status.textContent = "Rendering Markdown...";
         }
         try {
-            renderInto(target, source.value || source.textContent || "", container.dataset.markdownSourcePath || "");
+            await renderInto(
+                target,
+                source.value || source.textContent || "",
+                container.dataset.markdownSourcePath || ""
+            );
             target.hidden = false;
             if (status) {
                 status.hidden = true;

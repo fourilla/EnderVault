@@ -739,6 +739,57 @@ body.is-text-editor-fullscreen {
     font-size: var(--font-size-sm);
 }
 
+.markdown-body pre code.hljs {
+    overflow: visible;
+}
+
+.markdown-mermaid {
+    width: 100%;
+    margin: 0 0 1em;
+    overflow: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
+    background: var(--panel-muted);
+    padding: var(--space-xl);
+}
+
+.markdown-mermaid svg {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 0 auto;
+}
+
+.markdown-math-block {
+    margin: 0 0 1em;
+    overflow-x: auto;
+    color: var(--text);
+}
+
+.markdown-body mjx-container[display="true"] {
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+.markdown-extension-fallback {
+    margin: 0 0 1em;
+}
+
+.markdown-extension-fallback pre {
+    margin-bottom: 0;
+}
+
+.markdown-extension-notice {
+    margin: 0 0 var(--space-sm);
+    border: 1px solid var(--warning);
+    border-radius: var(--radius-soft);
+    background: var(--panel-muted);
+    padding: var(--space-sm) var(--space-lg);
+    color: var(--warning);
+    font-size: var(--font-size-sm);
+}
+
 .markdown-body table {
     display: block;
     width: max-content;
