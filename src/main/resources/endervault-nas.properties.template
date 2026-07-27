@@ -131,9 +131,15 @@ nas.share.directory-show-hidden-items=false
 # File tools
 # ---------------------------------------------------------------------------
 # Large text files require manual loading to avoid opening huge files by
-# accident. Comic limits protect the server from oversized archives.
+# accident. Text drafts are recoverable server-side editor snapshots; retention
+# controls their lifetime, cleanup controls the scan interval, and lease seconds
+# limit how long an idle editor blocks another tab. Comic limits protect the
+# server from oversized archives.
 nas.file-tools.text-auto-load-max-bytes=1048576
 nas.file-tools.text-manual-load-max-bytes=20971520
+nas.file-tools.text-draft-retention-hours=168
+nas.file-tools.text-draft-cleanup-interval-ms=3600000
+nas.file-tools.text-draft-lease-seconds=300
 nas.file-tools.comic-max-pages=5000
 nas.file-tools.comic-page-max-bytes=104857600
 nas.file-tools.comic-info-max-bytes=65536

@@ -6,24 +6,22 @@ import io.github.fourilla.endervault.storage.FileItem;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
 public class FileActionRegistry {
 
-    private static final Set<String> TEXT_EXTENSIONS = Set.of(
-            "txt", "text", "md", "markdown", "log",
-            "csv", "tsv", "json", "jsonl", "xml", "html", "htm", "css",
-            "js", "mjs", "cjs", "ts", "tsx", "jsx",
-            "java", "c", "h", "cpp", "hpp", "cc", "cs",
-            "py", "rb", "go", "rs", "php",
-            "sh", "bash", "zsh", "bat", "cmd", "ps1",
-            "sql", "properties", "conf", "cfg", "ini", "yml", "yaml", "toml"
-    );
-    private static final Set<String> TEXT_FILENAMES = Set.of(
-            "dockerfile", "makefile", ".env", ".gitignore", ".gitattributes"
-    );
+    private final FileToolRegistry fileToolRegistry;
+
+    public FileActionRegistry() {
+        this(new FileToolRegistry());
+    }
+
+    @Autowired
+    public FileActionRegistry(FileToolRegistry fileToolRegistry) {
+        this.fileToolRegistry = fileToolRegistry;
+    }
 
     public FileToolDescriptor resolve(FileDetail detail) {
         return resolve(detail.name(), detail.directory(), detail.mediaType(), detail.extension());
@@ -38,14 +36,7 @@ public class FileActionRegistry {
     }
 
     public FileToolDescriptor resolve(String name, boolean directory, String mediaType, String extension) {
-        FileToolType type = typeFor(name, directory, mediaType, extension);
-        return new FileToolDescriptor(
-                type,
-                type.id(),
-                type.label(),
-                detailInlinePreviewable(type),
-                type == FileToolType.TEXT
-        );
+        return fileToolRegistry.resolve(context(name, directory, mediaType, extension));
     }
 
     public FileToolType typeFor(FileDetail detail) {
@@ -61,46 +52,23 @@ public class FileActionRegistry {
     }
 
     public FileToolType typeFor(String name, boolean directory, String mediaType, String extension) {
-        if (directory) {
-            return FileToolType.DIRECTORY;
-        }
-
-        String normalizedName = name == null ? "" : name.toLowerCase(Locale.ROOT);
-        String normalizedExtension = normalizedExtension(name, extension);
-        String normalizedMediaType = mediaType == null ? "" : mediaType.toLowerCase(Locale.ROOT);
-
-        if (TEXT_EXTENSIONS.contains(normalizedExtension) || TEXT_FILENAMES.contains(normalizedName)) {
-            return FileToolType.TEXT;
-        }
-        if (normalizedMediaType.startsWith("image/")) {
-            return FileToolType.IMAGE;
-        }
-        if (normalizedMediaType.startsWith("video/")) {
-            return FileToolType.VIDEO;
-        }
-        if ("application/pdf".equals(normalizedMediaType)) {
-            return FileToolType.PDF;
-        }
-        if ("cbz".equals(normalizedExtension)) {
-            return FileToolType.COMIC;
-        }
-        return FileToolType.HEX;
+        return resolve(name, directory, mediaType, extension).type();
     }
 
     public boolean previewPageAvailable(FileDetail detail) {
-        return previewPageAvailable(typeFor(detail));
+        return resolve(detail).previewPageAvailable();
     }
 
     public boolean previewPageAvailable(FileItem item) {
-        return previewPageAvailable(typeFor(item));
+        return resolve(item).previewPageAvailable();
     }
 
     public boolean previewPageAvailable(RecentListItem item) {
-        return previewPageAvailable(typeFor(item));
+        return resolve(item).previewPageAvailable();
     }
 
     public boolean previewPageAvailable(String name, boolean directory, String mediaType, String extension) {
-        return previewPageAvailable(typeFor(name, directory, mediaType, extension));
+        return resolve(name, directory, mediaType, extension).previewPageAvailable();
     }
 
     public List<FileActionKind> browserActions(FileItem item) {
@@ -135,18 +103,6 @@ public class FileActionRegistry {
         return browserActions(item);
     }
 
-    public boolean detailInlinePreviewable(FileToolType type) {
-        return type == FileToolType.IMAGE
-                || type == FileToolType.VIDEO
-                || type == FileToolType.PDF;
-    }
-
-    public boolean previewPageAvailable(FileToolType type) {
-        return detailInlinePreviewable(type)
-                || type == FileToolType.TEXT
-                || type == FileToolType.COMIC;
-    }
-
     public String extension(String name) {
         if (name == null) {
             return "";
@@ -163,5 +119,9 @@ public class FileActionRegistry {
             return extension.toLowerCase(Locale.ROOT);
         }
         return extension(name);
+    }
+
+    private FileToolContext context(String name, boolean directory, String mediaType, String extension) {
+        return new FileToolContext(name, directory, mediaType, normalizedExtension(name, extension));
     }
 }

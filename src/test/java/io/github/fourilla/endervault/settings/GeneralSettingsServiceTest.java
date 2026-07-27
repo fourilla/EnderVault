@@ -36,6 +36,9 @@ class GeneralSettingsServiceTest {
                 nas.trash.cleanup-interval-ms=3600000
                 nas.file-tools.text-auto-load-max-bytes=1048576
                 nas.file-tools.text-manual-load-max-bytes=20971520
+                nas.file-tools.text-draft-retention-hours=168
+                nas.file-tools.text-draft-cleanup-interval-ms=3600000
+                nas.file-tools.text-draft-lease-seconds=300
                 nas.file-tools.comic-max-pages=5000
                 nas.file-tools.comic-page-max-bytes=104857600
                 nas.file-tools.comic-info-max-bytes=65536
@@ -65,6 +68,9 @@ class GeneralSettingsServiceTest {
         parameters.set("trashCleanupIntervalMs", "120000");
         parameters.set("textAutoLoadMaxBytes", "4096");
         parameters.set("textManualLoadMaxBytes", "8192");
+        parameters.set("textDraftRetentionHours", "72");
+        parameters.set("textDraftCleanupIntervalMs", "180000");
+        parameters.set("textDraftLeaseSeconds", "180");
         parameters.set("comicMaxPages", "300");
         parameters.set("comicPageMaxBytes", "204800");
         parameters.set("comicInfoMaxBytes", "4096");
@@ -90,6 +96,9 @@ class GeneralSettingsServiceTest {
                 .contains("nas.trash.cleanup-interval-ms=120000")
                 .contains("nas.file-tools.text-auto-load-max-bytes=4096")
                 .contains("nas.file-tools.text-manual-load-max-bytes=8192")
+                .contains("nas.file-tools.text-draft-retention-hours=72")
+                .contains("nas.file-tools.text-draft-cleanup-interval-ms=180000")
+                .contains("nas.file-tools.text-draft-lease-seconds=180")
                 .contains("nas.file-tools.comic-max-pages=300")
                 .contains("nas.remote-download.extractor-enabled=false")
                 .contains("nas.remote-download.allowed-ports=80,443,8080")
@@ -104,6 +113,9 @@ class GeneralSettingsServiceTest {
         assertThat(properties.getRecent().isRecordDirectories()).isFalse();
         assertThat(properties.getTrash().getRetentionDays()).isEqualTo(14);
         assertThat(properties.getFileTools().getTextManualLoadMaxBytes()).isEqualTo(8192);
+        assertThat(properties.getFileTools().getTextDraftRetentionHours()).isEqualTo(72);
+        assertThat(properties.getFileTools().getTextDraftCleanupIntervalMs()).isEqualTo(180000);
+        assertThat(properties.getFileTools().getTextDraftLeaseSeconds()).isEqualTo(180);
         assertThat(properties.getRemoteDownload().getAllowedPorts()).isEqualTo(List.of(80, 443, 8080));
         assertThat(properties.getRemoteDownload().getMaxFileSizeBytes()).isEqualTo(123456);
     }
@@ -134,6 +146,9 @@ class GeneralSettingsServiceTest {
         parameters.add("trashCleanupIntervalMs", "3600000");
         parameters.add("textAutoLoadMaxBytes", "1048576");
         parameters.add("textManualLoadMaxBytes", "20971520");
+        parameters.add("textDraftRetentionHours", "168");
+        parameters.add("textDraftCleanupIntervalMs", "3600000");
+        parameters.add("textDraftLeaseSeconds", "300");
         parameters.add("comicMaxPages", "5000");
         parameters.add("comicPageMaxBytes", "104857600");
         parameters.add("comicInfoMaxBytes", "65536");

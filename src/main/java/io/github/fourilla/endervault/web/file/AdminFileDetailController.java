@@ -9,6 +9,12 @@ import io.github.fourilla.endervault.filetool.FileToolDescriptor;
 import io.github.fourilla.endervault.filetool.FileToolService;
 import io.github.fourilla.endervault.filetool.TextFileContent;
 import io.github.fourilla.endervault.recent.RecentService;
+import io.github.fourilla.endervault.filetool.text.TextFileService;
+import io.github.fourilla.endervault.filetool.text.TextDraftLeaseException;
+import io.github.fourilla.endervault.filetool.text.TextDraftService;
+import io.github.fourilla.endervault.filetool.text.TextDraftSnapshot;
+import io.github.fourilla.endervault.filetool.text.TextDraftSourceConflictException;
+import io.github.fourilla.endervault.filetool.text.TextDraftStatus;
 import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.storage.FileDetail;
 import io.github.fourilla.endervault.storage.StorageScope;
@@ -20,12 +26,14 @@ import io.github.fourilla.endervault.web.support.ShareLinkView;
 import io.github.fourilla.endervault.web.support.ShareUrlBuilder;
 import io.github.fourilla.endervault.web.support.TextFileLoadResponse;
 import io.github.fourilla.endervault.web.support.TextFilePayload;
+import io.github.fourilla.endervault.web.support.TextDraftResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -42,6 +50,8 @@ public class AdminFileDetailController {
     private final ShareLinkService shareLinkService;
     private final FavoriteService favoriteService;
     private final FileToolService fileToolService;
+    private final TextFileService textFileService;
+    private final TextDraftService textDraftService;
     private final ComicArchiveService comicArchiveService;
     private final RecentService recentService;
     private final ActivityLogService activityLogService;
@@ -53,6 +63,8 @@ public class AdminFileDetailController {
             ShareLinkService shareLinkService,
             FavoriteService favoriteService,
             FileToolService fileToolService,
+            TextFileService textFileService,
+            TextDraftService textDraftService,
             ComicArchiveService comicArchiveService,
             RecentService recentService,
             ActivityLogService activityLogService,
@@ -63,6 +75,8 @@ public class AdminFileDetailController {
         this.shareLinkService = shareLinkService;
         this.favoriteService = favoriteService;
         this.fileToolService = fileToolService;
+        this.textFileService = textFileService;
+        this.textDraftService = textDraftService;
         this.comicArchiveService = comicArchiveService;
         this.recentService = recentService;
         this.activityLogService = activityLogService;
@@ -83,7 +97,7 @@ public class AdminFileDetailController {
         model.addAttribute("detail", detail);
         model.addAttribute("fileTool", fileTool);
         if (fileTool.text()) {
-            model.addAttribute("textContent", fileToolService.readText(detail, storageService.resolveVaultFile(detail.path())));
+            model.addAttribute("textContent", textFileService.readText(detail, storageService.resolveVaultFile(detail.path())));
         }
         if (fileTool.comic()) {
             ComicArchiveManifest comicManifest = comicArchiveService.manifest(storageService.resolveVaultFile(detail.path()));
@@ -109,23 +123,114 @@ public class AdminFileDetailController {
     public Object saveTextFromDetail(
             @RequestParam("path") String path,
             @RequestParam(value = "content", required = false) String content,
+            @RequestParam(value = "editorToken", required = false) String editorToken,
+            @RequestParam(value = "forceOverwrite", defaultValue = "false") boolean forceOverwrite,
             HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
         FileDetail detail = detailForPath(path);
         Path file = storageService.resolveVaultFile(detail.path());
-        fileToolService.writeText(detail, file, content);
+        if (ActionResponseSupport.wantsJson(request) && editorToken != null && !editorToken.isBlank()) {
+            try {
+                textDraftService.saveToSource(detail, file, content, editorToken, forceOverwrite);
+            } catch (TextDraftSourceConflictException ex) {
+                TextDraftStatus status = textDraftService.status(detail.path(), file, editorToken);
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                        TextDraftResponse.error("SOURCE_CHANGED", ex.getMessage(), status)
+                );
+            } catch (TextDraftLeaseException ex) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                        TextDraftResponse.error("LEASE_CONFLICT", ex.getMessage(), ex.status())
+                );
+            }
+        } else {
+            textDraftService.saveDirect(detail, file, content);
+        }
         recentService.recordVaultPath(detail.path());
         activityLogService.record("TEXT_SAVE", request, detail.path(), null, "Saved text file " + detail.name());
         FlashNotification notification = FlashNotification.success("Text file saved.");
-        return ActionResponseSupport.ok(request, redirectAttributes, notification, redirectToDetail(detail.path()));
+        return ActionResponseSupport.ok(
+                request,
+                redirectAttributes,
+                notification,
+                redirectToDetail(detail.path()),
+                TextDraftResponse.saved()
+        );
+    }
+
+    @GetMapping("/files/detail/text/draft")
+    public ResponseEntity<TextDraftResponse> textDraftStatus(
+            @RequestParam("path") String path,
+            @RequestParam(value = "editorToken", required = false) String editorToken
+    ) throws IOException {
+        FileDetail detail = detailForPath(path);
+        Path file = storageService.resolveVaultFile(detail.path());
+        textFileService.requireTextTool(detail);
+        return ResponseEntity.ok(TextDraftResponse.status(
+                textDraftService.status(detail.path(), file, editorToken)
+        ));
+    }
+
+    @PostMapping("/files/detail/text/draft")
+    public ResponseEntity<TextDraftResponse> autosaveTextDraft(
+            @RequestParam("path") String path,
+            @RequestParam(value = "content", required = false) String content,
+            @RequestParam("editorToken") String editorToken,
+            @RequestParam(value = "takeOver", defaultValue = "false") boolean takeOver
+    ) throws IOException {
+        FileDetail detail = detailForPath(path);
+        Path file = storageService.resolveVaultFile(detail.path());
+        try {
+            TextDraftStatus status = textDraftService.autosave(detail, file, content, editorToken, takeOver);
+            return ResponseEntity.ok(TextDraftResponse.autosaved(status));
+        } catch (TextDraftLeaseException ex) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                    TextDraftResponse.error("LEASE_CONFLICT", ex.getMessage(), ex.status())
+            );
+        }
+    }
+
+    @PostMapping("/files/detail/text/draft/restore")
+    public ResponseEntity<TextDraftResponse> restoreTextDraft(
+            @RequestParam("path") String path,
+            @RequestParam("editorToken") String editorToken,
+            @RequestParam(value = "takeOver", defaultValue = "false") boolean takeOver
+    ) throws IOException {
+        FileDetail detail = detailForPath(path);
+        Path file = storageService.resolveVaultFile(detail.path());
+        try {
+            TextDraftSnapshot draft = textDraftService.restore(detail, file, editorToken, takeOver);
+            return ResponseEntity.ok(TextDraftResponse.restored(draft.status(), draft.content()));
+        } catch (TextDraftLeaseException ex) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                    TextDraftResponse.error("LEASE_CONFLICT", ex.getMessage(), ex.status())
+            );
+        }
+    }
+
+    @PostMapping("/files/detail/text/draft/discard")
+    public ResponseEntity<TextDraftResponse> discardTextDraft(
+            @RequestParam("path") String path,
+            @RequestParam("editorToken") String editorToken,
+            @RequestParam(value = "takeOver", defaultValue = "false") boolean takeOver
+    ) throws IOException {
+        FileDetail detail = detailForPath(path);
+        Path file = storageService.resolveVaultFile(detail.path());
+        try {
+            textDraftService.discard(detail.path(), file, editorToken, takeOver);
+            return ResponseEntity.ok(TextDraftResponse.discarded());
+        } catch (TextDraftLeaseException ex) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                    TextDraftResponse.error("LEASE_CONFLICT", ex.getMessage(), ex.status())
+            );
+        }
     }
 
     @GetMapping("/files/detail/text/load")
     public ResponseEntity<TextFileLoadResponse> loadTextFromDetail(@RequestParam("path") String path) throws IOException {
         FileDetail detail = detailForPath(path);
         Path file = storageService.resolveVaultFile(detail.path());
-        TextFileContent content = fileToolService.loadText(detail, file);
+        TextFileContent content = textFileService.loadText(detail, file);
         if (!content.loaded()) {
             throw new StorageAccessException(content.message());
         }

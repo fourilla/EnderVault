@@ -17,10 +17,20 @@
             credentials: "same-origin"
         });
         const payload = await parseJsonBody(response);
+        const redirectedToLogin = response.redirected
+            && new URL(response.url, window.location.href).pathname === "/login";
+        const sessionExpired = redirectedToLogin
+            || response.status === 401
+            || (response.status === 403 && !payload);
         if (!response.ok || !payload || payload.ok === false) {
-            const error = new Error(payload?.notification?.message || "The action failed.");
+            const error = new Error(
+                sessionExpired
+                    ? "Your session expired. Log in again before continuing."
+                    : payload?.notification?.message || "The action failed."
+            );
             error.status = response.status;
             error.payload = payload;
+            error.sessionExpired = sessionExpired;
             throw error;
         }
         return payload;

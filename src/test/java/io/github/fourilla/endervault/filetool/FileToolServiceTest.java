@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.filetool.text.TextFileService;
 import io.github.fourilla.endervault.storage.FileDetail;
 import io.github.fourilla.endervault.storage.StorageScope;
 import io.github.fourilla.endervault.storage.StorageService;
@@ -22,6 +23,7 @@ class FileToolServiceTest {
     private NasProperties properties;
     private StorageService storageService;
     private FileToolService fileToolService;
+    private TextFileService textFileService;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -29,7 +31,8 @@ class FileToolServiceTest {
         properties.getStorage().setRoot(root);
         storageService = new StorageService(properties);
         storageService.initialize();
-        fileToolService = new FileToolService(properties);
+        fileToolService = new FileToolService(new FileActionRegistry());
+        textFileService = new TextFileService(properties, new FileActionRegistry());
     }
 
     @Test
@@ -38,7 +41,7 @@ class FileToolServiceTest {
         FileDetail detail = storageService.detail(StorageScope.VAULT, "note.txt");
 
         FileToolDescriptor descriptor = fileToolService.resolve(detail);
-        TextFileContent content = fileToolService.readText(detail, root.resolve("note.txt"));
+        TextFileContent content = textFileService.readText(detail, root.resolve("note.txt"));
 
         assertThat(descriptor.type()).isEqualTo(FileToolType.TEXT);
         assertThat(descriptor.editable()).isTrue();
@@ -68,7 +71,7 @@ class FileToolServiceTest {
         Files.writeString(root.resolve("large.txt"), "x".repeat(1025));
         FileDetail detail = storageService.detail(StorageScope.VAULT, "large.txt");
 
-        TextFileContent content = fileToolService.readText(detail, root.resolve("large.txt"));
+        TextFileContent content = textFileService.readText(detail, root.resolve("large.txt"));
 
         assertThat(content.loaded()).isFalse();
         assertThat(content.editable()).isFalse();
@@ -83,7 +86,7 @@ class FileToolServiceTest {
         Files.writeString(root.resolve("large.txt"), "x".repeat(1025));
         FileDetail detail = storageService.detail(StorageScope.VAULT, "large.txt");
 
-        TextFileContent content = fileToolService.loadText(detail, root.resolve("large.txt"));
+        TextFileContent content = textFileService.loadText(detail, root.resolve("large.txt"));
 
         assertThat(content.loaded()).isTrue();
         assertThat(content.editable()).isTrue();
@@ -97,13 +100,13 @@ class FileToolServiceTest {
         Files.writeString(root.resolve("huge.txt"), "x".repeat(2049));
         FileDetail detail = storageService.detail(StorageScope.VAULT, "huge.txt");
 
-        TextFileContent content = fileToolService.readText(detail, root.resolve("huge.txt"));
+        TextFileContent content = textFileService.readText(detail, root.resolve("huge.txt"));
 
         assertThat(content.loaded()).isFalse();
         assertThat(content.editable()).isFalse();
         assertThat(content.manualLoadAvailable()).isFalse();
         assertThat(content.message()).contains("larger than");
-        assertThatThrownBy(() -> fileToolService.loadText(detail, root.resolve("huge.txt")))
+        assertThatThrownBy(() -> textFileService.loadText(detail, root.resolve("huge.txt")))
                 .isInstanceOf(StorageAccessException.class);
     }
 
@@ -114,7 +117,7 @@ class FileToolServiceTest {
         Files.writeString(root.resolve("note.txt"), "hello");
         FileDetail detail = storageService.detail(StorageScope.VAULT, "note.txt");
 
-        assertThatThrownBy(() -> fileToolService.writeText(detail, root.resolve("note.txt"), "x".repeat(1025)))
+        assertThatThrownBy(() -> textFileService.writeText(detail, root.resolve("note.txt"), "x".repeat(1025)))
                 .isInstanceOf(StorageAccessException.class);
     }
 

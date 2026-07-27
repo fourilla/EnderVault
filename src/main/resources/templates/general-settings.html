@@ -155,6 +155,18 @@
                         <input type="number" name="textManualLoadMaxBytes" min="1024" th:value="${settings.fileTools().textManualLoadMaxBytes()}">
                     </label>
                     <label>
+                        <span>Text draft retention hours</span>
+                        <input type="number" name="textDraftRetentionHours" min="1" th:value="${settings.fileTools().textDraftRetentionHours()}">
+                    </label>
+                    <label>
+                        <span>Text draft cleanup interval ms</span>
+                        <input type="number" name="textDraftCleanupIntervalMs" min="60000" th:value="${settings.fileTools().textDraftCleanupIntervalMs()}">
+                    </label>
+                    <label>
+                        <span>Text editor lease seconds</span>
+                        <input type="number" name="textDraftLeaseSeconds" min="30" th:value="${settings.fileTools().textDraftLeaseSeconds()}">
+                    </label>
+                    <label>
                         <span>Comic max pages</span>
                         <input type="number" name="comicMaxPages" min="1" max="50000" th:value="${settings.fileTools().comicMaxPages()}">
                     </label>

@@ -9,6 +9,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
 const TEXT_EDITOR_FONT_SIZE_KEY = "endervault.textEditor.fontSize";
 const TEXT_EDITOR_LINE_WRAP_KEY = "endervault.textEditor.lineWrap";
+const TEXT_DRAFT_EDITOR_TOKEN_PREFIX = "endervault.textDraft.editorToken:";
+const TEXT_DRAFT_DEBOUNCE_MS = 2000;
+const TEXT_DRAFT_MAX_INTERVAL_MS = 15000;
 
 const MODE_OPTIONS = [
     ["text/plain", "Plain"],
@@ -91,7 +94,29 @@ const initializeTextEditor = (form) => {
     let textarea = null;
     let codeMirror = null;
     let savedValue = "";
+    let lastDraftedValue = "";
     let dirty = false;
+    let draftResolved = false;
+    let draftPaused = false;
+    let debounceTimer = null;
+    let maximumTimer = null;
+    let draftRequest = null;
+    let draftPending = false;
+    let takeoverPreservesLocalContent = false;
+
+    const path = form.querySelector("input[name='path']")?.value || "";
+    const editorToken = textEditorToken(path);
+    const editorTokenInput = form.querySelector("[data-text-editor-token]");
+    const forceOverwriteInput = form.querySelector("[data-text-force-overwrite]");
+    const draftState = form.querySelector("[data-text-draft-state]");
+    const draftDialog = form.querySelector("[data-text-draft-dialog]");
+    const draftMessage = form.querySelector("[data-text-draft-message]");
+    const draftSourceWarning = form.querySelector("[data-text-draft-source-warning]");
+
+    if (editorTokenInput) {
+        editorTokenInput.value = editorToken;
+    }
+    form.dataset.draftResolved = "false";
 
     const setDirty = (nextDirty) => {
         dirty = nextDirty;
@@ -100,10 +125,166 @@ const initializeTextEditor = (form) => {
 
     const currentValue = () => codeMirror ? codeMirror.getValue() : textarea?.value || "";
 
+    const setDraftState = (message, state = "") => {
+        if (!draftState) {
+            return;
+        }
+        draftState.textContent = message;
+        draftState.title = message;
+        draftState.classList.toggle("is-saved", state === "saved");
+        draftState.classList.toggle("is-warning", state === "warning");
+    };
+
     const syncTextarea = () => {
         if (codeMirror) {
             codeMirror.save();
         }
+    };
+
+    const clearDraftTimers = () => {
+        window.clearTimeout(debounceTimer);
+        window.clearTimeout(maximumTimer);
+        debounceTimer = null;
+        maximumTimer = null;
+    };
+
+    const lockEditorAfterSessionExpiry = () => {
+        if (draftPaused) {
+            return;
+        }
+        draftPaused = true;
+        clearDraftTimers();
+        const editButton = form.querySelector("[data-text-edit-toggle]");
+        const saveButton = form.querySelector("[data-text-save-button]");
+        if (codeMirror) {
+            setEditorEditMode(form, codeMirror, editButton, saveButton, false, false);
+        }
+        if (editButton) {
+            editButton.disabled = true;
+        }
+        if (textarea && !codeMirror) {
+            textarea.readOnly = true;
+        }
+        setDraftState(
+            "Session expired. Changes could not be saved. Log in again before continuing.",
+            "warning"
+        );
+        window.EnderVault?.showToast(
+            "error",
+            "Your session expired, so the changes could not be saved. Log in again before continuing."
+        );
+    };
+
+    const handleDraftError = (error, fallbackMessage) => {
+        if (error.draftHandled) {
+            return;
+        }
+        error.draftHandled = true;
+        if (error.sessionExpired || error.status === 401 || error.status === 403) {
+            lockEditorAfterSessionExpiry();
+            return;
+        }
+        if (error.payload?.code === "LEASE_CONFLICT") {
+            draftResolved = false;
+            form.dataset.draftResolved = "false";
+            openDraftDialog(
+                error.payload.draft,
+                dirty || form.classList.contains("is-editor-editing")
+            );
+            setDraftState("Draft editing is active elsewhere.", "warning");
+            return;
+        }
+        if (error.payload?.code === "SOURCE_CHANGED") {
+            setDraftState("The original changed. Your draft was retained.", "warning");
+            window.EnderVault?.showToast("warning", error.message || fallbackMessage);
+            return;
+        }
+        setDraftState("Draft autosave failed.", "warning");
+        window.EnderVault?.showToast("error", error.message || fallbackMessage);
+    };
+
+    const draftFormData = (content = null, takeOver = false) => {
+        const data = new FormData();
+        const csrf = form.querySelector('input[name="_csrf"]');
+        if (csrf) {
+            data.append(csrf.name, csrf.value);
+        }
+        data.append("path", path);
+        data.append("editorToken", editorToken);
+        data.append("takeOver", takeOver ? "true" : "false");
+        if (content !== null) {
+            data.append("content", content);
+        }
+        return data;
+    };
+
+    const persistDraft = async () => {
+        clearDraftTimers();
+        if (draftPaused || !draftResolved || !form.classList.contains("is-editor-editing")) {
+            return;
+        }
+        if (draftRequest) {
+            draftPending = true;
+            await draftRequest;
+            if (draftPending) {
+                draftPending = false;
+                return persistDraft();
+            }
+            return;
+        }
+
+        const value = currentValue();
+        if (value === lastDraftedValue) {
+            return;
+        }
+
+        setDraftState("Saving draft...");
+        draftRequest = window.EnderVault.requestJson(form.dataset.textDraftUrl, {
+            method: "POST",
+            body: draftFormData(value)
+        });
+        try {
+            await draftRequest;
+            lastDraftedValue = value;
+            setDraftState(`Draft saved at ${new Date().toLocaleTimeString()}.`, "saved");
+        } catch (error) {
+            handleDraftError(error, "Text draft could not be saved.");
+            throw error;
+        } finally {
+            draftRequest = null;
+        }
+
+        if (draftPending) {
+            draftPending = false;
+            return persistDraft();
+        }
+    };
+
+    const scheduleDraftSave = () => {
+        if (draftPaused
+                || !draftResolved
+                || !form.classList.contains("is-editor-editing")
+                || currentValue() === lastDraftedValue) {
+            return;
+        }
+        window.clearTimeout(debounceTimer);
+        debounceTimer = window.setTimeout(() => {
+            persistDraft().catch(() => {
+                // The editor state and toast already explain the failure.
+            });
+        }, TEXT_DRAFT_DEBOUNCE_MS);
+        if (!maximumTimer) {
+            maximumTimer = window.setTimeout(() => {
+                persistDraft().catch(() => {
+                    // The editor state and toast already explain the failure.
+                });
+            }, TEXT_DRAFT_MAX_INTERVAL_MS);
+        }
+    };
+
+    const onContentChanged = () => {
+        setDirty(currentValue() !== savedValue);
+        scheduleDraftSave();
     };
 
     const bindEditor = (nextTextarea) => {
@@ -113,19 +294,166 @@ const initializeTextEditor = (form) => {
         textarea = nextTextarea;
         textarea.dataset.textEditorBound = "true";
         savedValue = textarea.value;
+        lastDraftedValue = textarea.value;
         setDirty(false);
 
         if (window.CodeMirror) {
             codeMirror = enhanceWithCodeMirror(form, textarea);
-            codeMirror.on("change", () => {
-                setDirty(currentValue() !== savedValue);
-            });
+            codeMirror.on("change", onContentChanged);
             return;
         }
 
-        textarea.addEventListener("input", () => {
-            setDirty(currentValue() !== savedValue);
-        });
+        textarea.addEventListener("input", onContentChanged);
+    };
+
+    const installTextContent = (content) => {
+        if (!textarea) {
+            const loadedTextarea = document.createElement("textarea");
+            loadedTextarea.className = "text-editor-area";
+            loadedTextarea.name = "content";
+            loadedTextarea.spellcheck = false;
+            loadedTextarea.value = content || "";
+            const panel = form.querySelector("[data-text-load-panel]");
+            if (panel) {
+                panel.replaceWith(loadedTextarea);
+            } else {
+                form.append(loadedTextarea);
+            }
+            bindEditor(loadedTextarea);
+            return;
+        }
+        if (codeMirror) {
+            codeMirror.setValue(content || "");
+        } else {
+            textarea.value = content || "";
+        }
+    };
+
+    const resolveDraft = (content) => {
+        installTextContent(content);
+        lastDraftedValue = content || "";
+        setDirty(currentValue() !== savedValue);
+        draftResolved = true;
+        form.dataset.draftResolved = "true";
+        draftDialog?.close();
+        setDraftState("Draft restored.", "saved");
+
+        const editButton = form.querySelector("[data-text-edit-toggle]");
+        const saveButton = form.querySelector("[data-text-save-button]");
+        if (codeMirror) {
+            setEditorEditMode(form, codeMirror, editButton, saveButton, true, true);
+            codeMirror.focus();
+        } else if (textarea) {
+            textarea.readOnly = false;
+            textarea.focus();
+        }
+    };
+
+    const openDraftDialog = (status, preserveLocalContent = false) => {
+        if (!draftDialog || !status?.exists) {
+            return;
+        }
+        takeoverPreservesLocalContent = preserveLocalContent;
+        const ownedOrStale = status.owned || !status.active;
+        const restoreButton = draftDialog.querySelector("[data-text-draft-restore]");
+        const discardButton = draftDialog.querySelector("[data-text-draft-discard]");
+        const takeoverButton = draftDialog.querySelector("[data-text-draft-takeover]");
+        restoreButton.hidden = !ownedOrStale;
+        discardButton.hidden = !ownedOrStale;
+        takeoverButton.hidden = ownedOrStale;
+        takeoverButton.textContent = preserveLocalContent
+            ? "Take over with this text"
+            : "Take over editing";
+        draftSourceWarning.hidden = !status.sourceChanged;
+        if (draftMessage) {
+            draftMessage.textContent = ownedOrStale
+                ? "A recoverable draft exists for this file."
+                : preserveLocalContent
+                    ? "Another editor owns the draft. Taking over will keep the text currently shown in this tab."
+                    : "This draft is currently leased by another editor.";
+        }
+        if (!draftDialog.open) {
+            draftDialog.showModal();
+        }
+    };
+
+    const restoreDraft = async (takeOver) => {
+        try {
+            const body = await window.EnderVault.requestJson(form.dataset.textDraftRestoreUrl, {
+                method: "POST",
+                body: draftFormData(null, takeOver)
+            });
+            takeoverPreservesLocalContent = false;
+            resolveDraft(body.content);
+        } catch (error) {
+            handleDraftError(error, "Text draft could not be restored.");
+        }
+    };
+
+    const takeOverDraft = async () => {
+        if (!takeoverPreservesLocalContent) {
+            await restoreDraft(true);
+            return;
+        }
+        try {
+            const body = await window.EnderVault.requestJson(form.dataset.textDraftUrl, {
+                method: "POST",
+                body: draftFormData(currentValue(), true)
+            });
+            takeoverPreservesLocalContent = false;
+            draftResolved = true;
+            form.dataset.draftResolved = "true";
+            lastDraftedValue = currentValue();
+            draftDialog?.close();
+            setDraftState(`Draft saved at ${new Date().toLocaleTimeString()}.`, "saved");
+            if (body.notification) {
+                window.EnderVault.showNotification(body.notification);
+            }
+        } catch (error) {
+            handleDraftError(error, "Text draft could not be taken over.");
+        }
+    };
+
+    const discardDraft = async () => {
+        try {
+            const body = await window.EnderVault.requestJson(form.dataset.textDraftDiscardUrl, {
+                method: "POST",
+                body: draftFormData()
+            });
+            draftResolved = true;
+            form.dataset.draftResolved = "true";
+            lastDraftedValue = currentValue();
+            takeoverPreservesLocalContent = false;
+            draftDialog?.close();
+            setDraftState("No saved draft.");
+            window.EnderVault.showNotification(body.notification);
+        } catch (error) {
+            handleDraftError(error, "Text draft could not be discarded.");
+        }
+    };
+
+    const checkDraft = async () => {
+        if (!window.EnderVault || !form.dataset.textDraftUrl) {
+            draftResolved = true;
+            form.dataset.draftResolved = "true";
+            return;
+        }
+        const url = new URL(form.dataset.textDraftUrl, window.location.href);
+        url.searchParams.set("path", path);
+        url.searchParams.set("editorToken", editorToken);
+        try {
+            const body = await window.EnderVault.requestJson(url);
+            if (!body.draft?.exists) {
+                draftResolved = true;
+                form.dataset.draftResolved = "true";
+                setDraftState("No saved draft.");
+                return;
+            }
+            openDraftDialog(body.draft);
+            setDraftState("A recoverable draft exists.", "warning");
+        } catch (error) {
+            handleDraftError(error, "Draft status could not be checked.");
+        }
     };
 
     window.addEventListener("beforeunload", (event) => {
@@ -156,15 +484,36 @@ const initializeTextEditor = (form) => {
         }
 
         try {
-            const body = await window.EnderVault.submitJsonForm(form);
+            await persistDraft();
+            if (forceOverwriteInput) {
+                forceOverwriteInput.value = "false";
+            }
+            let body;
+            try {
+                body = await window.EnderVault.submitJsonForm(form);
+            } catch (error) {
+                if (error.payload?.code !== "SOURCE_CHANGED"
+                        || !window.confirm("The original file changed after this draft was created. Overwrite it with this draft?")) {
+                    throw error;
+                }
+                if (forceOverwriteInput) {
+                    forceOverwriteInput.value = "true";
+                }
+                body = await window.EnderVault.submitJsonForm(form);
+            }
             savedValue = currentValue();
+            lastDraftedValue = savedValue;
             setDirty(false);
+            setDraftState("No saved draft.");
             window.EnderVault.showNotification(body.notification);
         } catch (error) {
-            window.EnderVault.showToast("error", error.message || "Text save failed.");
+            handleDraftError(error, "Text save failed.");
         } finally {
+            if (forceOverwriteInput) {
+                forceOverwriteInput.value = "false";
+            }
             if (button) {
-                button.disabled = false;
+                button.disabled = !form.classList.contains("is-editor-editing") || draftPaused;
             }
         }
     });
@@ -186,34 +535,17 @@ const initializeTextEditor = (form) => {
 
         try {
             const body = await window.EnderVault.requestJson(form.dataset.textLoadUrl);
-            const loadedTextarea = document.createElement("textarea");
-            loadedTextarea.className = "text-editor-area";
-            loadedTextarea.name = "content";
-            loadedTextarea.spellcheck = false;
-            loadedTextarea.value = body.text.content || "";
-
-            const panel = form.querySelector("[data-text-load-panel]");
-            if (panel) {
-                panel.replaceWith(loadedTextarea);
-            } else {
-                form.append(loadedTextarea);
-            }
+            installTextContent(body.text.content || "");
 
             const saveButton = form.querySelector("[data-text-save-button]");
             if (saveButton) {
                 saveButton.disabled = body.text.editable === false;
             }
 
-            const toolbarLabel = form.querySelector(".text-editor-toolbar span");
-            if (toolbarLabel) {
-                toolbarLabel.textContent = `Editable up to ${body.text.manualLoadSizeLabel}`;
-            }
-
-            bindEditor(loadedTextarea);
             if (codeMirror) {
                 codeMirror.focus();
-            } else {
-                loadedTextarea.focus();
+            } else if (textarea) {
+                textarea.focus();
             }
         } catch (error) {
             window.EnderVault.showToast("error", error.message || "Text load failed.");
@@ -229,6 +561,34 @@ const initializeTextEditor = (form) => {
     const loadButton = form.querySelector("[data-text-load-button]");
     if (loadButton) {
         loadButton.addEventListener("click", loadText);
+    }
+
+    form.addEventListener("text-draft-resolution-required", () => {
+        if (draftDialog && !draftDialog.open) {
+            draftDialog.showModal();
+        }
+    });
+    draftDialog?.querySelector("[data-text-draft-restore]")?.addEventListener("click", () => restoreDraft(false));
+    draftDialog?.querySelector("[data-text-draft-takeover]")?.addEventListener("click", takeOverDraft);
+    draftDialog?.querySelector("[data-text-draft-discard]")?.addEventListener("click", discardDraft);
+    draftDialog?.querySelector("[data-text-draft-view-original]")?.addEventListener("click", () => draftDialog.close());
+    checkDraft();
+};
+
+const textEditorToken = (path) => {
+    const key = `${TEXT_DRAFT_EDITOR_TOKEN_PREFIX}${path}`;
+    try {
+        const existing = window.sessionStorage.getItem(key);
+        if (existing) {
+            return existing;
+        }
+        const token = window.crypto?.randomUUID?.()
+            || `${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`;
+        window.sessionStorage.setItem(key, token);
+        return token;
+    } catch (error) {
+        return window.crypto?.randomUUID?.()
+            || `${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`;
     }
 };
 
@@ -399,9 +759,14 @@ const attachEditorControls = (form, editor, mode, lineWrapping, fontSize) => {
     const editButton = document.createElement("button");
     editButton.className = "ghost icon-button action-icon editor-toggle";
     editButton.type = "button";
+    editButton.dataset.textEditToggle = "true";
     editButton.disabled = !canEdit;
     editButton.addEventListener("click", () => {
         const enabled = !form.classList.contains("is-editor-editing");
+        if (enabled && form.dataset.draftResolved === "false") {
+            form.dispatchEvent(new CustomEvent("text-draft-resolution-required"));
+            return;
+        }
         setEditorEditMode(form, editor, editButton, saveButton, enabled, canEdit);
         if (enabled) {
             editor.focus();
