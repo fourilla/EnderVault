@@ -38,6 +38,20 @@ class FileActionRegistryTest {
     }
 
     @Test
+    void markdownFilesExposeRenderCapability() {
+        FileToolDescriptor descriptor = registry.resolve(
+                "README.md",
+                false,
+                "text/markdown",
+                "md"
+        );
+
+        assertThat(descriptor.type()).isEqualTo(FileToolType.TEXT);
+        assertThat(descriptor.editable()).isTrue();
+        assertThat(descriptor.markdown()).isTrue();
+    }
+
+    @Test
     void comicFilesHavePreviewPageButNoInlineDetailPreview() {
         FileToolDescriptor descriptor = registry.resolve(
                 "book.cbz",

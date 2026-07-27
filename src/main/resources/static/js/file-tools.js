@@ -117,6 +117,12 @@ const initializeTextEditor = (form) => {
     const draftDialog = form.querySelector("[data-text-draft-dialog]");
     const draftMessage = form.querySelector("[data-text-draft-message]");
     const draftSourceWarning = form.querySelector("[data-text-draft-source-warning]");
+    const markdownSourceTab = form.querySelector("[data-markdown-source-tab]");
+    const markdownPreviewTab = form.querySelector("[data-markdown-preview-tab]");
+    const markdownPreview = form.querySelector("[data-markdown-editor-preview]");
+    const markdownPreviewBody = form.querySelector("[data-markdown-preview-body]");
+    const markdownPreviewStatus = form.querySelector("[data-markdown-preview-status]");
+    let lastRenderedMarkdown = null;
 
     if (editorTokenInput) {
         editorTokenInput.value = editorToken;
@@ -129,6 +135,65 @@ const initializeTextEditor = (form) => {
     };
 
     const currentValue = () => codeMirror ? codeMirror.getValue() : textarea?.value || "";
+
+    const showMarkdownSource = () => {
+        if (!markdownPreview) {
+            return;
+        }
+        form.classList.remove("is-markdown-preview");
+        markdownPreview.hidden = true;
+        markdownSourceTab?.classList.add("is-active");
+        markdownSourceTab?.setAttribute("aria-selected", "true");
+        markdownPreviewTab?.classList.remove("is-active");
+        markdownPreviewTab?.setAttribute("aria-selected", "false");
+        window.setTimeout(() => codeMirror?.refresh(), 0);
+    };
+
+    const showMarkdownPreview = async () => {
+        if (!markdownPreview || !markdownPreviewBody || !textarea) {
+            return;
+        }
+        const source = currentValue();
+        form.classList.add("is-markdown-preview");
+        markdownPreview.hidden = false;
+        markdownSourceTab?.classList.remove("is-active");
+        markdownSourceTab?.setAttribute("aria-selected", "false");
+        markdownPreviewTab?.classList.add("is-active");
+        markdownPreviewTab?.setAttribute("aria-selected", "true");
+
+        if (source === lastRenderedMarkdown) {
+            return;
+        }
+        if (markdownPreviewStatus) {
+            markdownPreviewStatus.hidden = false;
+            markdownPreviewStatus.textContent = "Rendering Markdown...";
+        }
+        markdownPreviewBody.replaceChildren();
+        markdownPreviewTab.disabled = true;
+
+        try {
+            if (!window.EnderVaultMarkdown) {
+                throw new Error("Markdown renderer is unavailable.");
+            }
+            await new Promise((resolve) => window.requestAnimationFrame(resolve));
+            window.EnderVaultMarkdown.renderInto(markdownPreviewBody, source, path);
+            if (markdownPreviewStatus) {
+                markdownPreviewStatus.hidden = true;
+            }
+            lastRenderedMarkdown = source;
+        } catch (error) {
+            if (markdownPreviewStatus) {
+                markdownPreviewStatus.hidden = false;
+                markdownPreviewStatus.textContent = error.message || "Markdown preview could not be rendered.";
+            }
+            window.EnderVault.showToast(
+                "error",
+                error.message || "Markdown preview could not be rendered."
+            );
+        } finally {
+            markdownPreviewTab.disabled = false;
+        }
+    };
 
     const setDraftState = (message, state = "") => {
         if (!draftState) {
@@ -346,6 +411,9 @@ const initializeTextEditor = (form) => {
         }
         textarea = nextTextarea;
         textarea.dataset.textEditorBound = "true";
+        if (markdownPreviewTab) {
+            markdownPreviewTab.disabled = false;
+        }
         savedValue = textarea.value;
         lastDraftedValue = textarea.value;
         setDirty(false);
@@ -671,6 +739,13 @@ const initializeTextEditor = (form) => {
 
     bindEditor(form.querySelector("textarea[name='content']"));
 
+    if (markdownPreviewTab && !textarea) {
+        markdownPreviewTab.disabled = true;
+    }
+    markdownSourceTab?.addEventListener("click", showMarkdownSource);
+    markdownPreviewTab?.addEventListener("click", showMarkdownPreview);
+    form.addEventListener("text-editor-source-requested", showMarkdownSource);
+
     const loadButton = form.querySelector("[data-text-load-button]");
     if (loadButton) {
         loadButton.addEventListener("click", loadText);
@@ -791,7 +866,7 @@ const attachEditorControls = (form, editor, mode, lineWrapping, fontSize) => {
     }
 
     const modeSelect = document.createElement("select");
-    modeSelect.className = "editor-control";
+    modeSelect.className = "editor-control source-only-control";
     modeSelect.title = "Syntax mode";
     modeSelect.setAttribute("aria-label", "Syntax mode");
     MODE_OPTIONS.forEach(([value, label]) => {
@@ -806,7 +881,7 @@ const attachEditorControls = (form, editor, mode, lineWrapping, fontSize) => {
     });
 
     const fontSelect = document.createElement("select");
-    fontSelect.className = "editor-control compact";
+    fontSelect.className = "editor-control compact source-only-control";
     fontSelect.title = "Font size";
     fontSelect.setAttribute("aria-label", "Font size");
     [12, 14, 16, 18, 20, 24].forEach((size) => {
@@ -826,7 +901,7 @@ const attachEditorControls = (form, editor, mode, lineWrapping, fontSize) => {
     });
 
     const wrapButton = document.createElement("button");
-    wrapButton.className = "ghost icon-button action-icon editor-toggle";
+    wrapButton.className = "ghost icon-button action-icon editor-toggle source-only-control";
     wrapButton.type = "button";
     wrapButton.title = "Toggle line wrap";
     wrapButton.setAttribute("aria-label", "Toggle line wrap");
@@ -841,7 +916,7 @@ const attachEditorControls = (form, editor, mode, lineWrapping, fontSize) => {
     });
 
     const searchButton = document.createElement("button");
-    searchButton.className = "ghost icon-button action-icon";
+    searchButton.className = "ghost icon-button action-icon source-only-control";
     searchButton.type = "button";
     searchButton.title = "Find in text";
     searchButton.setAttribute("aria-label", "Find in text");
@@ -870,12 +945,15 @@ const attachEditorControls = (form, editor, mode, lineWrapping, fontSize) => {
     });
 
     const editButton = document.createElement("button");
-    editButton.className = "ghost icon-button action-icon editor-toggle";
+    editButton.className = "ghost icon-button action-icon editor-toggle source-only-control";
     editButton.type = "button";
     editButton.dataset.textEditToggle = "true";
     editButton.disabled = !canEdit;
     editButton.addEventListener("click", () => {
         const enabled = !form.classList.contains("is-editor-editing");
+        if (enabled) {
+            form.dispatchEvent(new CustomEvent("text-editor-source-requested"));
+        }
         if (enabled && form.dataset.draftResolved === "false") {
             form.dispatchEvent(new CustomEvent("text-draft-resolution-required"));
             return;

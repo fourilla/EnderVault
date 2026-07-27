@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class TextFileToolStrategy implements FileToolStrategy {
 
+    private static final Set<String> MARKDOWN_EXTENSIONS = Set.of("md", "markdown");
     private static final Set<String> EXTENSIONS = Set.of(
             "txt", "text", "md", "markdown", "log",
             "csv", "tsv", "json", "jsonl", "xml", "html", "htm", "css",
@@ -37,6 +38,15 @@ public class TextFileToolStrategy implements FileToolStrategy {
 
     @Override
     public FileToolDescriptor describe(FileToolContext context) {
+        if (MARKDOWN_EXTENSIONS.contains(context.extension())) {
+            return FileToolDescriptor.of(
+                    FileToolType.TEXT,
+                    FileToolCapability.PREVIEW_PAGE,
+                    FileToolCapability.TEXT_SOURCE,
+                    FileToolCapability.TEXT_EDIT,
+                    FileToolCapability.MARKDOWN_RENDER
+            );
+        }
         return FileToolDescriptor.of(
                 FileToolType.TEXT,
                 FileToolCapability.PREVIEW_PAGE,

@@ -1,6 +1,9 @@
 package io.github.fourilla.endervault.web.file;
 
 import io.github.fourilla.endervault.activity.ActivityLogService;
+import io.github.fourilla.endervault.filetool.FileToolService;
+import io.github.fourilla.endervault.filetool.TextFileContent;
+import io.github.fourilla.endervault.filetool.text.TextFileService;
 import io.github.fourilla.endervault.storage.FileDetail;
 import io.github.fourilla.endervault.storage.FileItem;
 import io.github.fourilla.endervault.storage.StorageScope;
@@ -32,6 +35,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -43,19 +47,25 @@ public class AdminFileTransferController {
     private final RecentService recentService;
     private final ThumbnailService thumbnailService;
     private final ActivityLogService activityLogService;
+    private final FileToolService fileToolService;
+    private final TextFileService textFileService;
 
     public AdminFileTransferController(
             StorageService storageService,
             FileResponseService fileResponseService,
             RecentService recentService,
             ThumbnailService thumbnailService,
-            ActivityLogService activityLogService
+            ActivityLogService activityLogService,
+            FileToolService fileToolService,
+            TextFileService textFileService
     ) {
         this.storageService = storageService;
         this.fileResponseService = fileResponseService;
         this.recentService = recentService;
         this.thumbnailService = thumbnailService;
         this.activityLogService = activityLogService;
+        this.fileToolService = fileToolService;
+        this.textFileService = textFileService;
     }
 
     @GetMapping("/files/download")
@@ -163,23 +173,48 @@ public class AdminFileTransferController {
     }
 
     @GetMapping("/files/preview")
-    public ResponseEntity<?> preview(
+    public Object preview(
             @RequestParam(value = "path", required = false) String path,
             @RequestParam("item") String item,
             @RequestHeader HttpHeaders headers
     ) throws IOException {
-        Path file = storageService.resolveFile(StorageScope.VAULT, path, item);
+        FileDetail detail = storageService.detail(
+                StorageScope.VAULT,
+                storageService.describeVaultChild(path, item).path()
+        );
+        Path file = storageService.resolveVaultFile(detail.path());
+        if (fileToolService.resolve(detail).markdown()) {
+            return markdownPreview(detail, file);
+        }
         return fileResponseService.inline(file, headers);
     }
 
     @GetMapping("/files/detail/preview")
-    public ResponseEntity<?> previewFromDetail(
+    public Object previewFromDetail(
             @RequestParam("path") String path,
             @RequestHeader HttpHeaders headers
     ) throws IOException {
-        Path file = storageService.resolveVaultFile(path);
-        recentService.recordVaultPath(path);
+        FileDetail detail = detailForPath(path);
+        Path file = storageService.resolveVaultFile(detail.path());
+        recentService.recordVaultPath(detail.path());
+        if (fileToolService.resolve(detail).markdown()) {
+            return markdownPreview(detail, file);
+        }
         return fileResponseService.inline(file, headers);
+    }
+
+    private ModelAndView markdownPreview(FileDetail detail, Path file) throws IOException {
+        TextFileContent text = textFileService.readText(detail, file);
+        if (text.manualLoadAvailable()) {
+            text = textFileService.loadText(detail, file);
+        }
+        ModelAndView view = new ModelAndView("markdown-preview");
+        view.addObject("name", detail.name());
+        view.addObject("path", detail.path());
+        view.addObject("loaded", text.loaded());
+        view.addObject("message", text.message());
+        view.addObject("content", text.loaded() ? text.content() : "");
+        return view;
     }
 
     private FileDetail detailForPath(String path) throws IOException {

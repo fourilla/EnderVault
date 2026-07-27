@@ -29,6 +29,10 @@ public record FileToolDescriptor(
         return capabilities.contains(FileToolCapability.TEXT_EDIT);
     }
 
+    public boolean markdown() {
+        return capabilities.contains(FileToolCapability.MARKDOWN_RENDER);
+    }
+
     public boolean directory() {
         return type == FileToolType.DIRECTORY;
     }

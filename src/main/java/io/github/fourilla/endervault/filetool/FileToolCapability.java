@@ -5,5 +5,6 @@ public enum FileToolCapability {
     PREVIEW_PAGE,
     TEXT_SOURCE,
     TEXT_EDIT,
+    MARKDOWN_RENDER,
     COMIC_VIEW
 }

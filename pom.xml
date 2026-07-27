@@ -19,6 +19,10 @@
 
     <properties>
         <java.version>21</java.version>
+        <markdown-it.version>14.3.0</markdown-it.version>
+        <markdown-it-task-lists.version>2.1.1</markdown-it-task-lists.version>
+        <markdown-it-footnote.version>2.0.0</markdown-it-footnote.version>
+        <dompurify.version>3.4.11</dompurify.version>
     </properties>
 
     <dependencies>
@@ -51,6 +55,26 @@
             <groupId>org.webjars.npm</groupId>
             <artifactId>codemirror</artifactId>
             <version>5.65.19</version>
+        </dependency>
+        <dependency>
+            <groupId>org.webjars.npm</groupId>
+            <artifactId>markdown-it</artifactId>
+            <version>${markdown-it.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.webjars.npm</groupId>
+            <artifactId>markdown-it-task-lists</artifactId>
+            <version>${markdown-it-task-lists.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.webjars.npm</groupId>
+            <artifactId>markdown-it-footnote</artifactId>
+            <version>${markdown-it-footnote.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.webjars.npm</groupId>
+            <artifactId>dompurify</artifactId>
+            <version>${dompurify.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.pdfbox</groupId>

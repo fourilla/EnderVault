@@ -9,6 +9,9 @@
     <th:block th:replace="~{fragments/assets :: coreScripts}"></th:block>
     <th:block th:replace="~{fragments/assets :: adminActionsScript}"></th:block>
     <th:block th:replace="~{fragments/assets :: transferBufferScript}"></th:block>
+    <th:block th:if="${fileTool.markdown()}">
+        <th:block th:replace="~{fragments/assets :: markdownRendererScript}"></th:block>
+    </th:block>
     <th:block th:if="${fileTool.text()}">
         <th:block th:replace="~{fragments/assets :: fileToolsScript}"></th:block>
     </th:block>
@@ -140,14 +143,31 @@
             <input type="hidden" name="draftId" value="" data-text-draft-id>
             <input type="hidden" name="forceOverwrite" value="false" data-text-force-overwrite>
             <div class="text-editor-toolbar">
-                <span class="text-draft-state js-only" data-text-draft-state aria-live="polite">
-                    Checking for a saved draft...
-                </span>
+                <div class="text-editor-view-tabs js-only" th:if="${fileTool.markdown()}"
+                     role="tablist" aria-label="Markdown view">
+                    <button class="text-editor-view-tab is-active" type="button"
+                            role="tab" aria-selected="true"
+                            data-markdown-source-tab>
+                        Source
+                    </button>
+                    <button class="text-editor-view-tab" type="button"
+                            role="tab" aria-selected="false"
+                            data-markdown-preview-tab>
+                        Preview
+                    </button>
+                </div>
                 <button class="icon-button action-icon" type="submit" th:disabled="${not textContent.editable()}"
                         data-text-save-button
                         title="Save text" aria-label="Save text">
-                        <i class="fas fa-floppy-disk" aria-hidden="true"></i>
+                    <i class="fas fa-floppy-disk" aria-hidden="true"></i>
                 </button>
+            </div>
+            <div class="markdown-editor-preview js-only" th:if="${fileTool.markdown()}"
+                 data-markdown-editor-preview hidden>
+                <p class="markdown-preview-status muted" data-markdown-preview-status aria-live="polite">
+                    Select Preview to render this Markdown document.
+                </p>
+                <article class="markdown-body" data-markdown-preview-body></article>
             </div>
             <textarea class="text-editor-area" name="content" spellcheck="false"
                       th:if="${textContent.loaded()}"
@@ -163,6 +183,11 @@
                         Download original
                     </a>
                 </div>
+            </div>
+            <div class="text-editor-statusbar js-only">
+                <span class="text-draft-state" data-text-draft-state aria-live="polite">
+                    Checking for a saved draft...
+                </span>
             </div>
 
             <dialog class="text-draft-dialog js-only" data-text-draft-dialog aria-labelledby="textDraftTitle">

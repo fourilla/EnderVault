@@ -61,6 +61,14 @@
     <script defer th:src="@{/js/file-transfer-buffer.js}"></script>
 </th:block>
 
+<th:block th:fragment="markdownRendererScript">
+    <script defer th:src="@{/webjars/markdown-it/14.3.0/dist/markdown-it.min.js}"></script>
+    <script defer th:src="@{/webjars/markdown-it-task-lists/2.1.1/dist/markdown-it-task-lists.min.js}"></script>
+    <script defer th:src="@{/webjars/markdown-it-footnote/2.0.0/dist/markdown-it-footnote.min.js}"></script>
+    <script defer th:src="@{/webjars/dompurify/3.4.11/dist/purify.min.js}"></script>
+    <script defer th:src="@{/js/markdown-renderer.js}"></script>
+</th:block>
+
 <th:block th:fragment="fileToolsScript">
     <link rel="stylesheet" th:href="@{/webjars/codemirror/5.65.19/lib/codemirror.css}">
     <link rel="stylesheet" th:href="@{/webjars/codemirror/5.65.19/theme/material-darker.css}">
