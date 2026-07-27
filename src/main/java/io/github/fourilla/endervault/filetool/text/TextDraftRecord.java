@@ -9,6 +9,7 @@ public record TextDraftRecord(
         TextSourceFingerprint originalFingerprint,
         Instant createdAt,
         Instant updatedAt,
+        long revision,
         String editorToken,
         Instant leaseExpiresAt
 ) {
@@ -20,6 +21,7 @@ public record TextDraftRecord(
                 originalFingerprint,
                 createdAt,
                 now,
+                revision + 1,
                 nextEditorToken,
                 nextLeaseExpiresAt
         );
@@ -32,6 +34,7 @@ public record TextDraftRecord(
                 originalFingerprint,
                 createdAt,
                 updatedAt,
+                revision + 1,
                 editorToken,
                 leaseExpiresAt
         );

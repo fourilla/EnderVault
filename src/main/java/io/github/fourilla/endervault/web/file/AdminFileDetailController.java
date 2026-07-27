@@ -3,37 +3,48 @@ package io.github.fourilla.endervault.web.file;
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.favorite.FavoriteService;
-import io.github.fourilla.endervault.filetool.comic.ComicArchiveManifest;
-import io.github.fourilla.endervault.filetool.comic.ComicArchiveService;
 import io.github.fourilla.endervault.filetool.FileToolDescriptor;
 import io.github.fourilla.endervault.filetool.FileToolService;
 import io.github.fourilla.endervault.filetool.TextFileContent;
-import io.github.fourilla.endervault.recent.RecentService;
-import io.github.fourilla.endervault.filetool.text.TextFileService;
+import io.github.fourilla.endervault.filetool.comic.ComicArchiveManifest;
+import io.github.fourilla.endervault.filetool.comic.ComicArchiveService;
 import io.github.fourilla.endervault.filetool.text.TextDraftLeaseException;
+import io.github.fourilla.endervault.filetool.text.TextDraftRecoveryResult;
+import io.github.fourilla.endervault.filetool.text.TextDraftRecoveryService;
+import io.github.fourilla.endervault.filetool.text.TextDraftSaveAsSuggestion;
 import io.github.fourilla.endervault.filetool.text.TextDraftService;
 import io.github.fourilla.endervault.filetool.text.TextDraftSnapshot;
 import io.github.fourilla.endervault.filetool.text.TextDraftSourceConflictException;
 import io.github.fourilla.endervault.filetool.text.TextDraftStatus;
+import io.github.fourilla.endervault.filetool.text.TextFileService;
+import io.github.fourilla.endervault.recent.RecentService;
 import io.github.fourilla.endervault.share.ShareLinkService;
+import io.github.fourilla.endervault.storage.ConflictPolicy;
 import io.github.fourilla.endervault.storage.FileDetail;
+import io.github.fourilla.endervault.storage.FileItem;
 import io.github.fourilla.endervault.storage.StorageScope;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.transfer.TransferBufferService;
+import io.github.fourilla.endervault.web.support.ActionResponse;
 import io.github.fourilla.endervault.web.support.ActionResponseSupport;
+import io.github.fourilla.endervault.web.support.FileConflictPayload;
+import io.github.fourilla.endervault.web.support.FileConflictPolicies;
+import io.github.fourilla.endervault.web.support.FileConflictResponse;
 import io.github.fourilla.endervault.web.support.FlashNotification;
 import io.github.fourilla.endervault.web.support.ShareLinkView;
 import io.github.fourilla.endervault.web.support.ShareUrlBuilder;
+import io.github.fourilla.endervault.web.support.TextDraftResponse;
 import io.github.fourilla.endervault.web.support.TextFileLoadResponse;
 import io.github.fourilla.endervault.web.support.TextFilePayload;
-import io.github.fourilla.endervault.web.support.TextDraftResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import org.springframework.http.MediaType;
+import java.util.UUID;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -52,6 +63,7 @@ public class AdminFileDetailController {
     private final FileToolService fileToolService;
     private final TextFileService textFileService;
     private final TextDraftService textDraftService;
+    private final TextDraftRecoveryService textDraftRecoveryService;
     private final ComicArchiveService comicArchiveService;
     private final RecentService recentService;
     private final ActivityLogService activityLogService;
@@ -65,6 +77,7 @@ public class AdminFileDetailController {
             FileToolService fileToolService,
             TextFileService textFileService,
             TextDraftService textDraftService,
+            TextDraftRecoveryService textDraftRecoveryService,
             ComicArchiveService comicArchiveService,
             RecentService recentService,
             ActivityLogService activityLogService,
@@ -77,6 +90,7 @@ public class AdminFileDetailController {
         this.fileToolService = fileToolService;
         this.textFileService = textFileService;
         this.textDraftService = textDraftService;
+        this.textDraftRecoveryService = textDraftRecoveryService;
         this.comicArchiveService = comicArchiveService;
         this.recentService = recentService;
         this.activityLogService = activityLogService;
@@ -124,13 +138,25 @@ public class AdminFileDetailController {
             @RequestParam("path") String path,
             @RequestParam(value = "content", required = false) String content,
             @RequestParam(value = "editorToken", required = false) String editorToken,
+            @RequestParam(value = "draftId", required = false) String draftId,
             @RequestParam(value = "forceOverwrite", defaultValue = "false") boolean forceOverwrite,
             HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
-        FileDetail detail = detailForPath(path);
-        Path file = storageService.resolveVaultFile(detail.path());
+        String savedPath;
         if (ActionResponseSupport.wantsJson(request) && editorToken != null && !editorToken.isBlank()) {
+            UUID parsedDraftId = optionalDraftId(draftId);
+            if (shouldUseDetachedDraft(parsedDraftId, path)) {
+                return missingSourceResponse(path, content, editorToken, parsedDraftId, false);
+            }
+            FileDetail detail;
+            Path file;
+            try {
+                detail = detailForPath(path);
+                file = storageService.resolveVaultFile(detail.path());
+            } catch (NoSuchFileException ex) {
+                return missingSourceResponse(path, content, editorToken, parsedDraftId, false);
+            }
             try {
                 textDraftService.saveToSource(detail, file, content, editorToken, forceOverwrite);
             } catch (TextDraftSourceConflictException ex) {
@@ -143,17 +169,23 @@ public class AdminFileDetailController {
                         TextDraftResponse.error("LEASE_CONFLICT", ex.getMessage(), ex.status())
                 );
             }
+            recentService.recordVaultPath(detail.path());
+            activityLogService.record("TEXT_SAVE", request, detail.path(), null, "Saved text file " + detail.name());
+            savedPath = detail.path();
         } else {
+            FileDetail detail = detailForPath(path);
+            Path file = storageService.resolveVaultFile(detail.path());
             textDraftService.saveDirect(detail, file, content);
+            recentService.recordVaultPath(detail.path());
+            activityLogService.record("TEXT_SAVE", request, detail.path(), null, "Saved text file " + detail.name());
+            savedPath = detail.path();
         }
-        recentService.recordVaultPath(detail.path());
-        activityLogService.record("TEXT_SAVE", request, detail.path(), null, "Saved text file " + detail.name());
         FlashNotification notification = FlashNotification.success("Text file saved.");
         return ActionResponseSupport.ok(
                 request,
                 redirectAttributes,
                 notification,
-                redirectToDetail(detail.path()),
+                redirectToDetail(savedPath),
                 TextDraftResponse.saved()
         );
     }
@@ -176,18 +208,99 @@ public class AdminFileDetailController {
             @RequestParam("path") String path,
             @RequestParam(value = "content", required = false) String content,
             @RequestParam("editorToken") String editorToken,
+            @RequestParam(value = "draftId", required = false) String draftId,
             @RequestParam(value = "takeOver", defaultValue = "false") boolean takeOver
     ) throws IOException {
-        FileDetail detail = detailForPath(path);
-        Path file = storageService.resolveVaultFile(detail.path());
+        UUID parsedDraftId = optionalDraftId(draftId);
+        if (shouldUseDetachedDraft(parsedDraftId, path)) {
+            return autosaveDetached(path, content, editorToken, parsedDraftId, takeOver);
+        }
         try {
+            FileDetail detail = detailForPath(path);
+            Path file = storageService.resolveVaultFile(detail.path());
             TextDraftStatus status = textDraftService.autosave(detail, file, content, editorToken, takeOver);
             return ResponseEntity.ok(TextDraftResponse.autosaved(status));
+        } catch (NoSuchFileException ex) {
+            return autosaveDetached(path, content, editorToken, parsedDraftId, takeOver);
         } catch (TextDraftLeaseException ex) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(
                     TextDraftResponse.error("LEASE_CONFLICT", ex.getMessage(), ex.status())
             );
         }
+    }
+
+    @PostMapping("/files/detail/text/draft/save-as")
+    public ResponseEntity<?> saveTextDraftAs(
+            @RequestParam("path") String path,
+            @RequestParam("name") String name,
+            @RequestParam(value = "content", required = false) String content,
+            @RequestParam("editorToken") String editorToken,
+            @RequestParam(value = "draftId", required = false) String draftId,
+            @RequestParam(value = "conflictPolicy", defaultValue = "ask") String conflictPolicy,
+            HttpServletRequest request
+    ) throws IOException {
+        if (FileConflictPolicies.cancels(conflictPolicy, storageService.defaultConflictPolicy())) {
+            return ResponseEntity.ok(ActionResponse.ok(
+                    FlashNotification.warning("Save As canceled. The text draft was retained.")
+            ));
+        }
+
+        UUID parsedDraftId = optionalDraftId(draftId);
+        TextDraftSaveAsSuggestion suggestion = textDraftRecoveryService.suggestion(path);
+        ConflictPolicy policy = FileConflictPolicies.mutationPolicy(
+                conflictPolicy,
+                storageService.defaultConflictPolicy()
+        );
+        TextDraftRecoveryResult recovery;
+        try {
+            recovery = textDraftRecoveryService.saveAs(
+                    parsedDraftId,
+                    editorToken,
+                    path,
+                    name,
+                    content,
+                    policy
+            );
+        } catch (FileAlreadyExistsException ex) {
+            if (FileConflictPolicies.asks(conflictPolicy)) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(FileConflictResponse.conflict(
+                        new FileConflictPayload(
+                                "text-save-as",
+                                name,
+                                suggestion.directoryPath(),
+                                storageService.defaultConflictPolicy().value(),
+                                "A file with that name already exists in the recovery destination."
+                        ),
+                        null
+                ));
+            }
+            throw ex;
+        } catch (TextDraftLeaseException ex) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                    TextDraftResponse.error("LEASE_CONFLICT", ex.getMessage(), ex.status(), suggestion)
+            );
+        }
+
+        FileItem saved = recovery.file();
+        recentService.recordVaultPath(saved.path());
+        activityLogService.record(
+                "TEXT_SAVE_AS",
+                request,
+                path,
+                saved.path(),
+                "Recovered text draft as " + saved.name()
+        );
+        FlashNotification notification = recovery.originalParentMissing()
+                ? FlashNotification.success(
+                        "The original parent directory no longer exists. The text draft was saved in "
+                                + recoveryDirectoryLabel(saved.parentPath())
+                                + "."
+                )
+                : FlashNotification.success("Text draft saved as a new file.");
+        return ResponseEntity.ok(ActionResponse.redirect(
+                notification,
+                ActionResponseSupport.redirectUrl(redirectToDetail(saved.path()))
+        ));
     }
 
     @PostMapping("/files/detail/text/draft/restore")
@@ -248,6 +361,84 @@ public class AdminFileDetailController {
 
     private String redirectToDetail(String path) {
         return "redirect:/files/detail?path=" + UriUtils.encodeQueryParam(path, StandardCharsets.UTF_8);
+    }
+
+    private ResponseEntity<TextDraftResponse> autosaveDetached(
+            String path,
+            String content,
+            String editorToken,
+            UUID draftId,
+            boolean takeOver
+    ) throws IOException {
+        TextDraftSaveAsSuggestion suggestion = textDraftRecoveryService.suggestion(path);
+        if (draftId == null) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(TextDraftResponse.error(
+                    "SOURCE_MISSING",
+                    "The original file is missing. Save the current text as a new file.",
+                    TextDraftStatus.missing(),
+                    suggestion
+            ));
+        }
+        try {
+            TextDraftStatus status = textDraftService.autosaveDetached(
+                    draftId,
+                    content,
+                    editorToken,
+                    takeOver
+            );
+            return ResponseEntity.ok(TextDraftResponse.autosavedDetached(status, suggestion));
+        } catch (TextDraftLeaseException ex) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                    TextDraftResponse.error("LEASE_CONFLICT", ex.getMessage(), ex.status(), suggestion)
+            );
+        }
+    }
+
+    private ResponseEntity<TextDraftResponse> missingSourceResponse(
+            String path,
+            String content,
+            String editorToken,
+            UUID draftId,
+            boolean takeOver
+    ) throws IOException {
+        TextDraftSaveAsSuggestion suggestion = textDraftRecoveryService.suggestion(path);
+        TextDraftStatus status = TextDraftStatus.missing();
+        if (draftId != null) {
+            try {
+                status = textDraftService.autosaveDetached(draftId, content, editorToken, takeOver);
+            } catch (TextDraftLeaseException ex) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                        TextDraftResponse.error("LEASE_CONFLICT", ex.getMessage(), ex.status(), suggestion)
+                );
+            }
+        }
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(TextDraftResponse.error(
+                "SOURCE_MISSING",
+                "The original file is missing. Save the current text as a new file.",
+                status,
+                suggestion
+        ));
+    }
+
+    private boolean shouldUseDetachedDraft(UUID draftId, String path) throws IOException {
+        return draftId != null && !textDraftService.matchesVaultPath(draftId, path);
+    }
+
+    private UUID optionalDraftId(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(value.trim());
+        } catch (IllegalArgumentException ex) {
+            throw new StorageAccessException("Text draft identifier is invalid.", ex);
+        }
+    }
+
+    private String recoveryDirectoryLabel(String directoryPath) {
+        return directoryPath == null || directoryPath.isBlank()
+                ? "the vault root"
+                : "/" + directoryPath;
     }
 
 }

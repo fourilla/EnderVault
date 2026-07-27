@@ -103,10 +103,15 @@ const initializeTextEditor = (form) => {
     let draftRequest = null;
     let draftPending = false;
     let takeoverPreservesLocalContent = false;
+    let draftId = null;
+    let saveAsSuggestion = null;
+    let draftAutosaveBlocked = false;
+    let sourceMissingNotified = false;
 
     const path = form.querySelector("input[name='path']")?.value || "";
     const editorToken = textEditorToken(path);
     const editorTokenInput = form.querySelector("[data-text-editor-token]");
+    const draftIdInput = form.querySelector("[data-text-draft-id]");
     const forceOverwriteInput = form.querySelector("[data-text-force-overwrite]");
     const draftState = form.querySelector("[data-text-draft-state]");
     const draftDialog = form.querySelector("[data-text-draft-dialog]");
@@ -133,6 +138,24 @@ const initializeTextEditor = (form) => {
         draftState.title = message;
         draftState.classList.toggle("is-saved", state === "saved");
         draftState.classList.toggle("is-warning", state === "warning");
+    };
+
+    const rememberDraft = (status, suggestion = null) => {
+        if (suggestion) {
+            saveAsSuggestion = suggestion;
+        }
+        if (!status) {
+            return;
+        }
+        if (status.exists && status.id) {
+            draftId = status.id;
+            draftAutosaveBlocked = false;
+        } else if (!status.exists) {
+            draftId = null;
+        }
+        if (draftIdInput) {
+            draftIdInput.value = draftId || "";
+        }
     };
 
     const syncTextarea = () => {
@@ -199,6 +222,24 @@ const initializeTextEditor = (form) => {
             window.EnderVault?.showToast("warning", error.message || fallbackMessage);
             return;
         }
+        if (error.payload?.code === "SOURCE_MISSING") {
+            rememberDraft(error.payload.draft, error.payload.saveAs);
+            draftAutosaveBlocked = !draftId;
+            setDraftState(
+                draftId
+                    ? "Original file missing. Changes are saved to the draft only."
+                    : "Original file missing. Use Save to recover this text.",
+                "warning"
+            );
+            if (!sourceMissingNotified) {
+                sourceMissingNotified = true;
+                window.EnderVault?.showToast(
+                    "warning",
+                    error.message || "The original file is missing. Save this text as a new file."
+                );
+            }
+            return;
+        }
         setDraftState("Draft autosave failed.", "warning");
         window.EnderVault?.showToast("error", error.message || fallbackMessage);
     };
@@ -212,6 +253,9 @@ const initializeTextEditor = (form) => {
         data.append("path", path);
         data.append("editorToken", editorToken);
         data.append("takeOver", takeOver ? "true" : "false");
+        if (draftId) {
+            data.append("draftId", draftId);
+        }
         if (content !== null) {
             data.append("content", content);
         }
@@ -220,7 +264,10 @@ const initializeTextEditor = (form) => {
 
     const persistDraft = async () => {
         clearDraftTimers();
-        if (draftPaused || !draftResolved || !form.classList.contains("is-editor-editing")) {
+        if (draftPaused
+                || draftAutosaveBlocked
+                || !draftResolved
+                || !form.classList.contains("is-editor-editing")) {
             return;
         }
         if (draftRequest) {
@@ -244,9 +291,14 @@ const initializeTextEditor = (form) => {
             body: draftFormData(value)
         });
         try {
-            await draftRequest;
+            const body = await draftRequest;
+            rememberDraft(body.draft, body.saveAs);
             lastDraftedValue = value;
-            setDraftState(`Draft saved at ${new Date().toLocaleTimeString()}.`, "saved");
+            if (body.draft?.sourceMissing) {
+                setDraftState("Original file missing. Changes are saved to the draft only.", "warning");
+            } else {
+                setDraftState(`Draft saved at ${new Date().toLocaleTimeString()}.`, "saved");
+            }
         } catch (error) {
             handleDraftError(error, "Text draft could not be saved.");
             throw error;
@@ -262,6 +314,7 @@ const initializeTextEditor = (form) => {
 
     const scheduleDraftSave = () => {
         if (draftPaused
+                || draftAutosaveBlocked
                 || !draftResolved
                 || !form.classList.contains("is-editor-editing")
                 || currentValue() === lastDraftedValue) {
@@ -329,7 +382,8 @@ const initializeTextEditor = (form) => {
         }
     };
 
-    const resolveDraft = (content) => {
+    const resolveDraft = (content, status = null) => {
+        rememberDraft(status);
         installTextContent(content);
         lastDraftedValue = content || "";
         setDirty(currentValue() !== savedValue);
@@ -353,6 +407,7 @@ const initializeTextEditor = (form) => {
         if (!draftDialog || !status?.exists) {
             return;
         }
+        rememberDraft(status);
         takeoverPreservesLocalContent = preserveLocalContent;
         const ownedOrStale = status.owned || !status.active;
         const restoreButton = draftDialog.querySelector("[data-text-draft-restore]");
@@ -364,7 +419,10 @@ const initializeTextEditor = (form) => {
         takeoverButton.textContent = preserveLocalContent
             ? "Take over with this text"
             : "Take over editing";
-        draftSourceWarning.hidden = !status.sourceChanged;
+        draftSourceWarning.hidden = !status.sourceChanged && !status.sourceMissing;
+        draftSourceWarning.textContent = status.sourceMissing
+            ? "The original file is missing. This draft must be saved as a new file."
+            : "The original file changed after this draft was created.";
         if (draftMessage) {
             draftMessage.textContent = ownedOrStale
                 ? "A recoverable draft exists for this file."
@@ -384,7 +442,7 @@ const initializeTextEditor = (form) => {
                 body: draftFormData(null, takeOver)
             });
             takeoverPreservesLocalContent = false;
-            resolveDraft(body.content);
+            resolveDraft(body.content, body.draft);
         } catch (error) {
             handleDraftError(error, "Text draft could not be restored.");
         }
@@ -400,6 +458,7 @@ const initializeTextEditor = (form) => {
                 method: "POST",
                 body: draftFormData(currentValue(), true)
             });
+            rememberDraft(body.draft, body.saveAs);
             takeoverPreservesLocalContent = false;
             draftResolved = true;
             form.dataset.draftResolved = "true";
@@ -420,6 +479,7 @@ const initializeTextEditor = (form) => {
                 method: "POST",
                 body: draftFormData()
             });
+            rememberDraft(body.draft);
             draftResolved = true;
             form.dataset.draftResolved = "true";
             lastDraftedValue = currentValue();
@@ -443,6 +503,7 @@ const initializeTextEditor = (form) => {
         url.searchParams.set("editorToken", editorToken);
         try {
             const body = await window.EnderVault.requestJson(url);
+            rememberDraft(body.draft, body.saveAs);
             if (!body.draft?.exists) {
                 draftResolved = true;
                 form.dataset.draftResolved = "true";
@@ -453,6 +514,47 @@ const initializeTextEditor = (form) => {
             setDraftState("A recoverable draft exists.", "warning");
         } catch (error) {
             handleDraftError(error, "Draft status could not be checked.");
+        }
+    };
+
+    const offerSaveAs = async (suggestion = null) => {
+        const proposed = suggestion || saveAsSuggestion || {};
+        const directory = proposed.directoryPath || "";
+        const filename = await window.EnderVault.askTextInput({
+            title: "Save draft as new file",
+            message: directory
+                ? `The original file is missing. Recover this draft in /${directory}.`
+                : "The original file is missing. Recover this draft in the vault root.",
+            label: "File name",
+            initialValue: proposed.filename || "recovered.txt",
+            confirmLabel: "Save As"
+        });
+        if (filename == null) {
+            setDraftState("Save As canceled. The draft was retained.", "warning");
+            return;
+        }
+
+        const data = draftFormData(currentValue());
+        data.set("name", filename);
+        data.set("conflictPolicy", "ask");
+        try {
+            const body = await window.EnderVault.requestJsonResolvingConflicts(
+                form.dataset.textDraftSaveAsUrl,
+                {
+                    method: "POST",
+                    body: data
+                }
+            );
+            if (body.redirectUrl) {
+                rememberDraft({ exists: false });
+                setDirty(false);
+                window.EnderVault.navigateWithNotification(body);
+                return;
+            }
+            setDraftState("Save As canceled. The draft was retained.", "warning");
+            window.EnderVault.showNotification(body.notification);
+        } catch (error) {
+            handleDraftError(error, "Text draft could not be saved as a new file.");
         }
     };
 
@@ -492,6 +594,11 @@ const initializeTextEditor = (form) => {
             try {
                 body = await window.EnderVault.submitJsonForm(form);
             } catch (error) {
+                if (error.payload?.code === "SOURCE_MISSING") {
+                    handleDraftError(error, "The original file is missing.");
+                    await offerSaveAs(error.payload.saveAs);
+                    return;
+                }
                 if (error.payload?.code !== "SOURCE_CHANGED"
                         || !window.confirm("The original file changed after this draft was created. Overwrite it with this draft?")) {
                     throw error;
@@ -503,11 +610,17 @@ const initializeTextEditor = (form) => {
             }
             savedValue = currentValue();
             lastDraftedValue = savedValue;
+            rememberDraft(body.draft);
             setDirty(false);
             setDraftState("No saved draft.");
             window.EnderVault.showNotification(body.notification);
         } catch (error) {
-            handleDraftError(error, "Text save failed.");
+            if (error.payload?.code === "SOURCE_MISSING") {
+                handleDraftError(error, "The original file is missing.");
+                await offerSaveAs(error.payload.saveAs);
+            } else {
+                handleDraftError(error, "Text save failed.");
+            }
         } finally {
             if (forceOverwriteInput) {
                 forceOverwriteInput.value = "false";

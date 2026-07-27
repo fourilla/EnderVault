@@ -153,6 +153,80 @@ class TextDraftServiceTest {
     }
 
     @Test
+    void detachedAutosaveKeepsDraftAfterSourceIsDeleted() throws Exception {
+        FileDetail detail = createTextFile("note.txt", "original");
+        Path source = root.resolve("note.txt");
+        TextDraftStatus initial = textDraftService.autosave(
+                detail,
+                source,
+                "first draft",
+                FIRST_EDITOR,
+                false
+        );
+        Files.delete(source);
+
+        TextDraftStatus detached = textDraftService.autosaveDetached(
+                initial.id(),
+                "draft after deletion",
+                FIRST_EDITOR,
+                false
+        );
+
+        assertThat(detached.exists()).isTrue();
+        assertThat(detached.sourceMissing()).isTrue();
+        assertThat(textDraftService.claimDetached(initial.id(), FIRST_EDITOR).content())
+                .isEqualTo("draft after deletion");
+    }
+
+    @Test
+    void draftIdentifierDetectsPathChangedByLifecycleUpdate() throws Exception {
+        Files.createDirectories(root.resolve("old"));
+        FileDetail detail = createTextFile("old/note.txt", "original");
+        Path source = root.resolve("old/note.txt");
+        TextDraftStatus initial = textDraftService.autosave(
+                detail,
+                source,
+                "draft content",
+                FIRST_EDITOR,
+                false
+        );
+
+        textDraftService.moveVaultPath("old", "new");
+
+        assertThat(textDraftService.matchesVaultPath(initial.id(), "old/note.txt")).isFalse();
+        assertThat(textDraftService.matchesVaultPath(initial.id(), "new/note.txt")).isTrue();
+    }
+
+    @Test
+    void recoveryCleanupDoesNotDeleteNewerDraftVersion() throws Exception {
+        FileDetail detail = createTextFile("note.txt", "original");
+        Path source = root.resolve("note.txt");
+        TextDraftStatus initial = textDraftService.autosave(
+                detail,
+                source,
+                "first draft",
+                FIRST_EDITOR,
+                false
+        );
+        TextDraftSnapshot claimed = textDraftService.claimDetached(initial.id(), FIRST_EDITOR);
+        textDraftService.autosaveDetached(
+                initial.id(),
+                "newer draft",
+                FIRST_EDITOR,
+                false
+        );
+
+        boolean deleted = textDraftService.deleteIfUnchanged(
+                initial.id(),
+                FIRST_EDITOR,
+                claimed.status().revision()
+        );
+
+        assertThat(deleted).isFalse();
+        assertThat(textDraftService.claimDetached(initial.id(), FIRST_EDITOR).content()).isEqualTo("newer draft");
+    }
+
+    @Test
     void rejectsDraftStorageOutsideConfiguredRoot() {
         NasProperties unsafeProperties = new NasProperties();
         unsafeProperties.getStorage().setRoot(root);

@@ -49,6 +49,23 @@ public class TextDraftService {
         return status(record, source, editorToken, Instant.now());
     }
 
+    public synchronized TextDraftStatus autosaveDetached(
+            UUID draftId,
+            String content,
+            String editorToken,
+            boolean takeOver
+    ) throws IOException {
+        TextDraftRecord existing = requireDraft(draftId);
+        byte[] contentBytes = textFileService.validatedBytes(content);
+        String token = requireEditorToken(editorToken);
+        Instant now = Instant.now();
+        requireLease(existing, null, token, takeOver, now);
+
+        TextDraftRecord claimed = existing.withLease(token, now, leaseExpiresAt(now));
+        repository.save(claimed, contentBytes);
+        return status(claimed, null, token, now);
+    }
+
     public synchronized TextDraftSnapshot restore(
             FileDetail detail,
             Path source,
@@ -103,6 +120,42 @@ public class TextDraftService {
         if (draft != null) {
             repository.delete(draft.id());
         }
+    }
+
+    public synchronized boolean matchesVaultPath(UUID draftId, String vaultPath) throws IOException {
+        if (draftId == null) {
+            return true;
+        }
+        return requireDraft(draftId).vaultPath().equals(vaultPath);
+    }
+
+    public synchronized TextDraftSnapshot claimDetached(UUID draftId, String editorToken) throws IOException {
+        TextDraftRecord existing = requireDraft(draftId);
+        String token = requireEditorToken(editorToken);
+        Instant now = Instant.now();
+        requireLease(existing, null, token, false, now);
+
+        TextDraftRecord claimed = existing.withLease(token, now, leaseExpiresAt(now));
+        String content = repository.readContent(existing.id());
+        repository.save(claimed, textFileService.validatedBytes(content));
+        return new TextDraftSnapshot(status(claimed, null, token, now), content);
+    }
+
+    public synchronized boolean deleteIfUnchanged(
+            UUID draftId,
+            String editorToken,
+            long expectedRevision
+    ) throws IOException {
+        TextDraftRecord current = repository.findById(draftId).orElse(null);
+        if (current == null) {
+            return true;
+        }
+        String token = requireEditorToken(editorToken);
+        if (!token.equals(current.editorToken()) || current.revision() != expectedRevision) {
+            return false;
+        }
+        repository.delete(draftId);
+        return true;
     }
 
     public synchronized void moveVaultPath(String oldPath, String newPath) throws IOException {
@@ -173,6 +226,7 @@ public class TextDraftService {
                     TextSourceFingerprint.capture(source),
                     now,
                     now,
+                    1L,
                     token,
                     leaseExpiresAt(now)
             );
@@ -182,6 +236,14 @@ public class TextDraftService {
         }
         repository.save(record, contentBytes);
         return record;
+    }
+
+    private TextDraftRecord requireDraft(UUID draftId) throws IOException {
+        if (draftId == null) {
+            throw new StorageAccessException("Text draft identifier is required.");
+        }
+        return repository.findById(draftId)
+                .orElseThrow(() -> new StorageAccessException("Text draft was not found."));
     }
 
     private void requireLease(
@@ -207,12 +269,15 @@ public class TextDraftService {
     ) throws IOException {
         boolean active = isActive(record, now);
         boolean owned = active && cleanToken(editorToken).equals(record.editorToken());
-        boolean sourceChanged = !Files.isRegularFile(source)
-                || !record.originalFingerprint().matches(source);
+        boolean sourceMissing = source == null || !Files.isRegularFile(source);
+        boolean sourceChanged = !sourceMissing && !record.originalFingerprint().matches(source);
         return new TextDraftStatus(
                 true,
+                record.id(),
+                record.revision(),
                 active,
                 owned,
+                sourceMissing,
                 sourceChanged,
                 record.updatedAt(),
                 record.leaseExpiresAt()
