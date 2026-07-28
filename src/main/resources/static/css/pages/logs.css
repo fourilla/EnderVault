@@ -140,56 +140,6 @@
     width: var(--table-select-col-width);
 }
 
-.log-detail-modal {
-    width: min(760px, calc(100vw - 32px));
-    max-height: min(78vh, 720px);
-    border: 1px solid var(--line);
-    border-radius: var(--radius-panel);
-    background: var(--panel-elevated);
-    color: var(--text);
-    padding: 0;
-}
-
-.log-detail-modal::backdrop {
-    background: rgba(0, 0, 0, 0.62);
-}
-
-.log-detail-modal-card {
-    display: grid;
-    gap: var(--space-xl);
-    max-height: inherit;
-    overflow: auto;
-    padding: var(--space-3xl);
-}
-
-.log-detail-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: var(--space-2xl);
-}
-
-.log-detail-header h2,
-.log-detail-header p {
-    margin: 0;
-}
-
-.log-detail-header p {
-    color: var(--muted);
-    font-size: var(--font-size-xs);
-}
-
-.log-detail-close {
-    width: var(--table-action-icon-size);
-    min-width: var(--table-action-icon-size);
-    height: var(--table-action-icon-size);
-    min-height: var(--table-action-icon-size);
-}
-
-.log-detail-close i {
-    font-size: var(--font-size-sm);
-}
-
 .log-detail-line {
     margin: 0;
     border: 1px solid var(--line);
@@ -200,29 +150,6 @@
     color: var(--text);
     font-family: Consolas, "Courier New", monospace;
     font-size: var(--font-size-xs);
-}
-
-.log-detail-grid {
-    display: grid;
-    gap: var(--space-md);
-    margin: 0;
-}
-
-.log-detail-grid div {
-    display: grid;
-    grid-template-columns: 90px minmax(0, 1fr);
-    gap: var(--space-lg);
-}
-
-.log-detail-grid dt {
-    color: var(--muted);
-    font-size: var(--font-size-xs);
-    font-weight: 700;
-}
-
-.log-detail-grid dd {
-    margin: 0;
-    overflow-wrap: anywhere;
 }
 
 .log-metadata-item {
@@ -260,4 +187,3 @@
     color: var(--muted);
     font-size: var(--font-size-xs);
 }
-

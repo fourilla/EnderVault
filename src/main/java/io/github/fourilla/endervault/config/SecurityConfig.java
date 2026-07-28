@@ -2,6 +2,10 @@ package io.github.fourilla.endervault.config;
 
 import io.github.fourilla.endervault.auth.LoginFailureAlertHandler;
 import io.github.fourilla.endervault.auth.LoginSuccessAlertHandler;
+import io.github.fourilla.endervault.session.DynamicConcurrentSessionStrategy;
+import io.github.fourilla.endervault.session.ManagedSessionAuthenticationStrategy;
+import io.github.fourilla.endervault.session.SessionManagementService;
+import io.github.fourilla.endervault.session.SessionPolicyService;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.context.annotation.Bean;
@@ -14,9 +18,10 @@ import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.session.ConcurrentSessionFilter;
+import org.springframework.security.web.session.SimpleRedirectSessionInformationExpiredStrategy;
 import org.springframework.security.web.authentication.session.ChangeSessionIdAuthenticationStrategy;
 import org.springframework.security.web.authentication.session.CompositeSessionAuthenticationStrategy;
-import org.springframework.security.web.authentication.session.ConcurrentSessionControlAuthenticationStrategy;
 import org.springframework.security.web.authentication.session.RegisterSessionAuthenticationStrategy;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.context.DelegatingSecurityContextRepository;
@@ -30,14 +35,13 @@ import org.springframework.security.core.session.SessionRegistryImpl;
 @Configuration
 public class SecurityConfig {
 
-    private static final int MAX_SESSIONS = 2;
-
     @Bean
     SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             LoginSuccessAlertHandler successHandler,
             LoginFailureAlertHandler failureHandler,
             SecurityContextRepository securityContextRepository,
+            SessionAuthenticationStrategy sessionAuthenticationStrategy,
             SessionRegistry sessionRegistry
     ) throws Exception {
         http.authorizeHttpRequests(auth -> auth
@@ -63,11 +67,18 @@ public class SecurityConfig {
                 .logout(logout -> logout
                         .logoutUrl("/logout")
                         .logoutSuccessUrl("/login?logout")
+                        .deleteCookies("JSESSIONID")
                         .permitAll()
                 )
                 .sessionManagement(session -> session
-                        .maximumSessions(MAX_SESSIONS)
-                        .sessionRegistry(sessionRegistry)
+                        .sessionAuthenticationStrategy(sessionAuthenticationStrategy)
+                )
+                .addFilterAt(
+                        new ConcurrentSessionFilter(
+                                sessionRegistry,
+                                new SimpleRedirectSessionInformationExpiredStrategy("/login?expired")
+                        ),
+                        ConcurrentSessionFilter.class
                 );
 
         return http.build();
@@ -87,16 +98,16 @@ public class SecurityConfig {
     }
 
     @Bean
-    SessionAuthenticationStrategy passkeySessionAuthenticationStrategy(SessionRegistry sessionRegistry) {
-        ConcurrentSessionControlAuthenticationStrategy concurrentStrategy =
-                new ConcurrentSessionControlAuthenticationStrategy(sessionRegistry);
-        concurrentStrategy.setMaximumSessions(MAX_SESSIONS);
-        concurrentStrategy.setExceptionIfMaximumExceeded(false);
-
+    SessionAuthenticationStrategy sessionAuthenticationStrategy(
+            SessionRegistry sessionRegistry,
+            SessionPolicyService sessionPolicyService,
+            SessionManagementService sessionManagementService
+    ) {
         return new CompositeSessionAuthenticationStrategy(List.of(
-                concurrentStrategy,
+                new DynamicConcurrentSessionStrategy(sessionRegistry, sessionPolicyService),
                 new ChangeSessionIdAuthenticationStrategy(),
-                new RegisterSessionAuthenticationStrategy(sessionRegistry)
+                new RegisterSessionAuthenticationStrategy(sessionRegistry),
+                new ManagedSessionAuthenticationStrategy(sessionManagementService)
         ));
     }
 

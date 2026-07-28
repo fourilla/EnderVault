@@ -11,7 +11,8 @@ public record DashboardView(
         ThumbnailSummary thumbnails,
         RemoteDownloadSummary remoteDownloads,
         boolean remoteDownloadEnabled,
-        TaskSummary fileTasks
+        TaskSummary fileTasks,
+        int activeSessions
 ) {
 
     public record TrashSummary(

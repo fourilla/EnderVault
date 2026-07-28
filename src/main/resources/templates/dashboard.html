@@ -162,6 +162,16 @@
                         <small>Scan and repair stale metadata records</small>
                     </span>
                 </a>
+                <a class="dashboard-action-link" th:href="@{/admin/sessions}">
+                    <i class="fas fa-laptop" aria-hidden="true"></i>
+                    <span>
+                        <strong>Active sessions</strong>
+                        <small th:text="|Review and revoke ${dashboard.activeSessions()} signed-in sessions|">
+                            Review and revoke signed-in sessions
+                        </small>
+                    </span>
+                    <span class="status-badge info" th:text="${dashboard.activeSessions()}">0</span>
+                </a>
                 <a class="dashboard-action-link" th:href="@{/admin/settings}">
                     <i class="fas fa-gear" aria-hidden="true"></i>
                     <span>

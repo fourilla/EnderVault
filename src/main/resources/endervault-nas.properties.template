@@ -39,6 +39,12 @@ nas.setup.accepted=false
 # for local Nginx or 172.16.0.0/12 for a Docker/internal proxy network.
 nas.security.trusted-proxies=127.0.0.1,::1,0:0:0:0:0:0:0:1
 
+# Use 0 for unlimited. When the limit is reached, a new login expires the
+# oldest active session for the administrator account.
+nas.security.max-concurrent-sessions=2
+# Idle time in minutes before a session expires. Use 0 for unlimited.
+nas.security.session-idle-timeout-minutes=30
+
 # ---------------------------------------------------------------------------
 # Public URL
 # ---------------------------------------------------------------------------
@@ -209,6 +215,8 @@ nas.notifications.telegram.chat-id=
 nas.notifications.telegram.activity.login-success=true
 nas.notifications.telegram.activity.login-failure=true
 nas.notifications.telegram.activity.account-update=false
+nas.notifications.telegram.activity.session-policy-update=false
+nas.notifications.telegram.activity.session-revoke=false
 
 # Passkey management activity.
 nas.notifications.telegram.activity.passkey-register=false

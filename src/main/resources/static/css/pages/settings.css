@@ -230,6 +230,12 @@
     font-weight: 700;
 }
 
+.settings-field-grid label > small {
+    color: var(--muted);
+    font-size: var(--font-size-2xs);
+    line-height: 1.5;
+}
+
 .settings-switch-input {
     position: relative;
     width: 44px;

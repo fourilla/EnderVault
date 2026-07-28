@@ -5,6 +5,7 @@ import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.remote.RemoteDownloadService;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
+import io.github.fourilla.endervault.session.SessionManagementService;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.storage.StorageUsage;
 import io.github.fourilla.endervault.task.TaskManagerService;
@@ -28,6 +29,7 @@ public class AdminDashboardController {
     private final ThumbnailService thumbnailService;
     private final RemoteDownloadService remoteDownloadService;
     private final TaskManagerService taskManagerService;
+    private final SessionManagementService sessionManagementService;
     private final NasProperties nasProperties;
 
     public AdminDashboardController(
@@ -37,6 +39,7 @@ public class AdminDashboardController {
             ThumbnailService thumbnailService,
             RemoteDownloadService remoteDownloadService,
             TaskManagerService taskManagerService,
+            SessionManagementService sessionManagementService,
             NasProperties nasProperties
     ) {
         this.storageService = storageService;
@@ -45,6 +48,7 @@ public class AdminDashboardController {
         this.thumbnailService = thumbnailService;
         this.remoteDownloadService = remoteDownloadService;
         this.taskManagerService = taskManagerService;
+        this.sessionManagementService = sessionManagementService;
         this.nasProperties = nasProperties;
     }
 
@@ -62,7 +66,8 @@ public class AdminDashboardController {
                 thumbnailSummary(thumbnailStats),
                 remoteDownloadService.summary(3),
                 nasProperties.getRemoteDownload().isEnabled(),
-                taskManagerService.summary()
+                taskManagerService.summary(),
+                sessionManagementService.activeCount()
         ));
         return "dashboard";
     }

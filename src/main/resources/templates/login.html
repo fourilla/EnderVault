@@ -17,6 +17,8 @@
 
         <p class="alert error" th:if="${param.error}">Login failed. Check your ID and password.</p>
         <p class="alert" th:if="${param.logout}">You have been logged out.</p>
+        <p class="alert warning" th:if="${param.expired}">This session expired or was revoked.</p>
+        <p class="alert" th:if="${param['session-revoked']}">The current session was revoked.</p>
         <p class="alert error" th:if="${!passwordLoginEnabled and !passkeyAvailable}">
             Password login is disabled and no passkey is registered.
         </p>

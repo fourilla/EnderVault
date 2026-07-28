@@ -7,6 +7,7 @@ import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.storage.StorageUsage;
 import io.github.fourilla.endervault.web.dashboard.AdminDashboardController;
 import io.github.fourilla.endervault.web.dashboard.AdminLogController;
+import io.github.fourilla.endervault.web.dashboard.AdminSessionController;
 import io.github.fourilla.endervault.web.dashboard.AdminTelegramSettingsController;
 import io.github.fourilla.endervault.web.auth.AdminPasskeyController;
 import io.github.fourilla.endervault.web.bookmark.AdminBookmarkController;
@@ -22,6 +23,7 @@ import io.github.fourilla.endervault.web.remote.AdminRemoteDownloadController;
 import io.github.fourilla.endervault.web.settings.AdminBookmarkSettingsController;
 import io.github.fourilla.endervault.web.settings.AdminGeneralSettingsController;
 import io.github.fourilla.endervault.web.settings.AdminSettingsController;
+import io.github.fourilla.endervault.web.settings.AdminSessionSettingsController;
 import io.github.fourilla.endervault.web.share.AdminShareController;
 import io.github.fourilla.endervault.web.trash.AdminTrashController;
 import jakarta.servlet.http.HttpServletRequest;
@@ -42,12 +44,14 @@ import org.springframework.web.bind.annotation.ModelAttribute;
         AdminFavoriteController.class,
         AdminRecentController.class,
         AdminLogController.class,
+        AdminSessionController.class,
         AdminRemoteDownloadController.class,
         AdminShareController.class,
         AdminTrashController.class,
         AdminSettingsController.class,
         AdminBookmarkSettingsController.class,
         AdminGeneralSettingsController.class,
+        AdminSessionSettingsController.class,
         AdminMetadataController.class
 })
 public class AdminShellModelAdvice {
