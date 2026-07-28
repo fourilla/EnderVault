@@ -39,3 +39,76 @@
 .dashboard-actions .button-link {
     gap: var(--space-md);
 }
+
+.admin-detail-modal {
+    width: min(760px, calc(100vw - 32px));
+    max-height: min(78vh, 720px);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
+    background: var(--panel-elevated);
+    color: var(--text);
+    padding: 0;
+}
+
+.admin-detail-modal::backdrop {
+    background: rgba(0, 0, 0, 0.62);
+}
+
+.admin-detail-modal-card {
+    display: grid;
+    gap: var(--space-xl);
+    max-height: inherit;
+    overflow: auto;
+    padding: var(--space-3xl);
+}
+
+.admin-detail-modal-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-2xl);
+}
+
+.admin-detail-modal-header h2,
+.admin-detail-modal-header p {
+    margin: 0;
+}
+
+.admin-detail-modal-header p {
+    color: var(--muted);
+    font-size: var(--font-size-xs);
+}
+
+.admin-detail-modal-close {
+    width: var(--table-action-icon-size);
+    min-width: var(--table-action-icon-size);
+    height: var(--table-action-icon-size);
+    min-height: var(--table-action-icon-size);
+}
+
+.admin-detail-modal-close i {
+    font-size: var(--font-size-sm);
+}
+
+.admin-detail-grid {
+    display: grid;
+    gap: var(--space-md);
+    margin: 0;
+}
+
+.admin-detail-grid div {
+    display: grid;
+    grid-template-columns: 110px minmax(0, 1fr);
+    gap: var(--space-lg);
+}
+
+.admin-detail-grid dt {
+    color: var(--muted);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+}
+
+.admin-detail-grid dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}

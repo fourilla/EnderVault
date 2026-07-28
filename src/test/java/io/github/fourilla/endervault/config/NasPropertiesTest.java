@@ -31,7 +31,9 @@ class NasPropertiesTest {
     @Test
     void bindsTrustedProxyList() {
         MockEnvironment environment = new MockEnvironment()
-                .withProperty("nas.security.trusted-proxies", "127.0.0.1,10.0.0.0/8");
+                .withProperty("nas.security.trusted-proxies", "127.0.0.1,10.0.0.0/8")
+                .withProperty("nas.security.max-concurrent-sessions", "4")
+                .withProperty("nas.security.session-idle-timeout-minutes", "90");
 
         NasProperties properties = Binder.get(environment)
                 .bind("nas", NasProperties.class)
@@ -39,6 +41,8 @@ class NasPropertiesTest {
 
         assertThat(properties.getSecurity().getTrustedProxies())
                 .isEqualTo(List.of("127.0.0.1", "10.0.0.0/8"));
+        assertThat(properties.getSecurity().getMaxConcurrentSessions()).isEqualTo(4);
+        assertThat(properties.getSecurity().getSessionIdleTimeoutMinutes()).isEqualTo(90);
     }
 
     @Test

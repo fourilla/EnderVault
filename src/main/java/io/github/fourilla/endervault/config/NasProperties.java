@@ -287,12 +287,36 @@ public class NasProperties {
         @NotNull
         private List<String> trustedProxies = List.of("127.0.0.1", "::1", "0:0:0:0:0:0:0:1");
 
+        @Min(0)
+        @Max(1000)
+        private int maxConcurrentSessions = 2;
+
+        @Min(0)
+        @Max(525600)
+        private int sessionIdleTimeoutMinutes = 30;
+
         public List<String> getTrustedProxies() {
             return trustedProxies;
         }
 
         public void setTrustedProxies(List<String> trustedProxies) {
             this.trustedProxies = trustedProxies == null ? List.of() : trustedProxies;
+        }
+
+        public int getMaxConcurrentSessions() {
+            return maxConcurrentSessions;
+        }
+
+        public void setMaxConcurrentSessions(int maxConcurrentSessions) {
+            this.maxConcurrentSessions = maxConcurrentSessions;
+        }
+
+        public int getSessionIdleTimeoutMinutes() {
+            return sessionIdleTimeoutMinutes;
+        }
+
+        public void setSessionIdleTimeoutMinutes(int sessionIdleTimeoutMinutes) {
+            this.sessionIdleTimeoutMinutes = sessionIdleTimeoutMinutes;
         }
     }
 
