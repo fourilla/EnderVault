@@ -55,6 +55,9 @@ public class GeneralSettingsService {
                 new FileToolSettings(
                         fileTools.getTextAutoLoadMaxBytes(),
                         fileTools.getTextManualLoadMaxBytes(),
+                        fileTools.getTextDraftRetentionHours(),
+                        fileTools.getTextDraftCleanupIntervalMs(),
+                        fileTools.getTextDraftLeaseSeconds(),
                         fileTools.getComicMaxPages(),
                         fileTools.getComicPageMaxBytes(),
                         fileTools.getComicInfoMaxBytes()
@@ -97,6 +100,24 @@ public class GeneralSettingsService {
         if (textManualLoadMaxBytes < textAutoLoadMaxBytes) {
             throw new IllegalArgumentException("Text manual-load limit must be greater than or equal to the auto-load limit.");
         }
+        long textDraftRetentionHours = longRange(
+                first(parameters, "textDraftRetentionHours"),
+                1L,
+                Long.MAX_VALUE,
+                "Text draft retention"
+        );
+        long textDraftCleanupIntervalMs = longRange(
+                first(parameters, "textDraftCleanupIntervalMs"),
+                60000L,
+                Long.MAX_VALUE,
+                "Text draft cleanup interval"
+        );
+        long textDraftLeaseSeconds = longRange(
+                first(parameters, "textDraftLeaseSeconds"),
+                30L,
+                Long.MAX_VALUE,
+                "Text draft lease"
+        );
         int comicMaxPages = intRange(first(parameters, "comicMaxPages"), 1, 50000, "Comic max pages");
         long comicPageMaxBytes = longRange(first(parameters, "comicPageMaxBytes"), 1024L, Long.MAX_VALUE, "Comic page max bytes");
         long comicInfoMaxBytes = longRange(first(parameters, "comicInfoMaxBytes"), 1024L, Long.MAX_VALUE, "Comic info max bytes");
@@ -119,6 +140,9 @@ public class GeneralSettingsService {
                 new FileToolSettings(
                         textAutoLoadMaxBytes,
                         textManualLoadMaxBytes,
+                        textDraftRetentionHours,
+                        textDraftCleanupIntervalMs,
+                        textDraftLeaseSeconds,
                         comicMaxPages,
                         comicPageMaxBytes,
                         comicInfoMaxBytes
@@ -166,6 +190,12 @@ public class GeneralSettingsService {
         FileToolSettings fileTools = update.fileTools();
         updates.put("nas.file-tools.text-auto-load-max-bytes", Long.toString(fileTools.textAutoLoadMaxBytes()));
         updates.put("nas.file-tools.text-manual-load-max-bytes", Long.toString(fileTools.textManualLoadMaxBytes()));
+        updates.put("nas.file-tools.text-draft-retention-hours", Long.toString(fileTools.textDraftRetentionHours()));
+        updates.put(
+                "nas.file-tools.text-draft-cleanup-interval-ms",
+                Long.toString(fileTools.textDraftCleanupIntervalMs())
+        );
+        updates.put("nas.file-tools.text-draft-lease-seconds", Long.toString(fileTools.textDraftLeaseSeconds()));
         updates.put("nas.file-tools.comic-max-pages", Integer.toString(fileTools.comicMaxPages()));
         updates.put("nas.file-tools.comic-page-max-bytes", Long.toString(fileTools.comicPageMaxBytes()));
         updates.put("nas.file-tools.comic-info-max-bytes", Long.toString(fileTools.comicInfoMaxBytes()));
@@ -206,6 +236,9 @@ public class GeneralSettingsService {
         NasProperties.FileTools fileTools = nasProperties.getFileTools();
         fileTools.setTextAutoLoadMaxBytes(update.fileTools().textAutoLoadMaxBytes());
         fileTools.setTextManualLoadMaxBytes(update.fileTools().textManualLoadMaxBytes());
+        fileTools.setTextDraftRetentionHours(update.fileTools().textDraftRetentionHours());
+        fileTools.setTextDraftCleanupIntervalMs(update.fileTools().textDraftCleanupIntervalMs());
+        fileTools.setTextDraftLeaseSeconds(update.fileTools().textDraftLeaseSeconds());
         fileTools.setComicMaxPages(update.fileTools().comicMaxPages());
         fileTools.setComicPageMaxBytes(update.fileTools().comicPageMaxBytes());
         fileTools.setComicInfoMaxBytes(update.fileTools().comicInfoMaxBytes());
@@ -313,6 +346,9 @@ public class GeneralSettingsService {
     public record FileToolSettings(
             long textAutoLoadMaxBytes,
             long textManualLoadMaxBytes,
+            long textDraftRetentionHours,
+            long textDraftCleanupIntervalMs,
+            long textDraftLeaseSeconds,
             int comicMaxPages,
             long comicPageMaxBytes,
             long comicInfoMaxBytes

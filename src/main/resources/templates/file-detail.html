@@ -9,6 +9,9 @@
     <th:block th:replace="~{fragments/assets :: coreScripts}"></th:block>
     <th:block th:replace="~{fragments/assets :: adminActionsScript}"></th:block>
     <th:block th:replace="~{fragments/assets :: transferBufferScript}"></th:block>
+    <th:block th:if="${fileTool.markdown()}">
+        <th:block th:replace="~{fragments/assets :: markdownRendererScript}"></th:block>
+    </th:block>
     <th:block th:if="${fileTool.text()}">
         <th:block th:replace="~{fragments/assets :: fileToolsScript}"></th:block>
     </th:block>
@@ -126,22 +129,45 @@
         </div>
 
         <form class="text-editor" method="post" th:if="${fileTool.text()}" th:action="@{/files/detail/text}"
-              th:attr="data-text-load-url=@{/files/detail/text/load(path=${detail.path()})}"
+              th:attr="data-text-load-url=@{/files/detail/text/load(path=${detail.path()})},
+                       data-text-draft-url=@{/files/detail/text/draft},
+                       data-text-draft-restore-url=@{/files/detail/text/draft/restore},
+                       data-text-draft-discard-url=@{/files/detail/text/draft/discard},
+                       data-text-draft-save-as-url=@{/files/detail/text/draft/save-as}"
               th:data-text-extension="${detail.extension()}"
               th:data-text-name="${detail.name()}"
               data-text-editor>
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
             <input type="hidden" name="path" th:value="${detail.path()}">
+            <input type="hidden" name="editorToken" value="" data-text-editor-token>
+            <input type="hidden" name="draftId" value="" data-text-draft-id>
+            <input type="hidden" name="forceOverwrite" value="false" data-text-force-overwrite>
             <div class="text-editor-toolbar">
-                <span th:if="${textContent.loaded()}"
-                      th:text="|Editable up to ${textContent.manualLoadSizeLabel()}|">Editable up to 20 MB</span>
-                <span th:unless="${textContent.loaded()}"
-                      th:text="|Auto-loads up to ${textContent.autoLoadSizeLabel()}|">Auto-loads up to 1 MB</span>
+                <div class="text-editor-view-tabs js-only" th:if="${fileTool.markdown()}"
+                     role="tablist" aria-label="Markdown view">
+                    <button class="text-editor-view-tab is-active" type="button"
+                            role="tab" aria-selected="true"
+                            data-markdown-source-tab>
+                        Source
+                    </button>
+                    <button class="text-editor-view-tab" type="button"
+                            role="tab" aria-selected="false"
+                            data-markdown-preview-tab>
+                        Preview
+                    </button>
+                </div>
                 <button class="icon-button action-icon" type="submit" th:disabled="${not textContent.editable()}"
                         data-text-save-button
                         title="Save text" aria-label="Save text">
                     <i class="fas fa-floppy-disk" aria-hidden="true"></i>
                 </button>
+            </div>
+            <div class="markdown-editor-preview js-only" th:if="${fileTool.markdown()}"
+                 data-markdown-editor-preview hidden>
+                <p class="markdown-preview-status muted" data-markdown-preview-status aria-live="polite">
+                    Select Preview to render this Markdown document.
+                </p>
+                <article class="markdown-body" data-markdown-preview-body></article>
             </div>
             <textarea class="text-editor-area" name="content" spellcheck="false"
                       th:if="${textContent.loaded()}"
@@ -158,6 +184,31 @@
                     </a>
                 </div>
             </div>
+            <div class="text-editor-statusbar js-only">
+                <span class="text-draft-state" data-text-draft-state aria-live="polite">
+                    Checking for a saved draft...
+                </span>
+            </div>
+
+            <dialog class="text-draft-dialog js-only" data-text-draft-dialog aria-labelledby="textDraftTitle">
+                <div class="text-draft-card">
+                    <header>
+                        <div>
+                            <h3 id="textDraftTitle">Saved text draft</h3>
+                            <p data-text-draft-message>A recoverable draft exists for this file.</p>
+                        </div>
+                    </header>
+                    <p class="text-draft-source-warning" data-text-draft-source-warning hidden>
+                        The original file changed after this draft was created.
+                    </p>
+                    <div class="text-draft-actions">
+                        <button type="button" data-text-draft-restore>Restore draft</button>
+                        <button class="ghost" type="button" data-text-draft-discard>Discard draft</button>
+                        <button type="button" data-text-draft-takeover hidden>Take over editing</button>
+                        <button class="ghost" type="button" data-text-draft-view-original>View original</button>
+                    </div>
+                </div>
+            </dialog>
         </form>
 
         <div class="tool-message" th:if="${fileTool.hex()}">

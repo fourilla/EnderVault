@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${name}">Markdown Preview</title>
+    <th:block th:replace="~{fragments/assets :: styles(false)}"></th:block>
+    <th:block th:replace="~{fragments/assets :: markdownRendererScript}"></th:block>
+</head>
+<body class="markdown-preview-page">
+<main class="markdown-preview-document">
+    <header class="markdown-preview-header">
+        <h1 th:text="${name}">Markdown document</h1>
+        <p th:text="${path}">path</p>
+    </header>
+    <section th:if="${loaded}"
+             data-markdown-document
+             th:data-markdown-source-path="${path}">
+        <textarea hidden data-markdown-source th:text="${content}"></textarea>
+        <p class="markdown-preview-status muted" data-markdown-document-status aria-live="polite">
+            JavaScript is required to render this Markdown document.
+        </p>
+        <article class="markdown-body" data-markdown-document-body hidden></article>
+    </section>
+    <section class="tool-message" th:unless="${loaded}">
+        <p th:text="${message}">Markdown preview is unavailable.</p>
+        <div class="tool-actions">
+            <a class="button-link ghost" th:href="@{/files/detail/download(path=${path})}">
+                Download original
+            </a>
+        </div>
+    </section>
+</main>
+</body>
+</html>

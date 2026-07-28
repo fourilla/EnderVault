@@ -11,6 +11,9 @@ public enum MetadataIssueAction {
     DELETE_THUMBNAIL_CACHE("Delete cache file", true),
     DELETE_BOOKMARK_FAVICON_CACHE("Delete favicon cache", true),
     DELETE_UPLOAD_TEMP("Delete temporary file", true),
+    DELETE_TEXT_DRAFT("Delete text draft", true),
+    DELETE_TEXT_DRAFT_METADATA("Delete draft metadata", true),
+    DELETE_TEXT_DRAFT_CONTENT("Delete draft content", true),
     MOVE_BOOKMARK_TO_ROOT("Move bookmark to recovered", true),
     MOVE_BOOKMARK_TO_RECOVERED_DIRECTORY("Move bookmark to recovered", true);
 

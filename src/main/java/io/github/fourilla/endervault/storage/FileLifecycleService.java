@@ -2,6 +2,7 @@ package io.github.fourilla.endervault.storage;
 
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.favorite.FavoriteService;
+import io.github.fourilla.endervault.filetool.text.TextDraftService;
 import io.github.fourilla.endervault.recent.RecentService;
 import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.thumbnail.ThumbnailService;
@@ -18,6 +19,7 @@ public class FileLifecycleService {
     private final FavoriteService favoriteService;
     private final RecentService recentService;
     private final ThumbnailService thumbnailService;
+    private final TextDraftService textDraftService;
     private final ActivityLogService activityLogService;
 
     public FileLifecycleService(
@@ -26,6 +28,7 @@ public class FileLifecycleService {
             FavoriteService favoriteService,
             RecentService recentService,
             ThumbnailService thumbnailService,
+            TextDraftService textDraftService,
             ActivityLogService activityLogService
     ) {
         this.storageService = storageService;
@@ -33,6 +36,7 @@ public class FileLifecycleService {
         this.favoriteService = favoriteService;
         this.recentService = recentService;
         this.thumbnailService = thumbnailService;
+        this.textDraftService = textDraftService;
         this.activityLogService = activityLogService;
     }
 
@@ -127,5 +131,6 @@ public class FileLifecycleService {
         shareLinkService.moveVaultPath(oldPath, newPath);
         favoriteService.moveVaultPath(oldPath, newPath);
         recentService.moveVaultPath(oldPath, newPath);
+        textDraftService.moveVaultPath(oldPath, newPath);
     }
 }

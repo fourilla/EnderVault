@@ -1,12 +1,38 @@
 package io.github.fourilla.endervault.filetool;
 
+import java.util.Arrays;
+import java.util.Set;
+
 public record FileToolDescriptor(
         FileToolType type,
         String id,
         String label,
-        boolean previewable,
-        boolean editable
+        Set<FileToolCapability> capabilities
 ) {
+    public FileToolDescriptor {
+        capabilities = Set.copyOf(capabilities);
+    }
+
+    public static FileToolDescriptor of(FileToolType type, FileToolCapability... capabilities) {
+        return new FileToolDescriptor(type, type.id(), type.label(), Set.copyOf(Arrays.asList(capabilities)));
+    }
+
+    public boolean previewable() {
+        return capabilities.contains(FileToolCapability.INLINE_PREVIEW);
+    }
+
+    public boolean previewPageAvailable() {
+        return capabilities.contains(FileToolCapability.PREVIEW_PAGE);
+    }
+
+    public boolean editable() {
+        return capabilities.contains(FileToolCapability.TEXT_EDIT);
+    }
+
+    public boolean markdown() {
+        return capabilities.contains(FileToolCapability.MARKDOWN_RENDER);
+    }
+
     public boolean directory() {
         return type == FileToolType.DIRECTORY;
     }

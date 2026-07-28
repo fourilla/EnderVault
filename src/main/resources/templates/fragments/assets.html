@@ -61,6 +61,20 @@
     <script defer th:src="@{/js/file-transfer-buffer.js}"></script>
 </th:block>
 
+<th:block th:fragment="markdownRendererScript">
+    <link rel="stylesheet" th:href="@{/webjars/highlightjs/11.11.1/styles/github-dark.min.css}">
+    <script defer th:src="@{/webjars/markdown-it/14.3.0/dist/markdown-it.min.js}"></script>
+    <script defer th:src="@{/webjars/markdown-it-task-lists/2.1.1/dist/markdown-it-task-lists.min.js}"></script>
+    <script defer th:src="@{/webjars/markdown-it-footnote/2.0.0/dist/markdown-it-footnote.min.js}"></script>
+    <script defer th:src="@{/webjars/dompurify/3.4.11/dist/purify.min.js}"></script>
+    <script defer th:src="@{/webjars/highlightjs/11.11.1/highlight.js}"></script>
+    <script defer th:src="@{/webjars/mermaid/11.15.0/dist/mermaid.min.js}"></script>
+    <script defer th:src="@{/js/markdown-math-plugin.js}"></script>
+    <script defer th:src="@{/js/mathjax-config.js}"></script>
+    <script defer th:src="@{/_static/mathjax/4.1.1/tex-chtml.js}"></script>
+    <script defer th:src="@{/js/markdown-renderer.js}"></script>
+</th:block>
+
 <th:block th:fragment="fileToolsScript">
     <link rel="stylesheet" th:href="@{/webjars/codemirror/5.65.19/lib/codemirror.css}">
     <link rel="stylesheet" th:href="@{/webjars/codemirror/5.65.19/theme/material-darker.css}">

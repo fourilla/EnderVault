@@ -20,7 +20,7 @@ class FileActionRegistryTest {
         assertThat(descriptor.type()).isEqualTo(FileToolType.TEXT);
         assertThat(descriptor.editable()).isTrue();
         assertThat(descriptor.previewable()).isFalse();
-        assertThat(registry.previewPageAvailable(descriptor.type())).isTrue();
+        assertThat(descriptor.previewPageAvailable()).isTrue();
     }
 
     @Test
@@ -34,7 +34,21 @@ class FileActionRegistryTest {
 
         assertThat(descriptor.type()).isEqualTo(FileToolType.TEXT);
         assertThat(descriptor.previewable()).isFalse();
-        assertThat(registry.previewPageAvailable(descriptor.type())).isTrue();
+        assertThat(descriptor.previewPageAvailable()).isTrue();
+    }
+
+    @Test
+    void markdownFilesExposeRenderCapability() {
+        FileToolDescriptor descriptor = registry.resolve(
+                "README.md",
+                false,
+                "text/markdown",
+                "md"
+        );
+
+        assertThat(descriptor.type()).isEqualTo(FileToolType.TEXT);
+        assertThat(descriptor.editable()).isTrue();
+        assertThat(descriptor.markdown()).isTrue();
     }
 
     @Test
@@ -48,7 +62,7 @@ class FileActionRegistryTest {
 
         assertThat(descriptor.type()).isEqualTo(FileToolType.COMIC);
         assertThat(descriptor.previewable()).isFalse();
-        assertThat(registry.previewPageAvailable(descriptor.type())).isTrue();
+        assertThat(descriptor.previewPageAvailable()).isTrue();
     }
 
     @Test
@@ -62,7 +76,7 @@ class FileActionRegistryTest {
 
         assertThat(descriptor.type()).isEqualTo(FileToolType.HEX);
         assertThat(descriptor.editable()).isFalse();
-        assertThat(registry.previewPageAvailable(descriptor.type())).isFalse();
+        assertThat(descriptor.previewPageAvailable()).isFalse();
     }
 
     @Test

@@ -5,6 +5,7 @@ import io.github.fourilla.endervault.filetool.comic.ComicArchiveService;
 import io.github.fourilla.endervault.filetool.comic.ComicPageResource;
 import io.github.fourilla.endervault.filetool.FileToolDescriptor;
 import io.github.fourilla.endervault.filetool.FileToolService;
+import io.github.fourilla.endervault.filetool.text.TextFileService;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.share.ShareTargetType;
@@ -50,6 +51,7 @@ public class SharedFileController {
     private final FilePreviewSupport filePreviewSupport;
     private final FileActionViewSupport fileActionViewSupport;
     private final FileToolService fileToolService;
+    private final TextFileService textFileService;
 
     public SharedFileController(
             ShareLinkService shareLinkService,
@@ -59,7 +61,8 @@ public class SharedFileController {
             ComicArchiveService comicArchiveService,
             FilePreviewSupport filePreviewSupport,
             FileActionViewSupport fileActionViewSupport,
-            FileToolService fileToolService
+            FileToolService fileToolService,
+            TextFileService textFileService
     ) {
         this.shareLinkService = shareLinkService;
         this.storageService = storageService;
@@ -69,6 +72,7 @@ public class SharedFileController {
         this.filePreviewSupport = filePreviewSupport;
         this.fileActionViewSupport = fileActionViewSupport;
         this.fileToolService = fileToolService;
+        this.textFileService = textFileService;
     }
 
     @ModelAttribute("filePreview")
@@ -269,7 +273,7 @@ public class SharedFileController {
         model.addAttribute("sharedDownloadUrl", downloadUrl);
         model.addAttribute("sharedPreviewUrl", previewUrl);
         if (fileTool.text()) {
-            model.addAttribute("textContent", fileToolService.readText(detail, storageService.resolveVaultFile(detail.path())));
+            model.addAttribute("textContent", textFileService.readText(detail, storageService.resolveVaultFile(detail.path())));
         }
         return "shared-file";
     }

@@ -786,6 +786,15 @@ public class NasProperties {
         private long textManualLoadMaxBytes = 20971520L;
 
         @Min(1)
+        private long textDraftRetentionHours = 168L;
+
+        @Min(60000)
+        private long textDraftCleanupIntervalMs = 3600000L;
+
+        @Min(30)
+        private long textDraftLeaseSeconds = 300L;
+
+        @Min(1)
         @Max(50000)
         private int comicMaxPages = 5000;
 
@@ -809,6 +818,30 @@ public class NasProperties {
 
         public void setTextManualLoadMaxBytes(long textManualLoadMaxBytes) {
             this.textManualLoadMaxBytes = textManualLoadMaxBytes;
+        }
+
+        public long getTextDraftRetentionHours() {
+            return textDraftRetentionHours;
+        }
+
+        public void setTextDraftRetentionHours(long textDraftRetentionHours) {
+            this.textDraftRetentionHours = textDraftRetentionHours;
+        }
+
+        public long getTextDraftCleanupIntervalMs() {
+            return textDraftCleanupIntervalMs;
+        }
+
+        public void setTextDraftCleanupIntervalMs(long textDraftCleanupIntervalMs) {
+            this.textDraftCleanupIntervalMs = textDraftCleanupIntervalMs;
+        }
+
+        public long getTextDraftLeaseSeconds() {
+            return textDraftLeaseSeconds;
+        }
+
+        public void setTextDraftLeaseSeconds(long textDraftLeaseSeconds) {
+            this.textDraftLeaseSeconds = textDraftLeaseSeconds;
         }
 
         public int getComicMaxPages() {
