@@ -29,6 +29,10 @@
             breaks: false,
             highlight: highlightCode
         });
+        if (!window.EnderVaultMarkdownMathPlugin?.install) {
+            throw new Error("Markdown math extension is unavailable.");
+        }
+        window.EnderVaultMarkdownMathPlugin.install(renderer);
         if (typeof window.markdownitTaskLists === "function") {
             renderer.use(window.markdownitTaskLists, {
                 enabled: false,
@@ -82,6 +86,7 @@
         });
 
         secureTaskListInputs(fragment);
+        wrapTables(fragment);
         addHeadingAnchors(fragment);
         enhanceGithubAlerts(fragment);
         rewriteLinks(fragment, sourcePath);
@@ -155,7 +160,7 @@
             }
 
             const container = document.createElement("div");
-            container.className = "markdown-mermaid";
+            container.className = "markdown-mermaid mathjax_ignore";
             container.setAttribute("role", "img");
             container.setAttribute("aria-label", "Mermaid diagram");
             block.replaceWith(container);
@@ -198,9 +203,7 @@
             securityLevel: "strict",
             suppressErrorRendering: true,
             theme: "dark",
-            flowchart: {
-                htmlLabels: false
-            }
+            htmlLabels: false
         });
         mermaidInitialized = true;
     };
@@ -276,6 +279,15 @@
             input.disabled = true;
             input.removeAttribute("name");
             input.removeAttribute("value");
+        });
+    };
+
+    const wrapTables = (fragment) => {
+        fragment.querySelectorAll("table").forEach((table) => {
+            const wrapper = document.createElement("div");
+            wrapper.className = "markdown-table-scroll";
+            table.replaceWith(wrapper);
+            wrapper.append(table);
         });
     };
 

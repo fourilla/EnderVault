@@ -790,17 +790,28 @@ body.is-text-editor-fullscreen {
     font-size: var(--font-size-sm);
 }
 
-.markdown-body table {
-    display: block;
-    width: max-content;
+.markdown-body .markdown-table-scroll {
+    width: 100%;
     max-width: 100%;
+    margin: 0 0 1em;
     overflow-x: auto;
-    border-collapse: collapse;
+}
+
+.markdown-body table {
+    width: max-content;
+    max-width: none;
+    margin: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+    border-top: 1px solid var(--line);
+    border-left: 1px solid var(--line);
 }
 
 .markdown-body th,
 .markdown-body td {
-    border: 1px solid var(--line);
+    border: 0;
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
     padding: var(--space-sm) var(--space-lg);
 }
 
