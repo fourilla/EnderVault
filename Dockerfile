@@ -5,10 +5,10 @@ FROM maven:3.9.16-eclipse-temurin-21-noble AS build
 WORKDIR /workspace
 
 COPY pom.xml .
-RUN mvn -B -ntp dependency:go-offline
-
 COPY src ./src
-RUN mvn -B -ntp -Dmaven.test.skip=true package \
+# BuildKit preserves resolved artifacts without dependency:go-offline traversing invalid snapshot metadata.
+RUN --mount=type=cache,target=/root/.m2 \
+    mvn -B -ntp -Dmaven.test.skip=true package \
     && cp target/endervault-nas-*.jar /workspace/endervault.jar
 
 FROM eclipse-temurin:21-jre-noble AS runtime
