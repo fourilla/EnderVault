@@ -368,6 +368,12 @@ public class NasProperties {
         @Max(60000)
         private int healthConnectTimeoutMs = 1500;
 
+        private String tunnelHealthUrl = "";
+
+        @Min(100)
+        @Max(60000)
+        private int healthRequestTimeoutMs = 3000;
+
         @Min(1000)
         private long healthCheckIntervalMs = 30000L;
 
@@ -401,6 +407,22 @@ public class NasProperties {
 
         public void setHealthConnectTimeoutMs(int healthConnectTimeoutMs) {
             this.healthConnectTimeoutMs = healthConnectTimeoutMs;
+        }
+
+        public String getTunnelHealthUrl() {
+            return tunnelHealthUrl;
+        }
+
+        public void setTunnelHealthUrl(String tunnelHealthUrl) {
+            this.tunnelHealthUrl = tunnelHealthUrl == null ? "" : tunnelHealthUrl.trim();
+        }
+
+        public int getHealthRequestTimeoutMs() {
+            return healthRequestTimeoutMs;
+        }
+
+        public void setHealthRequestTimeoutMs(int healthRequestTimeoutMs) {
+            this.healthRequestTimeoutMs = healthRequestTimeoutMs;
         }
 
         public long getHealthCheckIntervalMs() {

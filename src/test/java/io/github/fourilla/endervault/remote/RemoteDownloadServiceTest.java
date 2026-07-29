@@ -9,6 +9,7 @@ import io.github.fourilla.endervault.auth.ClientIpResolver;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.outbound.OutboundHttpClientRegistry;
 import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthService;
+import io.github.fourilla.endervault.outbound.vpn.VpnTunnelHealthProbe;
 import io.github.fourilla.endervault.storage.StorageService;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -52,7 +53,9 @@ class RemoteDownloadServiceTest {
                 activityLogService,
                 new ClientIpResolver(properties),
                 validator,
-                new OutboundHttpClientRegistry(new VpnProxyHealthService(properties))
+                new OutboundHttpClientRegistry(
+                        new VpnProxyHealthService(properties, new VpnTunnelHealthProbe())
+                )
         );
     }
 

@@ -6,6 +6,7 @@ public record VpnProxyHealth(
         VpnProxyHealthState state,
         String proxyHost,
         int proxyPort,
+        String tunnelHealthUrl,
         Instant checkedAt,
         long latencyMillis,
         String detail
@@ -13,5 +14,9 @@ public record VpnProxyHealth(
 
     public boolean isProxyReachable() {
         return state.isProxyReachable();
+    }
+
+    public boolean isRouteReady() {
+        return state.isRouteReady();
     }
 }

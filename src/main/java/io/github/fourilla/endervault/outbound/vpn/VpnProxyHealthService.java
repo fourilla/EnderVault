@@ -15,10 +15,12 @@ import org.springframework.stereotype.Service;
 public class VpnProxyHealthService {
 
     private final NasProperties nasProperties;
+    private final VpnTunnelHealthProbe tunnelHealthProbe;
     private final AtomicReference<VpnProxyHealth> current = new AtomicReference<>();
 
-    public VpnProxyHealthService(NasProperties nasProperties) {
+    public VpnProxyHealthService(NasProperties nasProperties, VpnTunnelHealthProbe tunnelHealthProbe) {
         this.nasProperties = nasProperties;
+        this.tunnelHealthProbe = tunnelHealthProbe;
     }
 
     @PostConstruct
@@ -43,12 +45,14 @@ public class VpnProxyHealthService {
         NasProperties.Vpn settings = nasProperties.getOutbound().getVpn();
         String proxyHost = settings.getProxyHost();
         int proxyPort = settings.getProxyPort();
+        String tunnelHealthUrl = settings.getTunnelHealthUrl();
 
         if (!settings.isEnabled()) {
             return update(new VpnProxyHealth(
                     VpnProxyHealthState.DISABLED,
                     proxyHost,
                     proxyPort,
+                    tunnelHealthUrl,
                     Instant.now(),
                     -1L,
                     "VPN proxy is disabled."
@@ -59,6 +63,7 @@ public class VpnProxyHealthService {
                     VpnProxyHealthState.UNCONFIGURED,
                     proxyHost,
                     proxyPort,
+                    tunnelHealthUrl,
                     Instant.now(),
                     -1L,
                     "VPN proxy host is not configured."
@@ -71,19 +76,38 @@ public class VpnProxyHealthService {
                     new InetSocketAddress(proxyHost, proxyPort),
                     settings.getHealthConnectTimeoutMs()
             );
+            if (tunnelHealthUrl.isBlank()) {
+                return update(new VpnProxyHealth(
+                        VpnProxyHealthState.PROXY_REACHABLE,
+                        proxyHost,
+                        proxyPort,
+                        tunnelHealthUrl,
+                        Instant.now(),
+                        elapsedMillis(startedAt),
+                        "VPN proxy TCP endpoint is reachable; tunnel health is not configured."
+                ));
+            }
+            VpnTunnelHealthProbe.Result tunnelHealth = tunnelHealthProbe.probe(
+                    tunnelHealthUrl,
+                    settings.getHealthRequestTimeoutMs()
+            );
             return update(new VpnProxyHealth(
-                    VpnProxyHealthState.PROXY_REACHABLE,
+                    tunnelHealth.healthy()
+                            ? VpnProxyHealthState.TUNNEL_HEALTHY
+                            : VpnProxyHealthState.TUNNEL_UNHEALTHY,
                     proxyHost,
                     proxyPort,
+                    tunnelHealthUrl,
                     Instant.now(),
                     elapsedMillis(startedAt),
-                    "VPN proxy TCP endpoint is reachable."
+                    tunnelHealth.detail()
             ));
         } catch (IOException | RuntimeException ex) {
             return update(new VpnProxyHealth(
                     VpnProxyHealthState.PROXY_UNREACHABLE,
                     proxyHost,
                     proxyPort,
+                    tunnelHealthUrl,
                     Instant.now(),
                     elapsedMillis(startedAt),
                     "VPN proxy TCP endpoint is unreachable (" + ex.getClass().getSimpleName() + ")."
@@ -99,7 +123,8 @@ public class VpnProxyHealthService {
     private boolean configurationChanged(VpnProxyHealth health) {
         NasProperties.Vpn settings = nasProperties.getOutbound().getVpn();
         if (!Objects.equals(health.proxyHost(), settings.getProxyHost())
-                || health.proxyPort() != settings.getProxyPort()) {
+                || health.proxyPort() != settings.getProxyPort()
+                || !Objects.equals(health.tunnelHealthUrl(), settings.getTunnelHealthUrl())) {
             return true;
         }
         return settings.isEnabled()

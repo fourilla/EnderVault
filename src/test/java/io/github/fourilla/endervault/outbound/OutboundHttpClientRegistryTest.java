@@ -7,6 +7,7 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthService;
+import io.github.fourilla.endervault.outbound.vpn.VpnTunnelHealthProbe;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -32,7 +33,7 @@ class OutboundHttpClientRegistryTest {
     @BeforeEach
     void setUp() {
         properties = new NasProperties();
-        vpnProxyHealthService = new VpnProxyHealthService(properties);
+        vpnProxyHealthService = new VpnProxyHealthService(properties, new VpnTunnelHealthProbe());
         registry = new OutboundHttpClientRegistry(vpnProxyHealthService);
     }
 
@@ -123,6 +124,31 @@ class OutboundHttpClientRegistryTest {
         HttpClient second = registry.client(NetworkRoute.VPN_REQUIRED, Duration.ofSeconds(5));
 
         assertThat(second).isNotSameAs(first);
+    }
+
+    @Test
+    void failsClosedWhenConfiguredTunnelHealthEndpointIsUnhealthy() throws IOException {
+        startProxyServer();
+        enableVpnProxy();
+        HttpServer healthServer = createAndStartServer(exchange -> {
+            exchange.sendResponseHeaders(500, -1);
+            exchange.close();
+        });
+        try {
+            properties.getOutbound().getVpn().setTunnelHealthUrl(
+                    "http://localhost:" + healthServer.getAddress().getPort() + "/"
+            );
+            vpnProxyHealthService.refresh();
+
+            assertThatThrownBy(() -> registry.client(
+                    NetworkRoute.VPN_REQUIRED,
+                    Duration.ofSeconds(5)
+            ))
+                    .isInstanceOf(OutboundRouteUnavailableException.class)
+                    .hasMessageContaining("HTTP 500");
+        } finally {
+            healthServer.stop(0);
+        }
     }
 
     @Test

@@ -17,6 +17,7 @@ services:
       HTTPPROXY_LISTENING_ADDRESS: ":8888"
       HTTPPROXY_LOG: "off"
       HTTPPROXY_STEALTH: "on"
+      HEALTH_SERVER_ADDRESS: ":9999"
       HTTP_CONTROL_SERVER_ADDRESS: "127.0.0.1:8000"
     volumes:
       - type: bind
@@ -28,6 +29,7 @@ services:
       - openvpn_password
     expose:
       - "8888"
+      - "9999"
     security_opt:
       - no-new-privileges:true
     networks:

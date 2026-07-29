@@ -36,7 +36,7 @@ public class OutboundHttpClientRegistry {
 
     private ClientKey vpnClientKey(Duration connectTimeout) {
         VpnProxyHealth health = vpnProxyHealthService.current();
-        if (!health.isProxyReachable()) {
+        if (!health.isRouteReady()) {
             throw new OutboundRouteUnavailableException(NetworkRoute.VPN_REQUIRED, health.detail());
         }
         discardStaleVpnClients(health);

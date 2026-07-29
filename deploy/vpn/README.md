@@ -55,10 +55,12 @@ deploy/secrets/vpn/openvpn_password
 nas.outbound.vpn.enabled=true
 nas.outbound.vpn.proxy-host=vpn
 nas.outbound.vpn.proxy-port=8888
+nas.outbound.vpn.tunnel-health-url=http://vpn:9999/
 ```
 
-`vpn`은 비공개 Compose service 이름입니다. `8888` 포트와 Gluetun control
-API는 호스트에 공개되지 않습니다.
+`vpn`은 비공개 Compose service 이름입니다. `8888` proxy와 `9999` health
+server는 Compose 내부에서만 접근 가능하고, Gluetun control API도 호스트에
+공개되지 않습니다.
 
 ## 실행
 
@@ -82,8 +84,9 @@ docker compose -f compose.yaml -f compose.vpn.yaml --profile vpn down
 
 ## 현재 제한사항
 
-- EnderVault는 현재 proxy TCP 포트 도달 가능성만 검사합니다. 이는 OpenVPN
-  터널 정상 여부나 예상한 public egress IP 사용을 증명하지 않습니다.
+- EnderVault는 proxy TCP 포트와 Gluetun health server를 별도로 검사합니다.
+  health server 성공은 Gluetun이 터널을 정상으로 판정했다는 의미지만, 예상한
+  public egress IP 사용까지 증명하지는 않습니다.
 - HTTPS 요청에는 Gluetun HTTP proxy의 `CONNECT` 지원이 필요합니다. 실제
   proxy protocol과 egress IP는 Docker 환경에서 통합 검증해야 합니다.
 - 기능별 Direct/VPN 선택은 아직 설정 UI에 노출되지 않았습니다.

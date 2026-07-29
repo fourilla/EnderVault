@@ -11,6 +11,7 @@ import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.favorite.FavoriteService;
 import io.github.fourilla.endervault.outbound.OutboundHttpClientRegistry;
 import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthService;
+import io.github.fourilla.endervault.outbound.vpn.VpnTunnelHealthProbe;
 import io.github.fourilla.endervault.recent.RecentService;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
@@ -52,7 +53,9 @@ class TrashServiceTest {
                 properties,
                 new BookmarkMetadataFetcher(
                         properties,
-                        new OutboundHttpClientRegistry(new VpnProxyHealthService(properties))
+                        new OutboundHttpClientRegistry(
+                                new VpnProxyHealthService(properties, new VpnTunnelHealthProbe())
+                        )
                 )
         );
         bookmarkService.initialize();

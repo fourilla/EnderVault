@@ -62,6 +62,8 @@ class NasPropertiesTest {
                 .withProperty("nas.outbound.vpn.proxy-host", "gluetun")
                 .withProperty("nas.outbound.vpn.proxy-port", "8889")
                 .withProperty("nas.outbound.vpn.health-connect-timeout-ms", "900")
+                .withProperty("nas.outbound.vpn.tunnel-health-url", "http://gluetun:9999/")
+                .withProperty("nas.outbound.vpn.health-request-timeout-ms", "1200")
                 .withProperty("nas.outbound.vpn.health-check-interval-ms", "45000");
 
         NasProperties properties = Binder.get(environment)
@@ -82,6 +84,9 @@ class NasPropertiesTest {
         assertThat(properties.getOutbound().getVpn().getProxyHost()).isEqualTo("gluetun");
         assertThat(properties.getOutbound().getVpn().getProxyPort()).isEqualTo(8889);
         assertThat(properties.getOutbound().getVpn().getHealthConnectTimeoutMs()).isEqualTo(900);
+        assertThat(properties.getOutbound().getVpn().getTunnelHealthUrl())
+                .isEqualTo("http://gluetun:9999/");
+        assertThat(properties.getOutbound().getVpn().getHealthRequestTimeoutMs()).isEqualTo(1200);
         assertThat(properties.getOutbound().getVpn().getHealthCheckIntervalMs()).isEqualTo(45000L);
     }
 }
