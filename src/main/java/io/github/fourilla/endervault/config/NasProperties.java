@@ -29,6 +29,9 @@ public class NasProperties {
     private Server server = new Server();
 
     @Valid
+    private Outbound outbound = new Outbound();
+
+    @Valid
     private Admin admin = new Admin();
 
     @Valid
@@ -103,6 +106,14 @@ public class NasProperties {
 
     public void setServer(Server server) {
         this.server = server;
+    }
+
+    public Outbound getOutbound() {
+        return outbound;
+    }
+
+    public void setOutbound(Outbound outbound) {
+        this.outbound = outbound;
     }
 
     public Admin getAdmin() {
@@ -329,6 +340,75 @@ public class NasProperties {
 
         public void setPublicBaseUrl(String publicBaseUrl) {
             this.publicBaseUrl = publicBaseUrl == null ? "" : publicBaseUrl.trim();
+        }
+    }
+
+    public static class Outbound {
+        @Valid
+        private Vpn vpn = new Vpn();
+
+        public Vpn getVpn() {
+            return vpn;
+        }
+
+        public void setVpn(Vpn vpn) {
+            this.vpn = vpn;
+        }
+    }
+
+    public static class Vpn {
+        private boolean enabled;
+        private String proxyHost = "";
+
+        @Min(1)
+        @Max(65535)
+        private int proxyPort = 8888;
+
+        @Min(100)
+        @Max(60000)
+        private int healthConnectTimeoutMs = 1500;
+
+        @Min(1000)
+        private long healthCheckIntervalMs = 30000L;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public String getProxyHost() {
+            return proxyHost;
+        }
+
+        public void setProxyHost(String proxyHost) {
+            this.proxyHost = proxyHost == null ? "" : proxyHost.trim();
+        }
+
+        public int getProxyPort() {
+            return proxyPort;
+        }
+
+        public void setProxyPort(int proxyPort) {
+            this.proxyPort = proxyPort;
+        }
+
+        public int getHealthConnectTimeoutMs() {
+            return healthConnectTimeoutMs;
+        }
+
+        public void setHealthConnectTimeoutMs(int healthConnectTimeoutMs) {
+            this.healthConnectTimeoutMs = healthConnectTimeoutMs;
+        }
+
+        public long getHealthCheckIntervalMs() {
+            return healthCheckIntervalMs;
+        }
+
+        public void setHealthCheckIntervalMs(long healthCheckIntervalMs) {
+            this.healthCheckIntervalMs = healthCheckIntervalMs;
         }
     }
 

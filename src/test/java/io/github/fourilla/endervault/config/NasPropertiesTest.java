@@ -57,7 +57,12 @@ class NasPropertiesTest {
                 .withProperty("nas.activity-log.max-archive-files", "12")
                 .withProperty("nas.activity-log.page-size-options", "25,50,100")
                 .withProperty("nas.tasks.worker-threads", "3")
-                .withProperty("nas.metadata-inspector.max-issues-per-area", "250");
+                .withProperty("nas.metadata-inspector.max-issues-per-area", "250")
+                .withProperty("nas.outbound.vpn.enabled", "true")
+                .withProperty("nas.outbound.vpn.proxy-host", "gluetun")
+                .withProperty("nas.outbound.vpn.proxy-port", "8889")
+                .withProperty("nas.outbound.vpn.health-connect-timeout-ms", "900")
+                .withProperty("nas.outbound.vpn.health-check-interval-ms", "45000");
 
         NasProperties properties = Binder.get(environment)
                 .bind("nas", NasProperties.class)
@@ -73,5 +78,10 @@ class NasPropertiesTest {
         assertThat(properties.getActivityLog().getPageSizeOptions()).isEqualTo(List.of(25, 50, 100));
         assertThat(properties.getTasks().getWorkerThreads()).isEqualTo(3);
         assertThat(properties.getMetadataInspector().getMaxIssuesPerArea()).isEqualTo(250);
+        assertThat(properties.getOutbound().getVpn().isEnabled()).isTrue();
+        assertThat(properties.getOutbound().getVpn().getProxyHost()).isEqualTo("gluetun");
+        assertThat(properties.getOutbound().getVpn().getProxyPort()).isEqualTo(8889);
+        assertThat(properties.getOutbound().getVpn().getHealthConnectTimeoutMs()).isEqualTo(900);
+        assertThat(properties.getOutbound().getVpn().getHealthCheckIntervalMs()).isEqualTo(45000L);
     }
 }
