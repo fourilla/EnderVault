@@ -3,6 +3,8 @@ package io.github.fourilla.endervault.web.support;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.favorite.FavoriteDisplayItem;
 import io.github.fourilla.endervault.favorite.FavoriteService;
+import io.github.fourilla.endervault.outbound.OutboundRouteStateService;
+import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthService;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.storage.StorageUsage;
 import io.github.fourilla.endervault.web.dashboard.AdminDashboardController;
@@ -20,6 +22,7 @@ import io.github.fourilla.endervault.web.file.AdminFileTransferController;
 import io.github.fourilla.endervault.web.file.AdminRecentController;
 import io.github.fourilla.endervault.web.metadata.AdminMetadataController;
 import io.github.fourilla.endervault.web.remote.AdminRemoteDownloadController;
+import io.github.fourilla.endervault.web.settings.AdminAccountSettingsController;
 import io.github.fourilla.endervault.web.settings.AdminBookmarkSettingsController;
 import io.github.fourilla.endervault.web.settings.AdminGeneralSettingsController;
 import io.github.fourilla.endervault.web.settings.AdminSettingsController;
@@ -50,6 +53,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
         AdminShareController.class,
         AdminTrashController.class,
         AdminSettingsController.class,
+        AdminAccountSettingsController.class,
         AdminBookmarkSettingsController.class,
         AdminGeneralSettingsController.class,
         AdminSessionSettingsController.class,
@@ -63,19 +67,25 @@ public class AdminShellModelAdvice {
     private final FilePreviewSupport filePreviewSupport;
     private final FileActionViewSupport fileActionViewSupport;
     private final NasProperties nasProperties;
+    private final OutboundRouteStateService outboundRouteStateService;
+    private final VpnProxyHealthService vpnProxyHealthService;
 
     public AdminShellModelAdvice(
             StorageService storageService,
             FavoriteService favoriteService,
             FilePreviewSupport filePreviewSupport,
             FileActionViewSupport fileActionViewSupport,
-            NasProperties nasProperties
+            NasProperties nasProperties,
+            OutboundRouteStateService outboundRouteStateService,
+            VpnProxyHealthService vpnProxyHealthService
     ) {
         this.storageService = storageService;
         this.favoriteService = favoriteService;
         this.filePreviewSupport = filePreviewSupport;
         this.fileActionViewSupport = fileActionViewSupport;
         this.nasProperties = nasProperties;
+        this.outboundRouteStateService = outboundRouteStateService;
+        this.vpnProxyHealthService = vpnProxyHealthService;
     }
 
     @ModelAttribute("storageUsage")
@@ -124,6 +134,14 @@ public class AdminShellModelAdvice {
     @ModelAttribute("bookmarkLinkClickAction")
     public String bookmarkLinkClickAction() {
         return BookmarkLinkClickAction.from(nasProperties);
+    }
+
+    @ModelAttribute("outboundRoute")
+    public OutboundRouteView outboundRoute() {
+        return OutboundRouteView.from(
+                outboundRouteStateService.currentRoute(),
+                vpnProxyHealthService.current()
+        );
     }
 
     private boolean showHiddenFavorites(HttpServletRequest request) {
