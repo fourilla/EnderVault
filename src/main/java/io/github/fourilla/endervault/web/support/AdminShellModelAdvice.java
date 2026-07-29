@@ -24,6 +24,7 @@ import io.github.fourilla.endervault.web.settings.AdminBookmarkSettingsControlle
 import io.github.fourilla.endervault.web.settings.AdminGeneralSettingsController;
 import io.github.fourilla.endervault.web.settings.AdminSettingsController;
 import io.github.fourilla.endervault.web.settings.AdminSessionSettingsController;
+import io.github.fourilla.endervault.web.settings.AdminVpnSettingsController;
 import io.github.fourilla.endervault.web.share.AdminShareController;
 import io.github.fourilla.endervault.web.trash.AdminTrashController;
 import jakarta.servlet.http.HttpServletRequest;
@@ -52,6 +53,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
         AdminBookmarkSettingsController.class,
         AdminGeneralSettingsController.class,
         AdminSessionSettingsController.class,
+        AdminVpnSettingsController.class,
         AdminMetadataController.class
 })
 public class AdminShellModelAdvice {

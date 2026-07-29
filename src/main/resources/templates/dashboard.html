@@ -126,6 +126,14 @@
                         0 complete / 0 failed
                     </strong>
                 </li>
+                <li>
+                    <span>VPN egress route</span>
+                    <strong>
+                        <span class="status-badge"
+                              th:classappend="${dashboard.vpn().statusClass()}"
+                              th:text="${dashboard.vpn().label()}">Disabled</span>
+                    </strong>
+                </li>
             </ul>
         </article>
 

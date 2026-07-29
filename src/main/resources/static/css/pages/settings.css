@@ -185,6 +185,14 @@
     font-size: var(--font-size-lg);
 }
 
+.settings-status-detail {
+    margin: var(--space-xl) 0 0;
+    border-top: 1px solid var(--line);
+    padding-top: var(--space-lg);
+    color: var(--muted);
+    font-size: var(--font-size-sm);
+}
+
 .settings-field-grid label,
 .settings-field {
     display: grid;

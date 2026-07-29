@@ -5,7 +5,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Component;
@@ -18,7 +17,7 @@ public class VpnTunnelHealthProbe {
     public Result probe(String endpoint, int timeoutMillis) {
         URI uri;
         try {
-            uri = validatedUri(endpoint);
+            uri = VpnTunnelHealthEndpoint.parse(endpoint);
         } catch (IllegalArgumentException ex) {
             return Result.unhealthy("VPN tunnel health URL is invalid.");
         }
@@ -55,21 +54,6 @@ public class VpnTunnelHealthProbe {
                 .followRedirects(HttpClient.Redirect.NEVER)
                 .proxy(HttpClient.Builder.NO_PROXY)
                 .build());
-    }
-
-    private URI validatedUri(String endpoint) {
-        URI uri = URI.create(endpoint);
-        String scheme = uri.getScheme() == null
-                ? ""
-                : uri.getScheme().toLowerCase(Locale.ROOT);
-        if ((!"http".equals(scheme) && !"https".equals(scheme))
-                || uri.getHost() == null
-                || uri.getHost().isBlank()
-                || uri.getUserInfo() != null
-                || uri.getFragment() != null) {
-            throw new IllegalArgumentException("Unsupported tunnel health URL.");
-        }
-        return uri;
     }
 
     public record Result(boolean healthy, String detail) {

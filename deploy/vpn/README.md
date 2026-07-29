@@ -95,6 +95,8 @@ docker compose -f compose.yaml -f compose.vpn.yaml --profile vpn down
   proxy protocol과 egress IP는 Docker 환경에서 통합 검증해야 합니다.
 - 기능별 route는 General Settings의 Remote Download와 Bookmark Settings의
   Metadata Fetch에서 각각 선택할 수 있습니다. 기본값은 `direct`입니다.
+- VPN endpoint와 health 상태는 Settings의 VPN Egress 페이지에서 관리할 수
+  있습니다. health interval 변경은 애플리케이션 재시작 후 적용됩니다.
 - `VPN_REQUIRED` 요청은 VPN 실패 시 direct 경로로 fallback하지 않습니다.
 - app과 VPN은 현재 하나의 비공개 Compose bridge를 공유합니다. reverse
   proxy를 추가할 때 frontend와 outbound-proxy network 분리를 검토합니다.

@@ -68,6 +68,36 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     };
 
+    const updateVpnStatus = (vpn) => {
+        if (!vpn) {
+            return;
+        }
+        const badge = (selector) => {
+            const element = document.querySelector(`[data-vpn-status="${selector}"]`);
+            if (!element) {
+                return;
+            }
+            element.className = `status-badge ${vpn.statusClass}`;
+            element.textContent = vpn.label;
+        };
+        badge("badge");
+        badge("state");
+
+        const values = {
+            routeReady: vpn.routeReady ? "Ready" : "Unavailable",
+            proxyEndpoint: vpn.proxyEndpoint,
+            checkedAt: vpn.checkedAtLabel,
+            latency: vpn.latencyLabel,
+            detail: vpn.detail
+        };
+        Object.entries(values).forEach(([key, value]) => {
+            const element = document.querySelector(`[data-vpn-status="${key}"]`);
+            if (element) {
+                element.textContent = value;
+            }
+        });
+    };
+
     const appendShareRow = (form, shareLink) => {
         const tableBody = document.querySelector(form.dataset.shareTable);
         if (!tableBody || !shareLink) {
@@ -341,6 +371,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 break;
             case "metadata-repair":
                 window.EnderVaultMetadata?.handleRepair(body, form);
+                break;
+            case "vpn-settings-save":
+            case "vpn-health-refresh":
+                updateVpnStatus(body.vpn);
                 break;
             default:
                 break;

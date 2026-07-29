@@ -3,6 +3,7 @@ package io.github.fourilla.endervault.web.dashboard;
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.remote.RemoteDownloadService;
+import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthService;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.session.SessionManagementService;
@@ -13,6 +14,7 @@ import io.github.fourilla.endervault.thumbnail.ThumbnailCacheStats;
 import io.github.fourilla.endervault.thumbnail.ThumbnailService;
 import io.github.fourilla.endervault.trash.TrashRecord;
 import io.github.fourilla.endervault.trash.TrashService;
+import io.github.fourilla.endervault.web.support.VpnStatusView;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
@@ -30,6 +32,7 @@ public class AdminDashboardController {
     private final RemoteDownloadService remoteDownloadService;
     private final TaskManagerService taskManagerService;
     private final SessionManagementService sessionManagementService;
+    private final VpnProxyHealthService vpnProxyHealthService;
     private final NasProperties nasProperties;
 
     public AdminDashboardController(
@@ -40,6 +43,7 @@ public class AdminDashboardController {
             RemoteDownloadService remoteDownloadService,
             TaskManagerService taskManagerService,
             SessionManagementService sessionManagementService,
+            VpnProxyHealthService vpnProxyHealthService,
             NasProperties nasProperties
     ) {
         this.storageService = storageService;
@@ -49,6 +53,7 @@ public class AdminDashboardController {
         this.remoteDownloadService = remoteDownloadService;
         this.taskManagerService = taskManagerService;
         this.sessionManagementService = sessionManagementService;
+        this.vpnProxyHealthService = vpnProxyHealthService;
         this.nasProperties = nasProperties;
     }
 
@@ -67,7 +72,8 @@ public class AdminDashboardController {
                 remoteDownloadService.summary(3),
                 nasProperties.getRemoteDownload().isEnabled(),
                 taskManagerService.summary(),
-                sessionManagementService.activeCount()
+                sessionManagementService.activeCount(),
+                VpnStatusView.from(vpnProxyHealthService.current())
         ));
         return "dashboard";
     }

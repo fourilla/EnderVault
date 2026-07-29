@@ -3,6 +3,7 @@ package io.github.fourilla.endervault.web.dashboard;
 import io.github.fourilla.endervault.remote.RemoteDownloadSummary;
 import io.github.fourilla.endervault.storage.StorageUsage;
 import io.github.fourilla.endervault.task.TaskSummary;
+import io.github.fourilla.endervault.web.support.VpnStatusView;
 
 public record DashboardView(
         StorageUsage storage,
@@ -12,7 +13,8 @@ public record DashboardView(
         RemoteDownloadSummary remoteDownloads,
         boolean remoteDownloadEnabled,
         TaskSummary fileTasks,
-        int activeSessions
+        int activeSessions,
+        VpnStatusView vpn
 ) {
 
     public record TrashSummary(

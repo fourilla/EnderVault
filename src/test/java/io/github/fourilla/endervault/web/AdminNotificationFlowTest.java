@@ -299,6 +299,7 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Disabled in settings")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Page archiving")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Storage remaining")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("VPN egress route")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("Register and remove trusted devices"))))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
@@ -349,9 +350,11 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Passkeys")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Telegram alerts")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("General settings")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("VPN egress")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/passkeys")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/telegram-alerts")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/general")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/vpn")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("Metadata inspector"))));
     }
@@ -368,6 +371,19 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote Download")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"general-settings-save\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/general")));
+    }
+
+    @Test
+    void vpnSettingsPageRendersHealthAndConfiguration() throws Exception {
+        mockMvc.perform(get("/admin/settings/vpn"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("VPN Egress")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Proxy Connection")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Tunnel Health")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Current State")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"vpn-settings-save\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"vpn-health-refresh\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/vpn")));
     }
 
     @Test
