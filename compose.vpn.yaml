@@ -13,6 +13,8 @@ services:
       VPN_SERVICE_PROVIDER: custom
       VPN_TYPE: openvpn
       OPENVPN_CUSTOM_CONFIG: "/gluetun/custom/${ENDERVAULT_VPN_CONFIG_NAME:-custom.ovpn}"
+      OPENVPN_USER_SECRETFILE: /run/secrets/openvpn_user
+      OPENVPN_PASSWORD_SECRETFILE: /run/secrets/openvpn_password
       HTTPPROXY: "on"
       HTTPPROXY_LISTENING_ADDRESS: ":8888"
       HTTPPROXY_LOG: "off"
