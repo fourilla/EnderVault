@@ -7,6 +7,7 @@ import io.github.fourilla.endervault.bookmark.BookmarkLogMetadata;
 import io.github.fourilla.endervault.bookmark.BookmarkService;
 import io.github.fourilla.endervault.bookmark.BookmarkService.BulkLinkInput;
 import io.github.fourilla.endervault.common.StorageAccessException;
+import io.github.fourilla.endervault.outbound.NetworkRoute;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.security.Principal;
@@ -42,6 +43,7 @@ public class BookmarkBulkTaskService {
     ) throws IOException {
         List<BulkLinkInput> inputs = bookmarkService.parseBulkLinkInputs(bulkText);
         String normalizedParentId = bookmarkService.normalizeExistingParentId(parentId);
+        NetworkRoute networkRoute = bookmarkService.metadataNetworkRoute();
         RequestSnapshot requestSnapshot = RequestSnapshot.from(request, clientIpResolver);
         String target = normalizedParentId == null ? "Bookmarks" : "Bookmark directory " + normalizedParentId;
         return taskManagerService.submit(
@@ -50,13 +52,14 @@ public class BookmarkBulkTaskService {
                 target,
                 requestSnapshot.actor(),
                 requestSnapshot.ip(),
-                context -> runCreateLinks(normalizedParentId, inputs, requestSnapshot, context)
+                context -> runCreateLinks(normalizedParentId, inputs, networkRoute, requestSnapshot, context)
         );
     }
 
     private TaskOutcome runCreateLinks(
             String parentId,
             List<BulkLinkInput> inputs,
+            NetworkRoute networkRoute,
             RequestSnapshot request,
             TaskContext context
     ) throws IOException {
@@ -68,7 +71,14 @@ public class BookmarkBulkTaskService {
             context.checkCanceled();
             context.message("Adding " + taskItemLabel(input) + ".");
             try {
-                created.add(bookmarkService.createLink(parentId, input.title(), input.url(), "", context::canceled));
+                created.add(bookmarkService.createLink(
+                        parentId,
+                        input.title(),
+                        input.url(),
+                        "",
+                        context::canceled,
+                        networkRoute
+                ));
             } catch (CancellationException ex) {
                 throw new TaskCanceledException();
             } catch (StorageAccessException | IOException ex) {

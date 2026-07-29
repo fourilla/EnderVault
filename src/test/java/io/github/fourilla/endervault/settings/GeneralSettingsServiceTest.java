@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.fourilla.endervault.config.LocalPropertiesFile;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.outbound.NetworkRoute;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -45,6 +46,7 @@ class GeneralSettingsServiceTest {
                 nas.remote-download.enabled=true
                 nas.remote-download.direct-enabled=true
                 nas.remote-download.extractor-enabled=false
+                nas.remote-download.network-route=direct
                 nas.remote-download.block-private-networks=true
                 nas.remote-download.allowed-ports=80,443
                 nas.remote-download.response-timeout-seconds=30
@@ -75,6 +77,7 @@ class GeneralSettingsServiceTest {
         parameters.set("comicPageMaxBytes", "204800");
         parameters.set("comicInfoMaxBytes", "4096");
         parameters.remove("remoteExtractorEnabled");
+        parameters.set("remoteNetworkRoute", "vpn-required");
         parameters.set("remoteAllowedPorts", "80,443,8080");
         parameters.set("remoteResponseTimeoutSeconds", "45");
         parameters.set("remoteMaxRedirects", "7");
@@ -101,6 +104,7 @@ class GeneralSettingsServiceTest {
                 .contains("nas.file-tools.text-draft-lease-seconds=180")
                 .contains("nas.file-tools.comic-max-pages=300")
                 .contains("nas.remote-download.extractor-enabled=false")
+                .contains("nas.remote-download.network-route=vpn-required")
                 .contains("nas.remote-download.allowed-ports=80,443,8080")
                 .contains("nas.remote-download.max-file-size-bytes=123456");
 
@@ -117,6 +121,7 @@ class GeneralSettingsServiceTest {
         assertThat(properties.getFileTools().getTextDraftCleanupIntervalMs()).isEqualTo(180000);
         assertThat(properties.getFileTools().getTextDraftLeaseSeconds()).isEqualTo(180);
         assertThat(properties.getRemoteDownload().getAllowedPorts()).isEqualTo(List.of(80, 443, 8080));
+        assertThat(properties.getRemoteDownload().getNetworkRoute()).isEqualTo(NetworkRoute.VPN_REQUIRED);
         assertThat(properties.getRemoteDownload().getMaxFileSizeBytes()).isEqualTo(123456);
     }
 
@@ -155,6 +160,7 @@ class GeneralSettingsServiceTest {
         parameters.add("remoteEnabled", "on");
         parameters.add("remoteDirectEnabled", "on");
         parameters.add("remoteExtractorEnabled", "on");
+        parameters.add("remoteNetworkRoute", "direct");
         parameters.add("remoteBlockPrivateNetworks", "on");
         parameters.add("remoteAllowedPorts", "80,443");
         parameters.add("remoteResponseTimeoutSeconds", "30");

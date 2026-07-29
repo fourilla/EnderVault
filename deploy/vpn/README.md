@@ -56,6 +56,10 @@ nas.outbound.vpn.enabled=true
 nas.outbound.vpn.proxy-host=vpn
 nas.outbound.vpn.proxy-port=8888
 nas.outbound.vpn.tunnel-health-url=http://vpn:9999/
+
+# Select VPN only for features that should use it.
+nas.remote-download.network-route=vpn-required
+nas.bookmarks.metadata-network-route=vpn-required
 ```
 
 `vpn`은 비공개 Compose service 이름입니다. `8888` proxy와 `9999` health
@@ -89,7 +93,8 @@ docker compose -f compose.yaml -f compose.vpn.yaml --profile vpn down
   public egress IP 사용까지 증명하지는 않습니다.
 - HTTPS 요청에는 Gluetun HTTP proxy의 `CONNECT` 지원이 필요합니다. 실제
   proxy protocol과 egress IP는 Docker 환경에서 통합 검증해야 합니다.
-- 기능별 Direct/VPN 선택은 아직 설정 UI에 노출되지 않았습니다.
+- 기능별 route는 General Settings의 Remote Download와 Bookmark Settings의
+  Metadata Fetch에서 각각 선택할 수 있습니다. 기본값은 `direct`입니다.
 - `VPN_REQUIRED` 요청은 VPN 실패 시 direct 경로로 fallback하지 않습니다.
 - app과 VPN은 현재 하나의 비공개 Compose bridge를 공유합니다. reverse
   proxy를 추가할 때 frontend와 outbound-proxy network 분리를 검토합니다.

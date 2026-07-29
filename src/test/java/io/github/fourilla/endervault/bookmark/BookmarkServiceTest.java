@@ -8,7 +8,9 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.sun.net.httpserver.HttpServer;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.outbound.NetworkRoute;
 import io.github.fourilla.endervault.outbound.OutboundHttpClientRegistry;
+import io.github.fourilla.endervault.outbound.OutboundRouteUnavailableException;
 import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthService;
 import io.github.fourilla.endervault.outbound.vpn.VpnTunnelHealthProbe;
 import java.net.InetAddress;
@@ -156,6 +158,17 @@ class BookmarkServiceTest {
             assertThat(root.resolve(".endervault").resolve("bookmark-favicons")).isDirectory();
             assertThat(root.resolve(".endervault").resolve("bookmark-favicon-cache.json")).exists();
         }
+    }
+
+    @Test
+    void doesNotCreateMetadataEnabledBookmarkWhenRequiredVpnRouteIsUnavailable() throws Exception {
+        properties.getBookmarks().setMetadataFetchEnabled(true);
+        properties.getBookmarks().setMetadataNetworkRoute(NetworkRoute.VPN_REQUIRED);
+
+        assertThatThrownBy(() -> bookmarkService.createLink(null, "", "https://example.com/docs", ""))
+                .isInstanceOf(OutboundRouteUnavailableException.class)
+                .hasMessageContaining("VPN required");
+        assertThat(bookmarkService.list(null, "")).isEmpty();
     }
 
     @Test

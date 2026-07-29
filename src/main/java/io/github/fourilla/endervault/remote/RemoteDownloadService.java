@@ -50,8 +50,8 @@ public class RemoteDownloadService {
     private final ActivityLogService activityLogService;
     private final ClientIpResolver clientIpResolver;
     private final RemoteDownloadValidator validator;
+    private final OutboundHttpClientRegistry httpClientRegistry;
     private final ExecutorService executorService;
-    private final HttpClient httpClient;
     private final Map<String, RemoteDownloadTask> tasks = new ConcurrentHashMap<>();
     private final Map<String, Future<?>> taskFutures = new ConcurrentHashMap<>();
 
@@ -68,11 +68,8 @@ public class RemoteDownloadService {
         this.activityLogService = activityLogService;
         this.clientIpResolver = clientIpResolver;
         this.validator = validator;
+        this.httpClientRegistry = httpClientRegistry;
         this.executorService = Executors.newFixedThreadPool(nasProperties.getRemoteDownload().getWorkerThreads());
-        this.httpClient = httpClientRegistry.client(
-                NetworkRoute.DIRECT,
-                Duration.ofSeconds(nasProperties.getRemoteDownload().getConnectTimeoutSeconds())
-        );
     }
 
     public RemoteDownloadTask start(String rawUrl, String targetDirectory, HttpServletRequest request)
@@ -85,11 +82,14 @@ public class RemoteDownloadService {
         URI sourceUri = validator.validate(rawUrl);
         String safeTargetDirectory = targetDirectory == null ? "" : targetDirectory.trim();
         storageService.ensureVaultDirectory(safeTargetDirectory);
+        NetworkRoute networkRoute = properties.getNetworkRoute();
+        httpClient(networkRoute);
 
         RemoteDownloadTask task = new RemoteDownloadTask(
                 UUID.randomUUID().toString(),
                 sourceUri.toString(),
                 safeTargetDirectory,
+                networkRoute,
                 actor(request),
                 clientIpResolver.resolve(request)
         );
@@ -101,7 +101,11 @@ public class RemoteDownloadService {
                 null,
                 safeTargetDirectory,
                 "Queued remote download.",
-                Map.of("url", task.sourceUrl(), "taskId", task.id())
+                Map.of(
+                        "url", task.sourceUrl(),
+                        "taskId", task.id(),
+                        "networkRoute", task.networkRoute().settingValue()
+                )
         );
         Future<?> future = executorService.submit(() -> runDownload(task));
         taskFutures.put(task.id(), future);
@@ -117,8 +121,9 @@ public class RemoteDownloadService {
         URI sourceUri = validator.validate(rawUrl);
         String safeTargetDirectory = targetDirectory == null ? "" : targetDirectory.trim();
         storageService.ensureVaultDirectory(safeTargetDirectory);
+        HttpClient httpClient = httpClient(properties.getNetworkRoute());
 
-        try (RemoteHttpResponse remoteResponse = openMetadataResponse(sourceUri)) {
+        try (RemoteHttpResponse remoteResponse = openMetadataResponse(sourceUri, httpClient)) {
             String fileName = fileNameFor(remoteResponse);
             String targetPath = targetPath(safeTargetDirectory, fileName);
             return new RemoteDownloadProbe(
@@ -205,8 +210,9 @@ public class RemoteDownloadService {
             throwIfCanceled(task);
             task.markRunning();
             throwIfCanceled(task);
+            HttpClient httpClient = httpClient(task.networkRoute());
             temporaryFile = storageService.createUploadTemporaryFile("remote-download-", ".tmp");
-            try (RemoteHttpResponse remoteResponse = openDownloadResponse(URI.create(task.sourceUrl()));
+            try (RemoteHttpResponse remoteResponse = openDownloadResponse(URI.create(task.sourceUrl()), httpClient);
                     InputStream inputStream = remoteResponse.body();
                     OutputStream outputStream = Files.newOutputStream(
                             temporaryFile,
@@ -266,22 +272,36 @@ public class RemoteDownloadService {
         }
     }
 
-    private RemoteHttpResponse openDownloadResponse(URI sourceUri) throws IOException, InterruptedException {
-        return openRemoteResponse(sourceUri, "GET", false);
+    private HttpClient httpClient(NetworkRoute networkRoute) {
+        return httpClientRegistry.client(
+                networkRoute,
+                Duration.ofSeconds(nasProperties.getRemoteDownload().getConnectTimeoutSeconds())
+        );
     }
 
-    private RemoteHttpResponse openMetadataResponse(URI sourceUri) throws IOException, InterruptedException {
+    private RemoteHttpResponse openDownloadResponse(URI sourceUri, HttpClient httpClient)
+            throws IOException, InterruptedException {
+        return openRemoteResponse(sourceUri, "GET", false, httpClient);
+    }
+
+    private RemoteHttpResponse openMetadataResponse(URI sourceUri, HttpClient httpClient)
+            throws IOException, InterruptedException {
         try {
-            return openRemoteResponse(sourceUri, "HEAD", false);
+            return openRemoteResponse(sourceUri, "HEAD", false, httpClient);
         } catch (RemoteHttpStatusException ex) {
             if (ex.status() != 403 && ex.status() != 405) {
                 throw ex;
             }
-            return openRemoteResponse(sourceUri, "GET", true);
+            return openRemoteResponse(sourceUri, "GET", true, httpClient);
         }
     }
 
-    private RemoteHttpResponse openRemoteResponse(URI sourceUri, String method, boolean previewRange)
+    private RemoteHttpResponse openRemoteResponse(
+            URI sourceUri,
+            String method,
+            boolean previewRange,
+            HttpClient httpClient
+    )
             throws IOException, InterruptedException {
         URI current = validator.validate(sourceUri);
         int maxRedirects = nasProperties.getRemoteDownload().getMaxRedirects();
@@ -434,6 +454,7 @@ public class RemoteDownloadService {
         Map<String, String> metadata = new LinkedHashMap<>();
         metadata.put("url", task.sourceUrl());
         metadata.put("taskId", task.id());
+        metadata.put("networkRoute", task.networkRoute().settingValue());
         if (StringUtils.hasText(task.fileName())) {
             metadata.put("fileName", task.fileName());
         }

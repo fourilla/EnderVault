@@ -70,7 +70,7 @@ class OutboundHttpClientRegistryTest {
     void failsClosedWhenVpnRouteIsNotConfigured() {
         assertThatThrownBy(() -> registry.client(NetworkRoute.VPN_REQUIRED, Duration.ofSeconds(5)))
                 .isInstanceOf(OutboundRouteUnavailableException.class)
-                .hasMessageContaining("VPN_REQUIRED")
+                .hasMessageContaining("VPN required")
                 .hasMessageContaining("disabled");
     }
 

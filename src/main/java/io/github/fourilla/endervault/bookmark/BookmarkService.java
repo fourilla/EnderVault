@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.fourilla.endervault.common.JsonRegistry;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.outbound.NetworkRoute;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -59,7 +60,8 @@ public class BookmarkService {
                 inputNormalizer,
                 metadataFetcher,
                 faviconCacheService,
-                this::metadataFetchEnabled
+                this::metadataFetchEnabled,
+                this::metadataNetworkRoute
         );
     }
 
@@ -128,9 +130,20 @@ public class BookmarkService {
             String note,
             BooleanSupplier cancellationRequested
     ) throws IOException {
+        return createLink(parentId, title, url, note, cancellationRequested, metadataNetworkRoute());
+    }
+
+    public BookmarkItem createLink(
+            String parentId,
+            String title,
+            String url,
+            String note,
+            BooleanSupplier cancellationRequested,
+            NetworkRoute networkRoute
+    ) throws IOException {
         BookmarkItem link = newLink(parentId, title, url, note);
         checkCanceled(cancellationRequested);
-        link = remoteMetadataApplier.tryApply(link, cancellationRequested);
+        link = remoteMetadataApplier.tryApply(link, cancellationRequested, networkRoute);
         checkCanceled(cancellationRequested);
         return addPreparedLink(link);
     }
@@ -364,6 +377,10 @@ public class BookmarkService {
 
     public boolean metadataFetchEnabled() {
         return nasProperties.getBookmarks().isMetadataFetchEnabled();
+    }
+
+    public NetworkRoute metadataNetworkRoute() {
+        return nasProperties.getBookmarks().getMetadataNetworkRoute();
     }
 
     public synchronized List<BookmarkBreadcrumb> breadcrumbs(String parentId) throws IOException {

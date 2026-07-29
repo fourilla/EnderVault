@@ -223,6 +223,20 @@
                         <input class="settings-switch-input" type="checkbox" name="remoteBlockPrivateNetworks" th:checked="${settings.remoteDownload().blockPrivateNetworks()}">
                     </label>
                     <label class="remote-direct-dependent">
+                        <span>Network route</span>
+                        <select name="remoteNetworkRoute">
+                            <option value="direct"
+                                    th:selected="${settings.remoteDownload().networkRoute().settingValue() == 'direct'}">
+                                Direct connection
+                            </option>
+                            <option value="vpn-required"
+                                    th:selected="${settings.remoteDownload().networkRoute().settingValue() == 'vpn-required'}">
+                                VPN required (fail closed)
+                            </option>
+                        </select>
+                        <small>VPN mode never falls back to the direct connection.</small>
+                    </label>
+                    <label class="remote-direct-dependent">
                         <span>Allowed ports</span>
                         <input name="remoteAllowedPorts" th:value="${settings.remoteDownload().allowedPorts()}" placeholder="80,443">
                     </label>

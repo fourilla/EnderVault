@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.config;
 
 import io.github.fourilla.endervault.activity.ActivityTypeCatalog;
+import io.github.fourilla.endervault.outbound.NetworkRoute;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -654,6 +655,9 @@ public class NasProperties {
 
         private boolean extractorEnabled = false;
 
+        @NotNull
+        private NetworkRoute networkRoute = NetworkRoute.DIRECT;
+
         private boolean blockPrivateNetworks = true;
 
         @NotNull
@@ -701,6 +705,14 @@ public class NasProperties {
 
         public void setExtractorEnabled(boolean extractorEnabled) {
             this.extractorEnabled = extractorEnabled;
+        }
+
+        public NetworkRoute getNetworkRoute() {
+            return networkRoute;
+        }
+
+        public void setNetworkRoute(NetworkRoute networkRoute) {
+            this.networkRoute = networkRoute == null ? NetworkRoute.DIRECT : networkRoute;
         }
 
         public boolean isBlockPrivateNetworks() {
@@ -798,6 +810,9 @@ public class NasProperties {
 
         private boolean metadataFetchEnabled = false;
 
+        @NotNull
+        private NetworkRoute metadataNetworkRoute = NetworkRoute.DIRECT;
+
         private boolean blockPrivateNetworks = true;
 
         @NotNull
@@ -837,6 +852,14 @@ public class NasProperties {
 
         public void setMetadataFetchEnabled(boolean metadataFetchEnabled) {
             this.metadataFetchEnabled = metadataFetchEnabled;
+        }
+
+        public NetworkRoute getMetadataNetworkRoute() {
+            return metadataNetworkRoute;
+        }
+
+        public void setMetadataNetworkRoute(NetworkRoute metadataNetworkRoute) {
+            this.metadataNetworkRoute = metadataNetworkRoute == null ? NetworkRoute.DIRECT : metadataNetworkRoute;
         }
 
         public boolean isBlockPrivateNetworks() {

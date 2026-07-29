@@ -131,7 +131,7 @@ docker compose up -d
 docker compose -f compose.yaml -f compose.vpn.yaml --profile vpn up -d
 ```
 
-`.ovpn` 배치, 인증정보 secret, EnderVault proxy 설정과 현재 제한사항은 [`deploy/vpn/README.md`](deploy/vpn/README.md)를 확인하세요. 현재 단계는 비공개 HTTP proxy 인프라를 제공하며, Remote Download나 북마크 요청이 자동으로 VPN을 선택하지는 않습니다.
+`.ovpn` 배치, 인증정보 secret, EnderVault proxy 설정과 현재 제한사항은 [`deploy/vpn/README.md`](deploy/vpn/README.md)를 확인하세요. Remote Download와 북마크 메타데이터 요청은 각각 설정에서 Direct 또는 VPN required 경로를 선택하며, 기본값은 Direct입니다.
 
 ## Configuration
 

@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.remote;
 
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
+import io.github.fourilla.endervault.outbound.NetworkRoute;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -13,6 +14,7 @@ public class RemoteDownloadTask {
     private final String id;
     private final String sourceUrl;
     private final String targetDirectory;
+    private final NetworkRoute networkRoute;
     private final String actor;
     private final String ip;
     private final Instant createdAt;
@@ -26,10 +28,18 @@ public class RemoteDownloadTask {
     private volatile String message = "Waiting to start.";
     private volatile boolean cancelRequested;
 
-    public RemoteDownloadTask(String id, String sourceUrl, String targetDirectory, String actor, String ip) {
+    public RemoteDownloadTask(
+            String id,
+            String sourceUrl,
+            String targetDirectory,
+            NetworkRoute networkRoute,
+            String actor,
+            String ip
+    ) {
         this.id = id;
         this.sourceUrl = sourceUrl;
         this.targetDirectory = targetDirectory == null ? "" : targetDirectory;
+        this.networkRoute = networkRoute;
         this.actor = actor == null || actor.isBlank() ? "system" : actor;
         this.ip = ip == null || ip.isBlank() ? "-" : ip;
         this.createdAt = Instant.now();
@@ -49,6 +59,14 @@ public class RemoteDownloadTask {
 
     public String targetDirectory() {
         return targetDirectory;
+    }
+
+    public NetworkRoute networkRoute() {
+        return networkRoute;
+    }
+
+    public String networkRouteLabel() {
+        return networkRoute.label();
     }
 
     public String actor() {

@@ -2,6 +2,7 @@ package io.github.fourilla.endervault.settings;
 
 import io.github.fourilla.endervault.config.LocalPropertiesFile;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.outbound.NetworkRoute;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
 import java.io.IOException;
 import java.util.Arrays;
@@ -66,6 +67,7 @@ public class GeneralSettingsService {
                         remoteDownload.isEnabled(),
                         remoteDownload.isDirectEnabled(),
                         remoteDownload.isExtractorEnabled(),
+                        remoteDownload.getNetworkRoute(),
                         remoteDownload.isBlockPrivateNetworks(),
                         join(remoteDownload.getAllowedPorts()),
                         remoteDownload.getResponseTimeoutSeconds(),
@@ -125,6 +127,7 @@ public class GeneralSettingsService {
         boolean remoteEnabled = parameters.containsKey("remoteEnabled");
         boolean remoteDirectEnabled = parameters.containsKey("remoteDirectEnabled");
         boolean remoteExtractorEnabled = parameters.containsKey("remoteExtractorEnabled");
+        NetworkRoute remoteNetworkRoute = NetworkRoute.fromSetting(first(parameters, "remoteNetworkRoute"));
         boolean remoteBlockPrivateNetworks = parameters.containsKey("remoteBlockPrivateNetworks");
         List<Integer> allowedPorts = allowedPorts(first(parameters, "remoteAllowedPorts"));
         int responseTimeoutSeconds = intRange(first(parameters, "remoteResponseTimeoutSeconds"), 1, 3600, "Remote response timeout");
@@ -151,6 +154,7 @@ public class GeneralSettingsService {
                         remoteEnabled,
                         remoteDirectEnabled,
                         remoteExtractorEnabled,
+                        remoteNetworkRoute,
                         remoteBlockPrivateNetworks,
                         join(allowedPorts),
                         responseTimeoutSeconds,
@@ -204,6 +208,7 @@ public class GeneralSettingsService {
         updates.put("nas.remote-download.enabled", Boolean.toString(remoteDownload.enabled()));
         updates.put("nas.remote-download.direct-enabled", Boolean.toString(remoteDownload.directEnabled()));
         updates.put("nas.remote-download.extractor-enabled", Boolean.toString(remoteDownload.extractorEnabled()));
+        updates.put("nas.remote-download.network-route", remoteDownload.networkRoute().settingValue());
         updates.put("nas.remote-download.block-private-networks", Boolean.toString(remoteDownload.blockPrivateNetworks()));
         updates.put("nas.remote-download.allowed-ports", remoteDownload.allowedPorts());
         updates.put("nas.remote-download.response-timeout-seconds", Integer.toString(remoteDownload.responseTimeoutSeconds()));
@@ -247,6 +252,7 @@ public class GeneralSettingsService {
         remoteDownload.setEnabled(update.remoteDownload().enabled());
         remoteDownload.setDirectEnabled(update.remoteDownload().directEnabled());
         remoteDownload.setExtractorEnabled(update.remoteDownload().extractorEnabled());
+        remoteDownload.setNetworkRoute(update.remoteDownload().networkRoute());
         remoteDownload.setBlockPrivateNetworks(update.remoteDownload().blockPrivateNetworks());
         remoteDownload.setAllowedPorts(update.allowedPorts());
         remoteDownload.setResponseTimeoutSeconds(update.remoteDownload().responseTimeoutSeconds());
@@ -359,6 +365,7 @@ public class GeneralSettingsService {
             boolean enabled,
             boolean directEnabled,
             boolean extractorEnabled,
+            NetworkRoute networkRoute,
             boolean blockPrivateNetworks,
             String allowedPorts,
             int responseTimeoutSeconds,

@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.remote;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
@@ -8,6 +9,8 @@ import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.auth.ClientIpResolver;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.outbound.OutboundHttpClientRegistry;
+import io.github.fourilla.endervault.outbound.NetworkRoute;
+import io.github.fourilla.endervault.outbound.OutboundRouteUnavailableException;
 import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthService;
 import io.github.fourilla.endervault.outbound.vpn.VpnTunnelHealthProbe;
 import io.github.fourilla.endervault.storage.StorageService;
@@ -31,11 +34,12 @@ class RemoteDownloadServiceTest {
     Path root;
 
     private HttpServer server;
+    private NasProperties properties;
     private RemoteDownloadService remoteDownloadService;
 
     @BeforeEach
     void setUp() throws Exception {
-        NasProperties properties = new NasProperties();
+        properties = new NasProperties();
         properties.getStorage().setRoot(root);
         properties.getRemoteDownload().setEnabled(true);
         properties.getRemoteDownload().setBlockPrivateNetworks(false);
@@ -83,6 +87,7 @@ class RemoteDownloadServiceTest {
         waitUntilFinished(task);
 
         assertThat(task.status()).isEqualTo(RemoteDownloadStatus.COMPLETE);
+        assertThat(task.networkRoute()).isEqualTo(NetworkRoute.DIRECT);
         assertThat(task.targetPath()).isEqualTo("incoming/downloaded.mp4");
         assertThat(root.resolve("incoming").resolve("downloaded.mp4")).hasBinaryContent(body);
     }
@@ -124,6 +129,20 @@ class RemoteDownloadServiceTest {
 
         remoteDownloadService.deleteTask(task.id());
 
+        assertThat(remoteDownloadService.listTasks()).isEmpty();
+    }
+
+    @Test
+    void rejectsVpnRequiredDownloadWhenVpnRouteIsUnavailable() {
+        properties.getRemoteDownload().setNetworkRoute(NetworkRoute.VPN_REQUIRED);
+
+        assertThatThrownBy(() -> remoteDownloadService.start(
+                "https://example.com/file.bin",
+                "",
+                new MockHttpServletRequest()
+        ))
+                .isInstanceOf(OutboundRouteUnavailableException.class)
+                .hasMessageContaining("VPN required");
         assertThat(remoteDownloadService.listTasks()).isEmpty();
     }
 

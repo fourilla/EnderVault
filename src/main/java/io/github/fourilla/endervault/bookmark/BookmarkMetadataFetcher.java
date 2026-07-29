@@ -31,6 +31,11 @@ public class BookmarkMetadataFetcher {
     }
 
     public BookmarkMetadataFetchResult fetch(String rawUrl) throws IOException, InterruptedException {
+        return fetch(rawUrl, nasProperties.getBookmarks().getMetadataNetworkRoute());
+    }
+
+    public BookmarkMetadataFetchResult fetch(String rawUrl, NetworkRoute networkRoute)
+            throws IOException, InterruptedException {
         NasProperties.Bookmarks bookmarks = nasProperties.getBookmarks();
         if (!bookmarks.isMetadataFetchEnabled()) {
             throw new StorageAccessException("Bookmark metadata fetch is disabled.");
@@ -40,24 +45,22 @@ public class BookmarkMetadataFetcher {
         }
 
         URI pageUri = validate(rawUrl);
-        HtmlResponse htmlResponse = fetchHtml(pageUri);
+        HttpClient httpClient = httpClientRegistry.client(
+                networkRoute,
+                Duration.ofSeconds(bookmarks.getConnectTimeoutSeconds())
+        );
+        HtmlResponse htmlResponse = fetchHtml(pageUri, httpClient);
         String title = parser.extractTitle(htmlResponse.html());
         if (title.isBlank()) {
-            title = fetchManifestTitle(htmlResponse.finalUri(), htmlResponse.html()).orElse("");
+            title = fetchManifestTitle(htmlResponse.finalUri(), htmlResponse.html(), httpClient).orElse("");
         }
-        BookmarkMetadataFetchResult.Favicon favicon = fetchFirstFavicon(htmlResponse.finalUri(), htmlResponse.html())
+        BookmarkMetadataFetchResult.Favicon favicon =
+                fetchFirstFavicon(htmlResponse.finalUri(), htmlResponse.html(), httpClient)
                 .orElse(null);
         return new BookmarkMetadataFetchResult(title, favicon);
     }
 
-    private HttpClient httpClient() {
-        return httpClientRegistry.client(
-                NetworkRoute.DIRECT,
-                Duration.ofSeconds(nasProperties.getBookmarks().getConnectTimeoutSeconds())
-        );
-    }
-
-    private HtmlResponse fetchHtml(URI uri) throws IOException, InterruptedException {
+    private HtmlResponse fetchHtml(URI uri, HttpClient httpClient) throws IOException, InterruptedException {
         URI current = validate(uri);
         int maxRedirects = nasProperties.getBookmarks().getMaxRedirects();
         for (int redirectCount = 0; redirectCount <= maxRedirects; redirectCount++) {
@@ -67,7 +70,7 @@ public class BookmarkMetadataFetcher {
                     .header("Accept", "text/html,application/xhtml+xml")
                     .GET()
                     .build();
-            HttpResponse<InputStream> response = httpClient().send(request, HttpResponse.BodyHandlers.ofInputStream());
+            HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
             int status = response.statusCode();
             if (isRedirect(status)) {
                 closeQuietly(response.body());
@@ -99,10 +102,14 @@ public class BookmarkMetadataFetcher {
         throw new StorageAccessException("Bookmark metadata fetch exceeded the redirect limit.");
     }
 
-    private Optional<BookmarkMetadataFetchResult.Favicon> fetchFirstFavicon(URI pageUri, String html) {
+    private Optional<BookmarkMetadataFetchResult.Favicon> fetchFirstFavicon(
+            URI pageUri,
+            String html,
+            HttpClient httpClient
+    ) {
         for (URI candidate : parser.faviconCandidates(pageUri, html)) {
             try {
-                Optional<BookmarkMetadataFetchResult.Favicon> favicon = fetchFavicon(candidate);
+                Optional<BookmarkMetadataFetchResult.Favicon> favicon = fetchFavicon(candidate, httpClient);
                 if (favicon.isPresent()) {
                     return favicon;
                 }
@@ -117,10 +124,10 @@ public class BookmarkMetadataFetcher {
         return Optional.empty();
     }
 
-    private Optional<String> fetchManifestTitle(URI pageUri, String html) {
+    private Optional<String> fetchManifestTitle(URI pageUri, String html, HttpClient httpClient) {
         for (URI candidate : parser.manifestCandidates(pageUri, html)) {
             try {
-                Optional<String> title = fetchManifestTitle(candidate);
+                Optional<String> title = fetchManifestTitle(candidate, httpClient);
                 if (title.isPresent()) {
                     return title;
                 }
@@ -135,7 +142,8 @@ public class BookmarkMetadataFetcher {
         return Optional.empty();
     }
 
-    private Optional<String> fetchManifestTitle(URI uri) throws IOException, InterruptedException {
+    private Optional<String> fetchManifestTitle(URI uri, HttpClient httpClient)
+            throws IOException, InterruptedException {
         URI current = validate(uri);
         int maxRedirects = nasProperties.getBookmarks().getMaxRedirects();
         for (int redirectCount = 0; redirectCount <= maxRedirects; redirectCount++) {
@@ -145,7 +153,7 @@ public class BookmarkMetadataFetcher {
                     .header("Accept", "application/manifest+json,application/json,text/json,*/*;q=0.2")
                     .GET()
                     .build();
-            HttpResponse<InputStream> response = httpClient().send(request, HttpResponse.BodyHandlers.ofInputStream());
+            HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
             int status = response.statusCode();
             if (isRedirect(status)) {
                 closeQuietly(response.body());
@@ -177,7 +185,8 @@ public class BookmarkMetadataFetcher {
         return Optional.empty();
     }
 
-    private Optional<BookmarkMetadataFetchResult.Favicon> fetchFavicon(URI uri) throws IOException, InterruptedException {
+    private Optional<BookmarkMetadataFetchResult.Favicon> fetchFavicon(URI uri, HttpClient httpClient)
+            throws IOException, InterruptedException {
         URI current = validate(uri);
         int maxRedirects = nasProperties.getBookmarks().getMaxRedirects();
         for (int redirectCount = 0; redirectCount <= maxRedirects; redirectCount++) {
@@ -187,7 +196,7 @@ public class BookmarkMetadataFetcher {
                     .header("Accept", "image/avif,image/webp,image/png,image/jpeg,image/gif,image/x-icon,*/*;q=0.2")
                     .GET()
                     .build();
-            HttpResponse<InputStream> response = httpClient().send(request, HttpResponse.BodyHandlers.ofInputStream());
+            HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
             int status = response.statusCode();
             if (isRedirect(status)) {
                 closeQuietly(response.body());
