@@ -30,10 +30,6 @@ public class BookmarkMetadataFetcher {
         this.httpClientRegistry = httpClientRegistry;
     }
 
-    public BookmarkMetadataFetchResult fetch(String rawUrl) throws IOException, InterruptedException {
-        return fetch(rawUrl, nasProperties.getBookmarks().getMetadataNetworkRoute());
-    }
-
     public BookmarkMetadataFetchResult fetch(String rawUrl, NetworkRoute networkRoute)
             throws IOException, InterruptedException {
         NasProperties.Bookmarks bookmarks = nasProperties.getBookmarks();

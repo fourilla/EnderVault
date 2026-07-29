@@ -81,20 +81,6 @@
                                th:checked="${settings.metadata().blockPrivateNetworks()}">
                     </label>
                     <label>
-                        <span>Network route</span>
-                        <select name="metadataNetworkRoute">
-                            <option value="direct"
-                                    th:selected="${settings.metadata().metadataNetworkRoute().settingValue() == 'direct'}">
-                                Direct connection
-                            </option>
-                            <option value="vpn-required"
-                                    th:selected="${settings.metadata().metadataNetworkRoute().settingValue() == 'vpn-required'}">
-                                VPN required (fail closed)
-                            </option>
-                        </select>
-                        <small>One metadata fetch keeps the selected route for its page, manifest, and favicon requests.</small>
-                    </label>
-                    <label>
                         <span>Allowed ports</span>
                         <input name="allowedPorts" th:value="${settings.metadata().allowedPorts()}" placeholder="80,443">
                     </label>

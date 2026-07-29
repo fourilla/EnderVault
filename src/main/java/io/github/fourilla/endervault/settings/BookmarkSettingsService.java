@@ -2,7 +2,6 @@ package io.github.fourilla.endervault.settings;
 
 import io.github.fourilla.endervault.config.LocalPropertiesFile;
 import io.github.fourilla.endervault.config.NasProperties;
-import io.github.fourilla.endervault.outbound.NetworkRoute;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -30,7 +29,6 @@ public class BookmarkSettingsService {
                 new BehaviorSettings(bookmarks.getLinkClickAction()),
                 new MetadataSettings(
                         bookmarks.isMetadataFetchEnabled(),
-                        bookmarks.getMetadataNetworkRoute(),
                         bookmarks.isBlockPrivateNetworks(),
                         join(bookmarks.getAllowedPorts()),
                         bookmarks.getConnectTimeoutSeconds(),
@@ -47,7 +45,6 @@ public class BookmarkSettingsService {
     public BookmarkSettingsUpdate updateFrom(MultiValueMap<String, String> parameters) {
         String linkClickAction = oneOf(clean(first(parameters, "linkClickAction")), LINK_CLICK_ACTIONS, "Link click action");
         boolean metadataFetchEnabled = parameters.containsKey("metadataFetchEnabled");
-        NetworkRoute metadataNetworkRoute = NetworkRoute.fromSetting(first(parameters, "metadataNetworkRoute"));
         boolean blockPrivateNetworks = parameters.containsKey("blockPrivateNetworks");
         List<Integer> allowedPorts = allowedPorts(first(parameters, "allowedPorts"));
         int connectTimeoutSeconds = intRange(first(parameters, "connectTimeoutSeconds"), 1, 3600, "Connect timeout");
@@ -61,7 +58,6 @@ public class BookmarkSettingsService {
                 new BehaviorSettings(linkClickAction),
                 new MetadataSettings(
                         metadataFetchEnabled,
-                        metadataNetworkRoute,
                         blockPrivateNetworks,
                         join(allowedPorts),
                         connectTimeoutSeconds,
@@ -87,7 +83,6 @@ public class BookmarkSettingsService {
 
         MetadataSettings metadata = update.metadata();
         updates.put("nas.bookmarks.metadata-fetch-enabled", Boolean.toString(metadata.metadataFetchEnabled()));
-        updates.put("nas.bookmarks.metadata-network-route", metadata.metadataNetworkRoute().settingValue());
         updates.put("nas.bookmarks.block-private-networks", Boolean.toString(metadata.blockPrivateNetworks()));
         updates.put("nas.bookmarks.allowed-ports", metadata.allowedPorts());
         updates.put("nas.bookmarks.connect-timeout-seconds", Integer.toString(metadata.connectTimeoutSeconds()));
@@ -106,7 +101,6 @@ public class BookmarkSettingsService {
         NasProperties.Bookmarks bookmarks = nasProperties.getBookmarks();
         bookmarks.setLinkClickAction(update.behavior().linkClickAction());
         bookmarks.setMetadataFetchEnabled(update.metadata().metadataFetchEnabled());
-        bookmarks.setMetadataNetworkRoute(update.metadata().metadataNetworkRoute());
         bookmarks.setBlockPrivateNetworks(update.metadata().blockPrivateNetworks());
         bookmarks.setAllowedPorts(update.allowedPorts());
         bookmarks.setConnectTimeoutSeconds(update.metadata().connectTimeoutSeconds());
@@ -201,7 +195,6 @@ public class BookmarkSettingsService {
 
     public record MetadataSettings(
             boolean metadataFetchEnabled,
-            NetworkRoute metadataNetworkRoute,
             boolean blockPrivateNetworks,
             String allowedPorts,
             int connectTimeoutSeconds,

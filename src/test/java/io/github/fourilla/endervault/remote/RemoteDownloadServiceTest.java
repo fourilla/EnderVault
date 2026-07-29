@@ -11,6 +11,7 @@ import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.outbound.OutboundHttpClientRegistry;
 import io.github.fourilla.endervault.outbound.NetworkRoute;
 import io.github.fourilla.endervault.outbound.OutboundRouteUnavailableException;
+import io.github.fourilla.endervault.outbound.OutboundRouteStateService;
 import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthService;
 import io.github.fourilla.endervault.outbound.vpn.VpnTunnelHealthProbe;
 import io.github.fourilla.endervault.storage.StorageService;
@@ -36,6 +37,7 @@ class RemoteDownloadServiceTest {
     private HttpServer server;
     private NasProperties properties;
     private RemoteDownloadService remoteDownloadService;
+    private OutboundRouteStateService outboundRouteStateService;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -45,6 +47,7 @@ class RemoteDownloadServiceTest {
         properties.getRemoteDownload().setBlockPrivateNetworks(false);
         properties.getRemoteDownload().setAllowedPorts(List.of());
         properties.getRemoteDownload().setWorkerThreads(1);
+        outboundRouteStateService = new OutboundRouteStateService(properties);
 
         StorageService storageService = new StorageService(properties);
         storageService.initialize();
@@ -59,7 +62,8 @@ class RemoteDownloadServiceTest {
                 validator,
                 new OutboundHttpClientRegistry(
                         new VpnProxyHealthService(properties, new VpnTunnelHealthProbe())
-                )
+                ),
+                outboundRouteStateService
         );
     }
 
@@ -134,7 +138,7 @@ class RemoteDownloadServiceTest {
 
     @Test
     void rejectsVpnRequiredDownloadWhenVpnRouteIsUnavailable() {
-        properties.getRemoteDownload().setNetworkRoute(NetworkRoute.VPN_REQUIRED);
+        outboundRouteStateService.changeRoute(NetworkRoute.VPN_REQUIRED);
 
         assertThatThrownBy(() -> remoteDownloadService.start(
                 "https://example.com/file.bin",

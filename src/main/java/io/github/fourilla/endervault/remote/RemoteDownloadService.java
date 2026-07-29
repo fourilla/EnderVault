@@ -6,6 +6,7 @@ import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.outbound.NetworkRoute;
 import io.github.fourilla.endervault.outbound.OutboundHttpClientRegistry;
+import io.github.fourilla.endervault.outbound.OutboundRouteStateService;
 import io.github.fourilla.endervault.storage.FileItem;
 import io.github.fourilla.endervault.storage.StorageService;
 import jakarta.annotation.PreDestroy;
@@ -51,6 +52,7 @@ public class RemoteDownloadService {
     private final ClientIpResolver clientIpResolver;
     private final RemoteDownloadValidator validator;
     private final OutboundHttpClientRegistry httpClientRegistry;
+    private final OutboundRouteStateService outboundRouteStateService;
     private final ExecutorService executorService;
     private final Map<String, RemoteDownloadTask> tasks = new ConcurrentHashMap<>();
     private final Map<String, Future<?>> taskFutures = new ConcurrentHashMap<>();
@@ -61,7 +63,8 @@ public class RemoteDownloadService {
             ActivityLogService activityLogService,
             ClientIpResolver clientIpResolver,
             RemoteDownloadValidator validator,
-            OutboundHttpClientRegistry httpClientRegistry
+            OutboundHttpClientRegistry httpClientRegistry,
+            OutboundRouteStateService outboundRouteStateService
     ) {
         this.nasProperties = nasProperties;
         this.storageService = storageService;
@@ -69,6 +72,7 @@ public class RemoteDownloadService {
         this.clientIpResolver = clientIpResolver;
         this.validator = validator;
         this.httpClientRegistry = httpClientRegistry;
+        this.outboundRouteStateService = outboundRouteStateService;
         this.executorService = Executors.newFixedThreadPool(nasProperties.getRemoteDownload().getWorkerThreads());
     }
 
@@ -82,7 +86,7 @@ public class RemoteDownloadService {
         URI sourceUri = validator.validate(rawUrl);
         String safeTargetDirectory = targetDirectory == null ? "" : targetDirectory.trim();
         storageService.ensureVaultDirectory(safeTargetDirectory);
-        NetworkRoute networkRoute = properties.getNetworkRoute();
+        NetworkRoute networkRoute = outboundRouteStateService.currentRoute();
         httpClient(networkRoute);
 
         RemoteDownloadTask task = new RemoteDownloadTask(
@@ -121,7 +125,7 @@ public class RemoteDownloadService {
         URI sourceUri = validator.validate(rawUrl);
         String safeTargetDirectory = targetDirectory == null ? "" : targetDirectory.trim();
         storageService.ensureVaultDirectory(safeTargetDirectory);
-        HttpClient httpClient = httpClient(properties.getNetworkRoute());
+        HttpClient httpClient = httpClient(outboundRouteStateService.currentRoute());
 
         try (RemoteHttpResponse remoteResponse = openMetadataResponse(sourceUri, httpClient)) {
             String fileName = fileNameFor(remoteResponse);

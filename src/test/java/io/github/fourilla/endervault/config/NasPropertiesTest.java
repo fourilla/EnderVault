@@ -59,8 +59,6 @@ class NasPropertiesTest {
                 .withProperty("nas.activity-log.page-size-options", "25,50,100")
                 .withProperty("nas.tasks.worker-threads", "3")
                 .withProperty("nas.metadata-inspector.max-issues-per-area", "250")
-                .withProperty("nas.remote-download.network-route", "vpn-required")
-                .withProperty("nas.bookmarks.metadata-network-route", "vpn-required")
                 .withProperty("nas.outbound.initial-route", "vpn-required")
                 .withProperty("nas.outbound.vpn.enabled", "true")
                 .withProperty("nas.outbound.vpn.proxy-host", "gluetun")
@@ -84,8 +82,6 @@ class NasPropertiesTest {
         assertThat(properties.getActivityLog().getPageSizeOptions()).isEqualTo(List.of(25, 50, 100));
         assertThat(properties.getTasks().getWorkerThreads()).isEqualTo(3);
         assertThat(properties.getMetadataInspector().getMaxIssuesPerArea()).isEqualTo(250);
-        assertThat(properties.getRemoteDownload().getNetworkRoute()).isEqualTo(NetworkRoute.VPN_REQUIRED);
-        assertThat(properties.getBookmarks().getMetadataNetworkRoute()).isEqualTo(NetworkRoute.VPN_REQUIRED);
         assertThat(properties.getOutbound().getInitialRoute()).isEqualTo(NetworkRoute.VPN_REQUIRED);
         assertThat(properties.getOutbound().getVpn().isEnabled()).isTrue();
         assertThat(properties.getOutbound().getVpn().getProxyHost()).isEqualTo("gluetun");

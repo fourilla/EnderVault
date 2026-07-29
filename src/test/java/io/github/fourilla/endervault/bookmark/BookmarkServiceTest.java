@@ -10,6 +10,7 @@ import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.outbound.NetworkRoute;
 import io.github.fourilla.endervault.outbound.OutboundHttpClientRegistry;
+import io.github.fourilla.endervault.outbound.OutboundRouteStateService;
 import io.github.fourilla.endervault.outbound.OutboundRouteUnavailableException;
 import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthService;
 import io.github.fourilla.endervault.outbound.vpn.VpnTunnelHealthProbe;
@@ -29,11 +30,13 @@ class BookmarkServiceTest {
 
     private NasProperties properties;
     private BookmarkService bookmarkService;
+    private OutboundRouteStateService outboundRouteStateService;
 
     @BeforeEach
     void setUp() throws Exception {
         properties = new NasProperties();
         properties.getStorage().setRoot(root);
+        outboundRouteStateService = new OutboundRouteStateService(properties);
         ObjectMapper objectMapper = JsonMapper.builder().findAndAddModules().build();
         bookmarkService = new BookmarkService(
                 objectMapper,
@@ -43,7 +46,8 @@ class BookmarkServiceTest {
                         new OutboundHttpClientRegistry(
                                 new VpnProxyHealthService(properties, new VpnTunnelHealthProbe())
                         )
-                )
+                ),
+                outboundRouteStateService
         );
         bookmarkService.initialize();
     }
@@ -163,7 +167,7 @@ class BookmarkServiceTest {
     @Test
     void doesNotCreateMetadataEnabledBookmarkWhenRequiredVpnRouteIsUnavailable() throws Exception {
         properties.getBookmarks().setMetadataFetchEnabled(true);
-        properties.getBookmarks().setMetadataNetworkRoute(NetworkRoute.VPN_REQUIRED);
+        outboundRouteStateService.changeRoute(NetworkRoute.VPN_REQUIRED);
 
         assertThatThrownBy(() -> bookmarkService.createLink(null, "", "https://example.com/docs", ""))
                 .isInstanceOf(OutboundRouteUnavailableException.class)

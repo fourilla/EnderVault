@@ -8,6 +8,7 @@ import io.github.fourilla.endervault.bookmark.BookmarkService;
 import io.github.fourilla.endervault.bookmark.BookmarkService.BulkLinkInput;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.outbound.NetworkRoute;
+import io.github.fourilla.endervault.outbound.OutboundRouteStateService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.security.Principal;
@@ -23,17 +24,20 @@ public class BookmarkBulkTaskService {
     private final BookmarkService bookmarkService;
     private final ActivityLogService activityLogService;
     private final ClientIpResolver clientIpResolver;
+    private final OutboundRouteStateService outboundRouteStateService;
 
     public BookmarkBulkTaskService(
             TaskManagerService taskManagerService,
             BookmarkService bookmarkService,
             ActivityLogService activityLogService,
-            ClientIpResolver clientIpResolver
+            ClientIpResolver clientIpResolver,
+            OutboundRouteStateService outboundRouteStateService
     ) {
         this.taskManagerService = taskManagerService;
         this.bookmarkService = bookmarkService;
         this.activityLogService = activityLogService;
         this.clientIpResolver = clientIpResolver;
+        this.outboundRouteStateService = outboundRouteStateService;
     }
 
     public AppTask queueCreateLinks(
@@ -43,7 +47,7 @@ public class BookmarkBulkTaskService {
     ) throws IOException {
         List<BulkLinkInput> inputs = bookmarkService.parseBulkLinkInputs(bulkText);
         String normalizedParentId = bookmarkService.normalizeExistingParentId(parentId);
-        NetworkRoute networkRoute = bookmarkService.metadataNetworkRoute();
+        NetworkRoute networkRoute = outboundRouteStateService.currentRoute();
         RequestSnapshot requestSnapshot = RequestSnapshot.from(request, clientIpResolver);
         String target = normalizedParentId == null ? "Bookmarks" : "Bookmark directory " + normalizedParentId;
         return taskManagerService.submit(
