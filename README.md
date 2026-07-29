@@ -80,6 +80,49 @@ PW : change-me
 실제 사용 전 반드시 웹 UI의 설정 페이지에서 관리자 비밀번호를 변경하세요.
 웹 UI에서 변경한 비밀번호는 평문이 아니라 해시 형태로 `endervault-nas.properties`에 저장됩니다.
 
+## Docker Compose
+
+Docker Compose는 Java나 Maven을 호스트에 직접 설치하지 않고 EnderVault를 빌드하고 실행하는 선택 배포 방식입니다.
+
+먼저 Docker 환경 설정을 준비하고 마운트할 디렉터리를 만듭니다.
+
+Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+New-Item -ItemType Directory -Force deploy/runtime/state, deploy/runtime/storage
+```
+
+Linux/macOS:
+
+```bash
+cp .env.example .env
+mkdir -p deploy/runtime/state deploy/runtime/storage
+```
+
+Linux에서는 `.env`의 `ENDERVAULT_UID`, `ENDERVAULT_GID`를 `id -u`, `id -g` 결과와 맞추고, 두 마운트 경로에 해당 계정의 읽기/쓰기 권한이 있는지 확인하세요.
+
+최초 설정 파일을 생성합니다.
+
+```bash
+docker compose run --rm --build endervault
+```
+
+`deploy/runtime/state/endervault-nas.properties`에서 최소한 다음 값을 수정합니다. 컨테이너에서 NAS 저장소는 `/storage`에 마운트됩니다.
+
+```properties
+nas.setup.accepted=true
+nas.storage.root=/storage
+```
+
+설정을 검토한 뒤 서비스를 실행합니다.
+
+```bash
+docker compose up -d
+```
+
+기본값은 호스트의 `127.0.0.1:8080`에만 공개됩니다. LAN에 직접 공개하거나 reverse proxy를 사용할 때는 `.env`의 `ENDERVAULT_BIND_ADDRESS`를 운영 환경에 맞게 변경하세요.
+
 ## Configuration
 
 주요 설정은 실행 위치의 `endervault-nas.properties`에서 관리합니다.
