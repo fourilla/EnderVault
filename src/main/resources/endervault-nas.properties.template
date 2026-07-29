@@ -172,6 +172,9 @@ nas.remote-download.history-limit=100
 # ---------------------------------------------------------------------------
 # Outbound VPN proxy
 # ---------------------------------------------------------------------------
+# Initial route for route-selectable outbound work. Runtime Topbar changes are
+# held in memory and reset to this value after an application restart.
+nas.outbound.initial-route=direct
 # This optional endpoint will be used by route-selectable outbound features.
 # Leave tunnel-health-url empty for TCP-only proxy health. A Gluetun Compose
 # deployment can use http://vpn:9999/ to require Gluetun tunnel health.

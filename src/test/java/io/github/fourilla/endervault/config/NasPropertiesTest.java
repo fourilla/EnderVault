@@ -61,6 +61,7 @@ class NasPropertiesTest {
                 .withProperty("nas.metadata-inspector.max-issues-per-area", "250")
                 .withProperty("nas.remote-download.network-route", "vpn-required")
                 .withProperty("nas.bookmarks.metadata-network-route", "vpn-required")
+                .withProperty("nas.outbound.initial-route", "vpn-required")
                 .withProperty("nas.outbound.vpn.enabled", "true")
                 .withProperty("nas.outbound.vpn.proxy-host", "gluetun")
                 .withProperty("nas.outbound.vpn.proxy-port", "8889")
@@ -85,6 +86,7 @@ class NasPropertiesTest {
         assertThat(properties.getMetadataInspector().getMaxIssuesPerArea()).isEqualTo(250);
         assertThat(properties.getRemoteDownload().getNetworkRoute()).isEqualTo(NetworkRoute.VPN_REQUIRED);
         assertThat(properties.getBookmarks().getMetadataNetworkRoute()).isEqualTo(NetworkRoute.VPN_REQUIRED);
+        assertThat(properties.getOutbound().getInitialRoute()).isEqualTo(NetworkRoute.VPN_REQUIRED);
         assertThat(properties.getOutbound().getVpn().isEnabled()).isTrue();
         assertThat(properties.getOutbound().getVpn().getProxyHost()).isEqualTo("gluetun");
         assertThat(properties.getOutbound().getVpn().getProxyPort()).isEqualTo(8889);

@@ -345,8 +345,19 @@ public class NasProperties {
     }
 
     public static class Outbound {
+        @NotNull
+        private NetworkRoute initialRoute = NetworkRoute.DIRECT;
+
         @Valid
         private Vpn vpn = new Vpn();
+
+        public NetworkRoute getInitialRoute() {
+            return initialRoute;
+        }
+
+        public void setInitialRoute(NetworkRoute initialRoute) {
+            this.initialRoute = initialRoute == null ? NetworkRoute.DIRECT : initialRoute;
+        }
 
         public Vpn getVpn() {
             return vpn;
