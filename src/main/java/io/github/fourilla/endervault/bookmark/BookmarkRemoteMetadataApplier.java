@@ -15,20 +15,20 @@ final class BookmarkRemoteMetadataApplier {
     private final BookmarkMetadataFetcher metadataFetcher;
     private final BookmarkFaviconCacheService faviconCacheService;
     private final BooleanSupplier metadataFetchEnabled;
-    private final Supplier<NetworkRoute> metadataNetworkRoute;
+    private final Supplier<NetworkRoute> networkRouteSupplier;
 
     BookmarkRemoteMetadataApplier(
             BookmarkInputNormalizer inputNormalizer,
             BookmarkMetadataFetcher metadataFetcher,
             BookmarkFaviconCacheService faviconCacheService,
             BooleanSupplier metadataFetchEnabled,
-            Supplier<NetworkRoute> metadataNetworkRoute
+            Supplier<NetworkRoute> networkRouteSupplier
     ) {
         this.inputNormalizer = inputNormalizer;
         this.metadataFetcher = metadataFetcher;
         this.faviconCacheService = faviconCacheService;
         this.metadataFetchEnabled = metadataFetchEnabled;
-        this.metadataNetworkRoute = metadataNetworkRoute;
+        this.networkRouteSupplier = networkRouteSupplier;
     }
 
     BookmarkItem tryApply(BookmarkItem bookmark) {
@@ -36,7 +36,7 @@ final class BookmarkRemoteMetadataApplier {
     }
 
     BookmarkItem tryApply(BookmarkItem bookmark, BooleanSupplier cancellationRequested) {
-        return tryApply(bookmark, cancellationRequested, metadataNetworkRoute.get());
+        return tryApply(bookmark, cancellationRequested, networkRouteSupplier.get());
     }
 
     BookmarkItem tryApply(
@@ -67,11 +67,11 @@ final class BookmarkRemoteMetadataApplier {
     }
 
     BookmarkItem refresh(BookmarkItem bookmark) throws IOException {
-        return refresh(bookmark, () -> false, metadataNetworkRoute.get());
+        return refresh(bookmark, () -> false, networkRouteSupplier.get());
     }
 
     BookmarkItem refresh(BookmarkItem bookmark, BooleanSupplier cancellationRequested) throws IOException {
-        return refresh(bookmark, cancellationRequested, metadataNetworkRoute.get());
+        return refresh(bookmark, cancellationRequested, networkRouteSupplier.get());
     }
 
     BookmarkItem refresh(

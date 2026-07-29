@@ -66,6 +66,7 @@ class AdminNotificationFlowTest {
         mockMvc.perform(get("/files"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"toastRegion\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-outbound-route-form")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/page-jump.js")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Open read-only mode")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Recent")))
@@ -76,6 +77,15 @@ class AdminNotificationFlowTest {
                         org.hamcrest.Matchers.containsString("Shared links"))))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("Remote download"))));
+    }
+
+    @Test
+    void remoteDownloadPageRendersRouteSelectionAndTaskRouteColumn() throws Exception {
+        mockMvc.perform(get("/admin/utils/remote-download"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("name=\"networkRoute\"")))
+                .andExpect(content().string(Matchers.containsString("Use global (Direct)")))
+                .andExpect(content().string(Matchers.containsString("<th>Route</th>")));
     }
 
     @Test
@@ -299,7 +309,8 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Disabled in settings")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Page archiving")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Storage remaining")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("VPN egress route")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Outbound route")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("VPN tunnel")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("Register and remove trusted devices"))))
                 .andExpect(content().string(org.hamcrest.Matchers.not(

@@ -80,9 +80,20 @@
                 </li>
                 <li>
                     <span>Remote downloads</span>
-                    <strong th:text="|${dashboard.remoteDownloads().running()} running / ${dashboard.remoteDownloads().total()} tracked|">
-                        0 running / 0 tracked
-                    </strong>
+                    <div class="dashboard-remote-summary">
+                        <strong th:text="|${dashboard.remoteDownloads().running()} running / ${dashboard.remoteDownloads().total()} tracked|">
+                            0 running / 0 tracked
+                        </strong>
+                        <div class="dashboard-route-tags" th:if="${not #lists.isEmpty(dashboard.remoteDownloads().recentTasks())}">
+                            <span class="status-badge"
+                                  th:each="task : ${dashboard.remoteDownloads().recentTasks()}"
+                                  th:classappend="${task.networkRoute().name() == 'VPN_REQUIRED'} ? ' active' : ' info'"
+                                  th:title="${task.sourceUrl()}"
+                                  th:text="|${task.shortId()} · ${task.networkRouteLabel()}|">
+                                task · Direct connection
+                            </span>
+                        </div>
+                    </div>
                 </li>
                 <li>
                     <span>Upload tasks</span>
@@ -127,7 +138,15 @@
                     </strong>
                 </li>
                 <li>
-                    <span>VPN egress route</span>
+                    <span>Outbound route</span>
+                    <strong>
+                        <span class="status-badge"
+                              th:classappend="${outboundRoute.badgeClass()}"
+                              th:text="${outboundRoute.label()}">Direct</span>
+                    </strong>
+                </li>
+                <li>
+                    <span>VPN tunnel</span>
                     <strong>
                         <span class="status-badge"
                               th:classappend="${dashboard.vpn().statusClass()}"

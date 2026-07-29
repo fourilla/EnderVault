@@ -107,6 +107,27 @@
     overflow-wrap: anywhere;
 }
 
+.dashboard-remote-summary {
+    display: grid;
+    justify-items: end;
+    gap: var(--space-sm);
+    min-width: 0;
+}
+
+.dashboard-route-tags {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--space-xs);
+}
+
+.dashboard-route-tags .status-badge {
+    max-width: 190px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .dashboard-action-grid {
     display: grid;
     grid-template-columns: 1fr;

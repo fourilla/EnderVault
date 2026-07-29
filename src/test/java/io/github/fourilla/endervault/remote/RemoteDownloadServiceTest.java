@@ -121,6 +121,26 @@ class RemoteDownloadServiceTest {
         assertThat(probe.targetPath()).isEqualTo("incoming/preview.mp4");
         assertThat(probe.contentType()).isEqualTo("video/mp4");
         assertThat(probe.contentLength()).isEqualTo(body.length);
+        assertThat(probe.networkRoute()).isEqualTo(NetworkRoute.DIRECT);
+    }
+
+    @Test
+    void explicitDirectRouteOverridesCurrentGlobalVpnSelection() throws Exception {
+        byte[] body = "direct override".getBytes(StandardCharsets.UTF_8);
+        startServer("/files/direct.txt", body, null);
+        outboundRouteStateService.changeRoute(NetworkRoute.VPN_REQUIRED);
+
+        RemoteDownloadTask task = remoteDownloadService.start(
+                serverUrl("/files/direct.txt"),
+                "",
+                NetworkRoute.DIRECT,
+                new MockHttpServletRequest()
+        );
+        waitUntilFinished(task);
+
+        assertThat(task.status()).isEqualTo(RemoteDownloadStatus.COMPLETE);
+        assertThat(task.networkRoute()).isEqualTo(NetworkRoute.DIRECT);
+        assertThat(root.resolve("direct.txt")).hasBinaryContent(body);
     }
 
     @Test

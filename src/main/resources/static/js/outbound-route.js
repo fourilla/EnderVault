@@ -20,6 +20,9 @@ document.addEventListener("DOMContentLoaded", () => {
         button.setAttribute("aria-label", route.title);
         button.classList.remove("route-direct", "route-vpn-ready", "route-vpn-unavailable");
         button.classList.add(`route-${route.statusClass}`);
+        document.querySelectorAll("[data-outbound-global-route-option]").forEach((option) => {
+            option.textContent = `Use global (${route.label})`;
+        });
     };
 
     form.addEventListener("submit", async (event) => {

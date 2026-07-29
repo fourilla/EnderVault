@@ -36,4 +36,11 @@ public record OutboundRouteView(
                 vpnReady
         );
     }
+
+    public String badgeClass() {
+        if (!vpnSelected) {
+            return "info";
+        }
+        return vpnReady ? "active" : "error";
+    }
 }

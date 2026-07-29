@@ -12,7 +12,9 @@ public record RemoteDownloadProbePayload(
         long contentLength,
         String contentLengthLabel,
         String contentTypeLabel,
-        String warningLabel
+        String warningLabel,
+        String networkRoute,
+        String networkRouteLabel
 ) {
 
     public static RemoteDownloadProbePayload from(RemoteDownloadProbe probe) {
@@ -26,7 +28,9 @@ public record RemoteDownloadProbePayload(
                 probe.contentLength(),
                 probe.contentLengthLabel(),
                 probe.contentTypeLabel(),
-                probe.warningLabel()
+                probe.warningLabel(),
+                probe.networkRoute().settingValue(),
+                probe.networkRouteLabel()
         );
     }
 }

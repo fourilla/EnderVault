@@ -3,6 +3,8 @@ package io.github.fourilla.endervault.web.remote;
 import io.github.fourilla.endervault.remote.RemoteDownloadProbe;
 import io.github.fourilla.endervault.remote.RemoteDownloadService;
 import io.github.fourilla.endervault.remote.RemoteDownloadTask;
+import io.github.fourilla.endervault.outbound.NetworkRoute;
+import io.github.fourilla.endervault.outbound.OutboundRouteStateService;
 import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.FlashNotification;
 import jakarta.servlet.http.HttpServletRequest;
@@ -22,9 +24,14 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 public class AdminRemoteDownloadController {
 
     private final RemoteDownloadService remoteDownloadService;
+    private final OutboundRouteStateService outboundRouteStateService;
 
-    public AdminRemoteDownloadController(RemoteDownloadService remoteDownloadService) {
+    public AdminRemoteDownloadController(
+            RemoteDownloadService remoteDownloadService,
+            OutboundRouteStateService outboundRouteStateService
+    ) {
         this.remoteDownloadService = remoteDownloadService;
+        this.outboundRouteStateService = outboundRouteStateService;
     }
 
     private static final String REMOTE_DOWNLOAD_PATH = "/admin/utils/remote-download";
@@ -39,10 +46,11 @@ public class AdminRemoteDownloadController {
     public Object inspect(
             @RequestParam("url") String url,
             @RequestParam(value = "path", required = false) String path,
+            @RequestParam(value = "networkRoute", defaultValue = "global") String networkRoute,
             HttpServletRequest request,
             Model model
     ) throws IOException {
-        RemoteDownloadProbe probe = remoteDownloadService.inspect(url, path);
+        RemoteDownloadProbe probe = remoteDownloadService.inspect(url, path, resolveRoute(networkRoute));
         if (ActionResponseSupport.wantsJson(request)) {
             return ResponseEntity.ok(RemoteDownloadInspectResponse.ok(RemoteDownloadProbePayload.from(probe)));
         }
@@ -57,10 +65,11 @@ public class AdminRemoteDownloadController {
     public Object start(
             @RequestParam("url") String url,
             @RequestParam(value = "path", required = false) String path,
+            @RequestParam(value = "networkRoute", defaultValue = "global") String networkRoute,
             HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
-        RemoteDownloadTask task = remoteDownloadService.start(url, path, request);
+        RemoteDownloadTask task = remoteDownloadService.start(url, path, resolveRoute(networkRoute), request);
         FlashNotification notification = FlashNotification.success("Remote download queued (" + task.shortId() + ").");
         return ActionResponseSupport.ok(
                 request,
@@ -101,4 +110,9 @@ public class AdminRemoteDownloadController {
                 .toList();
     }
 
+    private NetworkRoute resolveRoute(String selection) {
+        return selection == null || selection.isBlank() || "global".equalsIgnoreCase(selection)
+                ? outboundRouteStateService.currentRoute()
+                : NetworkRoute.fromSetting(selection);
+    }
 }

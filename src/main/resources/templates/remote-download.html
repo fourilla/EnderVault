@@ -41,6 +41,16 @@
                 Save to
                 <input type="text" name="path" placeholder="Vault directory path, blank for root">
             </label>
+            <label>
+                Network route
+                <select name="networkRoute">
+                    <option value="global"
+                            data-outbound-global-route-option
+                            th:text="|Use global (${outboundRoute.label()})|">Use global (Direct)</option>
+                    <option value="direct">Direct for this download</option>
+                    <option value="vpn-required">VPN for this download</option>
+                </select>
+            </label>
             <button class="icon-button" type="submit" title="Inspect remote file" aria-label="Inspect remote file">
                 <i class="fas fa-cloud-arrow-down" aria-hidden="true"></i>
                 <span class="visually-hidden">Inspect remote file</span>
@@ -81,6 +91,10 @@
                     <dt>Final URL</dt>
                     <dd data-remote-probe="finalUrl">-</dd>
                 </div>
+                <div>
+                    <dt>Network route</dt>
+                    <dd data-remote-probe="networkRouteLabel">-</dd>
+                </div>
             </dl>
             <p class="remote-confirm-warning" data-remote-warning hidden></p>
             <footer class="remote-confirm-actions">
@@ -107,6 +121,7 @@
                     <th>ID</th>
                     <th>Source</th>
                     <th>Target</th>
+                    <th>Route</th>
                     <th>Status</th>
                     <th>Progress</th>
                     <th>Created</th>
@@ -120,6 +135,11 @@
                     <td th:text="${task.shortId()}">task</td>
                     <td class="remote-source" th:title="${task.sourceUrl()}" th:text="${task.sourceUrl()}">url</td>
                     <td th:text="${task.targetPath() != null ? task.targetPath() : task.targetDirectory()}">target</td>
+                    <td>
+                        <span class="status-badge"
+                              th:classappend="${task.networkRoute().name() == 'VPN_REQUIRED'} ? ' active' : ' info'"
+                              th:text="${task.networkRouteLabel()}">Direct connection</span>
+                    </td>
                     <td>
                         <span class="status-badge"
                               th:classappend="${task.statusClass()}"

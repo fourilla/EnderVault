@@ -78,6 +78,15 @@ public class RemoteDownloadService {
 
     public RemoteDownloadTask start(String rawUrl, String targetDirectory, HttpServletRequest request)
             throws IOException {
+        return start(rawUrl, targetDirectory, outboundRouteStateService.currentRoute(), request);
+    }
+
+    public RemoteDownloadTask start(
+            String rawUrl,
+            String targetDirectory,
+            NetworkRoute networkRoute,
+            HttpServletRequest request
+    ) throws IOException {
         NasProperties.RemoteDownload properties = nasProperties.getRemoteDownload();
         if (!properties.isEnabled() || !properties.isDirectEnabled()) {
             throw new StorageAccessException("Direct remote download is disabled.");
@@ -86,7 +95,6 @@ public class RemoteDownloadService {
         URI sourceUri = validator.validate(rawUrl);
         String safeTargetDirectory = targetDirectory == null ? "" : targetDirectory.trim();
         storageService.ensureVaultDirectory(safeTargetDirectory);
-        NetworkRoute networkRoute = outboundRouteStateService.currentRoute();
         httpClient(networkRoute);
 
         RemoteDownloadTask task = new RemoteDownloadTask(
@@ -117,6 +125,14 @@ public class RemoteDownloadService {
     }
 
     public RemoteDownloadProbe inspect(String rawUrl, String targetDirectory) throws IOException {
+        return inspect(rawUrl, targetDirectory, outboundRouteStateService.currentRoute());
+    }
+
+    public RemoteDownloadProbe inspect(
+            String rawUrl,
+            String targetDirectory,
+            NetworkRoute networkRoute
+    ) throws IOException {
         NasProperties.RemoteDownload properties = nasProperties.getRemoteDownload();
         if (!properties.isEnabled() || !properties.isDirectEnabled()) {
             throw new StorageAccessException("Direct remote download is disabled.");
@@ -125,7 +141,7 @@ public class RemoteDownloadService {
         URI sourceUri = validator.validate(rawUrl);
         String safeTargetDirectory = targetDirectory == null ? "" : targetDirectory.trim();
         storageService.ensureVaultDirectory(safeTargetDirectory);
-        HttpClient httpClient = httpClient(outboundRouteStateService.currentRoute());
+        HttpClient httpClient = httpClient(networkRoute);
 
         try (RemoteHttpResponse remoteResponse = openMetadataResponse(sourceUri, httpClient)) {
             String fileName = fileNameFor(remoteResponse);
@@ -137,7 +153,8 @@ public class RemoteDownloadService {
                     fileName,
                     targetPath,
                     remoteResponse.contentType(),
-                    remoteResponse.contentLength()
+                    remoteResponse.contentLength(),
+                    networkRoute
             );
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
