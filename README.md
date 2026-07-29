@@ -123,6 +123,16 @@ docker compose up -d
 
 기본값은 호스트의 `127.0.0.1:8080`에만 공개됩니다. LAN에 직접 공개하거나 reverse proxy를 사용할 때는 `.env`의 `ENDERVAULT_BIND_ADDRESS`를 운영 환경에 맞게 변경하세요.
 
+### Optional VPN Egress
+
+선택한 아웃바운드 요청만 OpenVPN 회선으로 보낼 수 있도록 별도의 Gluetun Compose 프로필을 제공합니다. 기본 `compose.yaml`에는 VPN 권한이나 설정 파일 의존성이 없으며, VPN이 필요한 경우에만 오버레이를 함께 실행합니다.
+
+```bash
+docker compose -f compose.yaml -f compose.vpn.yaml --profile vpn up -d
+```
+
+`.ovpn` 배치, 인증정보 secret, EnderVault proxy 설정과 현재 제한사항은 [`deploy/vpn/README.md`](deploy/vpn/README.md)를 확인하세요. 현재 단계는 비공개 HTTP proxy 인프라를 제공하며, Remote Download나 북마크 요청이 자동으로 VPN을 선택하지는 않습니다.
+
 ## Configuration
 
 주요 설정은 실행 위치의 `endervault-nas.properties`에서 관리합니다.

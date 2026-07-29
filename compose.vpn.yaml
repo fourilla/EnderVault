@@ -1,0 +1,40 @@
+services:
+  vpn:
+    image: qmcgaw/gluetun:v3.41.1
+    profiles:
+      - vpn
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      TZ: "${TZ:-UTC}"
+      VPN_SERVICE_PROVIDER: custom
+      VPN_TYPE: openvpn
+      OPENVPN_CUSTOM_CONFIG: "/gluetun/custom/${ENDERVAULT_VPN_CONFIG_NAME:-custom.ovpn}"
+      HTTPPROXY: "on"
+      HTTPPROXY_LISTENING_ADDRESS: ":8888"
+      HTTPPROXY_LOG: "off"
+      HTTPPROXY_STEALTH: "on"
+      HTTP_CONTROL_SERVER_ADDRESS: "127.0.0.1:8000"
+    volumes:
+      - type: bind
+        source: "${ENDERVAULT_VPN_CONFIG_DIR:-./deploy/secrets/vpn/config}"
+        target: /gluetun/custom
+        read_only: true
+    secrets:
+      - openvpn_user
+      - openvpn_password
+    expose:
+      - "8888"
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - endervault
+
+secrets:
+  openvpn_user:
+    file: "${ENDERVAULT_OPENVPN_USER_FILE:-./deploy/secrets/vpn/openvpn_user}"
+  openvpn_password:
+    file: "${ENDERVAULT_OPENVPN_PASSWORD_FILE:-./deploy/secrets/vpn/openvpn_password}"
