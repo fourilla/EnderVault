@@ -9,6 +9,7 @@ import com.sun.net.httpserver.HttpServer;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.outbound.OutboundHttpClientRegistry;
+import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthService;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -34,7 +35,10 @@ class BookmarkServiceTest {
         bookmarkService = new BookmarkService(
                 objectMapper,
                 properties,
-                new BookmarkMetadataFetcher(properties, new OutboundHttpClientRegistry())
+                new BookmarkMetadataFetcher(
+                        properties,
+                        new OutboundHttpClientRegistry(new VpnProxyHealthService(properties))
+                )
         );
         bookmarkService.initialize();
     }

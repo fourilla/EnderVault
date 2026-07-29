@@ -10,6 +10,7 @@ import io.github.fourilla.endervault.bookmark.BookmarkService;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.favorite.FavoriteService;
 import io.github.fourilla.endervault.outbound.OutboundHttpClientRegistry;
+import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthService;
 import io.github.fourilla.endervault.recent.RecentService;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
@@ -49,7 +50,10 @@ class TrashServiceTest {
         BookmarkService bookmarkService = new BookmarkService(
                 objectMapper,
                 properties,
-                new BookmarkMetadataFetcher(properties, new OutboundHttpClientRegistry())
+                new BookmarkMetadataFetcher(
+                        properties,
+                        new OutboundHttpClientRegistry(new VpnProxyHealthService(properties))
+                )
         );
         bookmarkService.initialize();
         favoriteService = new FavoriteService(storageService, bookmarkService, objectMapper, properties);

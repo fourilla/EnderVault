@@ -11,6 +11,7 @@ import io.github.fourilla.endervault.bookmark.BookmarkService;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.outbound.OutboundHttpClientRegistry;
+import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthService;
 import io.github.fourilla.endervault.storage.StorageService;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -37,7 +38,10 @@ class FavoriteServiceTest {
         bookmarkService = new BookmarkService(
                 objectMapper,
                 properties,
-                new BookmarkMetadataFetcher(properties, new OutboundHttpClientRegistry())
+                new BookmarkMetadataFetcher(
+                        properties,
+                        new OutboundHttpClientRegistry(new VpnProxyHealthService(properties))
+                )
         );
         bookmarkService.initialize();
         favoriteService = new FavoriteService(storageService, bookmarkService, objectMapper, properties);
