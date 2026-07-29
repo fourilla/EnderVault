@@ -7,6 +7,7 @@ import com.sun.net.httpserver.HttpServer;
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.auth.ClientIpResolver;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.outbound.OutboundHttpClientRegistry;
 import io.github.fourilla.endervault.storage.StorageService;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -49,7 +50,8 @@ class RemoteDownloadServiceTest {
                 storageService,
                 activityLogService,
                 new ClientIpResolver(properties),
-                validator
+                validator,
+                new OutboundHttpClientRegistry()
         );
     }
 

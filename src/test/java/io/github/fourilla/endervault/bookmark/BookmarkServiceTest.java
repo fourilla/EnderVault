@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.sun.net.httpserver.HttpServer;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.outbound.OutboundHttpClientRegistry;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -30,7 +31,11 @@ class BookmarkServiceTest {
         properties = new NasProperties();
         properties.getStorage().setRoot(root);
         ObjectMapper objectMapper = JsonMapper.builder().findAndAddModules().build();
-        bookmarkService = new BookmarkService(objectMapper, properties, new BookmarkMetadataFetcher(properties));
+        bookmarkService = new BookmarkService(
+                objectMapper,
+                properties,
+                new BookmarkMetadataFetcher(properties, new OutboundHttpClientRegistry())
+        );
         bookmarkService.initialize();
     }
 

@@ -4,6 +4,8 @@ import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.auth.ClientIpResolver;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.outbound.NetworkRoute;
+import io.github.fourilla.endervault.outbound.OutboundHttpClientRegistry;
 import io.github.fourilla.endervault.storage.FileItem;
 import io.github.fourilla.endervault.storage.StorageService;
 import jakarta.annotation.PreDestroy;
@@ -58,7 +60,8 @@ public class RemoteDownloadService {
             StorageService storageService,
             ActivityLogService activityLogService,
             ClientIpResolver clientIpResolver,
-            RemoteDownloadValidator validator
+            RemoteDownloadValidator validator,
+            OutboundHttpClientRegistry httpClientRegistry
     ) {
         this.nasProperties = nasProperties;
         this.storageService = storageService;
@@ -66,10 +69,10 @@ public class RemoteDownloadService {
         this.clientIpResolver = clientIpResolver;
         this.validator = validator;
         this.executorService = Executors.newFixedThreadPool(nasProperties.getRemoteDownload().getWorkerThreads());
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(nasProperties.getRemoteDownload().getConnectTimeoutSeconds()))
-                .followRedirects(HttpClient.Redirect.NEVER)
-                .build();
+        this.httpClient = httpClientRegistry.client(
+                NetworkRoute.DIRECT,
+                Duration.ofSeconds(nasProperties.getRemoteDownload().getConnectTimeoutSeconds())
+        );
     }
 
     public RemoteDownloadTask start(String rawUrl, String targetDirectory, HttpServletRequest request)

@@ -3,6 +3,8 @@ package io.github.fourilla.endervault.bookmark;
 import io.github.fourilla.endervault.common.ExternalUrlValidator;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.outbound.NetworkRoute;
+import io.github.fourilla.endervault.outbound.OutboundHttpClientRegistry;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -20,10 +22,12 @@ import org.springframework.stereotype.Service;
 public class BookmarkMetadataFetcher {
 
     private final NasProperties nasProperties;
+    private final OutboundHttpClientRegistry httpClientRegistry;
     private final BookmarkMetadataParser parser = new BookmarkMetadataParser();
 
-    public BookmarkMetadataFetcher(NasProperties nasProperties) {
+    public BookmarkMetadataFetcher(NasProperties nasProperties, OutboundHttpClientRegistry httpClientRegistry) {
         this.nasProperties = nasProperties;
+        this.httpClientRegistry = httpClientRegistry;
     }
 
     public BookmarkMetadataFetchResult fetch(String rawUrl) throws IOException, InterruptedException {
@@ -47,10 +51,10 @@ public class BookmarkMetadataFetcher {
     }
 
     private HttpClient httpClient() {
-        return HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(nasProperties.getBookmarks().getConnectTimeoutSeconds()))
-                .followRedirects(HttpClient.Redirect.NEVER)
-                .build();
+        return httpClientRegistry.client(
+                NetworkRoute.DIRECT,
+                Duration.ofSeconds(nasProperties.getBookmarks().getConnectTimeoutSeconds())
+        );
     }
 
     private HtmlResponse fetchHtml(URI uri) throws IOException, InterruptedException {
