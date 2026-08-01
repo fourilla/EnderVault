@@ -24,10 +24,16 @@
                 <h2>VPN Egress</h2>
                 <p th:text="'Saved to ' + ${settings.configPath()}">Saved to endervault-nas.properties</p>
             </div>
-            <span class="status-badge"
-                  data-vpn-status="badge"
-                  th:classappend="${settings.status().statusClass()}"
-                  th:text="${settings.status().label()}">Disabled</span>
+            <div class="section-heading-actions">
+                <span class="status-badge"
+                      data-vpn-status="badge"
+                      th:classappend="${settings.status().statusClass()}"
+                      th:text="${settings.status().label()}">Disabled</span>
+                <a class="ghost icon-text-button" th:href="@{/admin/vpn}">
+                    <i class="fas fa-shield-halved" aria-hidden="true"></i>
+                    <span>VPN Status</span>
+                </a>
+            </div>
         </header>
 
         <form class="general-settings-form"

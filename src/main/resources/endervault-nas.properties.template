@@ -185,6 +185,12 @@ nas.outbound.vpn.health-connect-timeout-ms=1500
 nas.outbound.vpn.tunnel-health-url=
 nas.outbound.vpn.health-request-timeout-ms=3000
 nas.outbound.vpn.health-check-interval-ms=30000
+# Infrastructure-only Control API settings. The VPN Compose overlay supplies
+# these values and stores the API key outside this properties file.
+nas.outbound.vpn.control-url=
+nas.outbound.vpn.control-api-key-file=
+nas.outbound.vpn.profile-name=
+nas.outbound.vpn.control-request-timeout-ms=3000
 
 # ---------------------------------------------------------------------------
 # Background tasks

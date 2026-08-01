@@ -66,7 +66,11 @@ class NasPropertiesTest {
                 .withProperty("nas.outbound.vpn.health-connect-timeout-ms", "900")
                 .withProperty("nas.outbound.vpn.tunnel-health-url", "http://gluetun:9999/")
                 .withProperty("nas.outbound.vpn.health-request-timeout-ms", "1200")
-                .withProperty("nas.outbound.vpn.health-check-interval-ms", "45000");
+                .withProperty("nas.outbound.vpn.health-check-interval-ms", "45000")
+                .withProperty("nas.outbound.vpn.control-url", "http://gluetun:8000")
+                .withProperty("nas.outbound.vpn.control-api-key-file", "/run/secrets/vpn-control")
+                .withProperty("nas.outbound.vpn.profile-name", "custom.ovpn")
+                .withProperty("nas.outbound.vpn.control-request-timeout-ms", "1800");
 
         NasProperties properties = Binder.get(environment)
                 .bind("nas", NasProperties.class)
@@ -91,5 +95,10 @@ class NasPropertiesTest {
                 .isEqualTo("http://gluetun:9999/");
         assertThat(properties.getOutbound().getVpn().getHealthRequestTimeoutMs()).isEqualTo(1200);
         assertThat(properties.getOutbound().getVpn().getHealthCheckIntervalMs()).isEqualTo(45000L);
+        assertThat(properties.getOutbound().getVpn().getControlUrl()).isEqualTo("http://gluetun:8000");
+        assertThat(properties.getOutbound().getVpn().getControlApiKeyFile())
+                .isEqualTo("/run/secrets/vpn-control");
+        assertThat(properties.getOutbound().getVpn().getProfileName()).isEqualTo("custom.ovpn");
+        assertThat(properties.getOutbound().getVpn().getControlRequestTimeoutMs()).isEqualTo(1800);
     }
 }

@@ -43,6 +43,7 @@ public final class ActivityTypeCatalog {
             new ActivityTypeOption("remote-download-failed", "REMOTE_DOWNLOAD_FAILED", "Remote download failed", "Remote download", false),
             new ActivityTypeOption("remote-download-canceled", "REMOTE_DOWNLOAD_CANCELED", "Remote download canceled", "Remote download", false),
             new ActivityTypeOption("outbound-route-change", "OUTBOUND_ROUTE_CHANGE", "Outbound route change", "Network", false),
+            new ActivityTypeOption("vpn-control", "VPN_CONTROL", "VPN control", "Network", false),
             new ActivityTypeOption("bookmark-directory-create", "BOOKMARK_DIRECTORY_CREATE", "Bookmark directory create", "Bookmarks and recent", false),
             new ActivityTypeOption("bookmark-link-create", "BOOKMARK_LINK_CREATE", "Bookmark link create", "Bookmarks and recent", false),
             new ActivityTypeOption("bookmark-bulk-create", "BOOKMARK_BULK_CREATE", "Bookmark bulk create", "Bookmarks and recent", false),

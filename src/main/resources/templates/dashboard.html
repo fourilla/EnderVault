@@ -148,9 +148,10 @@
                 <li>
                     <span>VPN tunnel</span>
                     <strong>
-                        <span class="status-badge"
-                              th:classappend="${dashboard.vpn().statusClass()}"
-                              th:text="${dashboard.vpn().label()}">Disabled</span>
+                        <a class="status-badge"
+                           th:href="@{/admin/vpn}"
+                           th:classappend="${dashboard.vpn().statusClass()}"
+                           th:text="${dashboard.vpn().label()}">Disabled</a>
                     </strong>
                 </li>
             </ul>

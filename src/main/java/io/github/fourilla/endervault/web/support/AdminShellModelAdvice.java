@@ -30,6 +30,7 @@ import io.github.fourilla.endervault.web.settings.AdminSessionSettingsController
 import io.github.fourilla.endervault.web.settings.AdminVpnSettingsController;
 import io.github.fourilla.endervault.web.share.AdminShareController;
 import io.github.fourilla.endervault.web.trash.AdminTrashController;
+import io.github.fourilla.endervault.web.vpn.AdminVpnController;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -58,6 +59,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
         AdminGeneralSettingsController.class,
         AdminSessionSettingsController.class,
         AdminVpnSettingsController.class,
+        AdminVpnController.class,
         AdminMetadataController.class
 })
 public class AdminShellModelAdvice {

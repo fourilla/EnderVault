@@ -306,7 +306,7 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Metadata inspector")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Settings")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote download")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Disabled in settings")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("href=\"/admin/vpn\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Page archiving")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Storage remaining")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Outbound route")))

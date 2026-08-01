@@ -389,6 +389,14 @@ public class NasProperties {
         @Min(1000)
         private long healthCheckIntervalMs = 30000L;
 
+        private String controlUrl = "";
+        private String controlApiKeyFile = "";
+        private String profileName = "";
+
+        @Min(100)
+        @Max(60000)
+        private int controlRequestTimeoutMs = 3000;
+
         public boolean isEnabled() {
             return enabled;
         }
@@ -443,6 +451,38 @@ public class NasProperties {
 
         public void setHealthCheckIntervalMs(long healthCheckIntervalMs) {
             this.healthCheckIntervalMs = healthCheckIntervalMs;
+        }
+
+        public String getControlUrl() {
+            return controlUrl;
+        }
+
+        public void setControlUrl(String controlUrl) {
+            this.controlUrl = controlUrl == null ? "" : controlUrl.trim();
+        }
+
+        public String getControlApiKeyFile() {
+            return controlApiKeyFile;
+        }
+
+        public void setControlApiKeyFile(String controlApiKeyFile) {
+            this.controlApiKeyFile = controlApiKeyFile == null ? "" : controlApiKeyFile.trim();
+        }
+
+        public String getProfileName() {
+            return profileName;
+        }
+
+        public void setProfileName(String profileName) {
+            this.profileName = profileName == null ? "" : profileName.trim();
+        }
+
+        public int getControlRequestTimeoutMs() {
+            return controlRequestTimeoutMs;
+        }
+
+        public void setControlRequestTimeoutMs(int controlRequestTimeoutMs) {
+            this.controlRequestTimeoutMs = controlRequestTimeoutMs;
         }
     }
 
