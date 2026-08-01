@@ -1,8 +1,46 @@
 services:
-  vpn:
-    image: qmcgaw/gluetun:v3.41.1
+  vpn-config:
+    image: python:3.13-alpine3.22
     profiles:
       - vpn
+    restart: "no"
+    user: "${ENDERVAULT_UID:-1000}:${ENDERVAULT_GID:-1000}"
+    read_only: true
+    environment:
+      ENDERVAULT_VPN_INPUT_DIR: /input
+      ENDERVAULT_VPN_OUTPUT_DIR: /runtime/generated
+      ENDERVAULT_VPN_CONFIG_NAME: "${ENDERVAULT_VPN_CONFIG_NAME:-custom.ovpn}"
+    volumes:
+      - type: bind
+        source: "${ENDERVAULT_VPN_CONFIG_DIR:-./deploy/secrets/vpn/config}"
+        target: /input
+        read_only: true
+      - type: bind
+        source: "${ENDERVAULT_VPN_STATE_DIR:-./deploy/runtime/vpn}"
+        target: /runtime
+      - type: bind
+        source: ./deploy/vpn/prepare_openvpn.py
+        target: /opt/endervault/prepare_openvpn.py
+        read_only: true
+    command:
+      - python
+      - /opt/endervault/prepare_openvpn.py
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    networks:
+      - endervault
+
+  vpn:
+    image: qmcgaw/gluetun:v3.41.2
+    profiles:
+      - vpn
+    depends_on:
+      vpn-config:
+        condition: service_completed_successfully
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
@@ -12,7 +50,7 @@ services:
       TZ: "${TZ:-UTC}"
       VPN_SERVICE_PROVIDER: custom
       VPN_TYPE: openvpn
-      OPENVPN_CUSTOM_CONFIG: "/gluetun/custom/${ENDERVAULT_VPN_CONFIG_NAME:-custom.ovpn}"
+      OPENVPN_CUSTOM_CONFIG: "/gluetun/generated/${ENDERVAULT_VPN_CONFIG_NAME:-custom.ovpn}"
       OPENVPN_USER_SECRETFILE: /run/secrets/openvpn_user
       OPENVPN_PASSWORD_SECRETFILE: /run/secrets/openvpn_password
       HTTPPROXY: "on"
@@ -23,8 +61,11 @@ services:
       HTTP_CONTROL_SERVER_ADDRESS: "127.0.0.1:8000"
     volumes:
       - type: bind
+        source: "${ENDERVAULT_VPN_STATE_DIR:-./deploy/runtime/vpn}"
+        target: /gluetun
+      - type: bind
         source: "${ENDERVAULT_VPN_CONFIG_DIR:-./deploy/secrets/vpn/config}"
-        target: /gluetun/custom
+        target: /gluetun/input
         read_only: true
     secrets:
       - openvpn_user

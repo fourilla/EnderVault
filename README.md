@@ -131,7 +131,7 @@ docker compose up -d
 docker compose -f compose.yaml -f compose.vpn.yaml --profile vpn up -d
 ```
 
-`.ovpn` 배치, 인증정보 secret, EnderVault proxy 설정과 현재 제한사항은 [`deploy/vpn/README.md`](deploy/vpn/README.md)를 확인하세요. 로그인 후 Topbar에서 서버 전체의 관리형 아웃바운드 요청을 Direct 또는 VPN으로 전환할 수 있습니다. Remote Download는 필요할 때 해당 작업만 Direct/VPN으로 예외 지정할 수 있으며, VPN이 준비되지 않은 상태에서는 Direct로 우회하지 않습니다.
+VPN 회사와 관계없이 OpenVPN 프로필 한 개와 선택적 인증정보를 사용하는 Gluetun Custom 방식으로 통일되어 있습니다. 프로필 준비, 인증정보 secret, 초기 Direct DNS 조회, EnderVault proxy 설정과 현재 제한사항은 [`deploy/vpn/README.md`](deploy/vpn/README.md)를 확인하세요. 로그인 후 Topbar에서 서버 전체의 관리형 아웃바운드 요청을 Direct 또는 VPN으로 전환할 수 있습니다. Remote Download는 필요할 때 해당 작업만 Direct/VPN으로 예외 지정할 수 있으며, VPN이 준비되지 않은 상태에서는 Direct로 우회하지 않습니다.
 
 ## Configuration
 

@@ -22,5 +22,7 @@ deploy/secrets
 endervault-nas.properties
 *.local.properties
 *.ovpn
+__pycache__
+*.py[cod]
 mvnw
 mvnw.cmd
