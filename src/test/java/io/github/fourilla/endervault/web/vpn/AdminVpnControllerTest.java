@@ -46,13 +46,18 @@ class AdminVpnControllerTest {
         healthService = mock(VpnProxyHealthService.class);
         routeStateService = new OutboundRouteStateService(properties);
         remoteDownloadService = mock(RemoteDownloadService.class);
-        controller = new AdminVpnController(
+        VpnRuntimeViewService runtimeViewService = new VpnRuntimeViewService(
                 controlService,
                 healthService,
                 routeStateService,
                 remoteDownloadService,
-                mock(ActivityLogService.class),
                 properties
+        );
+        controller = new AdminVpnController(
+                controlService,
+                healthService,
+                runtimeViewService,
+                mock(ActivityLogService.class)
         );
 
         when(controlService.refresh()).thenReturn(runningControl());

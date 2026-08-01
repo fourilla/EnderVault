@@ -1,15 +1,11 @@
 package io.github.fourilla.endervault.web.vpn;
 
 import io.github.fourilla.endervault.activity.ActivityLogService;
-import io.github.fourilla.endervault.config.NasProperties;
-import io.github.fourilla.endervault.outbound.NetworkRoute;
-import io.github.fourilla.endervault.outbound.OutboundRouteStateService;
 import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealth;
 import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthService;
 import io.github.fourilla.endervault.outbound.vpn.control.VpnControlException;
 import io.github.fourilla.endervault.outbound.vpn.control.VpnControlService;
 import io.github.fourilla.endervault.outbound.vpn.control.VpnControlStatus;
-import io.github.fourilla.endervault.remote.RemoteDownloadService;
 import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.FlashNotification;
 import io.github.fourilla.endervault.web.support.VpnRuntimeStatusView;
@@ -32,25 +28,19 @@ public class AdminVpnController {
 
     private final VpnControlService vpnControlService;
     private final VpnProxyHealthService vpnProxyHealthService;
-    private final OutboundRouteStateService outboundRouteStateService;
-    private final RemoteDownloadService remoteDownloadService;
+    private final VpnRuntimeViewService vpnRuntimeViewService;
     private final ActivityLogService activityLogService;
-    private final NasProperties nasProperties;
 
     public AdminVpnController(
             VpnControlService vpnControlService,
             VpnProxyHealthService vpnProxyHealthService,
-            OutboundRouteStateService outboundRouteStateService,
-            RemoteDownloadService remoteDownloadService,
-            ActivityLogService activityLogService,
-            NasProperties nasProperties
+            VpnRuntimeViewService vpnRuntimeViewService,
+            ActivityLogService activityLogService
     ) {
         this.vpnControlService = vpnControlService;
         this.vpnProxyHealthService = vpnProxyHealthService;
-        this.outboundRouteStateService = outboundRouteStateService;
-        this.remoteDownloadService = remoteDownloadService;
+        this.vpnRuntimeViewService = vpnRuntimeViewService;
         this.activityLogService = activityLogService;
-        this.nasProperties = nasProperties;
     }
 
     @GetMapping(VPN_PATH)
@@ -113,7 +103,7 @@ public class AdminVpnController {
             HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) {
-        int activeVpnTasks = activeVpnTasks();
+        int activeVpnTasks = vpnRuntimeViewService.activeVpnTasks();
         if (!action.equals("connect") && activeVpnTasks > 0 && !force) {
             return ActionResponseSupport.error(
                     HttpStatus.CONFLICT,
@@ -156,23 +146,11 @@ public class AdminVpnController {
     }
 
     private VpnRuntimeStatusView refreshView() {
-        return view(vpnControlService.refresh(), vpnProxyHealthService.refresh());
+        return vpnRuntimeViewService.refresh();
     }
 
     private VpnRuntimeStatusView view(VpnControlStatus control, VpnProxyHealth health) {
-        return VpnRuntimeStatusView.from(
-                control,
-                health,
-                outboundRouteStateService.currentRoute(),
-                nasProperties.getOutbound().getVpn().getProfileName(),
-                activeVpnTasks()
-        );
-    }
-
-    private int activeVpnTasks() {
-        return Math.toIntExact(remoteDownloadService.listTasks().stream()
-                .filter(task -> task.active() && task.networkRoute() == NetworkRoute.VPN_REQUIRED)
-                .count());
+        return vpnRuntimeViewService.from(control, health);
     }
 
     private FlashNotification notification(String action, boolean running) {

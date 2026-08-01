@@ -310,7 +310,9 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Page archiving")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Storage remaining")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Outbound route")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("VPN tunnel")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("VPN Egress")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Proxy health")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Background tasks")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("Register and remove trusted devices"))))
                 .andExpect(content().string(org.hamcrest.Matchers.not(

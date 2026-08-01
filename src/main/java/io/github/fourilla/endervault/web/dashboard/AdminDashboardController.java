@@ -3,7 +3,6 @@ package io.github.fourilla.endervault.web.dashboard;
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.remote.RemoteDownloadService;
-import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthService;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.session.SessionManagementService;
@@ -14,10 +13,12 @@ import io.github.fourilla.endervault.thumbnail.ThumbnailCacheStats;
 import io.github.fourilla.endervault.thumbnail.ThumbnailService;
 import io.github.fourilla.endervault.trash.TrashRecord;
 import io.github.fourilla.endervault.trash.TrashService;
-import io.github.fourilla.endervault.web.support.VpnStatusView;
+import io.github.fourilla.endervault.web.vpn.VpnRuntimeViewService;
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Stream;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,7 +33,7 @@ public class AdminDashboardController {
     private final RemoteDownloadService remoteDownloadService;
     private final TaskManagerService taskManagerService;
     private final SessionManagementService sessionManagementService;
-    private final VpnProxyHealthService vpnProxyHealthService;
+    private final VpnRuntimeViewService vpnRuntimeViewService;
     private final NasProperties nasProperties;
 
     public AdminDashboardController(
@@ -43,7 +44,7 @@ public class AdminDashboardController {
             RemoteDownloadService remoteDownloadService,
             TaskManagerService taskManagerService,
             SessionManagementService sessionManagementService,
-            VpnProxyHealthService vpnProxyHealthService,
+            VpnRuntimeViewService vpnRuntimeViewService,
             NasProperties nasProperties
     ) {
         this.storageService = storageService;
@@ -53,7 +54,7 @@ public class AdminDashboardController {
         this.remoteDownloadService = remoteDownloadService;
         this.taskManagerService = taskManagerService;
         this.sessionManagementService = sessionManagementService;
-        this.vpnProxyHealthService = vpnProxyHealthService;
+        this.vpnRuntimeViewService = vpnRuntimeViewService;
         this.nasProperties = nasProperties;
     }
 
@@ -72,8 +73,9 @@ public class AdminDashboardController {
                 remoteDownloadService.summary(3),
                 nasProperties.getRemoteDownload().isEnabled(),
                 taskManagerService.summary(),
+                recentTasks(6),
                 sessionManagementService.activeCount(),
-                VpnStatusView.from(vpnProxyHealthService.current())
+                vpnRuntimeViewService.current()
         ));
         return "dashboard";
     }
@@ -116,5 +118,16 @@ public class AdminDashboardController {
                 stats.sizeLabel(),
                 stats.inProgressCount()
         );
+    }
+
+    private List<DashboardTaskView> recentTasks(int limit) {
+        Stream<DashboardTaskView> appTasks = taskManagerService.listTasks().stream()
+                .map(DashboardTaskView::from);
+        Stream<DashboardTaskView> remoteTasks = remoteDownloadService.listTasks().stream()
+                .map(DashboardTaskView::from);
+        return Stream.concat(appTasks, remoteTasks)
+                .sorted(Comparator.comparing(DashboardTaskView::createdAt).reversed())
+                .limit(Math.max(0, limit))
+                .toList();
     }
 }

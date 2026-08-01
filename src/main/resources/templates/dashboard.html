@@ -59,102 +59,152 @@
     </section>
 
     <section class="dashboard-grid" aria-label="Dashboard panels">
-        <article class="dashboard-panel dashboard-panel-focus">
+        <article class="dashboard-panel dashboard-panel-wide dashboard-panel-focus">
             <header class="section-heading">
-                <h2>Task Manager</h2>
+                <div>
+                    <h2>Task Manager</h2>
+                    <p>Recent server-side work and remote transfers</p>
+                </div>
                 <span class="status-badge active"
-                      th:if="${dashboard.thumbnails().inProgressCount() > 0 or dashboard.remoteDownloads().running() > 0 or dashboard.fileTasks().running() > 0}">Active</span>
+                      th:if="${dashboard.thumbnails().inProgressCount() > 0 or dashboard.remoteDownloads().running() > 0 or dashboard.appTasks().running() > 0}">Active</span>
                 <span class="status-badge expired"
-                      th:unless="${dashboard.thumbnails().inProgressCount() > 0 or dashboard.remoteDownloads().running() > 0 or dashboard.fileTasks().running() > 0}">Idle</span>
+                      th:unless="${dashboard.thumbnails().inProgressCount() > 0 or dashboard.remoteDownloads().running() > 0 or dashboard.appTasks().running() > 0}">Idle</span>
             </header>
-            <ul class="dashboard-list">
-                <li>
-                    <span>File operation tasks</span>
-                    <strong th:text="|${dashboard.fileTasks().running()} running / ${dashboard.fileTasks().total()} tracked|">
-                        0 running / 0 tracked
-                    </strong>
-                </li>
-                <li>
-                    <span>Thumbnail queue</span>
-                    <strong th:text="|${dashboard.thumbnails().inProgressCount()} running|">0 running</strong>
-                </li>
-                <li>
+            <div class="dashboard-task-summary" aria-label="Task counts">
+                <div>
+                    <span>Background tasks</span>
+                    <strong th:text="${dashboard.appTasks().running()}">0</strong>
+                    <small th:text="|${dashboard.appTasks().total()} tracked|">0 tracked</small>
+                </div>
+                <div>
                     <span>Remote downloads</span>
-                    <div class="dashboard-remote-summary">
-                        <strong th:text="|${dashboard.remoteDownloads().running()} running / ${dashboard.remoteDownloads().total()} tracked|">
-                            0 running / 0 tracked
-                        </strong>
-                        <div class="dashboard-route-tags" th:if="${not #lists.isEmpty(dashboard.remoteDownloads().recentTasks())}">
-                            <span class="status-badge"
-                                  th:each="task : ${dashboard.remoteDownloads().recentTasks()}"
-                                  th:classappend="${task.networkRoute().name() == 'VPN_REQUIRED'} ? ' active' : ' info'"
-                                  th:title="${task.sourceUrl()}"
-                                  th:text="|${task.shortId()} · ${task.networkRouteLabel()}|">
-                                task · Direct connection
-                            </span>
-                        </div>
-                    </div>
-                </li>
-                <li>
-                    <span>Upload tasks</span>
-                    <strong>Browser session</strong>
-                </li>
-                <li>
-                    <span>Page archive</span>
-                    <strong>Planned</strong>
-                </li>
-            </ul>
+                    <strong th:text="${dashboard.remoteDownloads().running()}">0</strong>
+                    <small th:text="|${dashboard.remoteDownloads().total()} tracked|">0 tracked</small>
+                </div>
+                <div>
+                    <span>Thumbnail queue</span>
+                    <strong th:text="${dashboard.thumbnails().inProgressCount()}">0</strong>
+                    <small>Generating now</small>
+                </div>
+                <div>
+                    <span>Uploads</span>
+                    <strong>Browser</strong>
+                    <small>Tracked in the upload dock</small>
+                </div>
+            </div>
+
+            <p class="dashboard-empty" th:if="${#lists.isEmpty(dashboard.recentTasks())}">No background tasks are tracked yet.</p>
+            <div class="dashboard-task-table-wrap" th:unless="${#lists.isEmpty(dashboard.recentTasks())}">
+                <table class="dashboard-task-table">
+                    <thead>
+                    <tr>
+                        <th scope="col">Work</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Progress</th>
+                        <th scope="col">Route</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="task : ${dashboard.recentTasks()}">
+                        <td>
+                            <div class="dashboard-task-name" th:title="${task.target()}">
+                                <i th:class="${task.iconClass()}" aria-hidden="true"></i>
+                                <span>
+                                    <strong th:text="${task.title()}">Task</strong>
+                                    <small th:text="${task.detail()}">Task detail</small>
+                                </span>
+                            </div>
+                        </td>
+                        <td><span class="status-badge" th:classappend="${task.statusClass()}" th:text="${task.statusLabel()}">Queued</span></td>
+                        <td>
+                            <div class="dashboard-task-progress">
+                                <progress max="100" th:value="${task.progressPercent()}">0%</progress>
+                                <small th:text="${task.progressLabel()}">0 B</small>
+                            </div>
+                        </td>
+                        <td><span class="status-badge" th:classappend="${task.routeClass()}" th:text="${task.routeLabel()}">Server</span></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
         </article>
 
-        <article class="dashboard-panel dashboard-panel-focus">
+        <article class="dashboard-panel dashboard-panel-wide dashboard-panel-focus">
             <header class="section-heading">
-                <h2>System Health</h2>
+                <div>
+                    <h2>System Health</h2>
+                    <p>Storage, cache, and outbound connectivity</p>
+                </div>
+                <a class="ghost icon-text-button" th:href="@{/admin/vpn}">
+                    <i class="fas fa-shield-halved" aria-hidden="true"></i><span>VPN status</span>
+                </a>
             </header>
-            <ul class="dashboard-list">
-                <li>
-                    <span>Storage remaining</span>
-                    <strong th:text="|${dashboard.storage().usableLabel()} free|">0 B free</strong>
-                </li>
-                <li>
-                    <span>Storage usage</span>
-                    <strong th:text="|${dashboard.storage().usedLabel()} / ${dashboard.storage().totalLabel()} (${dashboard.storage().usedPercent()}%)|">
-                        0 B / 0 B (0%)
-                    </strong>
-                </li>
-                <li>
-                    <span>Trash footprint</span>
-                    <strong th:text="|${dashboard.trash().count()} items / ${dashboard.trash().sizeLabel()}|">0 items / 0 B</strong>
-                </li>
-                <li>
-                    <span>Thumbnails</span>
-                    <strong th:text="|${dashboard.thumbnails().enabledLabel()} / ${dashboard.thumbnails().cachedFiles()} cached / ${dashboard.thumbnails().sizeLabel()}|">
-                        Enabled / 0 cached / 0 B
-                    </strong>
-                </li>
-                <li>
-                    <span>Remote download results</span>
-                    <strong th:text="|${dashboard.remoteDownloads().complete()} complete / ${dashboard.remoteDownloads().failed()} failed|">
-                        0 complete / 0 failed
-                    </strong>
-                </li>
-                <li>
-                    <span>Outbound route</span>
-                    <strong>
-                        <span class="status-badge"
-                              th:classappend="${outboundRoute.badgeClass()}"
-                              th:text="${outboundRoute.label()}">Direct</span>
-                    </strong>
-                </li>
-                <li>
-                    <span>VPN tunnel</span>
-                    <strong>
-                        <a class="status-badge"
-                           th:href="@{/admin/vpn}"
-                           th:classappend="${dashboard.vpn().statusClass()}"
-                           th:text="${dashboard.vpn().label()}">Disabled</a>
-                    </strong>
-                </li>
-            </ul>
+            <div class="dashboard-health-layout">
+                <ul class="dashboard-list">
+                    <li>
+                        <span>Storage remaining</span>
+                        <strong th:text="|${dashboard.storage().usableLabel()} free|">0 B free</strong>
+                    </li>
+                    <li>
+                        <span>Storage usage</span>
+                        <strong th:text="|${dashboard.storage().usedLabel()} / ${dashboard.storage().totalLabel()} (${dashboard.storage().usedPercent()}%)|">
+                            0 B / 0 B (0%)
+                        </strong>
+                    </li>
+                    <li>
+                        <span>Trash footprint</span>
+                        <strong th:text="|${dashboard.trash().count()} items / ${dashboard.trash().sizeLabel()}|">0 items / 0 B</strong>
+                    </li>
+                    <li>
+                        <span>Thumbnails</span>
+                        <strong th:text="|${dashboard.thumbnails().enabledLabel()} / ${dashboard.thumbnails().cachedFiles()} cached / ${dashboard.thumbnails().sizeLabel()}|">
+                            Enabled / 0 cached / 0 B
+                        </strong>
+                    </li>
+                    <li>
+                        <span>Remote download results</span>
+                        <strong th:text="|${dashboard.remoteDownloads().complete()} complete / ${dashboard.remoteDownloads().failed()} failed|">
+                            0 complete / 0 failed
+                        </strong>
+                    </li>
+                </ul>
+
+                <section class="dashboard-vpn-overview" aria-labelledby="dashboardVpnHeading">
+                    <header>
+                        <div>
+                            <h3 id="dashboardVpnHeading">VPN Egress</h3>
+                            <p th:text="${dashboard.vpn().detail()}">Control status unavailable.</p>
+                        </div>
+                        <span class="status-badge" th:classappend="${dashboard.vpn().statusClass()}" th:text="${dashboard.vpn().label()}">Disabled</span>
+                    </header>
+                    <dl>
+                        <div>
+                            <dt>Outbound route</dt>
+                            <dd><span class="status-badge"
+                                      th:classappend="${dashboard.vpn().vpnRouteSelected()} ? 'active' : 'info'"
+                                      th:text="${dashboard.vpn().routeLabel()}">Direct</span></dd>
+                        </div>
+                        <div>
+                            <dt>Proxy health</dt>
+                            <dd><span class="status-badge"
+                                      th:classappend="${dashboard.vpn().health().statusClass()}"
+                                      th:text="${dashboard.vpn().health().label()}">Disabled</span></dd>
+                        </div>
+                        <div>
+                            <dt>VPN public IP</dt>
+                            <dd th:text="${dashboard.vpn().publicIp()}">Unavailable</dd>
+                        </div>
+                        <div>
+                            <dt>Last checked</dt>
+                            <dd th:text="|${dashboard.vpn().checkedAtLabel()} · ${dashboard.vpn().latencyLabel()}|">-</dd>
+                        </div>
+                        <div>
+                            <dt>Active VPN tasks</dt>
+                            <dd th:text="${dashboard.vpn().activeVpnTasks()}">0</dd>
+                        </div>
+                    </dl>
+                </section>
+            </div>
         </article>
 
         <article class="dashboard-panel">
