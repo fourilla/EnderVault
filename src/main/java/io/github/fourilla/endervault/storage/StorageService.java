@@ -423,11 +423,29 @@ public class StorageService {
             String filename,
             ConflictPolicy conflictPolicy
     ) throws IOException {
+        CommittedVaultFile committedFile = commitTemporaryFileIntoVault(
+                temporaryFile,
+                directoryPath,
+                filename,
+                conflictPolicy
+        );
+        return listingService.describeVaultPath(committedFile.path());
+    }
+
+    public CommittedVaultFile commitTemporaryFileIntoVault(
+            Path temporaryFile,
+            String directoryPath,
+            String filename,
+            ConflictPolicy conflictPolicy
+    ) throws IOException {
         Path target = pathResolver.resolveChild(StorageScope.VAULT, directoryPath, filename, false);
         StorageConflictResolver.StorageConflictTarget resolvedTarget =
                 conflictResolver.resolve(target, false, conflictPolicy);
         treeOperations.move(temporaryFile, resolvedTarget.path(), resolvedTarget.overwrite());
-        return listingService.toFileItem(root, resolvedTarget.path());
+        return new CommittedVaultFile(
+                resolvedTarget.path().getFileName().toString(),
+                pathResolver.toRelativePath(root, resolvedTarget.path())
+        );
     }
 
     public FileItem moveStagedUploadIntoVault(
@@ -596,6 +614,9 @@ public class StorageService {
     }
 
     public record StagedUpload(Path temporaryFile, String filename, long size) {
+    }
+
+    public record CommittedVaultFile(String name, String path) {
     }
 
     public record TemporaryFileInfo(

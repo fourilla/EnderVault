@@ -110,6 +110,27 @@ class RemoteDownloadServiceTest {
     }
 
     @Test
+    void reportsAnExistingDestinationWithoutReplacingIt() throws Exception {
+        byte[] original = "existing content".getBytes(StandardCharsets.UTF_8);
+        byte[] remote = "remote content".getBytes(StandardCharsets.UTF_8);
+        Files.write(root.resolve("note.txt"), original);
+        startServer("/files/note.txt", remote, null);
+
+        RemoteDownloadTask task = remoteDownloadService.start(
+                serverUrl("/files/note.txt"),
+                "",
+                new MockHttpServletRequest()
+        );
+        waitUntilFinished(task);
+
+        assertThat(task.status()).isEqualTo(RemoteDownloadStatus.FAILED);
+        assertThat(task.message()).isEqualTo(
+                "A file named \"note.txt\" already exists in the target directory."
+        );
+        assertThat(root.resolve("note.txt")).hasBinaryContent(original);
+    }
+
+    @Test
     void inspectsRemoteFileBeforeStartingDownload() throws Exception {
         byte[] body = "remote video".getBytes(StandardCharsets.UTF_8);
         startServer("/s/token/preview", body, null, "video/mp4");

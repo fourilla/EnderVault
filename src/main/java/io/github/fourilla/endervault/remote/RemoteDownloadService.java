@@ -7,7 +7,6 @@ import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.outbound.NetworkRoute;
 import io.github.fourilla.endervault.outbound.OutboundHttpClientRegistry;
 import io.github.fourilla.endervault.outbound.OutboundRouteStateService;
-import io.github.fourilla.endervault.storage.FileItem;
 import io.github.fourilla.endervault.storage.StorageService;
 import jakarta.annotation.PreDestroy;
 import jakarta.servlet.http.HttpServletRequest;
@@ -19,6 +18,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -233,6 +233,7 @@ public class RemoteDownloadService {
             throwIfCanceled(task);
             HttpClient httpClient = httpClient(task.networkRoute());
             temporaryFile = storageService.createUploadTemporaryFile("remote-download-", ".tmp");
+            String fileName;
             try (RemoteHttpResponse remoteResponse = openDownloadResponse(URI.create(task.sourceUrl()), httpClient);
                     InputStream inputStream = remoteResponse.body();
                     OutputStream outputStream = Files.newOutputStream(
@@ -254,16 +255,19 @@ public class RemoteDownloadService {
                 }
 
                 throwIfCanceled(task);
-                String fileName = fileNameFor(remoteResponse);
-                FileItem item = storageService.moveTemporaryFileIntoVault(
-                        temporaryFile,
-                        task.targetDirectory(),
-                        fileName
-                );
-                temporaryFile = null;
-                task.markComplete(item.name(), item.path());
-                recordFinished(task, true, "Remote download completed.");
+                fileName = fileNameFor(remoteResponse);
             }
+
+            throwIfCanceled(task);
+            StorageService.CommittedVaultFile committedFile = storageService.commitTemporaryFileIntoVault(
+                    temporaryFile,
+                    task.targetDirectory(),
+                    fileName,
+                    null
+            );
+            temporaryFile = null;
+            task.markComplete(committedFile.name(), committedFile.path());
+            recordFinished(task, true, "Remote download completed.");
         } catch (RemoteDownloadCanceledException ex) {
             markCanceledAndRecord(task, "Canceled.");
         } catch (InterruptedException ex) {
@@ -500,8 +504,24 @@ public class RemoteDownloadService {
     }
 
     private String cleanMessage(Exception ex) {
+        if (ex instanceof FileAlreadyExistsException fileAlreadyExistsException) {
+            String filename = cleanConflictFilename(fileAlreadyExistsException.getFile());
+            return "A file named \"" + filename + "\" already exists in the target directory.";
+        }
         String message = ex.getMessage();
         return message == null || message.isBlank() ? "Remote download failed." : message;
+    }
+
+    private String cleanConflictFilename(String rawPath) {
+        if (!StringUtils.hasText(rawPath)) {
+            return "the requested file";
+        }
+        try {
+            Path filename = Path.of(rawPath).getFileName();
+            return filename == null ? "the requested file" : filename.toString();
+        } catch (RuntimeException ex) {
+            return "the requested file";
+        }
     }
 
     private void closeQuietly(InputStream inputStream) {
