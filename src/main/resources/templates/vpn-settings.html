@@ -25,10 +25,6 @@
                 <p th:text="'Saved to ' + ${settings.configPath()}">Saved to endervault-nas.properties</p>
             </div>
             <div class="section-heading-actions">
-                <span class="status-badge"
-                      data-vpn-status="badge"
-                      th:classappend="${settings.status().statusClass()}"
-                      th:text="${settings.status().label()}">Disabled</span>
                 <a class="ghost icon-text-button" th:href="@{/admin/vpn}">
                     <i class="fas fa-shield-halved" aria-hidden="true"></i>
                     <span>VPN Status</span>
@@ -61,7 +57,7 @@
                                data-toggle-target=".vpn-settings-dependent">
                     </label>
                 </header>
-                <div class="settings-field-grid vpn-settings-dependent">
+                <div class="settings-field-grid vpn-settings-grid vpn-settings-dependent">
                     <label>
                         <span>Proxy host</span>
                         <input name="proxyHost" th:value="${settings.proxyHost()}" placeholder="vpn">
@@ -70,6 +66,7 @@
                     <label>
                         <span>Proxy port</span>
                         <input type="number" name="proxyPort" min="1" max="65535" th:value="${settings.proxyPort()}">
+                        <small>HTTP proxy port available inside the private network.</small>
                     </label>
                     <label>
                         <span>Proxy health connect timeout (ms)</span>
@@ -78,6 +75,7 @@
                                min="100"
                                max="60000"
                                th:value="${settings.healthConnectTimeoutMs()}">
+                        <small>Maximum time allowed to establish the proxy TCP connection.</small>
                     </label>
                 </div>
             </section>
@@ -89,7 +87,7 @@
                         <p>Optionally requires the VPN container health endpoint to return HTTP 200.</p>
                     </div>
                 </header>
-                <div class="settings-field-grid vpn-settings-dependent">
+                <div class="settings-field-grid vpn-settings-grid vpn-settings-dependent">
                     <label>
                         <span>Tunnel health URL</span>
                         <input type="url"
@@ -105,6 +103,7 @@
                                min="100"
                                max="60000"
                                th:value="${settings.healthRequestTimeoutMs()}">
+                        <small>Maximum time allowed for one tunnel health request.</small>
                     </label>
                     <label>
                         <span>Health check interval (ms)</span>
@@ -117,56 +116,6 @@
                 </div>
             </section>
 
-            <section class="settings-detail-section" aria-label="Current VPN health">
-                <header class="settings-subsection-heading">
-                    <div>
-                        <h3>Current State</h3>
-                        <p>Health describes proxy and tunnel readiness; it does not verify the public egress IP.</p>
-                    </div>
-                    <button class="ghost icon-text-button"
-                            type="submit"
-                            formnovalidate
-                            th:formaction="@{/admin/settings/vpn/refresh}"
-                            data-ajax-action="vpn-health-refresh">
-                        <i class="fas fa-rotate" aria-hidden="true"></i>
-                        <span>Refresh health</span>
-                    </button>
-                </header>
-                <div class="account-status-grid">
-                    <article>
-                        <span>Status</span>
-                        <strong>
-                            <span class="status-badge"
-                                  data-vpn-status="state"
-                                  th:classappend="${settings.status().statusClass()}"
-                                  th:text="${settings.status().label()}">Disabled</span>
-                        </strong>
-                    </article>
-                    <article>
-                        <span>Route readiness</span>
-                        <strong data-vpn-status="routeReady"
-                                th:text="${settings.status().routeReady()} ? 'Ready' : 'Unavailable'">Unavailable</strong>
-                    </article>
-                    <article>
-                        <span>Proxy endpoint</span>
-                        <strong data-vpn-status="proxyEndpoint"
-                                th:text="${settings.status().proxyEndpoint()}">Not configured</strong>
-                    </article>
-                    <article>
-                        <span>Checked at</span>
-                        <strong data-vpn-status="checkedAt"
-                                th:text="${settings.status().checkedAtLabel()}">-</strong>
-                    </article>
-                    <article>
-                        <span>Probe latency</span>
-                        <strong data-vpn-status="latency"
-                                th:text="${settings.status().latencyLabel()}">-</strong>
-                    </article>
-                </div>
-                <p class="settings-status-detail"
-                   data-vpn-status="detail"
-                   th:text="${settings.status().detail()}">VPN proxy is disabled.</p>
-            </section>
         </form>
     </section>
 </main>

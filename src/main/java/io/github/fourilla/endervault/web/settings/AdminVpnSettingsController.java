@@ -1,10 +1,8 @@
 package io.github.fourilla.endervault.web.settings;
 
-import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealth;
 import io.github.fourilla.endervault.settings.VpnSettingsService;
 import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.FlashNotification;
-import io.github.fourilla.endervault.web.support.VpnStatusView;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import org.springframework.http.HttpStatus;
@@ -35,17 +33,16 @@ public class AdminVpnSettingsController {
     public Object saveVpnSettings(
             @RequestParam MultiValueMap<String, String> parameters,
             HttpServletRequest request,
-            RedirectAttributes redirectAttributes
+        RedirectAttributes redirectAttributes
     ) {
         try {
-            VpnProxyHealth health = vpnSettingsService.save(vpnSettingsService.updateFrom(parameters));
+            vpnSettingsService.save(vpnSettingsService.updateFrom(parameters));
             FlashNotification notification = FlashNotification.success("VPN egress settings saved.");
             return ActionResponseSupport.ok(
                     request,
                     redirectAttributes,
                     notification,
-                    redirectToVpnSettings(),
-                    VpnSettingsResponse.ok(notification, VpnStatusView.from(health))
+                    redirectToVpnSettings()
             );
         } catch (IllegalArgumentException ex) {
             return ActionResponseSupport.badRequest(
@@ -63,22 +60,6 @@ public class AdminVpnSettingsController {
                     redirectToVpnSettings()
             );
         }
-    }
-
-    @PostMapping("/admin/settings/vpn/refresh")
-    public Object refreshVpnHealth(
-            HttpServletRequest request,
-            RedirectAttributes redirectAttributes
-    ) {
-        VpnStatusView status = VpnStatusView.from(vpnSettingsService.refreshHealth());
-        FlashNotification notification = FlashNotification.success("VPN health refreshed.");
-        return ActionResponseSupport.ok(
-                request,
-                redirectAttributes,
-                notification,
-                redirectToVpnSettings(),
-                VpnSettingsResponse.ok(notification, status)
-        );
     }
 
     private String redirectToVpnSettings() {

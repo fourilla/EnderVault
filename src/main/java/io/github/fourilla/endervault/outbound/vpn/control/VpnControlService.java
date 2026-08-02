@@ -4,6 +4,7 @@ import io.github.fourilla.endervault.config.NasProperties;
 import jakarta.annotation.PostConstruct;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicReference;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -26,6 +27,14 @@ public class VpnControlService {
     public VpnControlStatus current() {
         VpnControlStatus status = current.get();
         return status == null ? refresh() : status;
+    }
+
+    @Scheduled(
+            fixedDelayString = "${nas.outbound.vpn.health-check-interval-ms:30000}",
+            initialDelayString = "5000"
+    )
+    void scheduledRefresh() {
+        refresh();
     }
 
     public synchronized VpnControlStatus refresh() {

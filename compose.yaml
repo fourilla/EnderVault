@@ -13,12 +13,15 @@ services:
       - "${ENDERVAULT_BIND_ADDRESS:-127.0.0.1}:${ENDERVAULT_HTTP_PORT:-8080}:8080"
     environment:
       TZ: "${TZ:-UTC}"
+      SERVER_ADDRESS: 0.0.0.0
+      SERVER_PORT: "8080"
+      NAS_STORAGE_ROOT: /storage
     volumes:
       - type: bind
-        source: "${ENDERVAULT_STATE_DIR:-./deploy/runtime/state}"
+        source: "${ENDERVAULT_STATE_DIR:-./docker/runtime/state}"
         target: /var/lib/endervault
       - type: bind
-        source: "${ENDERVAULT_STORAGE_PATH:-./deploy/runtime/storage}"
+        source: "${ENDERVAULT_STORAGE_PATH:-./docker/runtime/storage}"
         target: /storage
     cap_drop:
       - ALL

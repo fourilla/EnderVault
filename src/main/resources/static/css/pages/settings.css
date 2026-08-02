@@ -244,6 +244,15 @@
     line-height: 1.5;
 }
 
+.vpn-settings-grid label {
+    grid-template-rows: auto var(--control-height) minmax(3em, auto);
+    align-content: start;
+}
+
+.vpn-settings-grid input {
+    height: var(--control-height);
+}
+
 .settings-switch-input {
     position: relative;
     width: 44px;

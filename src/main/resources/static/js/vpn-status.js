@@ -31,7 +31,6 @@ document.addEventListener("DOMContentLoaded", () => {
         setBadge("healthBadge", vpn.health.label, vpn.health.statusClass);
         setBadge("routeBadge", vpn.routeLabel, vpn.vpnRouteSelected ? "active" : "info");
         setText("publicIp", vpn.publicIp);
-        setText("profileName", vpn.profileName);
         setText("checkedAt", vpn.checkedAtLabel);
         setText("latency", vpn.latencyLabel);
         setText("detail", vpn.detail);

@@ -90,14 +90,14 @@ Windows PowerShell:
 
 ```powershell
 Copy-Item .env.example .env
-New-Item -ItemType Directory -Force deploy/runtime/state, deploy/runtime/storage
+New-Item -ItemType Directory -Force docker/runtime/state, docker/runtime/storage
 ```
 
 Linux/macOS:
 
 ```bash
 cp .env.example .env
-mkdir -p deploy/runtime/state deploy/runtime/storage
+mkdir -p docker/runtime/state docker/runtime/storage
 ```
 
 Linux에서는 `.env`의 `ENDERVAULT_UID`, `ENDERVAULT_GID`를 `id -u`, `id -g` 결과와 맞추고, 두 마운트 경로에 해당 계정의 읽기/쓰기 권한이 있는지 확인하세요.
@@ -108,12 +108,13 @@ Linux에서는 `.env`의 `ENDERVAULT_UID`, `ENDERVAULT_GID`를 `id -u`, `id -g` 
 docker compose run --rm --build endervault
 ```
 
-`deploy/runtime/state/endervault-nas.properties`에서 최소한 다음 값을 수정합니다. 컨테이너에서 NAS 저장소는 `/storage`에 마운트됩니다.
+`docker/runtime/state/endervault-nas.properties`를 검토하고 최소한 다음 값을 수정합니다.
 
 ```properties
 nas.setup.accepted=true
-nas.storage.root=/storage
 ```
+
+Docker Compose는 컨테이너 내부의 storage root를 `/storage`로 고정합니다. 실제 호스트 저장소는 `.env`의 `ENDERVAULT_STORAGE_PATH`로 선택하며, properties의 `nas.storage.root`보다 Compose 환경변수가 우선합니다.
 
 설정을 검토한 뒤 서비스를 실행합니다.
 
@@ -131,7 +132,9 @@ docker compose up -d
 docker compose -f compose.yaml -f compose.vpn.yaml --profile vpn up -d
 ```
 
-VPN 회사와 관계없이 OpenVPN 프로필 한 개와 선택적 인증정보를 사용하는 Gluetun Custom 방식으로 통일되어 있습니다. 프로필 준비, 인증정보 secret, 초기 Direct DNS 조회, EnderVault proxy 설정과 현재 제한사항은 [`deploy/vpn/README.md`](deploy/vpn/README.md)를 확인하세요. 로그인 후 Topbar에서 서버 전체의 관리형 아웃바운드 요청을 Direct 또는 VPN으로 전환할 수 있습니다. Remote Download는 필요할 때 해당 작업만 Direct/VPN으로 예외 지정할 수 있으며, VPN이 준비되지 않은 상태에서는 Direct로 우회하지 않습니다.
+VPN 회사와 관계없이 OpenVPN 프로필 한 개와 선택적 인증정보를 사용하는 Gluetun Custom 방식으로 통일되어 있습니다. 프로필 준비, 인증정보 secret, 초기 Direct DNS 조회, EnderVault proxy 설정과 현재 제한사항은 [`docker/vpn/README.md`](docker/vpn/README.md)를 확인하세요. 로그인 후 Topbar에서 서버 전체의 관리형 아웃바운드 요청을 Direct 또는 VPN으로 전환할 수 있습니다. Remote Download는 필요할 때 해당 작업만 Direct/VPN으로 예외 지정할 수 있으며, VPN이 준비되지 않은 상태에서는 Direct로 우회하지 않습니다.
+
+VPN Compose overlay를 사용하면 `vpn:8888`, `vpn:9999`, `vpn:8000` 같은 컨테이너 내부 네트워크 주소도 overlay가 자동으로 주입합니다. Standalone JAR에서는 필요할 때 이 값을 properties에 직접 설정합니다.
 
 ## Configuration
 
@@ -159,7 +162,7 @@ Remote download 기능은 보안상 기본 비활성화되어 있습니다.
 개인 서버에서 사용할 때는 다음을 권장합니다.
 
 - 관리자 비밀번호를 반드시 변경
-- `nas.storage.root`를 실제 NAS 저장소 경로로 변경
+- Standalone JAR에서는 `nas.storage.root`, Docker에서는 `.env`의 `ENDERVAULT_STORAGE_PATH`를 실제 NAS 저장소에 맞게 설정
 - `endervault-nas.properties`를 외부에 노출하지 않기
 - HTTPS reverse proxy 사용
 - Passkey 사용 시 도메인/RP 설정 확인

@@ -16,6 +16,8 @@ spring.servlet.multipart.max-request-size=20GB
 # root is the vault directory EnderVault manages.
 # Development example: ./storage
 # Linux server example: /mnt/external_drive
+# Docker Compose overrides this value with the fixed container path /storage;
+# choose the host directory with ENDERVAULT_STORAGE_PATH in .env instead.
 # metadata-directory stores EnderVault metadata such as logs, thumbnails,
 # share links, favorites, recent items, bookmarks, and passkeys.
 nas.storage.root=/mnt/external_drive
@@ -177,7 +179,8 @@ nas.outbound.initial-route=direct
 # Leave tunnel-health-url empty for TCP-only proxy health. A Gluetun Compose
 # deployment can use http://vpn:9999/ to require Gluetun tunnel health.
 # This still does not verify the exact public egress IP.
-# Docker deployments will normally use the Compose service name as proxy-host.
+# The optional Docker VPN overlay supplies enabled, proxy-host, proxy-port,
+# tunnel-health-url, and the Control API topology as environment overrides.
 nas.outbound.vpn.enabled=false
 nas.outbound.vpn.proxy-host=
 nas.outbound.vpn.proxy-port=8888

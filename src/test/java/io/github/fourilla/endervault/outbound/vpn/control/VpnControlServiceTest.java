@@ -2,6 +2,7 @@ package io.github.fourilla.endervault.outbound.vpn.control;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -63,6 +64,28 @@ class VpnControlServiceTest {
 
         verify(client).setRunning(false);
         assertThat(status.state()).isEqualTo(VpnControlState.STOPPED);
+    }
+
+    @Test
+    void scheduledRefreshRecoversFromVpnStartupRace() throws Exception {
+        NasProperties properties = enabledProperties();
+        GluetunControlClient client = mock(GluetunControlClient.class);
+        when(client.configured()).thenReturn(true);
+        when(client.inspect())
+                .thenThrow(new VpnControlException("Control API is not ready."))
+                .thenReturn(new GluetunControlClient.Inspection(
+                        VpnControlState.RUNNING,
+                        "203.0.113.17",
+                        "Running."
+                ));
+        VpnControlService service = new VpnControlService(properties, client);
+
+        assertThat(service.refresh().state()).isEqualTo(VpnControlState.UNAVAILABLE);
+
+        service.scheduledRefresh();
+
+        assertThat(service.current().state()).isEqualTo(VpnControlState.RUNNING);
+        verify(client, times(2)).inspect();
     }
 
     private NasProperties enabledProperties() {

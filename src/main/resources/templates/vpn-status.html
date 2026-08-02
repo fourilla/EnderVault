@@ -31,50 +31,6 @@
         </a>
     </header>
 
-    <section class="dashboard-metrics vpn-status-metrics" aria-label="VPN overview">
-        <article class="dashboard-metric">
-            <i class="fas fa-shield-halved" aria-hidden="true"></i>
-            <div>
-                <span>Tunnel</span>
-                <strong><span class="status-badge" data-vpn-runtime="controlBadge"
-                              th:classappend="${vpnRuntime.statusClass()}"
-                              th:text="${vpnRuntime.label()}">Unavailable</span></strong>
-                <p data-vpn-runtime="detail" th:text="${vpnRuntime.detail()}">Status unavailable.</p>
-            </div>
-        </article>
-        <article class="dashboard-metric">
-            <i class="fas fa-globe" aria-hidden="true"></i>
-            <div>
-                <span>VPN public IP</span>
-                <strong class="vpn-public-ip" data-vpn-runtime="publicIp"
-                        th:text="${vpnRuntime.publicIp()}">Unavailable</strong>
-                <button class="ghost icon-button action-icon js-only" type="button" data-copy-vpn-ip
-                        title="Copy VPN public IP" aria-label="Copy VPN public IP"
-                        th:disabled="${vpnRuntime.publicIp() == 'Unavailable'}">
-                    <i class="fas fa-copy" aria-hidden="true"></i>
-                </button>
-            </div>
-        </article>
-        <article class="dashboard-metric">
-            <i class="fas fa-route" aria-hidden="true"></i>
-            <div>
-                <span>Outbound route</span>
-                <strong><span class="status-badge" data-vpn-runtime="routeBadge"
-                              th:classappend="${vpnRuntime.vpnRouteSelected()} ? 'active' : 'info'"
-                              th:text="${vpnRuntime.routeLabel()}">Direct</span></strong>
-                <p>Server-wide managed request route</p>
-            </div>
-        </article>
-        <article class="dashboard-metric">
-            <i class="fas fa-cloud-arrow-down" aria-hidden="true"></i>
-            <div>
-                <span>Active VPN tasks</span>
-                <strong data-vpn-runtime="activeVpnTasks" th:text="${vpnRuntime.activeVpnTasks()}">0</strong>
-                <p>Remote downloads pinned to VPN</p>
-            </div>
-        </article>
-    </section>
-
     <section class="vpn-status-grid">
         <article class="dashboard-panel">
             <header class="section-heading">
@@ -87,10 +43,35 @@
                       th:text="${vpnRuntime.health().label()}">Unavailable</span>
             </header>
             <dl class="vpn-detail-list">
-                <div><dt>Profile</dt><dd data-vpn-runtime="profileName" th:text="${vpnRuntime.profileName()}">Not configured</dd></div>
+                <div>
+                    <dt>Tunnel</dt>
+                    <dd><span class="status-badge" data-vpn-runtime="controlBadge"
+                              th:classappend="${vpnRuntime.statusClass()}"
+                              th:text="${vpnRuntime.label()}">Unavailable</span></dd>
+                </div>
+                <div>
+                    <dt>VPN public IP</dt>
+                    <dd class="vpn-copy-field">
+                        <span class="vpn-public-ip" data-vpn-runtime="publicIp"
+                              th:text="${vpnRuntime.publicIp()}">Unavailable</span>
+                        <button class="ghost icon-button action-icon js-only" type="button" data-copy-vpn-ip
+                                title="Copy VPN public IP" aria-label="Copy VPN public IP"
+                                th:disabled="${vpnRuntime.publicIp() == 'Unavailable'}">
+                            <i class="fas fa-copy" aria-hidden="true"></i>
+                        </button>
+                    </dd>
+                </div>
+                <div>
+                    <dt>Outbound route</dt>
+                    <dd><span class="status-badge" data-vpn-runtime="routeBadge"
+                              th:classappend="${vpnRuntime.vpnRouteSelected()} ? 'active' : 'info'"
+                              th:text="${vpnRuntime.routeLabel()}">Direct</span></dd>
+                </div>
                 <div><dt>Proxy endpoint</dt><dd data-vpn-runtime="proxyEndpoint" th:text="${vpnRuntime.health().proxyEndpoint()}">-</dd></div>
                 <div><dt>Last checked</dt><dd data-vpn-runtime="checkedAt" th:text="${vpnRuntime.checkedAtLabel()}">-</dd></div>
                 <div><dt>Control latency</dt><dd data-vpn-runtime="latency" th:text="${vpnRuntime.latencyLabel()}">-</dd></div>
+                <div class="vpn-detail-wide vpn-active-tasks"><dt>Active VPN tasks</dt><dd data-vpn-runtime="activeVpnTasks" th:text="${vpnRuntime.activeVpnTasks()}">0</dd></div>
+                <div class="vpn-detail-wide"><dt>Control detail</dt><dd data-vpn-runtime="detail" th:text="${vpnRuntime.detail()}">-</dd></div>
                 <div class="vpn-detail-wide"><dt>Health detail</dt><dd data-vpn-runtime="healthDetail" th:text="${vpnRuntime.health().detail()}">-</dd></div>
             </dl>
         </article>

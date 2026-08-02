@@ -2,8 +2,8 @@
 /logs/
 /storage/
 /docs/
-/deploy/runtime/
-/deploy/secrets/
+/docker/runtime/
+/docker/secrets/
 /.env
 /.env.*
 !/.env.example

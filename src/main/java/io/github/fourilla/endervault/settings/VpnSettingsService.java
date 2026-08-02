@@ -5,7 +5,6 @@ import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealth;
 import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthService;
 import io.github.fourilla.endervault.outbound.vpn.VpnTunnelHealthEndpoint;
-import io.github.fourilla.endervault.web.support.VpnStatusView;
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -42,7 +41,6 @@ public class VpnSettingsService {
                 vpn.getTunnelHealthUrl(),
                 vpn.getHealthRequestTimeoutMs(),
                 vpn.getHealthCheckIntervalMs(),
-                VpnStatusView.from(vpnProxyHealthService.current()),
                 localPropertiesFile.configFile().toString()
         );
     }
@@ -112,10 +110,6 @@ public class VpnSettingsService {
         return vpnProxyHealthService.refresh();
     }
 
-    public VpnProxyHealth refreshHealth() {
-        return vpnProxyHealthService.refresh();
-    }
-
     private static String proxyHost(String rawValue, boolean required) {
         String value = clean(rawValue);
         if (required && value.isBlank()) {
@@ -169,7 +163,6 @@ public class VpnSettingsService {
             String tunnelHealthUrl,
             int healthRequestTimeoutMs,
             long healthCheckIntervalMs,
-            VpnStatusView status,
             String configPath
     ) {
     }

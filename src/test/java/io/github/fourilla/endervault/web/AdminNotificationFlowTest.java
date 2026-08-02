@@ -387,16 +387,33 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void vpnSettingsPageRendersHealthAndConfiguration() throws Exception {
+    void vpnSettingsPageRendersConfigurationAndStatusLink() throws Exception {
         mockMvc.perform(get("/admin/settings/vpn"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("VPN Egress")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Proxy Connection")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Tunnel Health")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Current State")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"vpn-settings-save\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"vpn-health-refresh\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/vpn")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("href=\"/admin/vpn\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("Current State")
+                )))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("vpn-health-refresh")
+                )));
+    }
+
+    @Test
+    void vpnStatusPageRendersRuntimeDetailsInPanel() throws Exception {
+        mockMvc.perform(get("/admin/vpn"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("Connection Details")))
+                .andExpect(content().string(Matchers.containsString("VPN public IP")))
+                .andExpect(content().string(Matchers.containsString("Outbound route")))
+                .andExpect(content().string(Matchers.containsString("vpn-detail-wide vpn-active-tasks")))
+                .andExpect(content().string(Matchers.containsString("data-vpn-runtime=\"controlBadge\"")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("<dt>Profile</dt>"))))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("vpn-status-metrics"))));
     }
 
     @Test

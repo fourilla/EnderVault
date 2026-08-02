@@ -1,12 +1,19 @@
 services:
   endervault:
+    depends_on:
+      vpn-config:
+        condition: service_completed_successfully
     environment:
+      NAS_OUTBOUND_VPN_ENABLED: "true"
+      NAS_OUTBOUND_VPN_PROXY_HOST: vpn
+      NAS_OUTBOUND_VPN_PROXY_PORT: "8888"
+      NAS_OUTBOUND_VPN_TUNNEL_HEALTH_URL: http://vpn:9999/
       NAS_OUTBOUND_VPN_CONTROL_URL: http://vpn:8000
-      NAS_OUTBOUND_VPN_CONTROL_API_KEY_FILE: /var/run/endervault-vpn/control-api.key
+      NAS_OUTBOUND_VPN_CONTROL_API_KEY_FILE: /var/run/endervault-vpn/auth/control-api.key
       NAS_OUTBOUND_VPN_PROFILE_NAME: "${ENDERVAULT_VPN_CONFIG_NAME:-custom.ovpn}"
     volumes:
       - type: bind
-        source: "${ENDERVAULT_VPN_STATE_DIR:-./deploy/runtime/vpn}"
+        source: "${ENDERVAULT_VPN_STATE_DIR:-./docker/runtime/vpn}"
         target: /var/run/endervault-vpn
         read_only: true
 
@@ -25,18 +32,18 @@ services:
       ENDERVAULT_VPN_CONTROL_API_KEY_FILE: /runtime/auth/control-api.key
     volumes:
       - type: bind
-        source: "${ENDERVAULT_VPN_CONFIG_DIR:-./deploy/secrets/vpn/config}"
+        source: "${ENDERVAULT_VPN_CONFIG_DIR:-./docker/secrets/vpn/config}"
         target: /input
         read_only: true
       - type: bind
-        source: "${ENDERVAULT_VPN_STATE_DIR:-./deploy/runtime/vpn}"
+        source: "${ENDERVAULT_VPN_STATE_DIR:-./docker/runtime/vpn}"
         target: /runtime
       - type: bind
-        source: ./deploy/vpn/prepare_openvpn.py
+        source: ./docker/vpn/prepare_openvpn.py
         target: /opt/endervault/prepare_openvpn.py
         read_only: true
       - type: bind
-        source: ./deploy/vpn/prepare_control_api.py
+        source: ./docker/vpn/prepare_control_api.py
         target: /opt/endervault/prepare_control_api.py
         read_only: true
     command:
@@ -82,10 +89,10 @@ services:
       HTTP_CONTROL_SERVER_AUTH_CONFIG_FILEPATH: /gluetun/auth/config.toml
     volumes:
       - type: bind
-        source: "${ENDERVAULT_VPN_STATE_DIR:-./deploy/runtime/vpn}"
+        source: "${ENDERVAULT_VPN_STATE_DIR:-./docker/runtime/vpn}"
         target: /gluetun
       - type: bind
-        source: "${ENDERVAULT_VPN_CONFIG_DIR:-./deploy/secrets/vpn/config}"
+        source: "${ENDERVAULT_VPN_CONFIG_DIR:-./docker/secrets/vpn/config}"
         target: /gluetun/input
         read_only: true
     secrets:
@@ -102,6 +109,6 @@ services:
 
 secrets:
   openvpn_user:
-    file: "${ENDERVAULT_OPENVPN_USER_FILE:-./deploy/secrets/vpn/openvpn_user}"
+    environment: ENDERVAULT_OPENVPN_USER
   openvpn_password:
-    file: "${ENDERVAULT_OPENVPN_PASSWORD_FILE:-./deploy/secrets/vpn/openvpn_password}"
+    environment: ENDERVAULT_OPENVPN_PASSWORD
