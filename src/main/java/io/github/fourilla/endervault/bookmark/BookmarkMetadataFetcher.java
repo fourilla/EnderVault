@@ -21,6 +21,10 @@ import org.springframework.stereotype.Service;
 @Service
 public class BookmarkMetadataFetcher {
 
+    private static final String BROWSER_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            + "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36";
+    private static final String ACCEPT_LANGUAGE = "en-US,en;q=0.9";
+
     private final NasProperties nasProperties;
     private final OutboundHttpClientRegistry httpClientRegistry;
     private final BookmarkMetadataParser parser = new BookmarkMetadataParser();
@@ -60,9 +64,7 @@ public class BookmarkMetadataFetcher {
         URI current = validate(uri);
         int maxRedirects = nasProperties.getBookmarks().getMaxRedirects();
         for (int redirectCount = 0; redirectCount <= maxRedirects; redirectCount++) {
-            HttpRequest request = HttpRequest.newBuilder(current)
-                    .timeout(Duration.ofSeconds(nasProperties.getBookmarks().getResponseTimeoutSeconds()))
-                    .header("User-Agent", "EnderVault BookmarkMetadata")
+            HttpRequest request = browserRequest(current)
                     .header("Accept", "text/html,application/xhtml+xml")
                     .GET()
                     .build();
@@ -143,9 +145,7 @@ public class BookmarkMetadataFetcher {
         URI current = validate(uri);
         int maxRedirects = nasProperties.getBookmarks().getMaxRedirects();
         for (int redirectCount = 0; redirectCount <= maxRedirects; redirectCount++) {
-            HttpRequest request = HttpRequest.newBuilder(current)
-                    .timeout(Duration.ofSeconds(nasProperties.getBookmarks().getResponseTimeoutSeconds()))
-                    .header("User-Agent", "EnderVault BookmarkMetadata")
+            HttpRequest request = browserRequest(current)
                     .header("Accept", "application/manifest+json,application/json,text/json,*/*;q=0.2")
                     .GET()
                     .build();
@@ -186,9 +186,7 @@ public class BookmarkMetadataFetcher {
         URI current = validate(uri);
         int maxRedirects = nasProperties.getBookmarks().getMaxRedirects();
         for (int redirectCount = 0; redirectCount <= maxRedirects; redirectCount++) {
-            HttpRequest request = HttpRequest.newBuilder(current)
-                    .timeout(Duration.ofSeconds(nasProperties.getBookmarks().getResponseTimeoutSeconds()))
-                    .header("User-Agent", "EnderVault BookmarkMetadata")
+            HttpRequest request = browserRequest(current)
                     .header("Accept", "image/avif,image/webp,image/png,image/jpeg,image/gif,image/x-icon,*/*;q=0.2")
                     .GET()
                     .build();
@@ -244,6 +242,13 @@ public class BookmarkMetadataFetcher {
             }
             return outputStream.toByteArray();
         }
+    }
+
+    private HttpRequest.Builder browserRequest(URI uri) {
+        return HttpRequest.newBuilder(uri)
+                .timeout(Duration.ofSeconds(nasProperties.getBookmarks().getResponseTimeoutSeconds()))
+                .header("User-Agent", BROWSER_USER_AGENT)
+                .header("Accept-Language", ACCEPT_LANGUAGE);
     }
 
     private URI validate(String rawUrl) {

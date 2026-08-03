@@ -2,17 +2,18 @@
     gap: var(--space-sm);
 }
 
-.bookmark-actions .settings-menu {
-    flex: 0 0 auto;
-}
-
 .bookmark-form-panel {
     width: 320px;
 }
 
-.bookmark-link-panel,
-.bookmark-bulk-panel {
-    width: min(520px, calc(100vw - 320px));
+.bookmark-noscript-panel {
+    width: min(520px, calc(100vw - 48px));
+}
+
+.bookmark-noscript-panel .bookmark-create-form + .bookmark-create-form {
+    margin-top: var(--space-xl);
+    padding-top: var(--space-xl);
+    border-top: 1px solid var(--line);
 }
 
 .bookmark-create-form label {
@@ -24,7 +25,8 @@
     font-weight: 700;
 }
 
-.bookmark-create-form textarea {
+.bookmark-create-form textarea,
+.bookmark-form-dialog textarea {
     width: 100%;
     min-height: 220px;
     border: 1px solid var(--line);
@@ -34,6 +36,28 @@
     font: inherit;
     padding: var(--field-padding);
     resize: vertical;
+}
+
+.bookmark-form-dialog {
+    width: min(520px, calc(100vw - 32px));
+}
+
+.bookmark-bulk-dialog {
+    width: min(680px, calc(100vw - 32px));
+}
+
+.bookmark-dialog-card {
+    max-height: calc(100vh - 32px);
+    overflow: auto;
+}
+
+.bookmark-dialog-fields {
+    display: grid;
+    gap: var(--space-xl);
+}
+
+.bookmark-bulk-dialog textarea {
+    min-height: min(360px, 48vh);
 }
 
 .bookmark-link-name {
@@ -115,11 +139,4 @@
     font: inherit;
     padding: var(--field-padding);
     resize: vertical;
-}
-
-@media (max-width: 860px) {
-    .bookmark-link-panel,
-    .bookmark-bulk-panel {
-        width: min(520px, calc(100vw - 48px));
-    }
 }
