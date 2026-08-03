@@ -4,6 +4,7 @@
 
 .logs-panel {
     min-width: 0;
+    container-type: inline-size;
 }
 
 .log-panel-heading {
@@ -186,4 +187,39 @@
 .log-file-row span {
     color: var(--muted);
     font-size: var(--font-size-xs);
+}
+
+@container (max-width: 900px) {
+    .log-filter-row-primary {
+        grid-template-columns: minmax(180px, 2fr) repeat(3, minmax(0, 1fr));
+    }
+
+    .log-filter-row-secondary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .log-filter-size {
+        grid-column: 1;
+    }
+
+    .log-filter-actions {
+        grid-column: 2;
+    }
+}
+
+@container (max-width: 600px) {
+    .log-filter-row-primary,
+    .log-filter-row-secondary {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .log-filter-size,
+    .log-filter-actions {
+        grid-column: auto;
+    }
+
+    .log-filter-actions {
+        justify-self: stretch;
+        width: 100%;
+    }
 }
