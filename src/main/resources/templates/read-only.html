@@ -119,11 +119,11 @@
                    th:href="${filePreview.openUrl(file)}">
                     <span class="readonly-thumb">
                         <img class="thumb-media" th:if="${file.image()}" loading="lazy"
-                             th:src="@{/files/detail/preview(path=${file.path()})}"
+                             th:src="${filePreview.cardMediaUrl(file)}"
                              th:alt="${file.name()}">
                         <span class="video-thumb-wrap" th:if="${file.video() or file.comic() or file.pdf()}">
                             <img class="thumb-media" loading="lazy"
-                                 th:src="@{/files/detail/thumbnail(path=${file.path()})}"
+                                 th:src="${filePreview.cardMediaUrl(file)}"
                                  th:alt="${file.name()}">
                         </span>
                         <span class="thumb-extension"

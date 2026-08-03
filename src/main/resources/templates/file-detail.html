@@ -42,11 +42,11 @@
         </header>
 
         <div class="preview-surface" th:if="${fileTool.image() or fileTool.video() or fileTool.pdf()}">
-            <img class="preview-media" th:if="${fileTool.image()}" th:src="@{/files/detail/preview(path=${detail.path()})}" th:alt="${detail.name()}">
+            <img class="preview-media" th:if="${fileTool.image()}" th:src="${filePreview.previewContentUrl(detail)}" th:alt="${detail.name()}">
             <video class="preview-media" th:if="${fileTool.video()}" controls
-                   th:poster="@{/files/detail/thumbnail(path=${detail.path()})}"
-                   th:src="@{/files/detail/preview(path=${detail.path()})}"></video>
-            <iframe class="preview-frame" th:if="${fileTool.pdf()}" th:src="@{/files/detail/preview(path=${detail.path()})}" title="Preview"></iframe>
+                   th:poster="${filePreview.cardMediaUrl(detail)}"
+                   th:src="${filePreview.previewContentUrl(detail)}"></video>
+            <iframe class="preview-frame" th:if="${fileTool.pdf()}" th:src="${filePreview.previewContentUrl(detail)}" title="Preview"></iframe>
         </div>
 
         <div class="comic-viewer" th:if="${fileTool.comic()}"

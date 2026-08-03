@@ -36,15 +36,42 @@ public class FilePreviewSupport {
     }
 
     public String previewUrl(FileItem item) {
-        return previewUrl(item.name(), item.path());
+        return openUrl(item.path());
     }
 
     public String previewUrl(RecentListItem item) {
-        return previewUrl(item.name(), item.path());
+        return openUrl(item.path());
     }
 
     public String previewUrl(FileDetail detail) {
-        return previewUrl(detail.name(), detail.path());
+        return openUrl(detail.path());
+    }
+
+    public String cardMediaUrl(FileItem item) {
+        return cardMediaUrl(item.name(), item.path(), item.image());
+    }
+
+    public String cardMediaUrl(RecentListItem item) {
+        return cardMediaUrl(item.name(), item.path(), item.image());
+    }
+
+    public String cardMediaUrl(FileDetail detail) {
+        return cardMediaUrl(detail.name(), detail.path(), detail.image());
+    }
+
+    public String previewContentUrl(FileDetail detail) {
+        if (previewType(detail.name()) == FileToolType.COMIC) {
+            return UriComponentsBuilder.fromPath("/files/detail/comic/preview")
+                    .queryParam("path", detail.path())
+                    .build()
+                    .encode()
+                    .toUriString();
+        }
+        return fileContentUrl("/files/preview", detail.name(), detail.path());
+    }
+
+    public String openTargetUrl(FileDetail detail) {
+        return previewable(detail) ? previewContentUrl(detail) : downloadUrl(detail.path());
     }
 
     public String sharedFilePreviewUrl(String token, FileItem item) {
@@ -73,17 +100,32 @@ public class FilePreviewSupport {
     }
 
     public String openUrl(FileItem item) {
-        return previewable(item) ? previewUrl(item) : downloadUrl(item.path());
+        return openUrl(item.path());
     }
 
     public String openUrl(RecentListItem item) {
-        return previewable(item) ? previewUrl(item) : downloadUrl(item.path());
+        return openUrl(item.path());
     }
 
-    private String previewUrl(String name, String path) {
-        String endpoint = previewType(name) == FileToolType.COMIC ? "/files/detail/comic/preview" : "/files/detail/preview";
-        return UriComponentsBuilder.fromPath(endpoint)
+    private String openUrl(String path) {
+        return UriComponentsBuilder.fromPath("/files/open")
                 .queryParam("path", path)
+                .build()
+                .encode()
+                .toUriString();
+    }
+
+    private String cardMediaUrl(String name, String path, boolean image) {
+        return fileContentUrl(image ? "/files/preview" : "/files/thumbnail", name, path);
+    }
+
+    private String fileContentUrl(String endpoint, String name, String path) {
+        UriComponentsBuilder builder = UriComponentsBuilder.fromPath(endpoint);
+        String parentPath = parentPath(path);
+        if (!parentPath.isBlank()) {
+            builder.queryParam("path", parentPath);
+        }
+        return builder.queryParam("item", name)
                 .build()
                 .encode()
                 .toUriString();
@@ -123,5 +165,10 @@ public class FilePreviewSupport {
 
     private FileToolType previewType(String name) {
         return fileActionRegistry.typeFor(name, false, "", fileActionRegistry.extension(name));
+    }
+
+    private String parentPath(String path) {
+        int index = path == null ? -1 : path.lastIndexOf('/');
+        return index < 0 ? "" : path.substring(0, index);
     }
 }
