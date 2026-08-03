@@ -1,7 +1,8 @@
 (() => {
     "use strict";
 
-    const PREVIEW_ENDPOINT = "/files/detail/preview";
+    const FILE_OPEN_ENDPOINT = "/files/open";
+    const FILE_PREVIEW_ENDPOINT = "/files/preview";
     const SAFE_LINK_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
     const SAFE_IMAGE_PROTOCOLS = new Set(["http:", "https:"]);
     const ALERT_PATTERN = /^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/i;
@@ -354,7 +355,7 @@
     const rewriteLinks = (fragment, sourcePath) => {
         fragment.querySelectorAll("a[href]").forEach((link) => {
             const destination = link.getAttribute("href");
-            const resolved = resolveDestination(destination, sourcePath, SAFE_LINK_PROTOCOLS);
+            const resolved = resolveDestination(destination, sourcePath, SAFE_LINK_PROTOCOLS, FILE_OPEN_ENDPOINT);
             if (!resolved) {
                 link.removeAttribute("href");
                 link.removeAttribute("target");
@@ -376,7 +377,7 @@
     const rewriteImages = (fragment, sourcePath) => {
         fragment.querySelectorAll("img[src]").forEach((image) => {
             const destination = image.getAttribute("src");
-            const resolved = resolveDestination(destination, sourcePath, SAFE_IMAGE_PROTOCOLS);
+            const resolved = resolveDestination(destination, sourcePath, SAFE_IMAGE_PROTOCOLS, FILE_PREVIEW_ENDPOINT);
             if (!resolved || resolved.sameDocument) {
                 image.remove();
                 return;
@@ -389,7 +390,7 @@
         });
     };
 
-    const resolveDestination = (destination, sourcePath, allowedProtocols) => {
+    const resolveDestination = (destination, sourcePath, allowedProtocols, vaultEndpoint) => {
         const normalized = (destination || "").trim();
         if (!normalized) {
             return null;
@@ -429,12 +430,27 @@
         if (!relative) {
             return null;
         }
-        const url = new URL(PREVIEW_ENDPOINT, window.location.origin);
-        url.searchParams.set("path", relative.path);
+        const url = vaultFileUrl(vaultEndpoint, relative.path);
         if (relative.fragment) {
             url.hash = relative.fragment;
         }
         return { url: `${url.pathname}${url.search}${url.hash}`, sameDocument: false };
+    };
+
+    const vaultFileUrl = (endpoint, path) => {
+        const url = new URL(endpoint, window.location.origin);
+        if (endpoint === FILE_PREVIEW_ENDPOINT) {
+            const separator = path.lastIndexOf("/");
+            const parentPath = separator < 0 ? "" : path.slice(0, separator);
+            const name = separator < 0 ? path : path.slice(separator + 1);
+            if (parentPath) {
+                url.searchParams.set("path", parentPath);
+            }
+            url.searchParams.set("item", name);
+            return url;
+        }
+        url.searchParams.set("path", path);
+        return url;
     };
 
     const resolveVaultRelativePath = (sourcePath, destination) => {

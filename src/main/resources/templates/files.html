@@ -340,11 +340,11 @@
                 <span class="status-badge expired hidden-badge card-hidden-badge" th:if="${file.hidden()}">Hidden</span>
                 <a class="card-thumb" th:href="@{/files/detail(path=${file.path()})}">
                     <img class="thumb-media" th:if="${file.image()}" loading="lazy"
-                         th:src="@{/files/preview(path=${path}, item=${file.name()})}"
+                         th:src="${filePreview.cardMediaUrl(file)}"
                          th:alt="${file.name()}">
                     <span class="video-thumb-wrap" th:if="${file.video() or file.comic() or file.pdf()}">
                         <img class="thumb-media" loading="lazy"
-                             th:src="@{/files/thumbnail(path=${path}, item=${file.name()})}"
+                             th:src="${filePreview.cardMediaUrl(file)}"
                              th:alt="${file.name()}">
                     </span>
                     <span class="thumb-extension"

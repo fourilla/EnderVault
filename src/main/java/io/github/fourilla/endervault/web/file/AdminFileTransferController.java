@@ -12,6 +12,7 @@ import io.github.fourilla.endervault.thumbnail.ThumbnailFile;
 import io.github.fourilla.endervault.thumbnail.ThumbnailService;
 import io.github.fourilla.endervault.recent.RecentService;
 import io.github.fourilla.endervault.web.support.ActionResponseSupport;
+import io.github.fourilla.endervault.web.support.FilePreviewSupport;
 import io.github.fourilla.endervault.web.support.FileResponseService;
 import io.github.fourilla.endervault.web.support.FlashNotifications;
 import io.github.fourilla.endervault.web.support.SelectedItems;
@@ -49,6 +50,7 @@ public class AdminFileTransferController {
     private final ActivityLogService activityLogService;
     private final FileToolService fileToolService;
     private final TextFileService textFileService;
+    private final FilePreviewSupport filePreviewSupport;
 
     public AdminFileTransferController(
             StorageService storageService,
@@ -57,7 +59,8 @@ public class AdminFileTransferController {
             ThumbnailService thumbnailService,
             ActivityLogService activityLogService,
             FileToolService fileToolService,
-            TextFileService textFileService
+            TextFileService textFileService,
+            FilePreviewSupport filePreviewSupport
     ) {
         this.storageService = storageService;
         this.fileResponseService = fileResponseService;
@@ -66,6 +69,7 @@ public class AdminFileTransferController {
         this.activityLogService = activityLogService;
         this.fileToolService = fileToolService;
         this.textFileService = textFileService;
+        this.filePreviewSupport = filePreviewSupport;
     }
 
     @GetMapping("/files/download")
@@ -103,12 +107,6 @@ public class AdminFileTransferController {
         Path file = storageService.resolveFile(StorageScope.VAULT, path, item);
         String vaultPath = storageService.describeVaultChild(path, item).path();
         return thumbnailResponse(file, vaultPath);
-    }
-
-    @GetMapping("/files/detail/thumbnail")
-    public ResponseEntity<Resource> thumbnailFromDetail(@RequestParam("path") String path) throws IOException {
-        Path file = storageService.resolveVaultFile(path);
-        return thumbnailResponse(file, path);
     }
 
     @GetMapping("/files/download.zip")
@@ -189,18 +187,16 @@ public class AdminFileTransferController {
         return fileResponseService.inline(file, headers);
     }
 
-    @GetMapping("/files/detail/preview")
-    public Object previewFromDetail(
-            @RequestParam("path") String path,
-            @RequestHeader HttpHeaders headers
-    ) throws IOException {
+    @GetMapping("/files/open")
+    public String open(@RequestParam("path") String path) throws IOException {
         FileDetail detail = detailForPath(path);
-        Path file = storageService.resolveVaultFile(detail.path());
-        recentService.recordVaultPath(detail.path());
-        if (fileToolService.resolve(detail).markdown()) {
-            return markdownPreview(detail, file);
+        if (detail.directory()) {
+            throw new NoSuchFileException(detail.path());
         }
-        return fileResponseService.inline(file, headers);
+        if (filePreviewSupport.previewable(detail)) {
+            recentService.recordVaultPath(detail.path());
+        }
+        return "redirect:" + filePreviewSupport.openTargetUrl(detail);
     }
 
     private ModelAndView markdownPreview(FileDetail detail, Path file) throws IOException {

@@ -104,12 +104,13 @@ public class AdminBookmarkController {
     }
 
     @PostMapping("/files/bookmarks/directories")
-    public String createDirectory(
+    public Object createDirectory(
             @RequestParam(value = "parentId", required = false) String parentId,
             @RequestParam("title") String title,
             HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
+        String redirect = BookmarkRoutes.redirectToBookmarks(parentId, null);
         try {
             BookmarkItem directory = bookmarkService.createDirectory(parentId, title);
             activityLogService.record(
@@ -120,15 +121,24 @@ public class AdminBookmarkController {
                     "Created bookmark directory " + directory.title(),
                     Map.of("bookmarkId", directory.id())
             );
-            FlashNotifications.success(redirectAttributes, "Bookmark directory created.");
+            return ActionResponseSupport.redirect(
+                    request,
+                    redirectAttributes,
+                    FlashNotification.success("Bookmark directory created."),
+                    redirect
+            );
         } catch (StorageAccessException ex) {
-            FlashNotifications.error(redirectAttributes, ex.getMessage());
+            return ActionResponseSupport.badRequest(
+                    request,
+                    redirectAttributes,
+                    FlashNotification.error(ex.getMessage()),
+                    redirect
+            );
         }
-        return BookmarkRoutes.redirectToBookmarks(parentId, null);
     }
 
     @PostMapping("/files/bookmarks/links")
-    public String createLink(
+    public Object createLink(
             @RequestParam(value = "parentId", required = false) String parentId,
             @RequestParam("title") String title,
             @RequestParam("url") String url,
@@ -136,6 +146,7 @@ public class AdminBookmarkController {
             HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
+        String redirect = BookmarkRoutes.redirectToBookmarks(parentId, null);
         try {
             BookmarkItem link = bookmarkService.createLink(parentId, title, url, note);
             activityLogService.record(
@@ -146,11 +157,20 @@ public class AdminBookmarkController {
                     "Created bookmark link " + link.title(),
                     BookmarkLogMetadata.single(link, "link")
             );
-            FlashNotifications.success(redirectAttributes, "Bookmark link created.");
+            return ActionResponseSupport.redirect(
+                    request,
+                    redirectAttributes,
+                    FlashNotification.success("Bookmark link created."),
+                    redirect
+            );
         } catch (StorageAccessException ex) {
-            FlashNotifications.error(redirectAttributes, ex.getMessage());
+            return ActionResponseSupport.badRequest(
+                    request,
+                    redirectAttributes,
+                    FlashNotification.error(ex.getMessage()),
+                    redirect
+            );
         }
-        return BookmarkRoutes.redirectToBookmarks(parentId, null);
     }
 
     @PostMapping("/files/bookmarks/bulk")

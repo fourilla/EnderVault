@@ -2,7 +2,6 @@ package io.github.fourilla.endervault.web.file;
 
 import io.github.fourilla.endervault.filetool.comic.ComicArchiveService;
 import io.github.fourilla.endervault.filetool.comic.ComicPageResource;
-import io.github.fourilla.endervault.recent.RecentService;
 import io.github.fourilla.endervault.storage.FileDetail;
 import io.github.fourilla.endervault.storage.StorageScope;
 import io.github.fourilla.endervault.storage.StorageService;
@@ -28,16 +27,13 @@ public class AdminComicController {
 
     private final StorageService storageService;
     private final ComicArchiveService comicArchiveService;
-    private final RecentService recentService;
 
     public AdminComicController(
             StorageService storageService,
-            ComicArchiveService comicArchiveService,
-            RecentService recentService
+            ComicArchiveService comicArchiveService
     ) {
         this.storageService = storageService;
         this.comicArchiveService = comicArchiveService;
-        this.recentService = recentService;
     }
 
     @GetMapping("/files/detail/comic/preview")
@@ -50,7 +46,6 @@ public class AdminComicController {
             throw new NoSuchFileException(path);
         }
 
-        recentService.recordVaultPath(detail.path());
         Path cbzFile = storageService.resolveVaultFile(detail.path());
         model.addAttribute("comicTitle", detail.name());
         model.addAttribute("comicPageUrlPrefix", comicPageUrlPrefix(detail.path()));

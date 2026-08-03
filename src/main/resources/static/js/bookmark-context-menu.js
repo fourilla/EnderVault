@@ -1,6 +1,10 @@
 document.addEventListener("DOMContentLoaded", () => {
     const workspace = document.querySelector(".workspace");
+    const appMain = document.querySelector(".app-main");
     const bulkForm = document.getElementById("bulkActionForm");
+    const createDirectoryButton = document.getElementById("createBookmarkDirectoryButton");
+    const createLinkButton = document.getElementById("createBookmarkLinkButton");
+    const bulkAddButton = document.getElementById("bulkAddBookmarksButton");
 
     if (!workspace || !bulkForm || !window.EnderVault) {
         return;
@@ -102,11 +106,6 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
         window.location.href = url;
-    };
-
-    const openToolMenu = (name) => {
-        const summary = document.querySelector(`[data-bookmark-tool="${name}"]`);
-        summary?.click();
     };
 
     const deleteSingle = (item) => {
@@ -222,19 +221,19 @@ document.addEventListener("DOMContentLoaded", () => {
     registerAction({
         id: "create-link",
         group: "background",
-        label: "Create link",
+        label: "Add link",
         icon: "fas fa-link",
-        visible: (context) => context.mode === "background",
-        run: () => openToolMenu("create-link")
+        visible: (context) => context.mode === "background" && Boolean(createLinkButton),
+        run: () => createLinkButton.click()
     });
 
     registerAction({
         id: "create-directory",
         group: "background",
-        label: "Create directory",
+        label: "New directory",
         icon: "fas fa-folder-plus",
-        visible: (context) => context.mode === "background",
-        run: () => openToolMenu("create-directory")
+        visible: (context) => context.mode === "background" && Boolean(createDirectoryButton),
+        run: () => createDirectoryButton.click()
     });
 
     registerAction({
@@ -242,8 +241,8 @@ document.addEventListener("DOMContentLoaded", () => {
         group: "background",
         label: "Bulk add links",
         icon: "fas fa-list-ul",
-        visible: (context) => context.mode === "background",
-        run: () => openToolMenu("bulk-add")
+        visible: (context) => context.mode === "background" && Boolean(bulkAddButton),
+        run: () => bulkAddButton.click()
     });
 
     const contextForEvent = (event) => {
@@ -264,7 +263,10 @@ document.addEventListener("DOMContentLoaded", () => {
             };
         }
 
-        if (!workspace.contains(event.target) || isNativeContextTarget(event.target)) {
+        const inWorkspace = workspace.contains(event.target);
+        const inMainBackground = appMain?.contains(event.target)
+                && !event.target.closest(".topbar, header, aside, dialog, .context-menu");
+        if ((!inWorkspace && !inMainBackground) || isNativeContextTarget(event.target)) {
             return null;
         }
 
