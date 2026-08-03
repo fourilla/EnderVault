@@ -30,6 +30,7 @@
     <script defer th:src="@{/js/activity-panel.js}"></script>
     <script defer th:src="@{/js/server-tasks.js}"></script>
     <script defer th:src="@{/js/favorites.js}"></script>
+    <script defer th:src="@{/js/outbound-route.js}"></script>
 </th:block>
 
 <th:block th:fragment="adminActionsScript">
@@ -114,6 +115,10 @@
 
 <th:block th:fragment="remoteDownloadScript">
     <script defer th:src="@{/js/remote-download.js}"></script>
+</th:block>
+
+<th:block th:fragment="vpnStatusScript">
+    <script defer th:src="@{/js/vpn-status.js}"></script>
 </th:block>
 
 <th:block th:fragment="logsScript">

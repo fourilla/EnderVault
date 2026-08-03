@@ -16,6 +16,8 @@ spring.servlet.multipart.max-request-size=20GB
 # root is the vault directory EnderVault manages.
 # Development example: ./storage
 # Linux server example: /mnt/external_drive
+# Docker Compose overrides this value with the fixed container path /storage;
+# choose the host directory with ENDERVAULT_STORAGE_PATH in .env instead.
 # metadata-directory stores EnderVault metadata such as logs, thumbnails,
 # share links, favorites, recent items, bookmarks, and passkeys.
 nas.storage.root=/mnt/external_drive
@@ -168,6 +170,32 @@ nas.remote-download.worker-threads=2
 nas.remote-download.history-limit=100
 
 # ---------------------------------------------------------------------------
+# Outbound VPN proxy
+# ---------------------------------------------------------------------------
+# Initial route for route-selectable outbound work. Runtime Topbar changes are
+# held in memory and reset to this value after an application restart.
+nas.outbound.initial-route=direct
+# This optional endpoint will be used by route-selectable outbound features.
+# Leave tunnel-health-url empty for TCP-only proxy health. A Gluetun Compose
+# deployment can use http://vpn:9999/ to require Gluetun tunnel health.
+# This still does not verify the exact public egress IP.
+# The optional Docker VPN overlay supplies enabled, proxy-host, proxy-port,
+# tunnel-health-url, and the Control API topology as environment overrides.
+nas.outbound.vpn.enabled=false
+nas.outbound.vpn.proxy-host=
+nas.outbound.vpn.proxy-port=8888
+nas.outbound.vpn.health-connect-timeout-ms=1500
+nas.outbound.vpn.tunnel-health-url=
+nas.outbound.vpn.health-request-timeout-ms=3000
+nas.outbound.vpn.health-check-interval-ms=30000
+# Infrastructure-only Control API settings. The VPN Compose overlay supplies
+# these values and stores the API key outside this properties file.
+nas.outbound.vpn.control-url=
+nas.outbound.vpn.control-api-key-file=
+nas.outbound.vpn.profile-name=
+nas.outbound.vpn.control-request-timeout-ms=3000
+
+# ---------------------------------------------------------------------------
 # Background tasks
 # ---------------------------------------------------------------------------
 nas.tasks.history-limit=100
@@ -256,6 +284,9 @@ nas.notifications.telegram.activity.remote-download-queued=false
 nas.notifications.telegram.activity.remote-download-complete=false
 nas.notifications.telegram.activity.remote-download-failed=false
 nas.notifications.telegram.activity.remote-download-canceled=false
+
+# Network route activity.
+nas.notifications.telegram.activity.outbound-route-change=false
 
 # Bookmark and recent activity.
 nas.notifications.telegram.activity.bookmark-directory-create=false

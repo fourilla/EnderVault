@@ -17,6 +17,14 @@
     margin: 0;
 }
 
+.section-heading-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-md);
+    flex-wrap: wrap;
+}
+
 .section-heading h1,
 .section-heading h2 {
     font-size: var(--font-size-lg);

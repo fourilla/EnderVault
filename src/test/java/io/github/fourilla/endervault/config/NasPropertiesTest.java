@@ -2,6 +2,7 @@ package io.github.fourilla.endervault.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.fourilla.endervault.outbound.NetworkRoute;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.bind.Binder;
@@ -57,7 +58,19 @@ class NasPropertiesTest {
                 .withProperty("nas.activity-log.max-archive-files", "12")
                 .withProperty("nas.activity-log.page-size-options", "25,50,100")
                 .withProperty("nas.tasks.worker-threads", "3")
-                .withProperty("nas.metadata-inspector.max-issues-per-area", "250");
+                .withProperty("nas.metadata-inspector.max-issues-per-area", "250")
+                .withProperty("nas.outbound.initial-route", "vpn-required")
+                .withProperty("nas.outbound.vpn.enabled", "true")
+                .withProperty("nas.outbound.vpn.proxy-host", "gluetun")
+                .withProperty("nas.outbound.vpn.proxy-port", "8889")
+                .withProperty("nas.outbound.vpn.health-connect-timeout-ms", "900")
+                .withProperty("nas.outbound.vpn.tunnel-health-url", "http://gluetun:9999/")
+                .withProperty("nas.outbound.vpn.health-request-timeout-ms", "1200")
+                .withProperty("nas.outbound.vpn.health-check-interval-ms", "45000")
+                .withProperty("nas.outbound.vpn.control-url", "http://gluetun:8000")
+                .withProperty("nas.outbound.vpn.control-api-key-file", "/run/secrets/vpn-control")
+                .withProperty("nas.outbound.vpn.profile-name", "custom.ovpn")
+                .withProperty("nas.outbound.vpn.control-request-timeout-ms", "1800");
 
         NasProperties properties = Binder.get(environment)
                 .bind("nas", NasProperties.class)
@@ -73,5 +86,19 @@ class NasPropertiesTest {
         assertThat(properties.getActivityLog().getPageSizeOptions()).isEqualTo(List.of(25, 50, 100));
         assertThat(properties.getTasks().getWorkerThreads()).isEqualTo(3);
         assertThat(properties.getMetadataInspector().getMaxIssuesPerArea()).isEqualTo(250);
+        assertThat(properties.getOutbound().getInitialRoute()).isEqualTo(NetworkRoute.VPN_REQUIRED);
+        assertThat(properties.getOutbound().getVpn().isEnabled()).isTrue();
+        assertThat(properties.getOutbound().getVpn().getProxyHost()).isEqualTo("gluetun");
+        assertThat(properties.getOutbound().getVpn().getProxyPort()).isEqualTo(8889);
+        assertThat(properties.getOutbound().getVpn().getHealthConnectTimeoutMs()).isEqualTo(900);
+        assertThat(properties.getOutbound().getVpn().getTunnelHealthUrl())
+                .isEqualTo("http://gluetun:9999/");
+        assertThat(properties.getOutbound().getVpn().getHealthRequestTimeoutMs()).isEqualTo(1200);
+        assertThat(properties.getOutbound().getVpn().getHealthCheckIntervalMs()).isEqualTo(45000L);
+        assertThat(properties.getOutbound().getVpn().getControlUrl()).isEqualTo("http://gluetun:8000");
+        assertThat(properties.getOutbound().getVpn().getControlApiKeyFile())
+                .isEqualTo("/run/secrets/vpn-control");
+        assertThat(properties.getOutbound().getVpn().getProfileName()).isEqualTo("custom.ovpn");
+        assertThat(properties.getOutbound().getVpn().getControlRequestTimeoutMs()).isEqualTo(1800);
     }
 }

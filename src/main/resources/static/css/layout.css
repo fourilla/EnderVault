@@ -231,6 +231,33 @@
     gap: var(--space-md);
 }
 
+.topbar-route-form {
+    display: flex;
+    margin: 0;
+}
+
+.topbar-route-toggle {
+    min-width: 96px;
+    border-color: var(--line);
+    padding: 0 var(--space-xl);
+}
+
+.topbar-route-toggle.route-direct {
+    color: var(--text);
+}
+
+.topbar-route-toggle.route-vpn-ready {
+    border-color: var(--success-line);
+    background: var(--success-bg);
+    color: var(--success);
+}
+
+.topbar-route-toggle.route-vpn-unavailable {
+    border-color: var(--danger-line);
+    background: var(--danger-bg);
+    color: var(--danger);
+}
+
 .topbar-readonly {
     border: 1px solid var(--line);
     background: var(--panel);

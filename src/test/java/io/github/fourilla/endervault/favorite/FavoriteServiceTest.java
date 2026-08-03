@@ -10,6 +10,10 @@ import io.github.fourilla.endervault.bookmark.BookmarkMetadataFetcher;
 import io.github.fourilla.endervault.bookmark.BookmarkService;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.outbound.OutboundHttpClientRegistry;
+import io.github.fourilla.endervault.outbound.OutboundRouteStateService;
+import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthService;
+import io.github.fourilla.endervault.outbound.vpn.VpnTunnelHealthProbe;
 import io.github.fourilla.endervault.storage.StorageService;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -33,7 +37,17 @@ class FavoriteServiceTest {
         storageService.initialize();
 
         ObjectMapper objectMapper = JsonMapper.builder().findAndAddModules().build();
-        bookmarkService = new BookmarkService(objectMapper, properties, new BookmarkMetadataFetcher(properties));
+        bookmarkService = new BookmarkService(
+                objectMapper,
+                properties,
+                new BookmarkMetadataFetcher(
+                        properties,
+                        new OutboundHttpClientRegistry(
+                                new VpnProxyHealthService(properties, new VpnTunnelHealthProbe())
+                        )
+                ),
+                new OutboundRouteStateService(properties)
+        );
         bookmarkService.initialize();
         favoriteService = new FavoriteService(storageService, bookmarkService, objectMapper, properties);
         favoriteService.initialize();

@@ -285,6 +285,68 @@
         input.select();
     });
 
+    const ensureConfirmationDialog = () => {
+        let dialog = document.getElementById("actionConfirmationDialog");
+        if (dialog) {
+            return dialog;
+        }
+
+        dialog = document.createElement("dialog");
+        dialog.id = "actionConfirmationDialog";
+        dialog.className = "text-input-dialog";
+        dialog.innerHTML = `
+            <form method="dialog" class="text-input-card">
+                <header class="text-input-header">
+                    <div>
+                        <h2 data-confirmation-title>Confirm action</h2>
+                        <p data-confirmation-message></p>
+                    </div>
+                    <button class="ghost icon-button action-icon" value="cancel" type="submit"
+                            title="Cancel" aria-label="Cancel">
+                        <i class="fas fa-xmark" aria-hidden="true"></i>
+                    </button>
+                </header>
+                <div class="text-input-actions">
+                    <button class="ghost icon-text-button" value="cancel" type="submit">Cancel</button>
+                    <button class="danger icon-text-button" value="confirm" type="submit"
+                            data-confirmation-submit>Confirm</button>
+                </div>
+            </form>
+        `;
+        document.body.append(dialog);
+        return dialog;
+    };
+
+    const askConfirmation = ({
+        title = "Confirm action",
+        message = "Continue with this action?",
+        confirmLabel = "Confirm",
+        danger = false
+    } = {}) => new Promise((resolve) => {
+        const dialog = ensureConfirmationDialog();
+        const titleElement = dialog.querySelector("[data-confirmation-title]");
+        const messageElement = dialog.querySelector("[data-confirmation-message]");
+        const confirmButton = dialog.querySelector("[data-confirmation-submit]");
+
+        if (typeof dialog.showModal !== "function") {
+            resolve(window.confirm(message));
+            return;
+        }
+
+        titleElement.textContent = title;
+        messageElement.textContent = message;
+        confirmButton.textContent = confirmLabel;
+        confirmButton.className = `${danger ? "danger" : "primary"} icon-text-button`;
+        dialog.returnValue = "cancel";
+
+        const onClose = () => {
+            dialog.removeEventListener("close", onClose);
+            resolve(dialog.returnValue === "confirm");
+        };
+        dialog.addEventListener("close", onClose);
+        dialog.showModal();
+    });
+
     const requestJsonResolvingConflicts = async (
             url,
             { method = "GET", body = null, headers = {} } = {}
@@ -423,6 +485,7 @@
         submitJsonFormResolvingConflicts,
         askFileConflictPolicy,
         askTextInput,
+        askConfirmation,
         showNotification,
         showToast,
         copyText,

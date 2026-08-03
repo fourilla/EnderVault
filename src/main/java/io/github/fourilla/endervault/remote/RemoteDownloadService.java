@@ -4,7 +4,9 @@ import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.auth.ClientIpResolver;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
-import io.github.fourilla.endervault.storage.FileItem;
+import io.github.fourilla.endervault.outbound.NetworkRoute;
+import io.github.fourilla.endervault.outbound.OutboundHttpClientRegistry;
+import io.github.fourilla.endervault.outbound.OutboundRouteStateService;
 import io.github.fourilla.endervault.storage.StorageService;
 import jakarta.annotation.PreDestroy;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,6 +18,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -48,8 +51,9 @@ public class RemoteDownloadService {
     private final ActivityLogService activityLogService;
     private final ClientIpResolver clientIpResolver;
     private final RemoteDownloadValidator validator;
+    private final OutboundHttpClientRegistry httpClientRegistry;
+    private final OutboundRouteStateService outboundRouteStateService;
     private final ExecutorService executorService;
-    private final HttpClient httpClient;
     private final Map<String, RemoteDownloadTask> tasks = new ConcurrentHashMap<>();
     private final Map<String, Future<?>> taskFutures = new ConcurrentHashMap<>();
 
@@ -58,22 +62,31 @@ public class RemoteDownloadService {
             StorageService storageService,
             ActivityLogService activityLogService,
             ClientIpResolver clientIpResolver,
-            RemoteDownloadValidator validator
+            RemoteDownloadValidator validator,
+            OutboundHttpClientRegistry httpClientRegistry,
+            OutboundRouteStateService outboundRouteStateService
     ) {
         this.nasProperties = nasProperties;
         this.storageService = storageService;
         this.activityLogService = activityLogService;
         this.clientIpResolver = clientIpResolver;
         this.validator = validator;
+        this.httpClientRegistry = httpClientRegistry;
+        this.outboundRouteStateService = outboundRouteStateService;
         this.executorService = Executors.newFixedThreadPool(nasProperties.getRemoteDownload().getWorkerThreads());
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(nasProperties.getRemoteDownload().getConnectTimeoutSeconds()))
-                .followRedirects(HttpClient.Redirect.NEVER)
-                .build();
     }
 
     public RemoteDownloadTask start(String rawUrl, String targetDirectory, HttpServletRequest request)
             throws IOException {
+        return start(rawUrl, targetDirectory, outboundRouteStateService.currentRoute(), request);
+    }
+
+    public RemoteDownloadTask start(
+            String rawUrl,
+            String targetDirectory,
+            NetworkRoute networkRoute,
+            HttpServletRequest request
+    ) throws IOException {
         NasProperties.RemoteDownload properties = nasProperties.getRemoteDownload();
         if (!properties.isEnabled() || !properties.isDirectEnabled()) {
             throw new StorageAccessException("Direct remote download is disabled.");
@@ -82,11 +95,13 @@ public class RemoteDownloadService {
         URI sourceUri = validator.validate(rawUrl);
         String safeTargetDirectory = targetDirectory == null ? "" : targetDirectory.trim();
         storageService.ensureVaultDirectory(safeTargetDirectory);
+        httpClient(networkRoute);
 
         RemoteDownloadTask task = new RemoteDownloadTask(
                 UUID.randomUUID().toString(),
                 sourceUri.toString(),
                 safeTargetDirectory,
+                networkRoute,
                 actor(request),
                 clientIpResolver.resolve(request)
         );
@@ -98,7 +113,11 @@ public class RemoteDownloadService {
                 null,
                 safeTargetDirectory,
                 "Queued remote download.",
-                Map.of("url", task.sourceUrl(), "taskId", task.id())
+                Map.of(
+                        "url", task.sourceUrl(),
+                        "taskId", task.id(),
+                        "networkRoute", task.networkRoute().settingValue()
+                )
         );
         Future<?> future = executorService.submit(() -> runDownload(task));
         taskFutures.put(task.id(), future);
@@ -106,6 +125,14 @@ public class RemoteDownloadService {
     }
 
     public RemoteDownloadProbe inspect(String rawUrl, String targetDirectory) throws IOException {
+        return inspect(rawUrl, targetDirectory, outboundRouteStateService.currentRoute());
+    }
+
+    public RemoteDownloadProbe inspect(
+            String rawUrl,
+            String targetDirectory,
+            NetworkRoute networkRoute
+    ) throws IOException {
         NasProperties.RemoteDownload properties = nasProperties.getRemoteDownload();
         if (!properties.isEnabled() || !properties.isDirectEnabled()) {
             throw new StorageAccessException("Direct remote download is disabled.");
@@ -114,8 +141,9 @@ public class RemoteDownloadService {
         URI sourceUri = validator.validate(rawUrl);
         String safeTargetDirectory = targetDirectory == null ? "" : targetDirectory.trim();
         storageService.ensureVaultDirectory(safeTargetDirectory);
+        HttpClient httpClient = httpClient(networkRoute);
 
-        try (RemoteHttpResponse remoteResponse = openMetadataResponse(sourceUri)) {
+        try (RemoteHttpResponse remoteResponse = openMetadataResponse(sourceUri, httpClient)) {
             String fileName = fileNameFor(remoteResponse);
             String targetPath = targetPath(safeTargetDirectory, fileName);
             return new RemoteDownloadProbe(
@@ -125,7 +153,8 @@ public class RemoteDownloadService {
                     fileName,
                     targetPath,
                     remoteResponse.contentType(),
-                    remoteResponse.contentLength()
+                    remoteResponse.contentLength(),
+                    networkRoute
             );
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
@@ -202,8 +231,10 @@ public class RemoteDownloadService {
             throwIfCanceled(task);
             task.markRunning();
             throwIfCanceled(task);
+            HttpClient httpClient = httpClient(task.networkRoute());
             temporaryFile = storageService.createUploadTemporaryFile("remote-download-", ".tmp");
-            try (RemoteHttpResponse remoteResponse = openDownloadResponse(URI.create(task.sourceUrl()));
+            String fileName;
+            try (RemoteHttpResponse remoteResponse = openDownloadResponse(URI.create(task.sourceUrl()), httpClient);
                     InputStream inputStream = remoteResponse.body();
                     OutputStream outputStream = Files.newOutputStream(
                             temporaryFile,
@@ -224,16 +255,19 @@ public class RemoteDownloadService {
                 }
 
                 throwIfCanceled(task);
-                String fileName = fileNameFor(remoteResponse);
-                FileItem item = storageService.moveTemporaryFileIntoVault(
-                        temporaryFile,
-                        task.targetDirectory(),
-                        fileName
-                );
-                temporaryFile = null;
-                task.markComplete(item.name(), item.path());
-                recordFinished(task, true, "Remote download completed.");
+                fileName = fileNameFor(remoteResponse);
             }
+
+            throwIfCanceled(task);
+            StorageService.CommittedVaultFile committedFile = storageService.commitTemporaryFileIntoVault(
+                    temporaryFile,
+                    task.targetDirectory(),
+                    fileName,
+                    null
+            );
+            temporaryFile = null;
+            task.markComplete(committedFile.name(), committedFile.path());
+            recordFinished(task, true, "Remote download completed.");
         } catch (RemoteDownloadCanceledException ex) {
             markCanceledAndRecord(task, "Canceled.");
         } catch (InterruptedException ex) {
@@ -263,22 +297,36 @@ public class RemoteDownloadService {
         }
     }
 
-    private RemoteHttpResponse openDownloadResponse(URI sourceUri) throws IOException, InterruptedException {
-        return openRemoteResponse(sourceUri, "GET", false);
+    private HttpClient httpClient(NetworkRoute networkRoute) {
+        return httpClientRegistry.client(
+                networkRoute,
+                Duration.ofSeconds(nasProperties.getRemoteDownload().getConnectTimeoutSeconds())
+        );
     }
 
-    private RemoteHttpResponse openMetadataResponse(URI sourceUri) throws IOException, InterruptedException {
+    private RemoteHttpResponse openDownloadResponse(URI sourceUri, HttpClient httpClient)
+            throws IOException, InterruptedException {
+        return openRemoteResponse(sourceUri, "GET", false, httpClient);
+    }
+
+    private RemoteHttpResponse openMetadataResponse(URI sourceUri, HttpClient httpClient)
+            throws IOException, InterruptedException {
         try {
-            return openRemoteResponse(sourceUri, "HEAD", false);
+            return openRemoteResponse(sourceUri, "HEAD", false, httpClient);
         } catch (RemoteHttpStatusException ex) {
             if (ex.status() != 403 && ex.status() != 405) {
                 throw ex;
             }
-            return openRemoteResponse(sourceUri, "GET", true);
+            return openRemoteResponse(sourceUri, "GET", true, httpClient);
         }
     }
 
-    private RemoteHttpResponse openRemoteResponse(URI sourceUri, String method, boolean previewRange)
+    private RemoteHttpResponse openRemoteResponse(
+            URI sourceUri,
+            String method,
+            boolean previewRange,
+            HttpClient httpClient
+    )
             throws IOException, InterruptedException {
         URI current = validator.validate(sourceUri);
         int maxRedirects = nasProperties.getRemoteDownload().getMaxRedirects();
@@ -431,6 +479,7 @@ public class RemoteDownloadService {
         Map<String, String> metadata = new LinkedHashMap<>();
         metadata.put("url", task.sourceUrl());
         metadata.put("taskId", task.id());
+        metadata.put("networkRoute", task.networkRoute().settingValue());
         if (StringUtils.hasText(task.fileName())) {
             metadata.put("fileName", task.fileName());
         }
@@ -455,8 +504,24 @@ public class RemoteDownloadService {
     }
 
     private String cleanMessage(Exception ex) {
+        if (ex instanceof FileAlreadyExistsException fileAlreadyExistsException) {
+            String filename = cleanConflictFilename(fileAlreadyExistsException.getFile());
+            return "A file named \"" + filename + "\" already exists in the target directory.";
+        }
         String message = ex.getMessage();
         return message == null || message.isBlank() ? "Remote download failed." : message;
+    }
+
+    private String cleanConflictFilename(String rawPath) {
+        if (!StringUtils.hasText(rawPath)) {
+            return "the requested file";
+        }
+        try {
+            Path filename = Path.of(rawPath).getFileName();
+            return filename == null ? "the requested file" : filename.toString();
+        } catch (RuntimeException ex) {
+            return "the requested file";
+        }
     }
 
     private void closeQuietly(InputStream inputStream) {

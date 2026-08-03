@@ -13,9 +13,12 @@ import io.github.fourilla.endervault.thumbnail.ThumbnailCacheStats;
 import io.github.fourilla.endervault.thumbnail.ThumbnailService;
 import io.github.fourilla.endervault.trash.TrashRecord;
 import io.github.fourilla.endervault.trash.TrashService;
+import io.github.fourilla.endervault.web.vpn.VpnRuntimeViewService;
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Stream;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,6 +33,7 @@ public class AdminDashboardController {
     private final RemoteDownloadService remoteDownloadService;
     private final TaskManagerService taskManagerService;
     private final SessionManagementService sessionManagementService;
+    private final VpnRuntimeViewService vpnRuntimeViewService;
     private final NasProperties nasProperties;
 
     public AdminDashboardController(
@@ -40,6 +44,7 @@ public class AdminDashboardController {
             RemoteDownloadService remoteDownloadService,
             TaskManagerService taskManagerService,
             SessionManagementService sessionManagementService,
+            VpnRuntimeViewService vpnRuntimeViewService,
             NasProperties nasProperties
     ) {
         this.storageService = storageService;
@@ -49,6 +54,7 @@ public class AdminDashboardController {
         this.remoteDownloadService = remoteDownloadService;
         this.taskManagerService = taskManagerService;
         this.sessionManagementService = sessionManagementService;
+        this.vpnRuntimeViewService = vpnRuntimeViewService;
         this.nasProperties = nasProperties;
     }
 
@@ -67,7 +73,9 @@ public class AdminDashboardController {
                 remoteDownloadService.summary(3),
                 nasProperties.getRemoteDownload().isEnabled(),
                 taskManagerService.summary(),
-                sessionManagementService.activeCount()
+                recentTasks(6),
+                sessionManagementService.activeCount(),
+                vpnRuntimeViewService.current()
         ));
         return "dashboard";
     }
@@ -110,5 +118,16 @@ public class AdminDashboardController {
                 stats.sizeLabel(),
                 stats.inProgressCount()
         );
+    }
+
+    private List<DashboardTaskView> recentTasks(int limit) {
+        Stream<DashboardTaskView> appTasks = taskManagerService.listTasks().stream()
+                .map(DashboardTaskView::from);
+        Stream<DashboardTaskView> remoteTasks = remoteDownloadService.listTasks().stream()
+                .map(DashboardTaskView::from);
+        return Stream.concat(appTasks, remoteTasks)
+                .sorted(Comparator.comparing(DashboardTaskView::createdAt).reversed())
+                .limit(Math.max(0, limit))
+                .toList();
     }
 }

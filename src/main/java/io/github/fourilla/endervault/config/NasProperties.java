@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.config;
 
 import io.github.fourilla.endervault.activity.ActivityTypeCatalog;
+import io.github.fourilla.endervault.outbound.NetworkRoute;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -27,6 +28,9 @@ public class NasProperties {
 
     @Valid
     private Server server = new Server();
+
+    @Valid
+    private Outbound outbound = new Outbound();
 
     @Valid
     private Admin admin = new Admin();
@@ -103,6 +107,14 @@ public class NasProperties {
 
     public void setServer(Server server) {
         this.server = server;
+    }
+
+    public Outbound getOutbound() {
+        return outbound;
+    }
+
+    public void setOutbound(Outbound outbound) {
+        this.outbound = outbound;
     }
 
     public Admin getAdmin() {
@@ -329,6 +341,148 @@ public class NasProperties {
 
         public void setPublicBaseUrl(String publicBaseUrl) {
             this.publicBaseUrl = publicBaseUrl == null ? "" : publicBaseUrl.trim();
+        }
+    }
+
+    public static class Outbound {
+        @NotNull
+        private NetworkRoute initialRoute = NetworkRoute.DIRECT;
+
+        @Valid
+        private Vpn vpn = new Vpn();
+
+        public NetworkRoute getInitialRoute() {
+            return initialRoute;
+        }
+
+        public void setInitialRoute(NetworkRoute initialRoute) {
+            this.initialRoute = initialRoute == null ? NetworkRoute.DIRECT : initialRoute;
+        }
+
+        public Vpn getVpn() {
+            return vpn;
+        }
+
+        public void setVpn(Vpn vpn) {
+            this.vpn = vpn;
+        }
+    }
+
+    public static class Vpn {
+        private boolean enabled;
+        private String proxyHost = "";
+
+        @Min(1)
+        @Max(65535)
+        private int proxyPort = 8888;
+
+        @Min(100)
+        @Max(60000)
+        private int healthConnectTimeoutMs = 1500;
+
+        private String tunnelHealthUrl = "";
+
+        @Min(100)
+        @Max(60000)
+        private int healthRequestTimeoutMs = 3000;
+
+        @Min(1000)
+        private long healthCheckIntervalMs = 30000L;
+
+        private String controlUrl = "";
+        private String controlApiKeyFile = "";
+        private String profileName = "";
+
+        @Min(100)
+        @Max(60000)
+        private int controlRequestTimeoutMs = 3000;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public String getProxyHost() {
+            return proxyHost;
+        }
+
+        public void setProxyHost(String proxyHost) {
+            this.proxyHost = proxyHost == null ? "" : proxyHost.trim();
+        }
+
+        public int getProxyPort() {
+            return proxyPort;
+        }
+
+        public void setProxyPort(int proxyPort) {
+            this.proxyPort = proxyPort;
+        }
+
+        public int getHealthConnectTimeoutMs() {
+            return healthConnectTimeoutMs;
+        }
+
+        public void setHealthConnectTimeoutMs(int healthConnectTimeoutMs) {
+            this.healthConnectTimeoutMs = healthConnectTimeoutMs;
+        }
+
+        public String getTunnelHealthUrl() {
+            return tunnelHealthUrl;
+        }
+
+        public void setTunnelHealthUrl(String tunnelHealthUrl) {
+            this.tunnelHealthUrl = tunnelHealthUrl == null ? "" : tunnelHealthUrl.trim();
+        }
+
+        public int getHealthRequestTimeoutMs() {
+            return healthRequestTimeoutMs;
+        }
+
+        public void setHealthRequestTimeoutMs(int healthRequestTimeoutMs) {
+            this.healthRequestTimeoutMs = healthRequestTimeoutMs;
+        }
+
+        public long getHealthCheckIntervalMs() {
+            return healthCheckIntervalMs;
+        }
+
+        public void setHealthCheckIntervalMs(long healthCheckIntervalMs) {
+            this.healthCheckIntervalMs = healthCheckIntervalMs;
+        }
+
+        public String getControlUrl() {
+            return controlUrl;
+        }
+
+        public void setControlUrl(String controlUrl) {
+            this.controlUrl = controlUrl == null ? "" : controlUrl.trim();
+        }
+
+        public String getControlApiKeyFile() {
+            return controlApiKeyFile;
+        }
+
+        public void setControlApiKeyFile(String controlApiKeyFile) {
+            this.controlApiKeyFile = controlApiKeyFile == null ? "" : controlApiKeyFile.trim();
+        }
+
+        public String getProfileName() {
+            return profileName;
+        }
+
+        public void setProfileName(String profileName) {
+            this.profileName = profileName == null ? "" : profileName.trim();
+        }
+
+        public int getControlRequestTimeoutMs() {
+            return controlRequestTimeoutMs;
+        }
+
+        public void setControlRequestTimeoutMs(int controlRequestTimeoutMs) {
+            this.controlRequestTimeoutMs = controlRequestTimeoutMs;
         }
     }
 

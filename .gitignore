@@ -2,6 +2,14 @@
 /logs/
 /storage/
 /docs/
+/docker/runtime/
+/docker/secrets/
+/.env
+/.env.*
+!/.env.example
+*.ovpn
+__pycache__/
+*.py[cod]
 
 # Local machine overrides and secrets.
 /endervault-nas.properties

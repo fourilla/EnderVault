@@ -1,8 +1,17 @@
 /mvnw text eol=lf
+.gitattributes text eol=lf
+.gitignore text eol=lf
+.dockerignore text eol=lf
 *.cmd text eol=crlf
+Dockerfile text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.example text eol=lf
+*.md text eol=lf
 *.java text eol=lf
 *.html text eol=lf
 *.css text eol=lf
 *.js text eol=lf
+*.py text eol=lf
 *.properties text eol=lf
 

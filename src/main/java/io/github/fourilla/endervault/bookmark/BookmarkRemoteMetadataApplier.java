@@ -1,10 +1,13 @@
 package io.github.fourilla.endervault.bookmark;
 
 import io.github.fourilla.endervault.common.StorageAccessException;
+import io.github.fourilla.endervault.outbound.NetworkRoute;
+import io.github.fourilla.endervault.outbound.OutboundRouteUnavailableException;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.concurrent.CancellationException;
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 final class BookmarkRemoteMetadataApplier {
 
@@ -12,17 +15,20 @@ final class BookmarkRemoteMetadataApplier {
     private final BookmarkMetadataFetcher metadataFetcher;
     private final BookmarkFaviconCacheService faviconCacheService;
     private final BooleanSupplier metadataFetchEnabled;
+    private final Supplier<NetworkRoute> networkRouteSupplier;
 
     BookmarkRemoteMetadataApplier(
             BookmarkInputNormalizer inputNormalizer,
             BookmarkMetadataFetcher metadataFetcher,
             BookmarkFaviconCacheService faviconCacheService,
-            BooleanSupplier metadataFetchEnabled
+            BooleanSupplier metadataFetchEnabled,
+            Supplier<NetworkRoute> networkRouteSupplier
     ) {
         this.inputNormalizer = inputNormalizer;
         this.metadataFetcher = metadataFetcher;
         this.faviconCacheService = faviconCacheService;
         this.metadataFetchEnabled = metadataFetchEnabled;
+        this.networkRouteSupplier = networkRouteSupplier;
     }
 
     BookmarkItem tryApply(BookmarkItem bookmark) {
@@ -30,12 +36,22 @@ final class BookmarkRemoteMetadataApplier {
     }
 
     BookmarkItem tryApply(BookmarkItem bookmark, BooleanSupplier cancellationRequested) {
+        return tryApply(bookmark, cancellationRequested, networkRouteSupplier.get());
+    }
+
+    BookmarkItem tryApply(
+            BookmarkItem bookmark,
+            BooleanSupplier cancellationRequested,
+            NetworkRoute networkRoute
+    ) {
         if (!metadataFetchEnabled.getAsBoolean() || !bookmark.externalLink()) {
             return bookmark;
         }
 
         try {
-            return refresh(bookmark, cancellationRequested);
+            return refresh(bookmark, cancellationRequested, networkRoute);
+        } catch (OutboundRouteUnavailableException ex) {
+            throw ex;
         } catch (IOException | StorageAccessException ex) {
             Instant now = Instant.now();
             return bookmark.withRemoteMetadata(
@@ -51,14 +67,22 @@ final class BookmarkRemoteMetadataApplier {
     }
 
     BookmarkItem refresh(BookmarkItem bookmark) throws IOException {
-        return refresh(bookmark, () -> false);
+        return refresh(bookmark, () -> false, networkRouteSupplier.get());
     }
 
     BookmarkItem refresh(BookmarkItem bookmark, BooleanSupplier cancellationRequested) throws IOException {
+        return refresh(bookmark, cancellationRequested, networkRouteSupplier.get());
+    }
+
+    BookmarkItem refresh(
+            BookmarkItem bookmark,
+            BooleanSupplier cancellationRequested,
+            NetworkRoute networkRoute
+    ) throws IOException {
         checkCanceled(cancellationRequested);
         BookmarkMetadataFetchResult result;
         try {
-            result = metadataFetcher.fetch(bookmark.url());
+            result = metadataFetcher.fetch(bookmark.url(), networkRoute);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             throw new StorageAccessException("Bookmark metadata fetch was interrupted.");

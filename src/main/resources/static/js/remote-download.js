@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!form) {
             return;
         }
-        form.querySelectorAll("button, input").forEach((control) => {
+        form.querySelectorAll("button, input, select").forEach((control) => {
             if (control.type === "hidden") {
                 return;
             }
@@ -52,6 +52,7 @@ document.addEventListener("DOMContentLoaded", () => {
         text('[data-remote-probe="contentLengthLabel"]', probe.contentLengthLabel);
         text('[data-remote-probe="contentTypeLabel"]', probe.contentTypeLabel);
         text('[data-remote-probe="finalUrl"]', probe.finalUrl);
+        text('[data-remote-probe="networkRouteLabel"]', probe.networkRouteLabel);
 
         const warning = dialog?.querySelector("[data-remote-warning]");
         if (warning) {
@@ -82,6 +83,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     body: formData
                 });
                 pendingStartData = cloneFormData(formData);
+                pendingStartData.set("networkRoute", payload.probe.networkRoute);
                 if (!showProbe(payload.probe)) {
                     pendingStartData = null;
                 }
@@ -154,6 +156,15 @@ document.addEventListener("DOMContentLoaded", () => {
         return cell;
     };
 
+    const routeCell = (task) => {
+        const cell = document.createElement("td");
+        const badge = document.createElement("span");
+        badge.className = `status-badge ${task.networkRoute === "vpn-required" ? "active" : "info"}`;
+        badge.textContent = task.networkRouteLabel;
+        cell.append(badge);
+        return cell;
+    };
+
     const taskActionButton = (task) => {
         const button = document.createElement("button");
         const action = task.active ? "cancel" : "delete";
@@ -197,6 +208,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const source = appendCell(row, task.sourceUrl, "remote-source");
             source.title = task.sourceUrl;
             appendCell(row, task.targetPath || task.targetDirectory);
+            row.append(routeCell(task));
             row.append(statusCell(task));
             row.append(progressCell(task));
             appendCell(row, task.createdLabel);

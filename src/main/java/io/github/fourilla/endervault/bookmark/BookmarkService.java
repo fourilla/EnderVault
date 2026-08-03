@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.fourilla.endervault.common.JsonRegistry;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.outbound.NetworkRoute;
+import io.github.fourilla.endervault.outbound.OutboundRouteStateService;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -30,14 +32,17 @@ public class BookmarkService {
     private final BookmarkInputNormalizer inputNormalizer = new BookmarkInputNormalizer();
     private final BookmarkTree tree = new BookmarkTree();
     private final NasProperties nasProperties;
+    private final OutboundRouteStateService outboundRouteStateService;
     private final BookmarkRemoteMetadataApplier remoteMetadataApplier;
 
     public BookmarkService(
             ObjectMapper objectMapper,
             NasProperties nasProperties,
-            BookmarkMetadataFetcher metadataFetcher
+            BookmarkMetadataFetcher metadataFetcher,
+            OutboundRouteStateService outboundRouteStateService
     ) {
         this.nasProperties = nasProperties;
+        this.outboundRouteStateService = outboundRouteStateService;
         NasProperties.Storage storage = nasProperties.getStorage();
         Path metadataRoot = storage.getRoot()
                 .toAbsolutePath()
@@ -59,7 +64,8 @@ public class BookmarkService {
                 inputNormalizer,
                 metadataFetcher,
                 faviconCacheService,
-                this::metadataFetchEnabled
+                this::metadataFetchEnabled,
+                outboundRouteStateService::currentRoute
         );
     }
 
@@ -128,9 +134,20 @@ public class BookmarkService {
             String note,
             BooleanSupplier cancellationRequested
     ) throws IOException {
+        return createLink(parentId, title, url, note, cancellationRequested, outboundRouteStateService.currentRoute());
+    }
+
+    public BookmarkItem createLink(
+            String parentId,
+            String title,
+            String url,
+            String note,
+            BooleanSupplier cancellationRequested,
+            NetworkRoute networkRoute
+    ) throws IOException {
         BookmarkItem link = newLink(parentId, title, url, note);
         checkCanceled(cancellationRequested);
-        link = remoteMetadataApplier.tryApply(link, cancellationRequested);
+        link = remoteMetadataApplier.tryApply(link, cancellationRequested, networkRoute);
         checkCanceled(cancellationRequested);
         return addPreparedLink(link);
     }

@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.remote;
 
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
+import io.github.fourilla.endervault.outbound.NetworkRoute;
 
 public record RemoteDownloadProbe(
         String sourceUrl,
@@ -9,7 +10,8 @@ public record RemoteDownloadProbe(
         String fileName,
         String targetPath,
         String contentType,
-        long contentLength
+        long contentLength,
+        NetworkRoute networkRoute
 ) {
 
     public boolean sizeKnown() {
@@ -22,6 +24,10 @@ public record RemoteDownloadProbe(
 
     public String contentTypeLabel() {
         return contentType == null || contentType.isBlank() ? "Unknown" : contentType;
+    }
+
+    public String networkRouteLabel() {
+        return networkRoute.label();
     }
 
     public boolean htmlLike() {

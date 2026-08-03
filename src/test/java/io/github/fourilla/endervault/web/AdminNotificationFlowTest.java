@@ -66,6 +66,7 @@ class AdminNotificationFlowTest {
         mockMvc.perform(get("/files"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"toastRegion\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-outbound-route-form")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/page-jump.js")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Open read-only mode")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Recent")))
@@ -76,6 +77,15 @@ class AdminNotificationFlowTest {
                         org.hamcrest.Matchers.containsString("Shared links"))))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("Remote download"))));
+    }
+
+    @Test
+    void remoteDownloadPageRendersRouteSelectionAndTaskRouteColumn() throws Exception {
+        mockMvc.perform(get("/admin/utils/remote-download"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("name=\"networkRoute\"")))
+                .andExpect(content().string(Matchers.containsString("Use global (Direct)")))
+                .andExpect(content().string(Matchers.containsString("<th>Route</th>")));
     }
 
     @Test
@@ -296,9 +306,13 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Metadata inspector")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Settings")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote download")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Disabled in settings")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("href=\"/admin/vpn\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Page archiving")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Storage remaining")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Outbound route")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("VPN Egress")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Proxy health")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Background tasks")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("Register and remove trusted devices"))))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
@@ -349,9 +363,11 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Passkeys")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Telegram alerts")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("General settings")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("VPN egress")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/passkeys")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/telegram-alerts")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/general")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/vpn")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("Metadata inspector"))));
     }
@@ -368,6 +384,36 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote Download")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"general-settings-save\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/general")));
+    }
+
+    @Test
+    void vpnSettingsPageRendersConfigurationAndStatusLink() throws Exception {
+        mockMvc.perform(get("/admin/settings/vpn"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("VPN Egress")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Proxy Connection")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Tunnel Health")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"vpn-settings-save\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("href=\"/admin/vpn\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("Current State")
+                )))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("vpn-health-refresh")
+                )));
+    }
+
+    @Test
+    void vpnStatusPageRendersRuntimeDetailsInPanel() throws Exception {
+        mockMvc.perform(get("/admin/vpn"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("Connection Details")))
+                .andExpect(content().string(Matchers.containsString("VPN public IP")))
+                .andExpect(content().string(Matchers.containsString("Outbound route")))
+                .andExpect(content().string(Matchers.containsString("vpn-detail-wide vpn-active-tasks")))
+                .andExpect(content().string(Matchers.containsString("data-vpn-runtime=\"controlBadge\"")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("<dt>Profile</dt>"))))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("vpn-status-metrics"))));
     }
 
     @Test
