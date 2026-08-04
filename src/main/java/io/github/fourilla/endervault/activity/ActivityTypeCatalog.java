@@ -52,7 +52,9 @@ public final class ActivityTypeCatalog {
             new ActivityTypeOption("bookmark-delete", "BOOKMARK_DELETE", "Bookmark delete", "Bookmarks and recent", false),
             new ActivityTypeOption("bookmark-delete-selected", "BOOKMARK_DELETE_SELECTED", "Bookmark delete selected", "Bookmarks and recent", false),
             new ActivityTypeOption("bookmark-open", "BOOKMARK_OPEN", "Bookmark open", "Bookmarks and recent", false),
-            new ActivityTypeOption("recent-clear", "RECENT_CLEAR", "Recent clear", "Bookmarks and recent", false)
+            new ActivityTypeOption("recent-clear", "RECENT_CLEAR", "Recent clear", "Bookmarks and recent", false),
+            new ActivityTypeOption("sticky-note-create", "STICKY_NOTE_CREATE", "Sticky note create", "Notes", false),
+            new ActivityTypeOption("sticky-note-delete", "STICKY_NOTE_DELETE", "Sticky note delete", "Notes", false)
     );
 
     private ActivityTypeCatalog() {

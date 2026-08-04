@@ -29,6 +29,7 @@ import io.github.fourilla.endervault.web.settings.AdminSettingsController;
 import io.github.fourilla.endervault.web.settings.AdminSessionSettingsController;
 import io.github.fourilla.endervault.web.settings.AdminVpnSettingsController;
 import io.github.fourilla.endervault.web.share.AdminShareController;
+import io.github.fourilla.endervault.web.stickynote.AdminStickyNoteController;
 import io.github.fourilla.endervault.web.trash.AdminTrashController;
 import io.github.fourilla.endervault.web.vpn.AdminVpnController;
 import jakarta.servlet.http.HttpServletRequest;
@@ -60,7 +61,8 @@ import org.springframework.web.bind.annotation.ModelAttribute;
         AdminSessionSettingsController.class,
         AdminVpnSettingsController.class,
         AdminVpnController.class,
-        AdminMetadataController.class
+        AdminMetadataController.class,
+        AdminStickyNoteController.class
 })
 public class AdminShellModelAdvice {
 
@@ -71,6 +73,7 @@ public class AdminShellModelAdvice {
     private final NasProperties nasProperties;
     private final OutboundRouteStateService outboundRouteStateService;
     private final VpnProxyHealthService vpnProxyHealthService;
+    private final StickyNoteContextResolver stickyNoteContextResolver;
 
     public AdminShellModelAdvice(
             StorageService storageService,
@@ -79,7 +82,8 @@ public class AdminShellModelAdvice {
             FileActionViewSupport fileActionViewSupport,
             NasProperties nasProperties,
             OutboundRouteStateService outboundRouteStateService,
-            VpnProxyHealthService vpnProxyHealthService
+            VpnProxyHealthService vpnProxyHealthService,
+            StickyNoteContextResolver stickyNoteContextResolver
     ) {
         this.storageService = storageService;
         this.favoriteService = favoriteService;
@@ -88,6 +92,7 @@ public class AdminShellModelAdvice {
         this.nasProperties = nasProperties;
         this.outboundRouteStateService = outboundRouteStateService;
         this.vpnProxyHealthService = vpnProxyHealthService;
+        this.stickyNoteContextResolver = stickyNoteContextResolver;
     }
 
     @ModelAttribute("storageUsage")
@@ -144,6 +149,11 @@ public class AdminShellModelAdvice {
                 outboundRouteStateService.currentRoute(),
                 vpnProxyHealthService.current()
         );
+    }
+
+    @ModelAttribute("stickyNoteContext")
+    public StickyNotePageContext stickyNoteContext(HttpServletRequest request) {
+        return stickyNoteContextResolver.resolve(request);
     }
 
     private boolean showHiddenFavorites(HttpServletRequest request) {

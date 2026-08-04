@@ -237,9 +237,7 @@
 }
 
 .topbar-route-toggle {
-    min-width: 96px;
     border-color: var(--line);
-    padding: 0 var(--space-xl);
 }
 
 .topbar-route-toggle.route-direct {

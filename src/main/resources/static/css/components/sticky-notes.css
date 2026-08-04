@@ -1,0 +1,192 @@
+.sticky-note-controls {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.sticky-note-visibility-toggle {
+    border-color: var(--line);
+}
+
+.sticky-note-visibility-toggle.is-active {
+    border-color: var(--success-line);
+    background: var(--success-bg);
+    color: var(--success);
+}
+
+.sticky-note-topbar-popover {
+    position: absolute;
+    z-index: 60;
+    top: 100%;
+    right: 0;
+    width: max-content;
+    min-width: 190px;
+    padding-top: var(--space-xs);
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-2px);
+    transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease;
+}
+
+.sticky-note-controls:hover .sticky-note-topbar-popover,
+.sticky-note-controls:focus-within .sticky-note-topbar-popover {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+
+.sticky-note-topbar-menu {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
+    background: var(--panel-elevated);
+    box-shadow: 0 12px 32px var(--shadow);
+    padding: var(--space-xs);
+}
+
+.sticky-note-topbar-menu button {
+    justify-content: flex-start;
+    width: 100%;
+}
+
+.sticky-note-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    pointer-events: none;
+}
+
+.sticky-note-layer[hidden] {
+    display: none;
+}
+
+.sticky-note-card {
+    position: fixed;
+    display: flex;
+    flex-direction: column;
+    min-width: 220px;
+    min-height: 140px;
+    max-width: min(600px, calc(100vw - 16px));
+    max-height: min(700px, calc(100vh - 16px));
+    overflow: hidden;
+    resize: both;
+    pointer-events: auto;
+    border: 1px solid var(--warning-line);
+    border-radius: var(--radius-control);
+    background: var(--warning-bg);
+    box-shadow: 0 12px 30px var(--shadow);
+    color: var(--text);
+}
+
+.sticky-note-card.is-collapsed {
+    min-height: 0;
+    height: 42px !important;
+    resize: none;
+}
+
+.sticky-note-header {
+    display: flex;
+    align-items: center;
+    min-height: 40px;
+    padding: var(--space-xs) var(--space-md);
+    border-bottom: 1px solid color-mix(in srgb, var(--warning-line) 70%, transparent);
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+}
+
+.sticky-note-header:active {
+    cursor: grabbing;
+}
+
+.sticky-note-title {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+}
+
+.sticky-note-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.sticky-note-actions button {
+    width: 28px;
+    height: 28px;
+    min-height: 28px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+}
+
+.sticky-note-actions button:hover {
+    background: color-mix(in srgb, var(--text) 9%, transparent);
+}
+
+.sticky-note-body {
+    display: flex;
+    min-height: 0;
+    flex: 1;
+    flex-direction: column;
+}
+
+.sticky-note-card.is-collapsed .sticky-note-body {
+    display: none;
+}
+
+.sticky-note-editor {
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    flex: 1;
+    padding: var(--space-xl);
+    resize: none;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    line-height: 1.5;
+}
+
+.sticky-note-editor::placeholder {
+    color: var(--text-muted);
+}
+
+.sticky-note-status {
+    min-height: 22px;
+    padding: 2px var(--space-xl) var(--space-xs);
+    color: var(--text-muted);
+    font-size: var(--font-size-xs);
+    text-align: right;
+}
+
+.sticky-note-manager-summary {
+    display: block;
+    max-width: 32rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sticky-note-manager-context {
+    display: block;
+    max-width: 24rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+    .sticky-note-card {
+        max-width: calc(100vw - 12px);
+        max-height: calc(100vh - 12px);
+    }
+}

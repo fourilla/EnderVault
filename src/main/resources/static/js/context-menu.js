@@ -1,9 +1,32 @@
 (function () {
+    const globalActions = [];
+
     const actionValue = (action, context, property) =>
         typeof action[property] === "function" ? action[property](context) : action[property];
 
     const visibleActions = (actions, context) =>
         actions.filter((action) => !action.visible || action.visible(context));
+
+    const registerGlobalAction = (action) => {
+        if (!action?.id || typeof action.run !== "function") {
+            return;
+        }
+        const existingIndex = globalActions.findIndex((candidate) => candidate.id === action.id);
+        if (existingIndex >= 0) {
+            globalActions.splice(existingIndex, 1, action);
+            return;
+        }
+        globalActions.push(action);
+    };
+
+    const globalActionsFor = (context) => visibleActions(globalActions, context).map((action) => ({
+        id: action.id,
+        group: action.group,
+        label: actionValue(action, context, "label"),
+        icon: actionValue(action, context, "icon"),
+        danger: Boolean(action.danger),
+        run: () => action.run(context)
+    }));
 
     const createActionMenu = ({
         menuId,
@@ -61,7 +84,7 @@
         };
 
         const renderMenu = (context, x, y) => {
-            const visible = visibleActions(actions, context);
+            const visible = visibleActions([...actions, ...globalActions], context);
             closeMenu();
             if (!visible.length) {
                 return;
@@ -154,11 +177,13 @@
         return {
             close: closeMenu,
             activeContext: () => activeContext,
-            visibleActions: (context) => visibleActions(actions, context)
+            visibleActions: (context) => visibleActions([...actions, ...globalActions], context)
         };
     };
 
     window.EnderVaultContextMenus = {
-        createActionMenu
+        createActionMenu,
+        registerGlobalAction,
+        globalActionsFor
     };
 })();

@@ -62,20 +62,36 @@
 
 <header class="topbar app-topbar" th:fragment="topbar">
     <div class="topbar-actions">
+        <div class="sticky-note-controls"
+             th:if="${#ctx.containsVariable('stickyNoteContext') and stickyNoteContext.available()}"
+             data-sticky-note-controls hidden>
+            <button class="ghost icon-button sticky-note-visibility-toggle" type="button"
+                    data-sticky-note-visibility title="Hide sticky notes" aria-label="Hide sticky notes"
+                    aria-pressed="true" aria-haspopup="menu">
+                <i class="fas fa-note-sticky" aria-hidden="true"></i>
+            </button>
+            <div class="sticky-note-topbar-popover">
+                <div class="sticky-note-topbar-menu" role="menu" aria-label="Sticky note actions">
+                    <button class="ghost icon-text-button" type="button" role="menuitem" data-sticky-note-add>
+                        <i class="fas fa-plus" aria-hidden="true"></i>
+                        <span>New sticky note</span>
+                    </button>
+                </div>
+            </div>
+        </div>
         <form class="topbar-route-form"
               method="post"
               th:action="@{/admin/outbound/route}"
               data-outbound-route-form>
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
             <input type="hidden" name="route" th:value="${outboundRoute.nextRoute()}" data-outbound-route-input>
-            <button class="ghost icon-text-button topbar-route-toggle"
+            <button class="ghost icon-button topbar-route-toggle"
                     th:classappend="| route-${outboundRoute.statusClass()}|"
                     type="submit"
                     th:title="${outboundRoute.title()}"
                     th:attr="aria-label=${outboundRoute.title()}"
                     data-outbound-route-toggle>
                 <i th:class="${outboundRoute.iconClass()}" aria-hidden="true" data-outbound-route-icon></i>
-                <span th:text="${outboundRoute.label()}" data-outbound-route-label>Direct</span>
             </button>
         </form>
         <a class="ghost icon-button topbar-readonly" th:href="@{/files/read-only(path=${path})}" title="Open read-only mode"

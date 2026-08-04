@@ -251,6 +251,13 @@
                     </span>
                     <span class="status-badge info" th:text="${dashboard.activeSessions()}">0</span>
                 </a>
+                <a class="dashboard-action-link" th:href="@{/admin/sticky-notes}">
+                    <i class="fas fa-note-sticky" aria-hidden="true"></i>
+                    <span>
+                        <strong>Sticky notes</strong>
+                        <small>Review page and item notes in one place</small>
+                    </span>
+                </a>
                 <a class="dashboard-action-link" th:href="@{/admin/settings}">
                     <i class="fas fa-gear" aria-hidden="true"></i>
                     <span>

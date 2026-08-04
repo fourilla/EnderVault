@@ -23,6 +23,14 @@
     <meta th:if="${#ctx.containsVariable('taskUiConfig')}"
           name="endervault-task-failed-display-ms"
           th:content="${taskUiConfig.failedDisplayMs()}">
+    <meta th:if="${#ctx.containsVariable('stickyNoteContext') and stickyNoteContext.available()}"
+          name="endervault-sticky-target-type" th:content="${stickyNoteContext.targetType()}">
+    <meta th:if="${#ctx.containsVariable('stickyNoteContext') and stickyNoteContext.available()}"
+          name="endervault-sticky-target-key" th:content="${stickyNoteContext.targetKey()}">
+    <meta th:if="${#ctx.containsVariable('stickyNoteContext') and stickyNoteContext.available()}"
+          name="endervault-sticky-surface" th:content="${stickyNoteContext.surface()}">
+    <meta th:if="${#ctx.containsVariable('stickyNoteContext') and stickyNoteContext.available()}"
+          name="endervault-sticky-label" th:content="${stickyNoteContext.label()}">
     <script defer th:src="@{/js/endervault-core.js}"></script>
     <script defer th:src="@{/js/context-menu.js}"></script>
     <script defer th:src="@{/js/password-toggle.js}"></script>
@@ -31,6 +39,7 @@
     <script defer th:src="@{/js/server-tasks.js}"></script>
     <script defer th:src="@{/js/favorites.js}"></script>
     <script defer th:src="@{/js/outbound-route.js}"></script>
+    <script defer th:src="@{/js/sticky-notes.js}"></script>
 </th:block>
 
 <th:block th:fragment="adminActionsScript">

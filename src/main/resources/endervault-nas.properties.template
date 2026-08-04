@@ -298,6 +298,8 @@ nas.notifications.telegram.activity.bookmark-delete=false
 nas.notifications.telegram.activity.bookmark-delete-selected=false
 nas.notifications.telegram.activity.bookmark-open=false
 nas.notifications.telegram.activity.recent-clear=false
+nas.notifications.telegram.activity.sticky-note-create=false
+nas.notifications.telegram.activity.sticky-note-delete=false
 
 # ---------------------------------------------------------------------------
 # Logging

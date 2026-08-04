@@ -342,6 +342,21 @@ document.addEventListener("DOMContentLoaded", () => {
             action: () => removeSidebarFavoriteViaMenu(link)
         }));
 
+        const globalActions = window.EnderVaultContextMenus?.globalActionsFor({
+            mode: "sidebar-favorite",
+            item: { element: link },
+            event
+        }) || [];
+        if (globalActions.length) {
+            menu.append(sidebarMenuSeparator());
+            globalActions.forEach((action) => menu.append(sidebarMenuButton({
+                icon: action.icon,
+                label: action.label,
+                danger: action.danger,
+                action: action.run
+            })));
+        }
+
         activeSidebarMenu = menu;
         activeSidebarFavorite = link;
         activeSidebarFavorite.classList.add("is-context-target");

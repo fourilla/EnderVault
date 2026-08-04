@@ -7,7 +7,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const button = form.querySelector("[data-outbound-route-toggle]");
     const routeInput = form.querySelector("[data-outbound-route-input]");
     const icon = form.querySelector("[data-outbound-route-icon]");
-    const label = form.querySelector("[data-outbound-route-label]");
 
     const applyRoute = (route) => {
         if (!route) {
@@ -15,7 +14,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         routeInput.value = route.nextRoute;
         icon.className = route.iconClass;
-        label.textContent = route.label;
         button.title = route.title;
         button.setAttribute("aria-label", route.title);
         button.classList.remove("route-direct", "route-vpn-ready", "route-vpn-unavailable");
