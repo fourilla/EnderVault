@@ -378,11 +378,16 @@
         layer.hidden = hidden;
         const button = controls?.querySelector("[data-sticky-note-visibility]");
         const icon = button?.querySelector("i");
+        const status = controls?.querySelector("[data-sticky-note-visibility-status]");
         if (button && icon) {
             button.title = hidden ? "Show sticky notes" : "Hide sticky notes";
             button.setAttribute("aria-label", button.title);
             button.setAttribute("aria-pressed", String(!hidden));
             button.classList.toggle("is-active", !hidden);
+        }
+        if (status) {
+            status.textContent = hidden ? "Hidden" : "Visible";
+            status.classList.toggle("is-active", !hidden);
         }
         try {
             localStorage.setItem(hiddenPreferenceKey, hidden ? "true" : "false");

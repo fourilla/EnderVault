@@ -7,6 +7,17 @@ document.addEventListener("DOMContentLoaded", () => {
     const button = form.querySelector("[data-outbound-route-toggle]");
     const routeInput = form.querySelector("[data-outbound-route-input]");
     const icon = form.querySelector("[data-outbound-route-icon]");
+    const status = form.querySelector("[data-outbound-route-status]");
+
+    const statusLabel = (route) => {
+        if (route.statusClass === "vpn-ready") {
+            return "VPN connected";
+        }
+        if (route.statusClass === "vpn-unavailable") {
+            return "VPN unavailable";
+        }
+        return "Direct";
+    };
 
     const applyRoute = (route) => {
         if (!route) {
@@ -18,6 +29,11 @@ document.addEventListener("DOMContentLoaded", () => {
         button.setAttribute("aria-label", route.title);
         button.classList.remove("route-direct", "route-vpn-ready", "route-vpn-unavailable");
         button.classList.add(`route-${route.statusClass}`);
+        if (status) {
+            status.textContent = statusLabel(route);
+            status.classList.toggle("is-active", route.statusClass === "vpn-ready");
+            status.classList.toggle("is-error", route.statusClass === "vpn-unavailable");
+        }
         document.querySelectorAll("[data-outbound-global-route-option]").forEach((option) => {
             option.textContent = `Use global (${route.label})`;
         });

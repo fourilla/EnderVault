@@ -1,9 +1,3 @@
-.sticky-note-controls {
-    position: relative;
-    display: flex;
-    align-items: center;
-}
-
 .sticky-note-visibility-toggle {
     border-color: var(--line);
 }
@@ -12,42 +6,6 @@
     border-color: var(--success-line);
     background: var(--success-bg);
     color: var(--success);
-}
-
-.sticky-note-topbar-popover {
-    position: absolute;
-    z-index: 60;
-    top: 100%;
-    right: 0;
-    width: max-content;
-    min-width: 190px;
-    padding-top: var(--space-xs);
-    visibility: hidden;
-    opacity: 0;
-    pointer-events: none;
-    transform: translateY(-2px);
-    transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease;
-}
-
-.sticky-note-controls:hover .sticky-note-topbar-popover,
-.sticky-note-controls:focus-within .sticky-note-topbar-popover {
-    visibility: visible;
-    opacity: 1;
-    pointer-events: auto;
-    transform: translateY(0);
-}
-
-.sticky-note-topbar-menu {
-    border: 1px solid var(--line);
-    border-radius: var(--radius-panel);
-    background: var(--panel-elevated);
-    box-shadow: 0 12px 32px var(--shadow);
-    padding: var(--space-xs);
-}
-
-.sticky-note-topbar-menu button {
-    justify-content: flex-start;
-    width: 100%;
 }
 
 .sticky-note-layer {

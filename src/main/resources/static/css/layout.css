@@ -231,9 +231,106 @@
     gap: var(--space-md);
 }
 
-.topbar-route-form {
+.topbar-control {
+    position: relative;
     display: flex;
     margin: 0;
+}
+
+.app-topbar .icon-button:hover,
+.app-topbar .icon-button:focus-visible {
+    border-color: var(--accent);
+}
+
+.topbar-control-popover {
+    position: absolute;
+    z-index: 60;
+    top: 100%;
+    left: 50%;
+    width: min(280px, calc(100vw - 16px));
+    padding-top: var(--space-xs);
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, -2px);
+    transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease;
+}
+
+.topbar-control-popover.is-viewport-positioned {
+    position: fixed;
+    right: auto;
+    transform: translateY(-2px);
+}
+
+.topbar-control:hover .topbar-control-popover,
+.topbar-control:focus-within .topbar-control-popover {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(-50%, 0);
+}
+
+.topbar-control:hover .topbar-control-popover.is-viewport-positioned,
+.topbar-control:focus-within .topbar-control-popover.is-viewport-positioned {
+    transform: translateY(0);
+}
+
+.topbar-control-menu {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
+    background: var(--panel-elevated);
+    box-shadow: 0 12px 32px var(--shadow);
+    padding: var(--panel-padding);
+    color: var(--text);
+}
+
+.topbar-control-title {
+    display: block;
+    font-size: var(--font-size-sm);
+}
+
+.topbar-control-menu p {
+    margin: var(--space-xs) 0 0;
+    color: var(--muted);
+    font-size: var(--font-size-xs);
+    line-height: 1.45;
+}
+
+.topbar-control-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-lg);
+    margin-top: var(--space-md);
+    color: var(--muted);
+    font-size: var(--font-size-xs);
+}
+
+.topbar-control-status strong {
+    color: var(--text);
+}
+
+.topbar-control-status strong.is-active {
+    color: var(--success);
+}
+
+.topbar-control-status strong.is-error {
+    color: var(--danger);
+}
+
+.topbar-control-menu-actions {
+    margin-top: var(--space-md);
+    padding-top: var(--space-md);
+    border-top: 1px solid var(--line);
+}
+
+.topbar-control-menu-actions button {
+    justify-content: flex-start;
+    width: 100%;
+}
+
+.topbar-route-form {
+    display: flex;
 }
 
 .topbar-route-toggle {
@@ -260,10 +357,6 @@
     border: 1px solid var(--line);
     background: var(--panel);
     border-color: var(--line);
-}
-
-.topbar-readonly:hover {
-    border-color: var(--accent);
 }
 
 .brand {

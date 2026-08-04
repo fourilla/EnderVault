@@ -53,6 +53,7 @@ class StickyNoteFlowTest {
                 .andExpect(content().string(containsString("data-sticky-note-visibility")))
                 .andExpect(content().string(containsString("data-sticky-note-add")))
                 .andExpect(content().string(not(containsString("data-sticky-note-collapse-all"))))
+                .andExpect(content().string(containsString("/js/topbar-controls.js")))
                 .andExpect(content().string(containsString("/js/sticky-notes.js")));
 
         mockMvc.perform(get("/files/read-only"))
