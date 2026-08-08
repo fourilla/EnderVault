@@ -29,6 +29,9 @@ class GeneralSettingsServiceTest {
                 nas.browser.default-sort=name
                 nas.browser.default-direction=asc
                 nas.browser.default-page-size=200
+                nas.sticky-notes.background-color=#1B3033
+                nas.sticky-notes.border-color=#4E8F8A
+                nas.sticky-notes.text-color=#EAF6F4
                 nas.recent.max-items=200
                 nas.recent.record-directories=true
                 nas.trash.retention-days=30
@@ -61,6 +64,9 @@ class GeneralSettingsServiceTest {
         parameters.set("defaultSort", "modified");
         parameters.set("defaultDirection", "desc");
         parameters.set("defaultPageSize", "120");
+        parameters.set("stickyNoteBackgroundColor", "#152A2E");
+        parameters.set("stickyNoteBorderColor", "#63C7BD");
+        parameters.set("stickyNoteTextColor", "#F2FBFA");
         parameters.set("defaultConflictPolicy", "rename");
         parameters.set("recentMaxItems", "55");
         parameters.remove("recordDirectories");
@@ -89,6 +95,9 @@ class GeneralSettingsServiceTest {
                 .contains("nas.browser.default-sort=modified")
                 .contains("nas.browser.default-direction=desc")
                 .contains("nas.browser.default-page-size=120")
+                .contains("nas.sticky-notes.background-color=#152A2E")
+                .contains("nas.sticky-notes.border-color=#63C7BD")
+                .contains("nas.sticky-notes.text-color=#F2FBFA")
                 .contains("nas.storage.default-conflict-policy=rename")
                 .contains("nas.recent.max-items=55")
                 .contains("nas.recent.record-directories=false")
@@ -108,6 +117,9 @@ class GeneralSettingsServiceTest {
         assertThat(properties.getBrowser().getDefaultSort()).isEqualTo("modified");
         assertThat(properties.getBrowser().getDefaultDirection()).isEqualTo("desc");
         assertThat(properties.getBrowser().getDefaultPageSize()).isEqualTo(120);
+        assertThat(properties.getStickyNotes().getBackgroundColor()).isEqualTo("#152A2E");
+        assertThat(properties.getStickyNotes().getBorderColor()).isEqualTo("#63C7BD");
+        assertThat(properties.getStickyNotes().getTextColor()).isEqualTo("#F2FBFA");
         assertThat(properties.getStorage().getDefaultConflictPolicy()).isEqualTo("rename");
         assertThat(properties.getRecent().getMaxItems()).isEqualTo(55);
         assertThat(properties.getRecent().isRecordDirectories()).isFalse();
@@ -132,12 +144,29 @@ class GeneralSettingsServiceTest {
                 .hasMessageContaining("manual-load limit");
     }
 
+    @Test
+    void rejectsUnsafeStickyNoteColorValues() {
+        GeneralSettingsService service = new GeneralSettingsService(
+                new NasProperties(),
+                new LocalPropertiesFile(tempDir.resolve("missing.properties"))
+        );
+        MultiValueMap<String, String> parameters = validParameters();
+        parameters.set("stickyNoteBackgroundColor", "red; background-image:url(example)");
+
+        assertThatThrownBy(() -> service.updateFrom(parameters))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("#RRGGBB");
+    }
+
     private MultiValueMap<String, String> validParameters() {
         MultiValueMap<String, String> parameters = new LinkedMultiValueMap<>();
         parameters.add("defaultView", "table");
         parameters.add("defaultSort", "name");
         parameters.add("defaultDirection", "asc");
         parameters.add("defaultPageSize", "200");
+        parameters.add("stickyNoteBackgroundColor", "#1B3033");
+        parameters.add("stickyNoteBorderColor", "#4E8F8A");
+        parameters.add("stickyNoteTextColor", "#EAF6F4");
         parameters.add("defaultConflictPolicy", "cancel");
         parameters.add("recentMaxItems", "200");
         parameters.add("recordDirectories", "on");

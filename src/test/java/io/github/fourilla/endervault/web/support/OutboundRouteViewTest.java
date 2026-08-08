@@ -20,6 +20,7 @@ class OutboundRouteViewTest {
         assertThat(view.vpnSelected()).isTrue();
         assertThat(view.vpnReady()).isFalse();
         assertThat(view.statusClass()).isEqualTo("vpn-unavailable");
+        assertThat(view.iconClass()).isEqualTo("fas fa-shield-halved");
         assertThat(view.nextRoute()).isEqualTo("direct");
         assertThat(view.title()).contains("fail closed");
     }
@@ -34,6 +35,7 @@ class OutboundRouteViewTest {
         assertThat(view.label()).isEqualTo("Direct");
         assertThat(view.nextRoute()).isEqualTo("vpn-required");
         assertThat(view.statusClass()).isEqualTo("direct");
+        assertThat(view.iconClass()).isEqualTo("fas fa-shield-halved");
     }
 
     private VpnProxyHealth health(VpnProxyHealthState state) {

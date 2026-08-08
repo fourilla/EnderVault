@@ -5,6 +5,10 @@
     <link rel="stylesheet" th:if="${fontawesome}"
           th:href="@{/webjars/fortawesome__fontawesome-free/6.7.2/css/all.min.css}">
     <link rel="stylesheet" th:href="@{/css/app.css}">
+    <style th:if="${#ctx.containsVariable('stickyNoteTheme')}"
+           th:text="|:root { --sticky-note-bg: ${stickyNoteTheme.backgroundColor()}; --sticky-note-border: ${stickyNoteTheme.borderColor()}; --sticky-note-text: ${stickyNoteTheme.textColor()}; }|">
+        :root { --sticky-note-bg: #1B3033; --sticky-note-border: #4E8F8A; --sticky-note-text: #EAF6F4; }
+    </style>
 </th:block>
 
 <th:block th:fragment="jsOnlyNoscript">
@@ -23,6 +27,14 @@
     <meta th:if="${#ctx.containsVariable('taskUiConfig')}"
           name="endervault-task-failed-display-ms"
           th:content="${taskUiConfig.failedDisplayMs()}">
+    <meta th:if="${#ctx.containsVariable('stickyNoteContext') and stickyNoteContext.available()}"
+          name="endervault-sticky-target-type" th:content="${stickyNoteContext.targetType()}">
+    <meta th:if="${#ctx.containsVariable('stickyNoteContext') and stickyNoteContext.available()}"
+          name="endervault-sticky-target-key" th:content="${stickyNoteContext.targetKey()}">
+    <meta th:if="${#ctx.containsVariable('stickyNoteContext') and stickyNoteContext.available()}"
+          name="endervault-sticky-surface" th:content="${stickyNoteContext.surface()}">
+    <meta th:if="${#ctx.containsVariable('stickyNoteContext') and stickyNoteContext.available()}"
+          name="endervault-sticky-label" th:content="${stickyNoteContext.label()}">
     <script defer th:src="@{/js/endervault-core.js}"></script>
     <script defer th:src="@{/js/context-menu.js}"></script>
     <script defer th:src="@{/js/password-toggle.js}"></script>
@@ -30,7 +42,9 @@
     <script defer th:src="@{/js/activity-panel.js}"></script>
     <script defer th:src="@{/js/server-tasks.js}"></script>
     <script defer th:src="@{/js/favorites.js}"></script>
+    <script defer th:src="@{/js/topbar-controls.js}"></script>
     <script defer th:src="@{/js/outbound-route.js}"></script>
+    <script defer th:src="@{/js/sticky-notes.js}"></script>
 </th:block>
 
 <th:block th:fragment="adminActionsScript">

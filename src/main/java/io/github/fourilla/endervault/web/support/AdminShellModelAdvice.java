@@ -29,6 +29,7 @@ import io.github.fourilla.endervault.web.settings.AdminSettingsController;
 import io.github.fourilla.endervault.web.settings.AdminSessionSettingsController;
 import io.github.fourilla.endervault.web.settings.AdminVpnSettingsController;
 import io.github.fourilla.endervault.web.share.AdminShareController;
+import io.github.fourilla.endervault.web.stickynote.AdminStickyNoteController;
 import io.github.fourilla.endervault.web.trash.AdminTrashController;
 import io.github.fourilla.endervault.web.vpn.AdminVpnController;
 import jakarta.servlet.http.HttpServletRequest;
@@ -60,7 +61,8 @@ import org.springframework.web.bind.annotation.ModelAttribute;
         AdminSessionSettingsController.class,
         AdminVpnSettingsController.class,
         AdminVpnController.class,
-        AdminMetadataController.class
+        AdminMetadataController.class,
+        AdminStickyNoteController.class
 })
 public class AdminShellModelAdvice {
 
@@ -71,6 +73,7 @@ public class AdminShellModelAdvice {
     private final NasProperties nasProperties;
     private final OutboundRouteStateService outboundRouteStateService;
     private final VpnProxyHealthService vpnProxyHealthService;
+    private final StickyNoteContextResolver stickyNoteContextResolver;
 
     public AdminShellModelAdvice(
             StorageService storageService,
@@ -79,7 +82,8 @@ public class AdminShellModelAdvice {
             FileActionViewSupport fileActionViewSupport,
             NasProperties nasProperties,
             OutboundRouteStateService outboundRouteStateService,
-            VpnProxyHealthService vpnProxyHealthService
+            VpnProxyHealthService vpnProxyHealthService,
+            StickyNoteContextResolver stickyNoteContextResolver
     ) {
         this.storageService = storageService;
         this.favoriteService = favoriteService;
@@ -88,6 +92,7 @@ public class AdminShellModelAdvice {
         this.nasProperties = nasProperties;
         this.outboundRouteStateService = outboundRouteStateService;
         this.vpnProxyHealthService = vpnProxyHealthService;
+        this.stickyNoteContextResolver = stickyNoteContextResolver;
     }
 
     @ModelAttribute("storageUsage")
@@ -146,6 +151,21 @@ public class AdminShellModelAdvice {
         );
     }
 
+    @ModelAttribute("stickyNoteContext")
+    public StickyNotePageContext stickyNoteContext(HttpServletRequest request) {
+        return stickyNoteContextResolver.resolve(request);
+    }
+
+    @ModelAttribute("stickyNoteTheme")
+    public StickyNoteThemeView stickyNoteTheme() {
+        NasProperties.StickyNotes stickyNotes = nasProperties.getStickyNotes();
+        return new StickyNoteThemeView(
+                stickyNotes.getBackgroundColor(),
+                stickyNotes.getBorderColor(),
+                stickyNotes.getTextColor()
+        );
+    }
+
     private boolean showHiddenFavorites(HttpServletRequest request) {
         String requestedHidden = request.getParameter("hidden");
         String hidden = requestedHidden == null
@@ -175,6 +195,13 @@ public class AdminShellModelAdvice {
     public record UploadUiConfig(
             int maxFilesPerRequest,
             boolean directoryUploadEnabled
+    ) {
+    }
+
+    public record StickyNoteThemeView(
+            String backgroundColor,
+            String borderColor,
+            String textColor
     ) {
     }
 }

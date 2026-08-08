@@ -65,7 +65,8 @@
     }
 
     .telegram-settings-grid,
-    .settings-field-grid {
+    .settings-field-grid,
+    .sticky-note-theme-editor {
         grid-template-columns: 1fr;
     }
 

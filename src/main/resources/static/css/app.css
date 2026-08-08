@@ -11,6 +11,7 @@
 @import url("./components/panels.css");
 @import url("./components/browser.css");
 @import url("./components/transfer-buffer.css");
+@import url("./components/sticky-notes.css");
 @import url("./pages/remote-download.css");
 @import url("./pages/read-only.css");
 @import url("./pages/auth.css");

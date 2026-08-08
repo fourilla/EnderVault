@@ -51,7 +51,7 @@
                     <input readonly th:value="${share.url()}">
                 </td>
                 <td>
-                    <span class="item-name" th:text="${share.path()}">path</span>
+                    <span class="item-name" th:title="${share.path()}" th:text="${share.path()}">path</span>
                 </td>
                 <td th:text="${share.type()}">FILE</td>
                 <td th:text="${share.createdLabel()}">created</td>

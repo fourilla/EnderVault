@@ -49,7 +49,8 @@
                 <tr th:each="dir : ${listing.directories()}"
                     th:classappend="${dir.hidden()} ? 'is-hidden-item' : ''">
                     <td class="select-cell"><input form="bulkActionForm" type="checkbox" name="items" th:value="${dir.name()}"></td>
-                    <td><a class="item-name directory" th:href="@{/s/{token}(token=${token}, path=${dir.path()})}">
+                    <td><a class="item-name directory" th:href="@{/s/{token}(token=${token}, path=${dir.path()})}"
+                           th:title="${dir.name()}">
                         <i class="fas fa-folder item-icon" aria-hidden="true"></i>
                         <span th:text="${dir.name()}">directory</span>
                     </a>
@@ -64,7 +65,7 @@
                     th:classappend="${file.hidden()} ? 'is-hidden-item' : ''">
                     <td class="select-cell"><input form="bulkActionForm" type="checkbox" name="items" th:value="${file.name()}"></td>
                     <td><a class="item-name" th:href="${filePreview.sharedDirectoryFileUrl(token, file)}"
-                           th:text="${file.name()}">file</a>
+                           th:title="${file.name()}" th:text="${file.name()}">file</a>
                         <span class="status-badge expired hidden-badge" th:if="${file.hidden()}">Hidden</span>
                     </td>
                     <td th:text="${file.mediaType()}">type</td>

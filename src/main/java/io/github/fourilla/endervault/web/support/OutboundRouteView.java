@@ -29,7 +29,7 @@ public record OutboundRouteView(
                 route.settingValue(),
                 vpnSelected ? "VPN" : "Direct",
                 vpnSelected ? NetworkRoute.DIRECT.settingValue() : NetworkRoute.VPN_REQUIRED.settingValue(),
-                vpnSelected ? "fas fa-shield-halved" : "fas fa-globe",
+                "fas fa-shield-halved",
                 vpnSelected ? (vpnReady ? "vpn-ready" : "vpn-unavailable") : "direct",
                 title,
                 vpnSelected,
