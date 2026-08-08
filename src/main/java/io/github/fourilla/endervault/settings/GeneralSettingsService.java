@@ -7,7 +7,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 import org.springframework.util.MultiValueMap;
 
@@ -18,6 +20,7 @@ public class GeneralSettingsService {
     private static final List<String> SORTS = List.of("name", "size", "modified", "type");
     private static final List<String> DIRECTIONS = List.of("asc", "desc");
     private static final List<String> CONFLICT_POLICIES = ConflictPolicy.valuesForSettings();
+    private static final Pattern HEX_COLOR = Pattern.compile("^#[0-9A-Fa-f]{6}$");
 
     private final NasProperties nasProperties;
     private final LocalPropertiesFile localPropertiesFile;
@@ -29,6 +32,7 @@ public class GeneralSettingsService {
 
     public GeneralSettingsSnapshot currentSettings() {
         NasProperties.Browser browser = nasProperties.getBrowser();
+        NasProperties.StickyNotes stickyNotes = nasProperties.getStickyNotes();
         NasProperties.Storage storage = nasProperties.getStorage();
         NasProperties.Recent recent = nasProperties.getRecent();
         NasProperties.Trash trash = nasProperties.getTrash();
@@ -41,6 +45,11 @@ public class GeneralSettingsService {
                         browser.getDefaultSort(),
                         browser.getDefaultDirection(),
                         browser.getDefaultPageSize()
+                ),
+                new StickyNoteSettings(
+                        stickyNotes.getBackgroundColor(),
+                        stickyNotes.getBorderColor(),
+                        stickyNotes.getTextColor()
                 ),
                 new StorageSettings(storage.getDefaultConflictPolicy()),
                 new RecentSettings(
@@ -82,6 +91,11 @@ public class GeneralSettingsService {
         String defaultSort = oneOf(clean(first(parameters, "defaultSort")), SORTS, "Default sort");
         String defaultDirection = oneOf(clean(first(parameters, "defaultDirection")), DIRECTIONS, "Default direction");
         int defaultPageSize = intRange(first(parameters, "defaultPageSize"), 1, 1000, "Default page size");
+        StickyNoteSettings stickyNotes = new StickyNoteSettings(
+                color(first(parameters, "stickyNoteBackgroundColor"), "Sticky note background color"),
+                color(first(parameters, "stickyNoteBorderColor"), "Sticky note border color"),
+                color(first(parameters, "stickyNoteTextColor"), "Sticky note text color")
+        );
         String defaultConflictPolicy = oneOf(
                 clean(first(parameters, "defaultConflictPolicy")),
                 CONFLICT_POLICIES,
@@ -134,6 +148,7 @@ public class GeneralSettingsService {
 
         return new GeneralSettingsUpdate(
                 new BrowserSettings(defaultView, defaultSort, defaultDirection, defaultPageSize),
+                stickyNotes,
                 new StorageSettings(defaultConflictPolicy),
                 new RecentSettings(recentMaxItems, recordDirectories),
                 new TrashSettings(trashRetentionDays, cleanupOnStartup, cleanupIntervalMs),
@@ -174,6 +189,11 @@ public class GeneralSettingsService {
         updates.put("nas.browser.default-sort", browser.defaultSort());
         updates.put("nas.browser.default-direction", browser.defaultDirection());
         updates.put("nas.browser.default-page-size", Integer.toString(browser.defaultPageSize()));
+
+        StickyNoteSettings stickyNotes = update.stickyNotes();
+        updates.put("nas.sticky-notes.background-color", stickyNotes.backgroundColor());
+        updates.put("nas.sticky-notes.border-color", stickyNotes.borderColor());
+        updates.put("nas.sticky-notes.text-color", stickyNotes.textColor());
 
         StorageSettings storage = update.storage();
         updates.put("nas.storage.default-conflict-policy", storage.defaultConflictPolicy());
@@ -220,6 +240,11 @@ public class GeneralSettingsService {
         browser.setDefaultSort(update.browser().defaultSort());
         browser.setDefaultDirection(update.browser().defaultDirection());
         browser.setDefaultPageSize(update.browser().defaultPageSize());
+
+        NasProperties.StickyNotes stickyNotes = nasProperties.getStickyNotes();
+        stickyNotes.setBackgroundColor(update.stickyNotes().backgroundColor());
+        stickyNotes.setBorderColor(update.stickyNotes().borderColor());
+        stickyNotes.setTextColor(update.stickyNotes().textColor());
 
         NasProperties.Storage storage = nasProperties.getStorage();
         storage.setDefaultConflictPolicy(update.storage().defaultConflictPolicy());
@@ -296,6 +321,14 @@ public class GeneralSettingsService {
         }
     }
 
+    private static String color(String rawValue, String label) {
+        String value = clean(rawValue);
+        if (!HEX_COLOR.matcher(value).matches()) {
+            throw new IllegalArgumentException(label + " must use the #RRGGBB format.");
+        }
+        return value.toUpperCase(Locale.ROOT);
+    }
+
     private static String first(MultiValueMap<String, String> parameters, String key) {
         String value = parameters.getFirst(key);
         return value == null ? "" : value;
@@ -311,6 +344,7 @@ public class GeneralSettingsService {
 
     public record GeneralSettingsSnapshot(
             BrowserSettings browser,
+            StickyNoteSettings stickyNotes,
             StorageSettings storage,
             RecentSettings recent,
             TrashSettings trash,
@@ -322,6 +356,7 @@ public class GeneralSettingsService {
 
     public record GeneralSettingsUpdate(
             BrowserSettings browser,
+            StickyNoteSettings stickyNotes,
             StorageSettings storage,
             RecentSettings recent,
             TrashSettings trash,
@@ -332,6 +367,21 @@ public class GeneralSettingsService {
     }
 
     public record BrowserSettings(String defaultView, String defaultSort, String defaultDirection, int defaultPageSize) {
+    }
+
+    public record StickyNoteSettings(String backgroundColor, String borderColor, String textColor) {
+
+        public String defaultBackgroundColor() {
+            return NasProperties.StickyNotes.DEFAULT_BACKGROUND_COLOR;
+        }
+
+        public String defaultBorderColor() {
+            return NasProperties.StickyNotes.DEFAULT_BORDER_COLOR;
+        }
+
+        public String defaultTextColor() {
+            return NasProperties.StickyNotes.DEFAULT_TEXT_COLOR;
+        }
     }
 
     public record StorageSettings(String defaultConflictPolicy) {

@@ -246,13 +246,14 @@
     position: absolute;
     z-index: 60;
     top: 100%;
-    left: 50%;
+    right: 0;
+    left: auto;
     width: min(280px, calc(100vw - 16px));
     padding-top: var(--space-xs);
     visibility: hidden;
     opacity: 0;
     pointer-events: none;
-    transform: translate(-50%, -2px);
+    transform: translateY(-2px);
     transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease;
 }
 
@@ -267,11 +268,6 @@
     visibility: visible;
     opacity: 1;
     pointer-events: auto;
-    transform: translate(-50%, 0);
-}
-
-.topbar-control:hover .topbar-control-popover.is-viewport-positioned,
-.topbar-control:focus-within .topbar-control-popover.is-viewport-positioned {
     transform: translateY(0);
 }
 
@@ -319,12 +315,15 @@
 }
 
 .topbar-control-menu-actions {
+    display: grid;
+    gap: var(--space-md);
     margin-top: var(--space-md);
     padding-top: var(--space-md);
     border-top: 1px solid var(--line);
 }
 
-.topbar-control-menu-actions button {
+.topbar-control-menu-actions button,
+.topbar-control-menu-actions a {
     justify-content: flex-start;
     width: 100%;
 }

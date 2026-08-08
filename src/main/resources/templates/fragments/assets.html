@@ -5,6 +5,10 @@
     <link rel="stylesheet" th:if="${fontawesome}"
           th:href="@{/webjars/fortawesome__fontawesome-free/6.7.2/css/all.min.css}">
     <link rel="stylesheet" th:href="@{/css/app.css}">
+    <style th:if="${#ctx.containsVariable('stickyNoteTheme')}"
+           th:text="|:root { --sticky-note-bg: ${stickyNoteTheme.backgroundColor()}; --sticky-note-border: ${stickyNoteTheme.borderColor()}; --sticky-note-text: ${stickyNoteTheme.textColor()}; }|">
+        :root { --sticky-note-bg: #1B3033; --sticky-note-border: #4E8F8A; --sticky-note-text: #EAF6F4; }
+    </style>
 </th:block>
 
 <th:block th:fragment="jsOnlyNoscript">

@@ -94,6 +94,14 @@ nas.browser.default-direction=asc
 nas.browser.default-page-size=200
 
 # ---------------------------------------------------------------------------
+# Sticky notes
+# ---------------------------------------------------------------------------
+# Colors use the six-digit #RRGGBB format and are applied at runtime.
+nas.sticky-notes.background-color=#1B3033
+nas.sticky-notes.border-color=#4E8F8A
+nas.sticky-notes.text-color=#EAF6F4
+
+# ---------------------------------------------------------------------------
 # Recent items
 # ---------------------------------------------------------------------------
 nas.recent.max-items=200

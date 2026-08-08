@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +47,9 @@ public class NasProperties {
 
     @Valid
     private Browser browser = new Browser();
+
+    @Valid
+    private StickyNotes stickyNotes = new StickyNotes();
 
     @Valid
     private Trash trash = new Trash();
@@ -155,6 +159,14 @@ public class NasProperties {
 
     public void setBrowser(Browser browser) {
         this.browser = browser;
+    }
+
+    public StickyNotes getStickyNotes() {
+        return stickyNotes;
+    }
+
+    public void setStickyNotes(StickyNotes stickyNotes) {
+        this.stickyNotes = stickyNotes;
     }
 
     public Trash getTrash() {
@@ -662,6 +674,48 @@ public class NasProperties {
 
         public void setDefaultPageSize(int defaultPageSize) {
             this.defaultPageSize = defaultPageSize;
+        }
+    }
+
+    public static class StickyNotes {
+        public static final String DEFAULT_BACKGROUND_COLOR = "#1B3033";
+        public static final String DEFAULT_BORDER_COLOR = "#4E8F8A";
+        public static final String DEFAULT_TEXT_COLOR = "#EAF6F4";
+
+        @NotBlank
+        @Pattern(regexp = "^#[0-9A-Fa-f]{6}$")
+        private String backgroundColor = DEFAULT_BACKGROUND_COLOR;
+
+        @NotBlank
+        @Pattern(regexp = "^#[0-9A-Fa-f]{6}$")
+        private String borderColor = DEFAULT_BORDER_COLOR;
+
+        @NotBlank
+        @Pattern(regexp = "^#[0-9A-Fa-f]{6}$")
+        private String textColor = DEFAULT_TEXT_COLOR;
+
+        public String getBackgroundColor() {
+            return backgroundColor;
+        }
+
+        public void setBackgroundColor(String backgroundColor) {
+            this.backgroundColor = backgroundColor;
+        }
+
+        public String getBorderColor() {
+            return borderColor;
+        }
+
+        public void setBorderColor(String borderColor) {
+            this.borderColor = borderColor;
+        }
+
+        public String getTextColor() {
+            return textColor;
+        }
+
+        public void setTextColor(String textColor) {
+            this.textColor = textColor;
         }
     }
 

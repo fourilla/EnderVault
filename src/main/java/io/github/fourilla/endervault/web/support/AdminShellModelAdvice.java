@@ -156,6 +156,16 @@ public class AdminShellModelAdvice {
         return stickyNoteContextResolver.resolve(request);
     }
 
+    @ModelAttribute("stickyNoteTheme")
+    public StickyNoteThemeView stickyNoteTheme() {
+        NasProperties.StickyNotes stickyNotes = nasProperties.getStickyNotes();
+        return new StickyNoteThemeView(
+                stickyNotes.getBackgroundColor(),
+                stickyNotes.getBorderColor(),
+                stickyNotes.getTextColor()
+        );
+    }
+
     private boolean showHiddenFavorites(HttpServletRequest request) {
         String requestedHidden = request.getParameter("hidden");
         String hidden = requestedHidden == null
@@ -185,6 +195,13 @@ public class AdminShellModelAdvice {
     public record UploadUiConfig(
             int maxFilesPerRequest,
             boolean directoryUploadEnabled
+    ) {
+    }
+
+    public record StickyNoteThemeView(
+            String backgroundColor,
+            String borderColor,
+            String textColor
     ) {
     }
 }

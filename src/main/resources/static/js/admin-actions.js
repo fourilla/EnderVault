@@ -342,6 +342,11 @@ document.addEventListener("DOMContentLoaded", () => {
             case "metadata-repair":
                 window.EnderVaultMetadata?.handleRepair(body, form);
                 break;
+            case "general-settings-save":
+                document.dispatchEvent(new CustomEvent("endervault:general-settings-saved", {
+                    detail: { form }
+                }));
+                break;
             default:
                 break;
         }

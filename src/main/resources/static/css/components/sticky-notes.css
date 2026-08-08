@@ -30,11 +30,15 @@
     overflow: hidden;
     resize: both;
     pointer-events: auto;
-    border: 1px solid var(--warning-line);
+    border: 1px solid var(--sticky-note-border);
     border-radius: var(--radius-control);
-    background: var(--warning-bg);
+    background: var(--sticky-note-bg);
     box-shadow: 0 12px 30px var(--shadow);
-    color: var(--text);
+    color: var(--sticky-note-text);
+}
+
+.sticky-note-card:has(.sticky-note-editor:focus) {
+    box-shadow: 0 0 0 2px var(--sticky-note-border), 0 12px 30px var(--shadow);
 }
 
 .sticky-note-card.is-collapsed {
@@ -48,7 +52,7 @@
     align-items: center;
     min-height: 40px;
     padding: var(--space-xs) var(--space-md);
-    border-bottom: 1px solid color-mix(in srgb, var(--warning-line) 70%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--sticky-note-border) 70%, transparent);
     cursor: grab;
     user-select: none;
     touch-action: none;
@@ -85,7 +89,7 @@
 }
 
 .sticky-note-actions button:hover {
-    background: color-mix(in srgb, var(--text) 9%, transparent);
+    background: color-mix(in srgb, var(--sticky-note-text) 9%, transparent);
 }
 
 .sticky-note-body {
@@ -114,14 +118,18 @@
     line-height: 1.5;
 }
 
+.sticky-note-editor:focus {
+    outline: none;
+}
+
 .sticky-note-editor::placeholder {
-    color: var(--text-muted);
+    color: color-mix(in srgb, var(--sticky-note-text) 58%, transparent);
 }
 
 .sticky-note-status {
     min-height: 22px;
     padding: 2px var(--space-xl) var(--space-xs);
-    color: var(--text-muted);
+    color: color-mix(in srgb, var(--sticky-note-text) 66%, transparent);
     font-size: var(--font-size-xs);
     text-align: right;
 }

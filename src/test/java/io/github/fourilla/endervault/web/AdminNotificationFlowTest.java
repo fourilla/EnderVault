@@ -59,6 +59,9 @@ class AdminNotificationFlowTest {
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         registry.add("nas.storage.root", ROOT::toString);
+        registry.add("nas.sticky-notes.background-color", () -> "#1B3033");
+        registry.add("nas.sticky-notes.border-color", () -> "#4E8F8A");
+        registry.add("nas.sticky-notes.text-color", () -> "#EAF6F4");
     }
 
     @Test
@@ -379,6 +382,12 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("General Settings")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Browser Defaults")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Recent Items")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"sticky-note-theme\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"stickyNoteBackgroundColor\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"stickyNoteBorderColor\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"stickyNoteTextColor\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/sticky-note-theme-settings.js")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("--sticky-note-bg: #1B3033")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Trash")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("File Tools")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote Download")))

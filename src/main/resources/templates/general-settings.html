@@ -7,6 +7,7 @@
     <th:block th:replace="~{fragments/assets :: styles(true)}"></th:block>
     <th:block th:replace="~{fragments/assets :: coreScripts}"></th:block>
     <th:block th:replace="~{fragments/assets :: adminActionsScript}"></th:block>
+    <script defer th:src="@{/js/sticky-note-theme-settings.js}"></script>
 </head>
 <body>
 <div class="app-shell">
@@ -71,6 +72,72 @@
                         <span>Default page size</span>
                         <input type="number" name="defaultPageSize" min="1" max="1000" th:value="${settings.browser().defaultPageSize()}">
                     </label>
+                </div>
+            </section>
+
+            <section id="sticky-note-theme" class="settings-detail-section" aria-label="Sticky note appearance settings">
+                <header class="settings-subsection-heading">
+                    <div>
+                        <h3>Sticky Notes</h3>
+                        <p>Sets one shared note theme for every administrator device.</p>
+                    </div>
+                </header>
+                <div class="sticky-note-theme-editor"
+                     data-sticky-note-theme-editor
+                     th:attr="data-default-background=${settings.stickyNotes().defaultBackgroundColor()},
+                              data-default-border=${settings.stickyNotes().defaultBorderColor()},
+                              data-default-text=${settings.stickyNotes().defaultTextColor()}">
+                    <div class="sticky-note-theme-preview-stage" aria-label="Sticky note theme preview">
+                        <article class="sticky-note-theme-preview" data-sticky-note-theme-preview>
+                            <header>
+                                <strong>Project note</strong>
+                                <i class="fas fa-note-sticky" aria-hidden="true"></i>
+                            </header>
+                            <p>Keep the next maintenance task visible without leaving this page.</p>
+                            <footer>Saved</footer>
+                        </article>
+                    </div>
+                    <div class="sticky-note-theme-fields">
+                        <label class="sticky-note-color-field">
+                            <span>Background</span>
+                            <span class="sticky-note-color-control">
+                                <output data-sticky-note-color-value="background"
+                                        th:text="${settings.stickyNotes().backgroundColor()}">#1B3033</output>
+                                <input type="color" name="stickyNoteBackgroundColor"
+                                       th:value="${settings.stickyNotes().backgroundColor()}"
+                                       data-sticky-note-color="background"
+                                       title="Choose sticky note background color">
+                            </span>
+                        </label>
+                        <label class="sticky-note-color-field">
+                            <span>Border</span>
+                            <span class="sticky-note-color-control">
+                                <output data-sticky-note-color-value="border"
+                                        th:text="${settings.stickyNotes().borderColor()}">#4E8F8A</output>
+                                <input type="color" name="stickyNoteBorderColor"
+                                       th:value="${settings.stickyNotes().borderColor()}"
+                                       data-sticky-note-color="border"
+                                       title="Choose sticky note border color">
+                            </span>
+                        </label>
+                        <label class="sticky-note-color-field">
+                            <span>Text</span>
+                            <span class="sticky-note-color-control">
+                                <output data-sticky-note-color-value="text"
+                                        th:text="${settings.stickyNotes().textColor()}">#EAF6F4</output>
+                                <input type="color" name="stickyNoteTextColor"
+                                       th:value="${settings.stickyNotes().textColor()}"
+                                       data-sticky-note-color="text"
+                                       title="Choose sticky note text color">
+                            </span>
+                        </label>
+                        <p class="sticky-note-theme-contrast" data-sticky-note-theme-contrast role="status"></p>
+                        <button class="ghost icon-text-button sticky-note-theme-reset" type="button"
+                                data-sticky-note-theme-reset>
+                            <i class="fas fa-arrow-rotate-left" aria-hidden="true"></i>
+                            <span>Reset colors</span>
+                        </button>
+                    </div>
                 </div>
             </section>
 
