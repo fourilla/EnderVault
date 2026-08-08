@@ -95,12 +95,13 @@
                 <tr th:each="item : ${resultPage.items()}"
                     th:classappend="${item.hidden()} ? 'is-hidden-item' : ''">
                     <td>
-                        <a class="item-name directory" th:if="${item.directory()}" th:href="@{/files(path=${item.path()})}">
+                        <a class="item-name directory" th:if="${item.directory()}"
+                           th:href="@{/files(path=${item.path()})}" th:title="${item.name()}">
                             <i class="fas fa-folder item-icon" aria-hidden="true"></i>
                             <span th:text="${item.name()}">directory</span>
                         </a>
                         <a class="item-name" th:unless="${item.directory()}" th:href="@{/files/detail(path=${item.path()})}"
-                           th:text="${item.name()}">file</a>
+                           th:title="${item.name()}" th:text="${item.name()}">file</a>
                         <span class="status-badge expired hidden-badge" th:if="${item.hidden()}">Hidden</span>
                     </td>
                     <td>

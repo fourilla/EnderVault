@@ -26,19 +26,19 @@
             <span class="status-badge info" th:text="|${#lists.size(notes)} note(s)|">0 note(s)</span>
         </header>
 
-        <form class="toolbar-search" method="get" th:action="@{/admin/sticky-notes}" role="search">
+        <form class="search-form" method="get" th:action="@{/admin/sticky-notes}" role="search">
             <label class="search-field">
+                <span class="visually-hidden">Search sticky notes</span>
                 <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
                 <input type="search" name="q" th:value="${q}" placeholder="Search notes or contexts"
                        aria-label="Search sticky notes">
             </label>
-            <button class="primary icon-text-button" type="submit">
+            <button class="icon-button" type="submit" title="Search sticky notes" aria-label="Search sticky notes">
                 <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
-                <span>Search</span>
             </button>
-            <a class="ghost icon-text-button" th:if="${q != null and !q.isBlank()}" th:href="@{/admin/sticky-notes}">
+            <a class="button-link ghost icon-button" th:if="${q != null and !q.isBlank()}"
+               th:href="@{/admin/sticky-notes}" title="Reset search" aria-label="Reset search">
                 <i class="fas fa-rotate-left" aria-hidden="true"></i>
-                <span>Reset</span>
             </a>
         </form>
 
@@ -57,25 +57,25 @@
                 <tbody>
                 <tr th:each="item : ${notes}">
                     <td>
-                        <span class="sticky-note-manager-summary"
+                        <span class="table-primary-text"
                               th:title="${item.note().content()}"
                               th:text="${item.note().summary()}">Note</span>
                     </td>
                     <td>
-                        <span class="sticky-note-manager-context"
+                        <span class="table-primary-text"
                               th:title="${item.contextLabel()}"
                               th:text="${item.contextLabel()}">Context</span>
                         <small th:text="${item.note().context().targetType()}">PAGE</small>
                     </td>
                     <td th:text="${item.surfaceLabel()}">Page</td>
-                    <td th:text="${item.note().updatedAt()}">updated</td>
+                    <td th:title="${item.note().updatedAt()}" th:text="${item.updatedLabel()}">updated</td>
                     <td>
                         <span class="status-badge active" th:if="${item.targetExists()}">Available</span>
                         <span class="status-badge expired" th:unless="${item.targetExists()}">Orphan</span>
                     </td>
                     <td>
                         <div class="table-actions">
-                            <a class="ghost icon-button action-icon"
+                            <a class="button-link ghost icon-button action-icon"
                                th:if="${item.openUrl() != null}"
                                th:href="${item.openUrl()}"
                                title="Open target" aria-label="Open target">

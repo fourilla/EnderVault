@@ -134,22 +134,6 @@
     text-align: right;
 }
 
-.sticky-note-manager-summary {
-    display: block;
-    max-width: 32rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.sticky-note-manager-context {
-    display: block;
-    max-width: 24rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
 @media (max-width: 720px) {
     .sticky-note-card {
         max-width: calc(100vw - 12px);

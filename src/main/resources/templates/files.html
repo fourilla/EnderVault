@@ -232,7 +232,8 @@
                     th:data-item-favorite="${favoritePaths.contains(directory.path())}">
                     <td class="select-cell"><input form="bulkActionForm" type="checkbox" name="items" th:value="${directory.name()}"></td>
                     <td><a class="item-name directory"
-                           th:href="@{/files(path=${directory.path()})}">
+                           th:href="@{/files(path=${directory.path()})}"
+                           th:title="${directory.name()}">
                         <i class="fas fa-folder item-icon" aria-hidden="true"></i>
                         <span th:text="${directory.name()}">directory</span>
                     </a>
@@ -296,7 +297,8 @@
                     th:data-item-favorite="${favoritePaths.contains(file.path())}">
                     <td class="select-cell"><input form="bulkActionForm" type="checkbox" name="items" th:value="${file.name()}"></td>
                     <td>
-                        <a class="item-name" th:href="@{/files/detail(path=${file.path()})}" th:text="${file.name()}">file</a>
+                        <a class="item-name" th:href="@{/files/detail(path=${file.path()})}"
+                           th:title="${file.name()}" th:text="${file.name()}">file</a>
                         <span class="status-badge expired hidden-badge" th:if="${file.hidden()}">Hidden</span>
                     </td>
                     <td th:text="${file.mediaType()}">type</td>

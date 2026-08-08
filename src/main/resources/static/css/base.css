@@ -82,6 +82,7 @@
     --table-cell-padding: 10px 12px;
     --table-min-width: 900px;
     --table-select-col-width: 72px;
+    --table-primary-text-max-width: 34rem;
 
     --sidebar-width: 240px;
     --sidebar-icon-width: 18px;

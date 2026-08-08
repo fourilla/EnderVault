@@ -12,6 +12,8 @@ import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.FlashNotification;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -29,6 +31,9 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @Controller
 public class AdminStickyNoteController {
+
+    private static final DateTimeFormatter UPDATED_AT_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
     private final StickyNoteService stickyNoteService;
     private final ActivityLogService activityLogService;
@@ -157,6 +162,7 @@ public class AdminStickyNoteController {
                 note,
                 stickyNoteService.contextLabel(note.context()),
                 note.context().surface().label(),
+                note.updatedAt() == null ? "-" : UPDATED_AT_FORMATTER.format(note.updatedAt()),
                 targetExists,
                 targetExists ? stickyNoteService.openUrl(note.context()) : null
         );
@@ -186,6 +192,7 @@ public class AdminStickyNoteController {
             StickyNote note,
             String contextLabel,
             String surfaceLabel,
+            String updatedLabel,
             boolean targetExists,
             String openUrl
     ) {

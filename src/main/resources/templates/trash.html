@@ -51,7 +51,7 @@
                 <tbody>
                 <tr th:each="record : ${records}">
                     <td>
-                        <span class="item-name">
+                        <span class="item-name" th:title="${record.originalName()}">
                             <i th:class="${record.directory()} ? 'fas fa-folder item-icon' : 'fas fa-file item-icon'" aria-hidden="true"></i>
                             <span th:text="${record.originalName()}">item</span>
                         </span>

@@ -14,6 +14,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +35,8 @@ import org.springframework.test.web.servlet.MvcResult;
 class StickyNoteFlowTest {
 
     private static final Path ROOT = createTempRoot();
+    private static final DateTimeFormatter UPDATED_AT_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
     @Autowired
     MockMvc mockMvc;
@@ -96,13 +101,20 @@ class StickyNoteFlowTest {
                 "collapsed", false,
                 "layer", 2
         ));
-        mockMvc.perform(put("/admin/sticky-notes/items/{id}", id)
+        MvcResult updated = mockMvc.perform(put("/admin/sticky-notes/items/{id}", id)
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .accept(MediaType.APPLICATION_JSON)
                         .content(updateJson))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.note.content").value("MockMvc sticky note"));
+                .andExpect(jsonPath("$.note.content").value("MockMvc sticky note"))
+                .andReturn();
+        String updatedLabel = UPDATED_AT_FORMATTER.format(Instant.parse(
+                objectMapper.readTree(updated.getResponse().getContentAsByteArray())
+                        .path("note")
+                        .path("updatedAt")
+                        .asText()
+        ));
 
         mockMvc.perform(get("/admin/sticky-notes/items")
                         .param("targetType", "STORAGE")
@@ -114,7 +126,10 @@ class StickyNoteFlowTest {
 
         mockMvc.perform(get("/admin/sticky-notes"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("MockMvc sticky note")));
+                .andExpect(content().string(containsString("MockMvc sticky note")))
+                .andExpect(content().string(containsString("class=\"search-form\"")))
+                .andExpect(content().string(containsString("class=\"button-link ghost icon-button action-icon\"")))
+                .andExpect(content().string(containsString(updatedLabel)));
 
         mockMvc.perform(post("/admin/sticky-notes/items/{id}/delete", id)
                         .with(csrf())

@@ -135,6 +135,19 @@ td input[readonly] {
     white-space: nowrap;
 }
 
+.table-wrap .item-name,
+.table-primary-text {
+    max-width: min(42vw, var(--table-primary-text-max-width));
+}
+
+.table-primary-text {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .item-icon {
     color: var(--muted);
     margin-right: var(--space-sm);
