@@ -5,6 +5,10 @@ Spring Boot, Thymeleaf, HTML, CSS, JavaScript를 기반으로 하며 파일 관�
 
 이 프로젝트는 개인 서버에서 직접 운영하는 것을 목표로 합니다. 공개 서비스나 다중 사용자 SaaS를 목표로 한 프로젝트는 아닙니다.
 
+## Project Status
+
+EnderVault는 현재 개인 사용을 중심으로 개발 중인 beta 프로젝트입니다. 정식 릴리스 전까지 설정과 내부 메타데이터 구조가 마이그레이션 없이 변경될 수 있으므로, 업데이트 전에는 관리 대상 파일과 `endervault-nas.properties`, 저장소 내부의 `.endervault` 메타데이터를 백업하세요.
+
 ## Features
 
 - 파일/디렉토리 탐색, 생성, 검색, 업로드, 다운로드, 이동, 복사, 이름 변경
@@ -23,11 +27,20 @@ Spring Boot, Thymeleaf, HTML, CSS, JavaScript를 기반으로 하며 파일 관�
 
 ## Requirements
 
-- Java 21
-- Maven Wrapper 포함
-- 별도 Maven 설치는 선택 사항입니다.
+- Standalone JAR: Java 21
+- 소스 빌드: 저장소에 포함된 Maven Wrapper 사용, 별도 Maven 설치는 선택 사항
+- Docker 배포: Docker Engine과 Docker Compose plugin, 호스트 Java/Maven은 불필요
 
-## Build
+## Clone
+
+```bash
+git clone https://github.com/fourilla/EnderVault.git
+cd EnderVault
+```
+
+## Standalone JAR
+
+### Build
 
 Windows:
 
@@ -47,7 +60,7 @@ Linux/macOS:
 target/endervault-nas-0.1.0-SNAPSHOT.jar
 ```
 
-## First Run
+### First Run
 
 처음 실행하면 EnderVault는 현재 실행 위치에 `endervault-nas.properties` 설정 파일을 생성하고 종료합니다.
 
@@ -108,6 +121,8 @@ mkdir -p docker/runtime/state docker/runtime/storage
 
 Linux에서는 `.env`의 `ENDERVAULT_UID`, `ENDERVAULT_GID`를 `id -u`, `id -g` 결과와 맞추고, 두 마운트 경로에 해당 계정의 읽기/쓰기 권한이 있는지 확인하세요.
 
+`docker/runtime/state`와 `docker/runtime/storage`는 바로 실행할 수 있도록 제공하는 기본 경로일 뿐이며, `.env`에서 원하는 절대 경로로 변경할 수 있습니다. `ENDERVAULT_STATE_DIR`는 컨테이너의 `/var/lib/endervault`에 연결되어 `endervault-nas.properties`와 애플리케이션 로그를 보존합니다. `ENDERVAULT_STORAGE_PATH`는 `/storage`에 연결되어 실제 관리 대상 파일과 저장소 내부의 `.endervault` 메타데이터를 보존합니다. VPN을 사용하지 않는다면 별도의 VPN runtime 또는 secret 디렉터리는 필요하지 않습니다.
+
 최초 설정 파일을 생성합니다.
 
 ```bash
@@ -132,20 +147,20 @@ docker compose up -d
 
 ### Optional VPN Egress
 
-선택한 아웃바운드 요청만 OpenVPN 회선으로 보낼 수 있도록 별도의 Gluetun Compose 프로필을 제공합니다. 기본 `compose.yaml`에는 VPN 권한이나 설정 파일 의존성이 없으며, VPN이 필요한 경우에만 오버레이를 함께 실행합니다.
+선택한 아웃바운드 요청만 OpenVPN 회선으로 보낼 수 있도록 Gluetun 기반 선택 구성을 제공합니다. `compose.vpn.yaml`은 기본 `compose.yaml` 위에 VPN 서비스, 내부 연결 정보와 권한을 합치는 Compose overlay입니다. `--profile vpn`은 합쳐진 구성에서 `vpn-config`와 `vpn` 서비스를 실제로 활성화합니다. VPN이 필요하지 않다면 overlay와 profile을 모두 사용하지 않으며, 기본 `compose.yaml`에는 VPN 권한이나 설정 파일 의존성이 없습니다.
 
 ```bash
 docker compose -f compose.yaml -f compose.vpn.yaml --profile vpn up -d
 ```
 
-VPN 회사와 관계없이 OpenVPN 프로필 한 개와 선택적 인증정보를 사용하는 Gluetun Custom 방식으로 통일되어 있습니다. 프로필 준비, 인증정보 secret, 초기 Direct DNS 조회, EnderVault proxy 설정과 현재 제한사항은 [`docker/vpn/README.md`](docker/vpn/README.md)를 확인하세요. 로그인 후 Topbar에서 서버 전체의 관리형 아웃바운드 요청을 Direct 또는 VPN으로 전환할 수 있습니다. Remote Download는 필요할 때 해당 작업만 Direct/VPN으로 예외 지정할 수 있으며, VPN이 준비되지 않은 상태에서는 Direct로 우회하지 않습니다.
+VPN 제공 업체와 관계없이 OpenVPN 프로필 한 개와 선택적 인증정보를 사용하는 Gluetun Custom 방식으로 통일되어 있습니다. 프로필 준비, 인증정보, 초기 Direct DNS 조회, EnderVault proxy 설정과 현재 제한사항은 [`docker/vpn/README.md`](docker/vpn/README.md)를 확인하세요. 로그인 후 Topbar에서 서버 전체의 관리형 아웃바운드 요청을 Direct 또는 VPN으로 전환할 수 있습니다. Remote Download는 필요할 때 해당 작업만 Direct/VPN으로 예외 지정할 수 있으며, VPN이 준비되지 않은 상태에서는 Direct로 우회하지 않습니다.
 
 VPN Compose overlay를 사용하면 `vpn:8888`, `vpn:9999`, `vpn:8000` 같은 컨테이너 내부 네트워크 주소도 overlay가 자동으로 주입합니다. Standalone JAR에서는 필요할 때 이 값을 properties에 직접 설정합니다.
 
 ## Configuration
 
 주요 설정은 실행 위치의 `endervault-nas.properties`에서 관리합니다.
-이 파일에는 로컬 저장소 경로, 관리자 계정, Telegram bot token 같은 민감한 값이 들어갈 수 있으므로 공유하거나 커밋하지 마세요.
+이 파일에는 로컬 저장소 경로, 관리자 계정, Telegram bot token 같은 민감한 값이 들어갈 수 있으므로 공유하거나 Git에 커밋하지 마세요.
 
 설정 템플릿은 프로젝트 내부에 포함되어 있습니다.
 
@@ -161,15 +176,15 @@ nas.passkeys.allowed-origins=https://example.com
 ```
 
 Remote download 기능은 보안상 기본 비활성화되어 있습니다.
-이 기능을 활성화하면 서버가 사용자가 입력한 URL에 직접 접근하므로, 신뢰할 수 있는 환경에서만 사용하세요.
+이 기능을 활성화하면 서버가 사용자가 입력한 URL에 직접 접근하므로, 보안 영향을 이해하고 신뢰할 수 있는 URL 대상으로만 사용하세요.
 
 ## Deployment Notes
 
 개인 서버에서 사용할 때는 다음을 권장합니다.
 
-- 관리자 비밀번호를 반드시 변경
+- 관리자 비밀번호 변경
 - Standalone JAR에서는 `nas.storage.root`, Docker에서는 `.env`의 `ENDERVAULT_STORAGE_PATH`를 실제 NAS 저장소에 맞게 설정
-- `endervault-nas.properties`를 외부에 노출하지 않기
+- `endervault-nas.properties`와 실제 `.env`를 외부에 노출하거나 Git에 커밋하지 않기
 - HTTPS reverse proxy 사용
 - Passkey 사용 시 도메인/RP 설정 확인
 - Remote download는 보안 영향을 이해한 뒤 필요한 경우에만 활성화
