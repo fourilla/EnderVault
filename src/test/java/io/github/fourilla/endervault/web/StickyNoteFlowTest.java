@@ -59,6 +59,8 @@ class StickyNoteFlowTest {
                 .andExpect(content().string(containsString("data-sticky-note-add")))
                 .andExpect(content().string(containsString("/admin/settings/general#sticky-note-theme")))
                 .andExpect(content().string(containsString("Note appearance")))
+                .andExpect(content().string(containsString("href=\"/admin/sticky-notes\"")))
+                .andExpect(content().string(containsString("Note list")))
                 .andExpect(content().string(not(containsString("data-sticky-note-collapse-all"))))
                 .andExpect(content().string(containsString("/js/topbar-controls.js")))
                 .andExpect(content().string(containsString("/js/sticky-notes.js")));
