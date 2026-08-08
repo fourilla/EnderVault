@@ -1,21 +1,25 @@
 # EnderVault
 
 EnderVault는 개인 서버의 특정 디렉토리를 웹 UI로 관리하기 위한 self-hosted NAS 프로젝트입니다.
-Spring Boot, Thymeleaf, HTML, CSS, JavaScript를 기반으로 하며 파일 탐색, 업로드, 다운로드, 미리보기, 공유 링크, 휴지통, 즐겨찾기, 북마크, Passkey 로그인 등을 지원합니다.
+Spring Boot, Thymeleaf, HTML, CSS, JavaScript를 기반으로 하며 파일 관리, 미리보기와 편집, 공유, 개인 메모, 관리자 세션 관리 등을 지원합니다.
 
 이 프로젝트는 개인 서버에서 직접 운영하는 것을 목표로 합니다. 공개 서비스나 다중 사용자 SaaS를 목표로 한 프로젝트는 아닙니다.
 
 ## Features
 
-- 파일/디렉토리 탐색, 업로드, 다운로드, 이동, 복사, 이름 변경
-- 이미지, 영상, 텍스트, PDF, CBZ 미리보기
-- 영상/CBZ 썸네일 캐시
+- 파일/디렉토리 탐색, 생성, 검색, 업로드, 다운로드, 이동, 복사, 이름 변경
+- table/grid 보기, 정렬, 페이징, 숨김 항목 정책과 모바일용 read-only mode
+- 이미지, 영상, 텍스트, PDF, CBZ 미리보기와 영상/PDF/CBZ 썸네일 캐시
+- CodeMirror 기반 텍스트 편집, 서버 draft 복구와 Markdown 미리보기
 - 선택한 파일 또는 디렉토리 공유 링크 발급
-- 휴지통, 최근 항목, 즐겨찾기, 북마크
-- Passkey 로그인
-- Telegram 기반 activity 알림
-- 모바일용 read-only mode
-- 설정 파일 기반 운영
+- 휴지통, 최근 항목, 즐겨찾기와 원격 메타데이터를 지원하는 북마크
+- 페이지와 파일 context에 대응되는 스티커 메모
+- Passkey 로그인, 동시 세션 정책과 활성 세션 관리
+- activity log, 백그라운드 task 표시와 선택적 Telegram 알림
+- 메타데이터 정합성 검사 및 복구 도구
+- URL 기반 Remote Download와 요청별 Direct/VPN 회선 선택
+- Docker Compose 배포와 선택적 OpenVPN 아웃바운드 라우팅
+- 설정 파일과 관리자 웹 UI 기반 운영
 
 ## Requirements
 
@@ -83,6 +87,8 @@ PW : change-me
 ## Docker Compose
 
 Docker Compose는 Java나 Maven을 호스트에 직접 설치하지 않고 EnderVault를 빌드하고 실행하는 선택 배포 방식입니다.
+
+저장소에는 실제 `.env` 대신 민감한 값이 없는 `.env.example`이 포함됩니다. `.env`는 자동 생성되지 않으므로 clone 후 예시 파일을 복사하고 운영 환경에 맞게 수정하세요. 실제 `.env`는 Git에서 제외됩니다.
 
 먼저 Docker 환경 설정을 준비하고 마운트할 디렉터리를 만듭니다.
 
