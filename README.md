@@ -21,7 +21,7 @@ EnderVault는 현재 개인 사용을 중심으로 개발 중인 beta 프로젝�
 - Passkey 로그인, 동시 세션 정책과 활성 세션 관리
 - activity log, 백그라운드 task 표시와 선택적 Telegram 알림
 - 메타데이터 정합성 검사 및 복구 도구
-- URL 기반 Remote Download와 요청별 Direct/VPN 회선 선택
+- URL 기반 Remote Download, 브라우저 cURL GET 가져오기, 작업별 1~8개 Range 연결과 Direct/VPN 회선 선택
 - Docker Compose 배포와 선택적 OpenVPN 아웃바운드 라우팅
 - 설정 파일과 관리자 웹 UI 기반 운영
 
@@ -177,6 +177,7 @@ nas.passkeys.allowed-origins=https://example.com
 
 Remote download 기능은 보안상 기본 비활성화되어 있습니다.
 이 기능을 활성화하면 서버가 사용자가 입력한 URL에 직접 접근하므로, 보안 영향을 이해하고 신뢰할 수 있는 URL 대상으로만 사용하세요.
+Inspect는 기본적으로 파일 정보와 Range 지원을 확인하기 위해 실제 `GET` 요청(`Range: bytes=0-0`)을 보내므로, 일회성 또는 다운로드 횟수 제한 URL은 Inspect 단계에서 소비될 수 있습니다. 이 경우 Advanced Request Options의 `Skip inspection`을 사용할 수 있지만, 파일명·크기·형식·최종 URL을 미리 확인하지 못하며 단일 연결 다운로드만 허용됩니다. 기본 선택값은 `nas.remote-download.skip-inspect-by-default=false`로 설정할 수 있습니다.
 
 ## Deployment Notes
 

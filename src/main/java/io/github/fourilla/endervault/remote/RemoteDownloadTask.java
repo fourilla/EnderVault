@@ -2,9 +2,12 @@ package io.github.fourilla.endervault.remote;
 
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
 import io.github.fourilla.endervault.outbound.NetworkRoute;
+import io.github.fourilla.endervault.storage.ConflictPolicy;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class RemoteDownloadTask {
 
@@ -17,12 +20,16 @@ public class RemoteDownloadTask {
     private final NetworkRoute networkRoute;
     private final String actor;
     private final String ip;
+    private final int requestedConnections;
+    private final ConflictPolicy conflictPolicy;
     private final Instant createdAt;
     private volatile RemoteDownloadStatus status = RemoteDownloadStatus.QUEUED;
     private volatile Instant startedAt;
     private volatile Instant finishedAt;
-    private volatile long downloadedBytes;
+    private final AtomicLong downloadedBytes = new AtomicLong();
+    private final AtomicInteger retryCount = new AtomicInteger();
     private volatile long totalBytes = -1L;
+    private volatile int actualConnections;
     private volatile String fileName;
     private volatile String targetPath;
     private volatile String message = "Waiting to start.";
@@ -34,7 +41,9 @@ public class RemoteDownloadTask {
             String targetDirectory,
             NetworkRoute networkRoute,
             String actor,
-            String ip
+            String ip,
+            int requestedConnections,
+            ConflictPolicy conflictPolicy
     ) {
         this.id = id;
         this.sourceUrl = sourceUrl;
@@ -42,7 +51,20 @@ public class RemoteDownloadTask {
         this.networkRoute = networkRoute;
         this.actor = actor == null || actor.isBlank() ? "system" : actor;
         this.ip = ip == null || ip.isBlank() ? "-" : ip;
+        this.requestedConnections = requestedConnections;
+        this.conflictPolicy = conflictPolicy == null ? ConflictPolicy.CANCEL : conflictPolicy;
         this.createdAt = Instant.now();
+    }
+
+    public RemoteDownloadTask(
+            String id,
+            String sourceUrl,
+            String targetDirectory,
+            NetworkRoute networkRoute,
+            String actor,
+            String ip
+    ) {
+        this(id, sourceUrl, targetDirectory, networkRoute, actor, ip, 1, ConflictPolicy.CANCEL);
     }
 
     public String id() {
@@ -98,11 +120,35 @@ public class RemoteDownloadTask {
     }
 
     public long downloadedBytes() {
-        return downloadedBytes;
+        return downloadedBytes.get();
     }
 
     public long totalBytes() {
         return totalBytes;
+    }
+
+    public int requestedConnections() {
+        return requestedConnections;
+    }
+
+    public ConflictPolicy conflictPolicy() {
+        return conflictPolicy;
+    }
+
+    public String conflictPolicyLabel() {
+        return switch (conflictPolicy) {
+            case CANCEL -> "Cancel";
+            case RENAME -> "Rename and continue";
+            case OVERWRITE -> "Overwrite";
+        };
+    }
+
+    public int actualConnections() {
+        return actualConnections;
+    }
+
+    public int retryCount() {
+        return retryCount.get();
     }
 
     public String fileName() {
@@ -129,14 +175,14 @@ public class RemoteDownloadTask {
         if (totalBytes <= 0L) {
             return status == RemoteDownloadStatus.COMPLETE ? 100 : 0;
         }
-        return (int) Math.max(0L, Math.min(100L, Math.round((double) downloadedBytes * 100.0 / totalBytes)));
+        return (int) Math.max(0L, Math.min(100L, Math.round((double) downloadedBytes() * 100.0 / totalBytes)));
     }
 
     public String progressLabel() {
         if (totalBytes <= 0L) {
-            return ByteSizeFormatter.humanSize(downloadedBytes);
+            return ByteSizeFormatter.humanSize(downloadedBytes());
         }
-        return "%s / %s".formatted(ByteSizeFormatter.humanSize(downloadedBytes), ByteSizeFormatter.humanSize(totalBytes));
+        return "%s / %s".formatted(ByteSizeFormatter.humanSize(downloadedBytes()), ByteSizeFormatter.humanSize(totalBytes));
     }
 
     public String createdLabel() {
@@ -164,8 +210,31 @@ public class RemoteDownloadTask {
         this.totalBytes = totalBytes;
     }
 
-    void addDownloadedBytes(int bytes) {
-        this.downloadedBytes += Math.max(0, bytes);
+    void setActualConnections(int actualConnections) {
+        this.actualConnections = Math.max(1, actualConnections);
+    }
+
+    void setFileName(String fileName) {
+        this.fileName = fileName;
+    }
+
+    void addDownloadedBytes(long bytes) {
+        downloadedBytes.updateAndGet(current -> Math.max(0L, current + bytes));
+    }
+
+    void resetDownloadedBytes() {
+        downloadedBytes.set(0L);
+    }
+
+    void recordRetry() {
+        retryCount.incrementAndGet();
+        this.message = "Retrying download.";
+    }
+
+    void markDownloading() {
+        this.message = actualConnections > 1
+                ? "Downloading with " + actualConnections + " connections."
+                : "Downloading.";
     }
 
     void markComplete(String fileName, String targetPath) {

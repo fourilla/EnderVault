@@ -54,6 +54,8 @@ class GeneralSettingsServiceTest {
                 nas.remote-download.max-redirects=5
                 nas.remote-download.max-file-size-bytes=0
                 nas.remote-download.history-limit=100
+                nas.remote-download.max-retries=2
+                nas.remote-download.skip-inspect-by-default=false
                 """, StandardCharsets.UTF_8);
 
         NasProperties properties = new NasProperties();
@@ -86,6 +88,8 @@ class GeneralSettingsServiceTest {
         parameters.set("remoteMaxRedirects", "7");
         parameters.set("remoteMaxFileSizeBytes", "123456");
         parameters.set("remoteHistoryLimit", "25");
+        parameters.set("remoteMaxRetries", "3");
+        parameters.set("remoteSkipInspectByDefault", "on");
 
         service.save(service.updateFrom(parameters));
 
@@ -111,7 +115,9 @@ class GeneralSettingsServiceTest {
                 .contains("nas.file-tools.comic-max-pages=300")
                 .contains("nas.remote-download.extractor-enabled=false")
                 .contains("nas.remote-download.allowed-ports=80,443,8080")
-                .contains("nas.remote-download.max-file-size-bytes=123456");
+                .contains("nas.remote-download.max-file-size-bytes=123456")
+                .contains("nas.remote-download.max-retries=3")
+                .contains("nas.remote-download.skip-inspect-by-default=true");
 
         assertThat(properties.getBrowser().getDefaultView()).isEqualTo("grid");
         assertThat(properties.getBrowser().getDefaultSort()).isEqualTo("modified");
@@ -130,6 +136,8 @@ class GeneralSettingsServiceTest {
         assertThat(properties.getFileTools().getTextDraftLeaseSeconds()).isEqualTo(180);
         assertThat(properties.getRemoteDownload().getAllowedPorts()).isEqualTo(List.of(80, 443, 8080));
         assertThat(properties.getRemoteDownload().getMaxFileSizeBytes()).isEqualTo(123456);
+        assertThat(properties.getRemoteDownload().getMaxRetries()).isEqualTo(3);
+        assertThat(properties.getRemoteDownload().isSkipInspectByDefault()).isTrue();
     }
 
     @Test
@@ -190,6 +198,7 @@ class GeneralSettingsServiceTest {
         parameters.add("remoteMaxRedirects", "5");
         parameters.add("remoteMaxFileSizeBytes", "0");
         parameters.add("remoteHistoryLimit", "100");
+        parameters.add("remoteMaxRetries", "2");
         return parameters;
     }
 }

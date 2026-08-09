@@ -309,6 +309,20 @@
                         <span>History limit</span>
                         <input type="number" name="remoteHistoryLimit" min="1" max="1000" th:value="${settings.remoteDownload().historyLimit()}">
                     </label>
+                    <label>
+                        <span>Maximum retries</span>
+                        <input type="number" name="remoteMaxRetries" min="0" max="5" th:value="${settings.remoteDownload().maxRetries()}">
+                    </label>
+                    <label class="settings-inline-toggle remote-direct-dependent">
+                        <span>
+                            <strong>Skip inspection by default</strong>
+                            <small>Send no metadata probe before confirmation and use one connection.</small>
+                        </span>
+                        <input class="settings-switch-input"
+                               type="checkbox"
+                               name="remoteSkipInspectByDefault"
+                               th:checked="${settings.remoteDownload().skipInspectByDefault()}">
+                    </label>
                 </div>
             </section>
         </form>

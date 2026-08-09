@@ -80,7 +80,9 @@ public class GeneralSettingsService {
                         remoteDownload.getResponseTimeoutSeconds(),
                         remoteDownload.getMaxRedirects(),
                         remoteDownload.getMaxFileSizeBytes(),
-                        remoteDownload.getHistoryLimit()
+                        remoteDownload.getHistoryLimit(),
+                        remoteDownload.getMaxRetries(),
+                        remoteDownload.isSkipInspectByDefault()
                 ),
                 localPropertiesFile.configFile().toString()
         );
@@ -145,6 +147,11 @@ public class GeneralSettingsService {
         int maxRedirects = intRange(first(parameters, "remoteMaxRedirects"), 0, 50, "Remote max redirects");
         long maxFileSizeBytes = longRange(first(parameters, "remoteMaxFileSizeBytes"), 0L, Long.MAX_VALUE, "Remote max file size");
         int historyLimit = intRange(first(parameters, "remoteHistoryLimit"), 1, 1000, "Remote history limit");
+        String rawMaxRetries = first(parameters, "remoteMaxRetries");
+        int maxRetries = rawMaxRetries == null || rawMaxRetries.isBlank()
+                ? nasProperties.getRemoteDownload().getMaxRetries()
+                : intRange(rawMaxRetries, 0, 5, "Remote max retries");
+        boolean skipInspectByDefault = parameters.containsKey("remoteSkipInspectByDefault");
 
         return new GeneralSettingsUpdate(
                 new BrowserSettings(defaultView, defaultSort, defaultDirection, defaultPageSize),
@@ -171,7 +178,9 @@ public class GeneralSettingsService {
                         responseTimeoutSeconds,
                         maxRedirects,
                         maxFileSizeBytes,
-                        historyLimit
+                        historyLimit,
+                        maxRetries,
+                        skipInspectByDefault
                 ),
                 allowedPorts
         );
@@ -230,6 +239,11 @@ public class GeneralSettingsService {
         updates.put("nas.remote-download.max-redirects", Integer.toString(remoteDownload.maxRedirects()));
         updates.put("nas.remote-download.max-file-size-bytes", Long.toString(remoteDownload.maxFileSizeBytes()));
         updates.put("nas.remote-download.history-limit", Integer.toString(remoteDownload.historyLimit()));
+        updates.put("nas.remote-download.max-retries", Integer.toString(remoteDownload.maxRetries()));
+        updates.put(
+                "nas.remote-download.skip-inspect-by-default",
+                Boolean.toString(remoteDownload.skipInspectByDefault())
+        );
 
         localPropertiesFile.update(updates, "# General settings managed from EnderVault Settings.");
     }
@@ -278,6 +292,8 @@ public class GeneralSettingsService {
         remoteDownload.setMaxRedirects(update.remoteDownload().maxRedirects());
         remoteDownload.setMaxFileSizeBytes(update.remoteDownload().maxFileSizeBytes());
         remoteDownload.setHistoryLimit(update.remoteDownload().historyLimit());
+        remoteDownload.setMaxRetries(update.remoteDownload().maxRetries());
+        remoteDownload.setSkipInspectByDefault(update.remoteDownload().skipInspectByDefault());
     }
 
     private static List<Integer> allowedPorts(String rawValue) {
@@ -414,7 +430,9 @@ public class GeneralSettingsService {
             int responseTimeoutSeconds,
             int maxRedirects,
             long maxFileSizeBytes,
-            int historyLimit
+            int historyLimit,
+            int maxRetries,
+            boolean skipInspectByDefault
     ) {
     }
 }

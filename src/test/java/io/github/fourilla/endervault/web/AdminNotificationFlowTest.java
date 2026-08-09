@@ -550,6 +550,12 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote Download")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"url\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"path\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"conflictPolicy\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"skipInspection\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-remote-import-curl")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/remote-download-curl.js")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("name=\"curlCommand\""))))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote download")));
     }
 
