@@ -1,12 +1,12 @@
 package io.github.fourilla.endervault.remote;
 
 import java.net.URI;
-import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+import org.springframework.web.util.UriUtils;
 
 @Component
 public class RemoteDownloadFileNameResolver {
@@ -41,7 +41,7 @@ public class RemoteDownloadFileNameResolver {
 
     private String decodeUrlSegment(String value) {
         try {
-            return URLDecoder.decode(value, StandardCharsets.UTF_8);
+            return UriUtils.decode(value, StandardCharsets.UTF_8);
         } catch (IllegalArgumentException ex) {
             return value;
         }

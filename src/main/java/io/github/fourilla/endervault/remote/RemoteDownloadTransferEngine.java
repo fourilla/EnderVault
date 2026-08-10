@@ -14,10 +14,13 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -159,31 +162,34 @@ public class RemoteDownloadTransferEngine {
         allocateFile(temporaryFile, identity.totalBytes());
 
         List<RemoteByteRange> ranges = splitRanges(identity.totalBytes(), actualConnections, identity.ifRange());
-        List<Future<?>> futures = new ArrayList<>();
+        CountDownLatch segmentCompletion = new CountDownLatch(ranges.size());
+        List<SegmentFutureTask> futures = ranges.stream()
+                .map(range -> new SegmentFutureTask(
+                        () -> downloadSegment(task, requestSpec, temporaryFile, range, identity),
+                        segmentCompletion
+                ))
+                .toList();
+        boolean completed = false;
         try {
-            for (RemoteByteRange range : ranges) {
-                futures.add(segmentExecutor.submit(() -> {
-                    try {
-                        downloadSegment(task, requestSpec, temporaryFile, range, identity);
-                    } catch (Exception ex) {
-                        throw new SegmentTransferException(ex);
-                    }
-                }));
-            }
-            for (Future<?> future : futures) {
+            futures.forEach(segmentExecutor::execute);
+            for (SegmentFutureTask future : futures) {
                 future.get();
             }
+            completed = true;
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
-            cancelAll(futures);
             throw ex;
         } catch (ExecutionException ex) {
-            cancelAll(futures);
             Throwable cause = ex.getCause();
             if (cause instanceof SegmentTransferException segment && segment.getCause() instanceof Exception nested) {
                 throw nested;
             }
             throw new StorageAccessException("Parallel remote download failed.", cause);
+        } finally {
+            if (!completed) {
+                cancelAll(futures);
+            }
+            awaitSegmentCompletion(segmentCompletion);
         }
         return fileName;
     }
@@ -372,8 +378,22 @@ public class RemoteDownloadTransferEngine {
         }
     }
 
-    private void cancelAll(List<Future<?>> futures) {
+    private void cancelAll(List<? extends Future<?>> futures) {
         futures.forEach(future -> future.cancel(true));
+    }
+
+    private void awaitSegmentCompletion(CountDownLatch completion) {
+        boolean interrupted = false;
+        while (completion.getCount() > 0L) {
+            try {
+                completion.await();
+            } catch (InterruptedException ex) {
+                interrupted = true;
+            }
+        }
+        if (interrupted) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private void enforceMaxSize(long bytes) {
@@ -398,6 +418,53 @@ public class RemoteDownloadTransferEngine {
         private SegmentTransferException(Throwable cause) {
             super(cause);
         }
+    }
+
+    private static final class SegmentFutureTask extends FutureTask<Void> {
+
+        private final CountDownLatch completion;
+        private final AtomicBoolean runEntered = new AtomicBoolean();
+        private final AtomicBoolean completionSignaled = new AtomicBoolean();
+
+        private SegmentFutureTask(ThrowingRunnable transfer, CountDownLatch completion) {
+            super(() -> {
+                try {
+                    transfer.run();
+                    return null;
+                } catch (Exception ex) {
+                    throw new SegmentTransferException(ex);
+                }
+            });
+            this.completion = completion;
+        }
+
+        @Override
+        public void run() {
+            runEntered.set(true);
+            try {
+                super.run();
+            } finally {
+                signalCompletion();
+            }
+        }
+
+        @Override
+        protected void done() {
+            if (!runEntered.get()) {
+                signalCompletion();
+            }
+        }
+
+        private void signalCompletion() {
+            if (completionSignaled.compareAndSet(false, true)) {
+                completion.countDown();
+            }
+        }
+    }
+
+    @FunctionalInterface
+    private interface ThrowingRunnable {
+        void run() throws Exception;
     }
 
     private static final class SegmentProgress {

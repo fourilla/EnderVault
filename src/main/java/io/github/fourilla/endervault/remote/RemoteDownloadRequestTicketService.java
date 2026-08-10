@@ -60,6 +60,22 @@ public class RemoteDownloadRequestTicketService {
         return pending.preparedRequest();
     }
 
+    public boolean discard(String rawId, HttpServletRequest request) {
+        String id = cleanId(rawId);
+        PendingRequest pending = requests.get(id);
+        if (pending == null) {
+            return false;
+        }
+        if (pending.expired()) {
+            requests.remove(id, pending);
+            return false;
+        }
+        if (!pending.owner().equals(owner(request))) {
+            throw new StorageAccessException("Remote download inspection belongs to another session.");
+        }
+        return requests.remove(id, pending);
+    }
+
     @Scheduled(fixedDelay = 60_000L)
     public void cleanupExpired() {
         requests.entrySet().removeIf(entry -> entry.getValue().expired());

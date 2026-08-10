@@ -84,7 +84,7 @@ public class WebExceptionHandler {
             String message
     ) {
         String cleanMessage = cleanMessage(message, title);
-        if (ActionResponseSupport.wantsJson(request)) {
+        if (isApiRequest(request) || ActionResponseSupport.wantsJson(request)) {
             return ResponseEntity.status(status).body(ActionResponse.error(cleanMessage));
         }
 
@@ -104,6 +104,10 @@ public class WebExceptionHandler {
         String contextPath = request.getContextPath();
         return "POST".equalsIgnoreCase(request.getMethod())
                 && path.startsWith(contextPath + "/files");
+    }
+
+    private boolean isApiRequest(HttpServletRequest request) {
+        return request.getRequestURI().startsWith(request.getContextPath() + "/api/");
     }
 
     private String redirectBackPath(HttpServletRequest request) {

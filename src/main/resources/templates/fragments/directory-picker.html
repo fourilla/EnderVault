@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<dialog th:fragment="dialog" id="storageDirectoryPicker" class="directory-picker-dialog js-only"
+        data-storage-directory-picker th:attr="data-entries-url=@{/api/v1/fs/entries}"
+        aria-labelledby="storageDirectoryPickerTitle">
+    <div class="directory-picker-card">
+        <header class="directory-picker-header">
+            <div>
+                <h2 id="storageDirectoryPickerTitle">Choose Directory</h2>
+                <p>Directories load when expanded. Paths are relative to the vault root.</p>
+            </div>
+            <button class="ghost icon-button" type="button" data-directory-picker-close
+                    title="Close" aria-label="Close">
+                <i class="fas fa-xmark" aria-hidden="true"></i>
+            </button>
+        </header>
+        <div class="directory-picker-tree" data-directory-picker-tree></div>
+        <p class="directory-picker-selection">
+            Selected: <strong data-directory-picker-selection>/</strong>
+        </p>
+        <footer class="directory-picker-actions">
+            <button class="ghost" type="button" data-directory-picker-close>Cancel</button>
+            <button type="button" data-directory-picker-apply>Select Directory</button>
+        </footer>
+    </div>
+</dialog>
+</body>
+</html>

@@ -83,11 +83,48 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void storageEntriesEndpointReturnsRequestedDirectoryTypesOnly() throws Exception {
+        Path container = ROOT.resolve("entries-api-test");
+        Files.createDirectories(container.resolve("nested"));
+        Files.writeString(container.resolve("note.txt"), "hello");
+
+        mockMvc.perform(get("/api/v1/fs/entries")
+                        .param("path", "entries-api-test")
+                        .param("types", "directory"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.path").value("entries-api-test"))
+                .andExpect(jsonPath("$.entries.length()").value(1))
+                .andExpect(jsonPath("$.entries[0].name").value("nested"))
+                .andExpect(jsonPath("$.entries[0].type").value("directory"));
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    void storageEntriesEndpointRequiresAdminRole() throws Exception {
+        mockMvc.perform(get("/api/v1/fs/entries"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void storageEntriesApiErrorsStayJsonWithoutAjaxHeaders() throws Exception {
+        mockMvc.perform(get("/api/v1/fs/entries").param("types", "unknown"))
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.ok").value(false))
+                .andExpect(jsonPath("$.notification.message")
+                        .value("Storage entry types must contain directory, file, or both."));
+    }
+
+    @Test
     void remoteDownloadPageRendersRouteSelectionAndTaskRouteColumn() throws Exception {
         mockMvc.perform(get("/admin/utils/remote-download"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("name=\"networkRoute\"")))
                 .andExpect(content().string(Matchers.containsString("Use global (Direct)")))
+                .andExpect(content().string(Matchers.containsString("data-discard-url=\"/admin/utils/remote-download/inspect/discard\"")))
+                .andExpect(content().string(Matchers.containsString("id=\"remoteCurlDialog\"")))
+                .andExpect(content().string(Matchers.containsString("data-storage-directory-picker")))
+                .andExpect(content().string(Matchers.containsString("data-remote-remember-destination")))
                 .andExpect(content().string(Matchers.containsString("<th>Route</th>")));
     }
 
@@ -391,6 +428,8 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Trash")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("File Tools")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote Download")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"remoteDefaultTargetDirectory\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/directory-picker.js")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"general-settings-save\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/general")));
     }

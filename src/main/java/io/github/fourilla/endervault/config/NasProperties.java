@@ -791,6 +791,8 @@ public class NasProperties {
 
         private boolean skipInspectByDefault = false;
 
+        private String defaultTargetDirectory = "";
+
         public boolean isEnabled() {
             return enabled;
         }
@@ -893,6 +895,14 @@ public class NasProperties {
 
         public void setSkipInspectByDefault(boolean skipInspectByDefault) {
             this.skipInspectByDefault = skipInspectByDefault;
+        }
+
+        public String getDefaultTargetDirectory() {
+            return defaultTargetDirectory;
+        }
+
+        public void setDefaultTargetDirectory(String defaultTargetDirectory) {
+            this.defaultTargetDirectory = defaultTargetDirectory == null ? "" : defaultTargetDirectory;
         }
     }
 

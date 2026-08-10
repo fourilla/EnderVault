@@ -32,7 +32,7 @@
     <section class="dashboard-panel remote-download-panel" aria-label="New remote download">
         <form id="remoteDownloadForm" class="remote-download-form" method="post"
               th:action="@{/admin/utils/remote-download/inspect}"
-              th:attr="data-start-url=@{/admin/utils/remote-download}">
+              th:attr="data-start-url=@{/admin/utils/remote-download},data-discard-url=@{/admin/utils/remote-download/inspect/discard}">
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
             <label>
                 URL
@@ -40,17 +40,16 @@
             </label>
             <label>
                 Save to
-                <input type="text" name="path" placeholder="Vault directory path, blank for root">
-            </label>
-            <label>
-                Network route
-                <select name="networkRoute">
-                    <option value="global"
-                            data-outbound-global-route-option
-                            th:text="|Use global (${outboundRoute.label()})|">Use global (Direct)</option>
-                    <option value="direct">Direct for this download</option>
-                    <option value="vpn-required">VPN for this download</option>
-                </select>
+                <div class="directory-picker-field">
+                    <input id="remoteDownloadDestination" type="text" name="path"
+                           th:value="${defaultTargetDirectory}"
+                           placeholder="Vault directory path, blank for root">
+                    <button class="ghost icon-button js-only" type="button"
+                            data-directory-picker-open data-directory-picker-target="remoteDownloadDestination"
+                            title="Choose directory" aria-label="Choose directory">
+                        <i class="fas fa-folder-tree" aria-hidden="true"></i>
+                    </button>
+                </div>
             </label>
             <label>
                 Connections
@@ -63,6 +62,16 @@
             <details class="remote-request-options">
                 <summary>Advanced request options</summary>
                 <div class="remote-request-options-body">
+                    <label>
+                        Network route
+                        <select name="networkRoute">
+                            <option value="global"
+                                    data-outbound-global-route-option
+                                    th:text="|Use global (${outboundRoute.label()})|">Use global (Direct)</option>
+                            <option value="direct">Direct for this download</option>
+                            <option value="vpn-required">VPN for this download</option>
+                        </select>
+                    </label>
                     <label>
                         Conflict policy
                         <select name="conflictPolicy">
@@ -83,28 +92,58 @@
                                th:checked="${skipInspectByDefault}">
                     </label>
                     <div class="remote-request-field js-only">
-                        <div class="remote-request-field-heading">
-                            <label for="remoteCurlImport">Import cURL (GET)</label>
-                            <button class="ghost icon-text-button remote-import-button" type="button"
-                                    data-remote-import-curl>
-                                <i class="fas fa-file-import" aria-hidden="true"></i>
-                                <span>Import</span>
-                            </button>
-                        </div>
-                        <textarea id="remoteCurlImport" class="remote-request-textarea" rows="6"
-                                  maxlength="65536" spellcheck="false"
-                                  placeholder="curl 'https://example.com/file' -H 'Authorization: Bearer ...'"></textarea>
-                        <small class="muted">Fills the URL and headers locally. The cURL command is not sent to the server.</small>
+                        <span>Import cURL (GET)</span>
+                        <button class="ghost icon-text-button remote-import-button" type="button"
+                                data-remote-import-curl-open>
+                            <i class="fas fa-file-import" aria-hidden="true"></i>
+                            <span>Import cURL</span>
+                        </button>
+                        <small class="muted">Parses the command locally and replaces the URL and custom headers.</small>
                     </div>
                     <label class="remote-request-field">
                         Custom headers
                         <textarea class="remote-request-textarea" name="customHeaders" rows="6" spellcheck="false"
                                    placeholder="Header-Name: value"></textarea>
                     </label>
+                    <label class="remote-skip-inspection js-only">
+                        <span>
+                            <strong>Remember last destination</strong>
+                            <small>Keep the last queued destination in this browser.</small>
+                        </span>
+                        <input type="checkbox" data-remote-remember-destination checked>
+                    </label>
                 </div>
             </details>
         </form>
     </section>
+
+    <dialog id="remoteCurlDialog" class="text-input-dialog remote-curl-dialog js-only"
+            aria-labelledby="remoteCurlDialogTitle">
+        <div class="text-input-card">
+            <header class="text-input-header">
+                <div>
+                    <h2 id="remoteCurlDialogTitle">Import cURL</h2>
+                    <p>The command stays in this browser and replaces the current URL and headers.</p>
+                </div>
+                <button class="ghost icon-button" type="button" data-remote-curl-close
+                        title="Close" aria-label="Close">
+                    <i class="fas fa-xmark" aria-hidden="true"></i>
+                </button>
+            </header>
+            <label class="text-input-field" for="remoteCurlImport">
+                cURL command
+                <textarea id="remoteCurlImport" class="remote-request-textarea" rows="10"
+                          maxlength="65536" spellcheck="false"
+                          placeholder="curl 'https://example.com/file' -H 'Authorization: Bearer ...'"></textarea>
+            </label>
+            <div class="remote-confirm-actions">
+                <button class="ghost" type="button" data-remote-curl-close>Cancel</button>
+                <button type="button" data-remote-curl-apply>Import</button>
+            </div>
+        </div>
+    </dialog>
+
+    <th:block th:replace="~{fragments/directory-picker :: dialog}"></th:block>
 
     <dialog id="remoteConfirmDialog" class="remote-confirm-dialog js-only" aria-labelledby="remoteConfirmTitle">
         <form method="dialog" class="remote-confirm-card">

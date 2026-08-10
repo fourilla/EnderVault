@@ -3,6 +3,7 @@ package io.github.fourilla.endervault.settings;
 import io.github.fourilla.endervault.config.LocalPropertiesFile;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
+import io.github.fourilla.endervault.storage.StorageService;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -24,10 +25,16 @@ public class GeneralSettingsService {
 
     private final NasProperties nasProperties;
     private final LocalPropertiesFile localPropertiesFile;
+    private final StorageService storageService;
 
-    public GeneralSettingsService(NasProperties nasProperties, LocalPropertiesFile localPropertiesFile) {
+    public GeneralSettingsService(
+            NasProperties nasProperties,
+            LocalPropertiesFile localPropertiesFile,
+            StorageService storageService
+    ) {
         this.nasProperties = nasProperties;
         this.localPropertiesFile = localPropertiesFile;
+        this.storageService = storageService;
     }
 
     public GeneralSettingsSnapshot currentSettings() {
@@ -82,7 +89,8 @@ public class GeneralSettingsService {
                         remoteDownload.getMaxFileSizeBytes(),
                         remoteDownload.getHistoryLimit(),
                         remoteDownload.getMaxRetries(),
-                        remoteDownload.isSkipInspectByDefault()
+                        remoteDownload.isSkipInspectByDefault(),
+                        remoteDownload.getDefaultTargetDirectory()
                 ),
                 localPropertiesFile.configFile().toString()
         );
@@ -152,6 +160,9 @@ public class GeneralSettingsService {
                 ? nasProperties.getRemoteDownload().getMaxRetries()
                 : intRange(rawMaxRetries, 0, 5, "Remote max retries");
         boolean skipInspectByDefault = parameters.containsKey("remoteSkipInspectByDefault");
+        String defaultTargetDirectory = normalizeDefaultTargetDirectory(
+                first(parameters, "remoteDefaultTargetDirectory")
+        );
 
         return new GeneralSettingsUpdate(
                 new BrowserSettings(defaultView, defaultSort, defaultDirection, defaultPageSize),
@@ -180,7 +191,8 @@ public class GeneralSettingsService {
                         maxFileSizeBytes,
                         historyLimit,
                         maxRetries,
-                        skipInspectByDefault
+                        skipInspectByDefault,
+                        defaultTargetDirectory
                 ),
                 allowedPorts
         );
@@ -244,6 +256,7 @@ public class GeneralSettingsService {
                 "nas.remote-download.skip-inspect-by-default",
                 Boolean.toString(remoteDownload.skipInspectByDefault())
         );
+        updates.put("nas.remote-download.default-target-directory", remoteDownload.defaultTargetDirectory());
 
         localPropertiesFile.update(updates, "# General settings managed from EnderVault Settings.");
     }
@@ -294,6 +307,15 @@ public class GeneralSettingsService {
         remoteDownload.setHistoryLimit(update.remoteDownload().historyLimit());
         remoteDownload.setMaxRetries(update.remoteDownload().maxRetries());
         remoteDownload.setSkipInspectByDefault(update.remoteDownload().skipInspectByDefault());
+        remoteDownload.setDefaultTargetDirectory(update.remoteDownload().defaultTargetDirectory());
+    }
+
+    private String normalizeDefaultTargetDirectory(String rawPath) {
+        try {
+            return storageService.normalizeVaultDirectory(clean(rawPath));
+        } catch (IOException | RuntimeException ex) {
+            throw new IllegalArgumentException("Remote default destination must be an existing vault directory.", ex);
+        }
     }
 
     private static List<Integer> allowedPorts(String rawValue) {
@@ -432,7 +454,8 @@ public class GeneralSettingsService {
             long maxFileSizeBytes,
             int historyLimit,
             int maxRetries,
-            boolean skipInspectByDefault
+            boolean skipInspectByDefault,
+            String defaultTargetDirectory
     ) {
     }
 }

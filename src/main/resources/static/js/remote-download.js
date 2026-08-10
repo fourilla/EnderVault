@@ -6,17 +6,71 @@ document.addEventListener("DOMContentLoaded", () => {
     const tasksHeading = document.getElementById("remoteTasksHeading");
     const tasksEmpty = document.getElementById("remoteTasksEmpty");
     const taskDialog = document.getElementById("remoteTaskDialog");
+    const curlDialog = document.getElementById("remoteCurlDialog");
     const urlInput = form?.querySelector('input[name="url"]');
+    const destinationInput = form?.querySelector('input[name="path"]');
     const customHeadersInput = form?.querySelector('textarea[name="customHeaders"]');
     const curlImportInput = document.getElementById("remoteCurlImport");
-    const curlImportButton = form?.querySelector("[data-remote-import-curl]");
+    const curlImportButton = form?.querySelector("[data-remote-import-curl-open]");
     const connectionsInput = form?.querySelector('input[name="connections"]');
     const skipInspectionInput = form?.querySelector('input[name="skipInspection"]');
+    const rememberDestinationInput = form?.querySelector("[data-remote-remember-destination]");
     const pollIntervalMs = 1400;
+    const rememberDestinationKey = "endervault.remoteDownload.rememberDestination";
+    const lastDestinationKey = "endervault.remoteDownload.lastDestination";
     let pendingRequestId = null;
     let rememberedConnections = connectionsInput?.value || "1";
     const taskSnapshots = new Map();
-    const { askConfirmation, requestJson, showNotification } = window.EnderVault;
+    const { requestJson, showNotification } = window.EnderVault;
+
+    const localValue = (key) => {
+        try {
+            return window.localStorage.getItem(key);
+        } catch (error) {
+            return null;
+        }
+    };
+
+    const rememberLocalValue = (key, value) => {
+        try {
+            if (value === null) {
+                window.localStorage.removeItem(key);
+            } else {
+                window.localStorage.setItem(key, value);
+            }
+        } catch (error) {
+            // Browser privacy settings may disable localStorage.
+        }
+    };
+
+    const applyDestinationPreference = () => {
+        if (!destinationInput || !rememberDestinationInput) {
+            return;
+        }
+        const rememberedPreference = localValue(rememberDestinationKey);
+        rememberDestinationInput.checked = rememberedPreference === null
+                ? true
+                : rememberedPreference === "true";
+        if (!rememberDestinationInput.checked) {
+            rememberLocalValue(lastDestinationKey, null);
+            return;
+        }
+        const lastDestination = localValue(lastDestinationKey);
+        if (lastDestination !== null) {
+            destinationInput.value = lastDestination;
+        }
+    };
+
+    const rememberQueuedDestination = () => {
+        if (!destinationInput || !rememberDestinationInput) {
+            return;
+        }
+        rememberLocalValue(rememberDestinationKey, String(rememberDestinationInput.checked));
+        rememberLocalValue(
+                lastDestinationKey,
+                rememberDestinationInput.checked ? destinationInput.value.trim() : null
+        );
+    };
 
     const syncInspectionControls = () => {
         if (!connectionsInput || !skipInspectionInput) {
@@ -32,7 +86,30 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
 
-    const importCurl = async () => {
+    const closeCurlDialog = () => {
+        if (curlImportInput) {
+            curlImportInput.value = "";
+        }
+        if (typeof curlDialog?.close === "function" && curlDialog.open) {
+            curlDialog.close();
+        } else if (curlDialog) {
+            curlDialog.hidden = true;
+        }
+    };
+
+    const openCurlDialog = () => {
+        if (!curlDialog) {
+            return;
+        }
+        if (typeof curlDialog.showModal === "function") {
+            curlDialog.showModal();
+        } else {
+            curlDialog.hidden = false;
+        }
+        curlImportInput?.focus();
+    };
+
+    const importCurl = () => {
         if (!curlImportInput || !urlInput || !customHeadersInput || !window.EnderVaultRemoteCurl) {
             return;
         }
@@ -45,26 +122,11 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        const currentUrl = urlInput.value.trim();
-        const currentHeaders = customHeadersInput.value.trim();
-        const changesExistingValues = (currentUrl && currentUrl !== imported.url)
-                || (currentHeaders && currentHeaders !== imported.customHeaders);
-        if (changesExistingValues) {
-            const replace = await askConfirmation({
-                title: "Replace request fields?",
-                message: "Importing this cURL command will replace the current URL and custom headers.",
-                confirmLabel: "Replace"
-            });
-            if (!replace) {
-                return;
-            }
-        }
-
         urlInput.value = imported.url;
         customHeadersInput.value = imported.customHeaders;
-        curlImportInput.value = "";
         urlInput.dispatchEvent(new Event("change", { bubbles: true }));
         customHeadersInput.dispatchEvent(new Event("change", { bubbles: true }));
+        closeCurlDialog();
         showNotification({
             type: "success",
             message: imported.customHeaders ? "URL and custom headers imported." : "URL imported."
@@ -93,8 +155,34 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     };
 
-    const closeDialog = () => {
+    const discardPendingRequest = async () => {
+        const requestId = pendingRequestId;
         pendingRequestId = null;
+        if (!requestId || !form?.dataset.discardUrl) {
+            return;
+        }
+        const discardData = new FormData();
+        const csrf = window.EnderVault.csrfPair(form);
+        if (csrf) {
+            discardData.append(csrf.name, csrf.value);
+        }
+        discardData.append("requestId", requestId);
+        try {
+            await requestJson(form.dataset.discardUrl, {
+                method: "POST",
+                body: discardData
+            });
+        } catch (error) {
+            // Expiration cleanup remains the fallback if an explicit discard fails.
+        }
+    };
+
+    const closeDialog = (discard = true) => {
+        if (discard) {
+            void discardPendingRequest();
+        } else {
+            pendingRequestId = null;
+        }
         if (!dialog) {
             return;
         }
@@ -160,7 +248,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 });
                 pendingRequestId = payload.requestId;
                 if (!showProbe(payload.probe)) {
-                    pendingRequestId = null;
+                    void discardPendingRequest();
                 }
             } catch (error) {
                 showNotification({ type: "error", message: error.message || "Remote file inspection failed." });
@@ -170,13 +258,28 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    curlImportButton?.addEventListener("click", importCurl);
+    curlImportButton?.addEventListener("click", openCurlDialog);
+    curlDialog?.querySelector("[data-remote-curl-apply]")?.addEventListener("click", importCurl);
+    curlDialog?.querySelectorAll("[data-remote-curl-close]").forEach((button) => {
+        button.addEventListener("click", closeCurlDialog);
+    });
+    curlDialog?.addEventListener("close", () => {
+        if (curlImportInput) {
+            curlImportInput.value = "";
+        }
+    });
 
     dialog?.querySelectorAll("[data-remote-confirm-close]").forEach((button) => {
-        button.addEventListener("click", closeDialog);
+        button.addEventListener("click", () => closeDialog(true));
+    });
+    dialog?.addEventListener("cancel", (event) => {
+        event.preventDefault();
+        closeDialog(true);
     });
     dialog?.addEventListener("close", () => {
-        pendingRequestId = null;
+        if (pendingRequestId) {
+            void discardPendingRequest();
+        }
     });
 
     dialog?.querySelector("[data-remote-confirm-start]")?.addEventListener("click", async () => {
@@ -196,10 +299,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 body: startData
             });
             showNotification(payload.notification);
-            closeDialog();
+            rememberQueuedDestination();
+            closeDialog(false);
             await refreshTasks();
             form.reset();
             rememberedConnections = connectionsInput?.defaultValue || "1";
+            applyDestinationPreference();
             syncInspectionControls();
         } catch (error) {
             showNotification({ type: "error", message: error.message || "Remote download could not be started." });
@@ -411,6 +516,13 @@ document.addEventListener("DOMContentLoaded", () => {
             connectionsInput.value = rememberedConnections;
         }
     });
+    rememberDestinationInput?.addEventListener("change", () => {
+        rememberLocalValue(rememberDestinationKey, String(rememberDestinationInput.checked));
+        if (!rememberDestinationInput.checked) {
+            rememberLocalValue(lastDestinationKey, null);
+        }
+    });
+    applyDestinationPreference();
     syncInspectionControls();
 
     tasksBody?.addEventListener("click", async (event) => {

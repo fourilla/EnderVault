@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.fourilla.endervault.config.LocalPropertiesFile;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.storage.StorageService;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -55,11 +56,13 @@ class GeneralSettingsServiceTest {
                 nas.remote-download.max-file-size-bytes=0
                 nas.remote-download.history-limit=100
                 nas.remote-download.max-retries=2
+                nas.remote-download.default-target-directory=
                 nas.remote-download.skip-inspect-by-default=false
                 """, StandardCharsets.UTF_8);
 
         NasProperties properties = new NasProperties();
-        GeneralSettingsService service = new GeneralSettingsService(properties, new LocalPropertiesFile(configFile));
+        Files.createDirectories(tempDir.resolve("storage").resolve("incoming"));
+        GeneralSettingsService service = service(properties, configFile);
 
         MultiValueMap<String, String> parameters = validParameters();
         parameters.set("defaultView", "grid");
@@ -89,6 +92,7 @@ class GeneralSettingsServiceTest {
         parameters.set("remoteMaxFileSizeBytes", "123456");
         parameters.set("remoteHistoryLimit", "25");
         parameters.set("remoteMaxRetries", "3");
+        parameters.set("remoteDefaultTargetDirectory", "incoming");
         parameters.set("remoteSkipInspectByDefault", "on");
 
         service.save(service.updateFrom(parameters));
@@ -117,6 +121,7 @@ class GeneralSettingsServiceTest {
                 .contains("nas.remote-download.allowed-ports=80,443,8080")
                 .contains("nas.remote-download.max-file-size-bytes=123456")
                 .contains("nas.remote-download.max-retries=3")
+                .contains("nas.remote-download.default-target-directory=incoming")
                 .contains("nas.remote-download.skip-inspect-by-default=true");
 
         assertThat(properties.getBrowser().getDefaultView()).isEqualTo("grid");
@@ -137,12 +142,13 @@ class GeneralSettingsServiceTest {
         assertThat(properties.getRemoteDownload().getAllowedPorts()).isEqualTo(List.of(80, 443, 8080));
         assertThat(properties.getRemoteDownload().getMaxFileSizeBytes()).isEqualTo(123456);
         assertThat(properties.getRemoteDownload().getMaxRetries()).isEqualTo(3);
+        assertThat(properties.getRemoteDownload().getDefaultTargetDirectory()).isEqualTo("incoming");
         assertThat(properties.getRemoteDownload().isSkipInspectByDefault()).isTrue();
     }
 
     @Test
-    void rejectsManualTextLimitBelowAutoLoadLimit() {
-        GeneralSettingsService service = new GeneralSettingsService(new NasProperties(), new LocalPropertiesFile(tempDir.resolve("missing.properties")));
+    void rejectsManualTextLimitBelowAutoLoadLimit() throws Exception {
+        GeneralSettingsService service = service(new NasProperties(), tempDir.resolve("missing.properties"));
         MultiValueMap<String, String> parameters = validParameters();
         parameters.set("textAutoLoadMaxBytes", "8192");
         parameters.set("textManualLoadMaxBytes", "4096");
@@ -153,11 +159,8 @@ class GeneralSettingsServiceTest {
     }
 
     @Test
-    void rejectsUnsafeStickyNoteColorValues() {
-        GeneralSettingsService service = new GeneralSettingsService(
-                new NasProperties(),
-                new LocalPropertiesFile(tempDir.resolve("missing.properties"))
-        );
+    void rejectsUnsafeStickyNoteColorValues() throws Exception {
+        GeneralSettingsService service = service(new NasProperties(), tempDir.resolve("missing.properties"));
         MultiValueMap<String, String> parameters = validParameters();
         parameters.set("stickyNoteBackgroundColor", "red; background-image:url(example)");
 
@@ -199,6 +202,14 @@ class GeneralSettingsServiceTest {
         parameters.add("remoteMaxFileSizeBytes", "0");
         parameters.add("remoteHistoryLimit", "100");
         parameters.add("remoteMaxRetries", "2");
+        parameters.add("remoteDefaultTargetDirectory", "");
         return parameters;
+    }
+
+    private GeneralSettingsService service(NasProperties properties, Path configFile) throws Exception {
+        properties.getStorage().setRoot(tempDir.resolve("storage"));
+        StorageService storageService = new StorageService(properties);
+        storageService.initialize();
+        return new GeneralSettingsService(properties, new LocalPropertiesFile(configFile), storageService);
     }
 }

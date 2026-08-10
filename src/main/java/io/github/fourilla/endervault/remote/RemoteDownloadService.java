@@ -140,6 +140,10 @@ public class RemoteDownloadService {
         return task;
     }
 
+    public boolean discardInspection(String requestId, HttpServletRequest request) {
+        return ticketService.discard(requestId, request);
+    }
+
     public List<RemoteDownloadTask> listTasks() {
         return tasks.values().stream()
                 .sorted(Comparator.comparing(RemoteDownloadTask::createdAt).reversed())

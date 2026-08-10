@@ -11,6 +11,7 @@ import io.github.fourilla.endervault.web.support.FlashNotification;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -46,6 +47,10 @@ public class AdminRemoteDownloadController {
         model.addAttribute(
                 "skipInspectByDefault",
                 nasProperties.getRemoteDownload().isSkipInspectByDefault()
+        );
+        model.addAttribute(
+                "defaultTargetDirectory",
+                nasProperties.getRemoteDownload().getDefaultTargetDirectory()
         );
         return "remote-download";
     }
@@ -99,6 +104,18 @@ public class AdminRemoteDownloadController {
                 "redirect:" + REMOTE_DOWNLOAD_PATH,
                 RemoteDownloadActionResponse.ok(notification, RemoteDownloadTaskPayload.from(task))
         );
+    }
+
+    @PostMapping(REMOTE_DOWNLOAD_PATH + "/inspect/discard")
+    public Object discardInspection(
+            @RequestParam("requestId") String requestId,
+            HttpServletRequest request
+    ) {
+        boolean discarded = remoteDownloadService.discardInspection(requestId, request);
+        if (ActionResponseSupport.wantsJson(request)) {
+            return ResponseEntity.ok(Map.of("discarded", discarded));
+        }
+        return "redirect:" + REMOTE_DOWNLOAD_PATH;
     }
 
     @PostMapping(REMOTE_DOWNLOAD_PATH + "/cancel")

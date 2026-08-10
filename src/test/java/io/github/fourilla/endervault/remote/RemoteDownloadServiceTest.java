@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -45,6 +46,7 @@ class RemoteDownloadServiceTest {
     private NasProperties properties;
     private RemoteDownloadService remoteDownloadService;
     private RemoteDownloadTransferEngine transferEngine;
+    private RemoteDownloadRequestTicketService ticketService;
     private OutboundRouteStateService outboundRouteStateService;
 
     @BeforeEach
@@ -85,6 +87,7 @@ class RemoteDownloadServiceTest {
                 fileNameResolver,
                 retryPolicy
         );
+        ticketService = new RemoteDownloadRequestTicketService();
         remoteDownloadService = new RemoteDownloadService(
                 properties,
                 storageService,
@@ -92,7 +95,7 @@ class RemoteDownloadServiceTest {
                 new ClientIpResolver(properties),
                 new RemoteDownloadRequestParser(validator),
                 inspectionService,
-                new RemoteDownloadRequestTicketService(),
+                ticketService,
                 transferEngine
         );
     }
@@ -451,6 +454,7 @@ class RemoteDownloadServiceTest {
         );
 
         assertThat(requests).hasValue(0);
+        assertThat(ticketService.pendingCount()).isEqualTo(1);
         assertThat(inspection.probe().status()).isEqualTo(RemoteDownloadProbeStatus.SKIPPED);
         assertThat(inspection.probe().inspectionSkipped()).isTrue();
 
@@ -461,6 +465,56 @@ class RemoteDownloadServiceTest {
         assertThat(task.status()).isEqualTo(RemoteDownloadStatus.COMPLETE);
         assertThat(task.actualConnections()).isEqualTo(1);
         assertThat(root.resolve("no-probe.txt")).hasBinaryContent(body);
+    }
+
+    @Test
+    void discardsSkippedInspectionTicketWithoutStartingDownload() throws Exception {
+        MockHttpServletRequest request = request();
+        RemoteDownloadInspection inspection = remoteDownloadService.inspect(
+                "https://example.com/no-probe.txt",
+                "",
+                NetworkRoute.DIRECT,
+                1,
+                "cancel",
+                true,
+                "",
+                request
+        );
+
+        assertThat(ticketService.pendingCount()).isEqualTo(1);
+        assertThat(remoteDownloadService.discardInspection(inspection.requestId(), request)).isTrue();
+        assertThat(remoteDownloadService.discardInspection(inspection.requestId(), request)).isFalse();
+        assertThat(ticketService.pendingCount()).isZero();
+        assertThatThrownBy(() -> remoteDownloadService.start(inspection.requestId(), request))
+                .hasMessageContaining("not found or expired");
+    }
+
+    @Test
+    void rejectsInspectionDiscardFromAnotherSession() throws Exception {
+        MockHttpServletRequest owner = request();
+        RemoteDownloadInspection inspection = remoteDownloadService.inspect(
+                "https://example.com/no-probe.txt",
+                "",
+                NetworkRoute.DIRECT,
+                1,
+                "cancel",
+                true,
+                "",
+                owner
+        );
+
+        assertThatThrownBy(() -> remoteDownloadService.discardInspection(inspection.requestId(), request()))
+                .hasMessageContaining("another session");
+        assertThat(ticketService.pendingCount()).isEqualTo(1);
+        assertThat(remoteDownloadService.discardInspection(inspection.requestId(), owner)).isTrue();
+    }
+
+    @Test
+    void preservesLiteralPlusSignsWhenResolvingUrlFileName() {
+        RemoteDownloadFileNameResolver resolver = new RemoteDownloadFileNameResolver();
+
+        assertThat(resolver.fileName(URI.create("https://example.com/C++Guide%20One.pdf"), "application/pdf"))
+                .isEqualTo("C++Guide One.pdf");
     }
 
     @Test

@@ -72,7 +72,11 @@
            th:text="${probe.warningLabel()}"></p>
 
         <div class="remote-confirm-actions">
-            <a class="button-link ghost" th:href="@{/admin/utils/remote-download}">Cancel</a>
+            <form method="post" th:action="@{/admin/utils/remote-download/inspect/discard}">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <input type="hidden" name="requestId" th:value="${requestId}">
+                <button class="ghost" type="submit">Cancel</button>
+            </form>
             <form method="post" th:action="@{/admin/utils/remote-download}" th:if="${probe.startAllowed()}">
                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                 <input type="hidden" name="requestId" th:value="${requestId}">

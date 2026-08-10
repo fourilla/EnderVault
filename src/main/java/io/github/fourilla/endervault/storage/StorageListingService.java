@@ -55,6 +55,18 @@ final class StorageListingService {
             boolean showHidden
     )
             throws IOException {
+        return list(scope, requestedPath, sort, direction, showHidden, StorageEntryFilter.ALL);
+    }
+
+    DirectoryListing list(
+            StorageScope scope,
+            String requestedPath,
+            FileSort sort,
+            SortDirection direction,
+            boolean showHidden,
+            StorageEntryFilter entryFilter
+    )
+            throws IOException {
         Path directory = pathResolver.resolveDirectory(scope, requestedPath);
         String currentPath = pathResolver.toRelativePath(pathResolver.baseFor(scope), directory);
         List<FileItem> children;
@@ -64,6 +76,7 @@ final class StorageListingService {
                     .filter(path -> !Files.isSymbolicLink(path))
                     .filter(path -> !pathResolver.isHiddenSystemPath(scope, path))
                     .filter(path -> showHidden || !isHidden(path))
+                    .filter(path -> entryFilter.includes(Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)))
                     .map(path -> toFileItem(pathResolver.baseFor(scope), path))
                     .sorted(itemComparator(sort, direction))
                     .toList();
