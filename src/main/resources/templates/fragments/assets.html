@@ -130,7 +130,15 @@
 </th:block>
 
 <th:block th:fragment="remoteDownloadScript">
+    <script defer th:src="@{/js/directory-tree.js}"></script>
+    <script defer th:src="@{/js/directory-picker.js}"></script>
+    <script defer th:src="@{/js/remote-download-curl.js}"></script>
     <script defer th:src="@{/js/remote-download.js}"></script>
+</th:block>
+
+<th:block th:fragment="directoryPickerScript">
+    <script defer th:src="@{/js/directory-tree.js}"></script>
+    <script defer th:src="@{/js/directory-picker.js}"></script>
 </th:block>
 
 <th:block th:fragment="vpnStatusScript">

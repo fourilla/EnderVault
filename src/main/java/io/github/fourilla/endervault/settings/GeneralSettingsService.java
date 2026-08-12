@@ -3,6 +3,7 @@ package io.github.fourilla.endervault.settings;
 import io.github.fourilla.endervault.config.LocalPropertiesFile;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
+import io.github.fourilla.endervault.storage.StorageService;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -24,10 +25,16 @@ public class GeneralSettingsService {
 
     private final NasProperties nasProperties;
     private final LocalPropertiesFile localPropertiesFile;
+    private final StorageService storageService;
 
-    public GeneralSettingsService(NasProperties nasProperties, LocalPropertiesFile localPropertiesFile) {
+    public GeneralSettingsService(
+            NasProperties nasProperties,
+            LocalPropertiesFile localPropertiesFile,
+            StorageService storageService
+    ) {
         this.nasProperties = nasProperties;
         this.localPropertiesFile = localPropertiesFile;
+        this.storageService = storageService;
     }
 
     public GeneralSettingsSnapshot currentSettings() {
@@ -80,7 +87,10 @@ public class GeneralSettingsService {
                         remoteDownload.getResponseTimeoutSeconds(),
                         remoteDownload.getMaxRedirects(),
                         remoteDownload.getMaxFileSizeBytes(),
-                        remoteDownload.getHistoryLimit()
+                        remoteDownload.getHistoryLimit(),
+                        remoteDownload.getMaxRetries(),
+                        remoteDownload.isSkipInspectByDefault(),
+                        remoteDownload.getDefaultTargetDirectory()
                 ),
                 localPropertiesFile.configFile().toString()
         );
@@ -145,6 +155,14 @@ public class GeneralSettingsService {
         int maxRedirects = intRange(first(parameters, "remoteMaxRedirects"), 0, 50, "Remote max redirects");
         long maxFileSizeBytes = longRange(first(parameters, "remoteMaxFileSizeBytes"), 0L, Long.MAX_VALUE, "Remote max file size");
         int historyLimit = intRange(first(parameters, "remoteHistoryLimit"), 1, 1000, "Remote history limit");
+        String rawMaxRetries = first(parameters, "remoteMaxRetries");
+        int maxRetries = rawMaxRetries == null || rawMaxRetries.isBlank()
+                ? nasProperties.getRemoteDownload().getMaxRetries()
+                : intRange(rawMaxRetries, 0, 5, "Remote max retries");
+        boolean skipInspectByDefault = parameters.containsKey("remoteSkipInspectByDefault");
+        String defaultTargetDirectory = normalizeDefaultTargetDirectory(
+                first(parameters, "remoteDefaultTargetDirectory")
+        );
 
         return new GeneralSettingsUpdate(
                 new BrowserSettings(defaultView, defaultSort, defaultDirection, defaultPageSize),
@@ -171,7 +189,10 @@ public class GeneralSettingsService {
                         responseTimeoutSeconds,
                         maxRedirects,
                         maxFileSizeBytes,
-                        historyLimit
+                        historyLimit,
+                        maxRetries,
+                        skipInspectByDefault,
+                        defaultTargetDirectory
                 ),
                 allowedPorts
         );
@@ -230,6 +251,12 @@ public class GeneralSettingsService {
         updates.put("nas.remote-download.max-redirects", Integer.toString(remoteDownload.maxRedirects()));
         updates.put("nas.remote-download.max-file-size-bytes", Long.toString(remoteDownload.maxFileSizeBytes()));
         updates.put("nas.remote-download.history-limit", Integer.toString(remoteDownload.historyLimit()));
+        updates.put("nas.remote-download.max-retries", Integer.toString(remoteDownload.maxRetries()));
+        updates.put(
+                "nas.remote-download.skip-inspect-by-default",
+                Boolean.toString(remoteDownload.skipInspectByDefault())
+        );
+        updates.put("nas.remote-download.default-target-directory", remoteDownload.defaultTargetDirectory());
 
         localPropertiesFile.update(updates, "# General settings managed from EnderVault Settings.");
     }
@@ -278,6 +305,17 @@ public class GeneralSettingsService {
         remoteDownload.setMaxRedirects(update.remoteDownload().maxRedirects());
         remoteDownload.setMaxFileSizeBytes(update.remoteDownload().maxFileSizeBytes());
         remoteDownload.setHistoryLimit(update.remoteDownload().historyLimit());
+        remoteDownload.setMaxRetries(update.remoteDownload().maxRetries());
+        remoteDownload.setSkipInspectByDefault(update.remoteDownload().skipInspectByDefault());
+        remoteDownload.setDefaultTargetDirectory(update.remoteDownload().defaultTargetDirectory());
+    }
+
+    private String normalizeDefaultTargetDirectory(String rawPath) {
+        try {
+            return storageService.normalizeVaultDirectory(clean(rawPath));
+        } catch (IOException | RuntimeException ex) {
+            throw new IllegalArgumentException("Remote default destination must be an existing vault directory.", ex);
+        }
     }
 
     private static List<Integer> allowedPorts(String rawValue) {
@@ -414,7 +452,10 @@ public class GeneralSettingsService {
             int responseTimeoutSeconds,
             int maxRedirects,
             long maxFileSizeBytes,
-            int historyLimit
+            int historyLimit,
+            int maxRetries,
+            boolean skipInspectByDefault,
+            String defaultTargetDirectory
     ) {
     }
 }

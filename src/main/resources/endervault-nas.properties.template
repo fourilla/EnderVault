@@ -176,6 +176,13 @@ nas.remote-download.max-redirects=5
 nas.remote-download.max-file-size-bytes=0
 nas.remote-download.worker-threads=2
 nas.remote-download.history-limit=100
+nas.remote-download.max-retries=2
+# Vault-relative destination used when a browser has no remembered destination.
+# Leave blank to use the vault root.
+nas.remote-download.default-target-directory=
+# Skipping inspection avoids the preflight GET used to verify remote metadata,
+# but limits the request to one connection and leaves file details unverified.
+nas.remote-download.skip-inspect-by-default=false
 
 # ---------------------------------------------------------------------------
 # Outbound VPN proxy

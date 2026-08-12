@@ -7,6 +7,37 @@
     min-width: 0;
 }
 
+.input-action-field {
+    position: relative;
+    display: grid;
+    min-width: 0;
+}
+
+.input-action-field > input {
+    padding-right: calc(var(--table-action-icon-size) + var(--space-xl));
+}
+
+.input-action-field .input-action-button {
+    position: absolute;
+    top: 50%;
+    right: var(--space-sm);
+    width: var(--table-action-icon-size);
+    height: var(--table-action-icon-size);
+    min-height: var(--table-action-icon-size);
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    padding: 0;
+    box-shadow: none;
+    transform: translateY(-50%);
+}
+
+.input-action-field .input-action-button:hover,
+.input-action-field .input-action-button:focus-visible {
+    background: var(--item-hover-bg);
+    color: var(--text);
+}
+
 .password-field {
     position: relative;
     display: grid;

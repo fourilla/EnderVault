@@ -785,6 +785,14 @@ public class NasProperties {
         @Max(1000)
         private int historyLimit = 100;
 
+        @Min(0)
+        @Max(5)
+        private int maxRetries = 2;
+
+        private boolean skipInspectByDefault = false;
+
+        private String defaultTargetDirectory = "";
+
         public boolean isEnabled() {
             return enabled;
         }
@@ -871,6 +879,30 @@ public class NasProperties {
 
         public void setHistoryLimit(int historyLimit) {
             this.historyLimit = historyLimit;
+        }
+
+        public int getMaxRetries() {
+            return maxRetries;
+        }
+
+        public void setMaxRetries(int maxRetries) {
+            this.maxRetries = maxRetries;
+        }
+
+        public boolean isSkipInspectByDefault() {
+            return skipInspectByDefault;
+        }
+
+        public void setSkipInspectByDefault(boolean skipInspectByDefault) {
+            this.skipInspectByDefault = skipInspectByDefault;
+        }
+
+        public String getDefaultTargetDirectory() {
+            return defaultTargetDirectory;
+        }
+
+        public void setDefaultTargetDirectory(String defaultTargetDirectory) {
+            this.defaultTargetDirectory = defaultTargetDirectory == null ? "" : defaultTargetDirectory;
         }
     }
 

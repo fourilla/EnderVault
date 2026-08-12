@@ -1,8 +1,9 @@
 package io.github.fourilla.endervault.web.remote;
 
-import io.github.fourilla.endervault.remote.RemoteDownloadProbe;
+import io.github.fourilla.endervault.remote.RemoteDownloadInspection;
 import io.github.fourilla.endervault.remote.RemoteDownloadService;
 import io.github.fourilla.endervault.remote.RemoteDownloadTask;
+import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.outbound.NetworkRoute;
 import io.github.fourilla.endervault.outbound.OutboundRouteStateService;
 import io.github.fourilla.endervault.web.support.ActionResponseSupport;
@@ -10,6 +11,7 @@ import io.github.fourilla.endervault.web.support.FlashNotification;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -25,13 +27,16 @@ public class AdminRemoteDownloadController {
 
     private final RemoteDownloadService remoteDownloadService;
     private final OutboundRouteStateService outboundRouteStateService;
+    private final NasProperties nasProperties;
 
     public AdminRemoteDownloadController(
             RemoteDownloadService remoteDownloadService,
-            OutboundRouteStateService outboundRouteStateService
+            OutboundRouteStateService outboundRouteStateService,
+            NasProperties nasProperties
     ) {
         this.remoteDownloadService = remoteDownloadService;
         this.outboundRouteStateService = outboundRouteStateService;
+        this.nasProperties = nasProperties;
     }
 
     private static final String REMOTE_DOWNLOAD_PATH = "/admin/utils/remote-download";
@@ -39,37 +44,58 @@ public class AdminRemoteDownloadController {
     @GetMapping(REMOTE_DOWNLOAD_PATH)
     public String remoteDownload(Model model) {
         model.addAttribute("tasks", remoteDownloadService.listTasks());
+        model.addAttribute(
+                "skipInspectByDefault",
+                nasProperties.getRemoteDownload().isSkipInspectByDefault()
+        );
+        model.addAttribute(
+                "defaultTargetDirectory",
+                nasProperties.getRemoteDownload().getDefaultTargetDirectory()
+        );
         return "remote-download";
     }
 
     @PostMapping(REMOTE_DOWNLOAD_PATH + "/inspect")
     public Object inspect(
-            @RequestParam("url") String url,
+            @RequestParam(value = "url", required = false) String url,
             @RequestParam(value = "path", required = false) String path,
             @RequestParam(value = "networkRoute", defaultValue = "global") String networkRoute,
+            @RequestParam(value = "connections", defaultValue = "1") int connections,
+            @RequestParam(value = "conflictPolicy", defaultValue = "default") String conflictPolicy,
+            @RequestParam(value = "skipInspection", defaultValue = "false") boolean skipInspection,
+            @RequestParam(value = "customHeaders", required = false) String customHeaders,
             HttpServletRequest request,
             Model model
     ) throws IOException {
-        RemoteDownloadProbe probe = remoteDownloadService.inspect(url, path, resolveRoute(networkRoute));
+        RemoteDownloadInspection inspection = remoteDownloadService.inspect(
+                url,
+                path,
+                resolveRoute(networkRoute),
+                connections,
+                conflictPolicy,
+                skipInspection,
+                customHeaders,
+                request
+        );
         if (ActionResponseSupport.wantsJson(request)) {
-            return ResponseEntity.ok(RemoteDownloadInspectResponse.ok(RemoteDownloadProbePayload.from(probe)));
+            return ResponseEntity.ok(RemoteDownloadInspectResponse.ok(
+                    inspection.requestId(),
+                    RemoteDownloadProbePayload.from(inspection.probe())
+            ));
         }
 
-        model.addAttribute("probe", probe);
-        model.addAttribute("url", url);
-        model.addAttribute("path", path);
+        model.addAttribute("probe", inspection.probe());
+        model.addAttribute("requestId", inspection.requestId());
         return "remote-download-confirm";
     }
 
     @PostMapping(REMOTE_DOWNLOAD_PATH)
     public Object start(
-            @RequestParam("url") String url,
-            @RequestParam(value = "path", required = false) String path,
-            @RequestParam(value = "networkRoute", defaultValue = "global") String networkRoute,
+            @RequestParam("requestId") String requestId,
             HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
-        RemoteDownloadTask task = remoteDownloadService.start(url, path, resolveRoute(networkRoute), request);
+        RemoteDownloadTask task = remoteDownloadService.start(requestId, request);
         FlashNotification notification = FlashNotification.success("Remote download queued (" + task.shortId() + ").");
         return ActionResponseSupport.ok(
                 request,
@@ -78,6 +104,18 @@ public class AdminRemoteDownloadController {
                 "redirect:" + REMOTE_DOWNLOAD_PATH,
                 RemoteDownloadActionResponse.ok(notification, RemoteDownloadTaskPayload.from(task))
         );
+    }
+
+    @PostMapping(REMOTE_DOWNLOAD_PATH + "/inspect/discard")
+    public Object discardInspection(
+            @RequestParam("requestId") String requestId,
+            HttpServletRequest request
+    ) {
+        boolean discarded = remoteDownloadService.discardInspection(requestId, request);
+        if (ActionResponseSupport.wantsJson(request)) {
+            return ResponseEntity.ok(Map.of("discarded", discarded));
+        }
+        return "redirect:" + REMOTE_DOWNLOAD_PATH;
     }
 
     @PostMapping(REMOTE_DOWNLOAD_PATH + "/cancel")

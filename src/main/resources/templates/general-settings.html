@@ -5,8 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>EnderVault General Settings</title>
     <th:block th:replace="~{fragments/assets :: styles(true)}"></th:block>
+    <th:block th:replace="~{fragments/assets :: jsOnlyNoscript}"></th:block>
     <th:block th:replace="~{fragments/assets :: coreScripts}"></th:block>
     <th:block th:replace="~{fragments/assets :: adminActionsScript}"></th:block>
+    <th:block th:replace="~{fragments/assets :: directoryPickerScript}"></th:block>
     <script defer th:src="@{/js/sticky-note-theme-settings.js}"></script>
 </head>
 <body>
@@ -309,10 +311,40 @@
                         <span>History limit</span>
                         <input type="number" name="remoteHistoryLimit" min="1" max="1000" th:value="${settings.remoteDownload().historyLimit()}">
                     </label>
+                    <label>
+                        <span>Maximum retries</span>
+                        <input type="number" name="remoteMaxRetries" min="0" max="5" th:value="${settings.remoteDownload().maxRetries()}">
+                    </label>
+                    <label class="remote-direct-dependent">
+                        <span>Default destination</span>
+                        <div class="input-action-field">
+                            <input id="remoteDefaultTargetDirectory" type="text"
+                                   name="remoteDefaultTargetDirectory"
+                                   th:value="${settings.remoteDownload().defaultTargetDirectory()}"
+                                   placeholder="Vault root">
+                            <button class="input-action-button js-only" type="button"
+                                    data-directory-picker-open data-directory-picker-target="remoteDefaultTargetDirectory"
+                                    title="Choose directory" aria-label="Choose directory">
+                                <i class="fas fa-folder-open" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                        <small>Vault-relative path used when this browser has no remembered destination.</small>
+                    </label>
+                    <label class="settings-inline-toggle remote-direct-dependent">
+                        <span>
+                            <strong>Skip inspection by default</strong>
+                            <small>Send no metadata probe before confirmation and use one connection.</small>
+                        </span>
+                        <input class="settings-switch-input"
+                               type="checkbox"
+                               name="remoteSkipInspectByDefault"
+                               th:checked="${settings.remoteDownload().skipInspectByDefault()}">
+                    </label>
                 </div>
             </section>
         </form>
     </section>
+    <th:block th:replace="~{fragments/directory-picker :: dialog}"></th:block>
 </main>
 </div>
 </div>

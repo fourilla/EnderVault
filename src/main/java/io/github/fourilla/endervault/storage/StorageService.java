@@ -90,6 +90,17 @@ public class StorageService {
         return listingService.list(scope, requestedPath, sort, direction, showHidden);
     }
 
+    public DirectoryListing list(
+            StorageScope scope,
+            String requestedPath,
+            FileSort sort,
+            SortDirection direction,
+            boolean showHidden,
+            StorageEntryFilter entryFilter
+    ) throws IOException {
+        return listingService.list(scope, requestedPath, sort, direction, showHidden, entryFilter);
+    }
+
     public DirectoryListing listTrash() throws IOException {
         return listingService.listTrash();
     }
@@ -161,6 +172,11 @@ public class StorageService {
 
     public Path ensureVaultDirectory(String vaultPath) throws IOException {
         return pathResolver.resolveDirectory(StorageScope.VAULT, vaultPath);
+    }
+
+    public String normalizeVaultDirectory(String vaultPath) throws IOException {
+        Path directory = pathResolver.resolveDirectory(StorageScope.VAULT, vaultPath);
+        return pathResolver.toRelativePath(root, directory);
     }
 
     public String renameVaultPath(String vaultPath, String newName) throws IOException {

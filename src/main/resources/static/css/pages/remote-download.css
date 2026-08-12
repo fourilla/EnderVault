@@ -4,9 +4,103 @@
 
 .remote-download-form {
     display: grid;
-    grid-template-columns: minmax(260px, 1.5fr) minmax(220px, 1fr) minmax(190px, 0.8fr) auto;
+    grid-template-columns: minmax(260px, 1.5fr) minmax(210px, 1fr) minmax(110px, 0.35fr) auto;
     gap: var(--space-xl);
     align-items: end;
+}
+
+.remote-request-options {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--line);
+    padding-top: var(--space-lg);
+}
+
+.remote-request-options summary {
+    color: var(--muted);
+    cursor: pointer;
+    font-weight: 700;
+}
+
+.remote-request-options-body {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-xl);
+    padding-top: var(--space-lg);
+}
+
+.remote-request-options-body > label:not(.remote-request-toggle) {
+    display: grid;
+    align-content: start;
+    gap: var(--space-sm);
+}
+
+.remote-request-field {
+    display: grid;
+    gap: var(--space-sm);
+    min-width: 0;
+}
+
+.remote-request-field-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-lg);
+}
+
+.remote-request-field-heading > label {
+    font-weight: 700;
+}
+
+.remote-custom-headers {
+    grid-column: 1 / -1;
+}
+
+.remote-request-textarea {
+    width: 100%;
+    min-height: 150px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-control);
+    background: var(--panel-elevated);
+    color: var(--text);
+    padding: var(--field-padding);
+    font-family: Consolas, "Courier New", monospace;
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-base);
+    resize: vertical;
+}
+
+.remote-import-button {
+    justify-self: start;
+    flex: 0 0 auto;
+}
+
+.remote-curl-dialog {
+    width: min(680px, calc(100vw - 32px));
+}
+
+.remote-request-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-xl);
+    min-height: var(--control-height);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-control);
+    padding: var(--space-md) var(--space-lg);
+}
+
+.remote-request-toggle span,
+.remote-request-toggle small {
+    display: block;
+}
+
+.remote-request-toggle small {
+    margin-top: var(--space-xs);
+    color: var(--muted);
+}
+
+.remote-request-toggle input {
+    flex: 0 0 auto;
 }
 
 .remote-download-form label {
@@ -19,10 +113,34 @@
     overflow-wrap: anywhere;
 }
 
+.remote-source strong,
+.remote-source small {
+    display: block;
+    max-width: 360px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.remote-source small {
+    color: var(--muted);
+    margin-top: var(--space-xs);
+}
+
 .remote-progress {
     display: grid;
     gap: var(--space-sm);
     min-width: 160px;
+}
+
+.remote-status-progress {
+    display: grid;
+    gap: var(--space-sm);
+    align-items: start;
+}
+
+.remote-status-progress .status-badge {
+    justify-self: start;
 }
 
 .remote-task-actions {
@@ -109,4 +227,27 @@
     align-items: center;
     justify-content: flex-end;
     gap: var(--space-lg);
+}
+
+@media (max-width: 1050px) {
+    .remote-download-form {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .remote-download-form > button[type="submit"] {
+        justify-self: start;
+    }
+}
+
+@media (max-width: 760px) {
+    .remote-download-form,
+    .remote-request-options-body {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .remote-confirm-details div {
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-xs);
+    }
+
 }

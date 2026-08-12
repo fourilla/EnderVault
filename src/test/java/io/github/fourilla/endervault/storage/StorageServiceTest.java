@@ -44,6 +44,24 @@ class StorageServiceTest {
     }
 
     @Test
+    void filtersDirectoryListingsBeforeCreatingFileItems() throws Exception {
+        Files.createDirectories(root.resolve("docs"));
+        Files.writeString(root.resolve("note.txt"), "hello");
+
+        DirectoryListing listing = storageService.list(
+                StorageScope.VAULT,
+                "",
+                FileSort.NAME,
+                SortDirection.ASC,
+                false,
+                StorageEntryFilter.DIRECTORIES
+        );
+
+        assertThat(listing.directories()).extracting(FileItem::name).containsExactly("docs");
+        assertThat(listing.files()).isEmpty();
+    }
+
+    @Test
     void fileItemReportsExtensionLabelForGridBadges() {
         FileItem archive = new FileItem(
                 "backup.zip",
