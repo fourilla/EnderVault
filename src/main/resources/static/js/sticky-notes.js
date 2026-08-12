@@ -282,6 +282,7 @@
         editor.className = "sticky-note-editor";
         editor.value = note.content || "";
         editor.placeholder = "Write a note...";
+        editor.spellcheck = false;
         editor.setAttribute("aria-label", `Sticky note for ${context.label || "this page"}`);
         editor.maxLength = 10_000;
         const status = document.createElement("span");
