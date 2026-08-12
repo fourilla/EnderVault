@@ -23,9 +23,15 @@
 
 .remote-request-options-body {
     display: grid;
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-xl);
     padding-top: var(--space-lg);
+}
+
+.remote-request-options-body > label:not(.remote-request-toggle) {
+    display: grid;
+    align-content: start;
+    gap: var(--space-sm);
 }
 
 .remote-request-field {
@@ -39,6 +45,14 @@
     align-items: center;
     justify-content: space-between;
     gap: var(--space-lg);
+}
+
+.remote-request-field-heading > label {
+    font-weight: 700;
+}
+
+.remote-custom-headers {
+    grid-column: 1 / -1;
 }
 
 .remote-request-textarea {
@@ -64,7 +78,7 @@
     width: min(680px, calc(100vw - 32px));
 }
 
-.remote-skip-inspection {
+.remote-request-toggle {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -75,17 +89,17 @@
     padding: var(--space-md) var(--space-lg);
 }
 
-.remote-skip-inspection span,
-.remote-skip-inspection small {
+.remote-request-toggle span,
+.remote-request-toggle small {
     display: block;
 }
 
-.remote-skip-inspection small {
+.remote-request-toggle small {
     margin-top: var(--space-xs);
     color: var(--muted);
 }
 
-.remote-skip-inspection input {
+.remote-request-toggle input {
     flex: 0 0 auto;
 }
 
@@ -225,7 +239,7 @@
     }
 }
 
-@media (max-width: 680px) {
+@media (max-width: 760px) {
     .remote-download-form,
     .remote-request-options-body {
         grid-template-columns: minmax(0, 1fr);
@@ -236,12 +250,4 @@
         gap: var(--space-xs);
     }
 
-    .remote-request-field-heading {
-        align-items: stretch;
-        flex-direction: column;
-    }
-
-    .remote-import-button {
-        align-self: start;
-    }
 }

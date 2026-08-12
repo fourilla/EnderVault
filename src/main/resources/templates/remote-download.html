@@ -40,11 +40,11 @@
             </label>
             <label>
                 Save to
-                <div class="directory-picker-field">
+                <div class="input-action-field">
                     <input id="remoteDownloadDestination" type="text" name="path"
                            th:value="${defaultTargetDirectory}"
                            placeholder="Vault directory path, blank for root">
-                    <button class="ghost icon-button js-only" type="button"
+                    <button class="input-action-button js-only" type="button"
                             data-directory-picker-open data-directory-picker-target="remoteDownloadDestination"
                             title="Choose directory" aria-label="Choose directory">
                         <i class="fas fa-folder-open" aria-hidden="true"></i>
@@ -81,7 +81,7 @@
                             <option value="overwrite">Overwrite</option>
                         </select>
                     </label>
-                    <label class="remote-skip-inspection">
+                    <label class="remote-request-toggle">
                         <span>
                             <strong>Skip inspection</strong>
                             <small>No metadata request is sent before confirmation. Requires 1 connection.</small>
@@ -91,27 +91,26 @@
                                value="true"
                                th:checked="${skipInspectByDefault}">
                     </label>
-                    <div class="remote-request-field js-only">
-                        <span>Import cURL (GET)</span>
-                        <button class="ghost icon-text-button remote-import-button" type="button"
-                                data-remote-import-curl-open>
-                            <i class="fas fa-file-import" aria-hidden="true"></i>
-                            <span>Import cURL</span>
-                        </button>
-                        <small class="muted">Parses the command locally and replaces the URL and custom headers.</small>
-                    </div>
-                    <label class="remote-request-field">
-                        Custom headers
-                        <textarea class="remote-request-textarea" name="customHeaders" rows="6" spellcheck="false"
-                                   placeholder="Header-Name: value"></textarea>
-                    </label>
-                    <label class="remote-skip-inspection js-only">
+                    <label class="remote-request-toggle js-only">
                         <span>
                             <strong>Remember last destination</strong>
                             <small>Keep the last queued destination in this browser.</small>
                         </span>
                         <input type="checkbox" data-remote-remember-destination checked>
                     </label>
+                    <div class="remote-request-field remote-custom-headers">
+                        <div class="remote-request-field-heading">
+                            <label for="remoteCustomHeaders">Custom headers</label>
+                            <button class="ghost icon-text-button remote-import-button js-only" type="button"
+                                    data-remote-import-curl-open>
+                                <i class="fas fa-file-import" aria-hidden="true"></i>
+                                <span>Import cURL</span>
+                            </button>
+                        </div>
+                        <textarea id="remoteCustomHeaders" class="remote-request-textarea"
+                                  name="customHeaders" rows="6" spellcheck="false"
+                                  placeholder="Header-Name: value"></textarea>
+                    </div>
                 </div>
             </details>
         </form>

@@ -317,12 +317,12 @@
                     </label>
                     <label class="remote-direct-dependent">
                         <span>Default destination</span>
-                        <div class="directory-picker-field">
+                        <div class="input-action-field">
                             <input id="remoteDefaultTargetDirectory" type="text"
                                    name="remoteDefaultTargetDirectory"
                                    th:value="${settings.remoteDownload().defaultTargetDirectory()}"
                                    placeholder="Vault root">
-                            <button class="ghost icon-button js-only" type="button"
+                            <button class="input-action-button js-only" type="button"
                                     data-directory-picker-open data-directory-picker-target="remoteDefaultTargetDirectory"
                                     title="Choose directory" aria-label="Choose directory">
                                 <i class="fas fa-folder-open" aria-hidden="true"></i>

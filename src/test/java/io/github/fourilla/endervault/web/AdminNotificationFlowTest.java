@@ -125,7 +125,10 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(Matchers.containsString("id=\"remoteCurlDialog\"")))
                 .andExpect(content().string(Matchers.containsString("data-storage-directory-picker")))
                 .andExpect(content().string(Matchers.containsString("/js/directory-tree.js")))
+                .andExpect(content().string(Matchers.containsString("class=\"input-action-field\"")))
                 .andExpect(content().string(Matchers.containsString("data-remote-remember-destination")))
+                .andExpect(content().string(Matchers.containsString("remote-custom-headers")))
+                .andExpect(content().string(Matchers.containsString("id=\"remoteCustomHeaders\"")))
                 .andExpect(content().string(Matchers.containsString("<th>Route</th>")));
     }
 
