@@ -124,6 +124,7 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(Matchers.containsString("data-discard-url=\"/admin/utils/remote-download/inspect/discard\"")))
                 .andExpect(content().string(Matchers.containsString("id=\"remoteCurlDialog\"")))
                 .andExpect(content().string(Matchers.containsString("data-storage-directory-picker")))
+                .andExpect(content().string(Matchers.containsString("/js/directory-tree.js")))
                 .andExpect(content().string(Matchers.containsString("data-remote-remember-destination")))
                 .andExpect(content().string(Matchers.containsString("<th>Route</th>")));
     }
@@ -429,6 +430,7 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("File Tools")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote Download")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"remoteDefaultTargetDirectory\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/directory-tree.js")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/directory-picker.js")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"general-settings-save\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/general")));

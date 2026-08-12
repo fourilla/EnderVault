@@ -1,0 +1,132 @@
+.directory-tree {
+    --directory-tree-row-height: 28px;
+    --directory-tree-toggle-size: 22px;
+    --directory-tree-indent: 18px;
+    min-width: 0;
+    font-size: var(--font-size-sm);
+    line-height: 1.25;
+    user-select: none;
+}
+
+.directory-tree-list {
+    display: grid;
+    gap: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.directory-tree-list .directory-tree-list {
+    position: relative;
+    margin-left: calc(var(--directory-tree-toggle-size) / 2);
+    padding-left: calc(var(--directory-tree-indent) - (var(--directory-tree-toggle-size) / 2));
+}
+
+.directory-tree-list .directory-tree-list::before {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 1px;
+    background: var(--line);
+    content: "";
+    opacity: 0.72;
+}
+
+.directory-tree-node {
+    min-width: 0;
+}
+
+.directory-tree-row {
+    display: grid;
+    grid-template-columns: var(--directory-tree-toggle-size) minmax(0, 1fr);
+    align-items: center;
+    min-width: 0;
+    min-height: var(--directory-tree-row-height);
+}
+
+.directory-tree button.directory-tree-toggle,
+.directory-tree button.directory-tree-select {
+    min-width: 0;
+    min-height: 0;
+    border: 0;
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--text);
+    padding: 0;
+    box-shadow: none;
+}
+
+.directory-tree button.directory-tree-toggle:hover,
+.directory-tree button.directory-tree-select:hover {
+    background: var(--item-hover-bg);
+    color: var(--text);
+}
+
+.directory-tree button.directory-tree-toggle:focus-visible,
+.directory-tree button.directory-tree-select:focus-visible {
+    outline-offset: -1px;
+}
+
+.directory-tree-toggle {
+    width: var(--directory-tree-toggle-size);
+    height: var(--directory-tree-toggle-size);
+}
+
+.directory-tree-toggle i {
+    font-size: 10px;
+    line-height: 1;
+    transition: transform 120ms ease;
+}
+
+.directory-tree-node.expanded > .directory-tree-row .directory-tree-toggle i {
+    transform: rotate(90deg);
+}
+
+.directory-tree button.directory-tree-select {
+    display: grid;
+    grid-template-columns: 16px minmax(0, 1fr);
+    align-items: center;
+    justify-content: stretch;
+    gap: var(--space-xs);
+    width: 100%;
+    height: var(--directory-tree-row-height);
+    overflow: hidden;
+    padding: 0 var(--space-sm);
+    text-align: left;
+}
+
+.directory-tree-select i {
+    color: var(--muted);
+    font-size: 13px;
+    text-align: center;
+}
+
+.directory-tree-select span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.directory-tree button.directory-tree-select.selected {
+    background: var(--accent-soft);
+    color: var(--text);
+}
+
+.directory-tree button.directory-tree-select.selected i {
+    color: var(--accent-strong);
+}
+
+.directory-tree-node.empty > .directory-tree-row .directory-tree-toggle {
+    visibility: hidden;
+}
+
+.directory-tree-node[aria-busy="true"] > .directory-tree-row .directory-tree-toggle i {
+    animation: directory-tree-loading 700ms linear infinite;
+}
+
+@keyframes directory-tree-loading {
+    to {
+        transform: rotate(360deg);
+    }
+}

@@ -61,68 +61,6 @@
     padding: var(--space-sm);
 }
 
-.directory-picker-tree ul {
-    display: grid;
-    gap: 2px;
-    margin: 0;
-    padding: 0 0 0 var(--space-xl);
-    list-style: none;
-}
-
-.directory-picker-tree > ul {
-    padding-left: 0;
-}
-
-.directory-picker-node-row {
-    display: grid;
-    grid-template-columns: var(--control-height) minmax(0, 1fr);
-    align-items: center;
-    min-width: 0;
-}
-
-.directory-picker-expand,
-.directory-picker-select {
-    min-width: 0;
-    border-color: transparent;
-    background: transparent;
-}
-
-.directory-picker-expand {
-    width: var(--control-height);
-    padding: 0;
-}
-
-.directory-picker-expand i {
-    transition: transform 120ms ease;
-}
-
-.directory-picker-node.expanded > .directory-picker-node-row .directory-picker-expand i {
-    transform: rotate(90deg);
-}
-
-.directory-picker-select {
-    justify-content: flex-start;
-    overflow: hidden;
-    padding: 0 var(--space-sm);
-    text-align: left;
-}
-
-.directory-picker-select span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.directory-picker-select.selected {
-    border-color: var(--accent);
-    background: var(--accent-soft);
-    color: var(--text);
-}
-
-.directory-picker-node.empty > .directory-picker-node-row .directory-picker-expand {
-    visibility: hidden;
-}
-
 .directory-picker-actions {
     display: flex;
     justify-content: flex-end;
