@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:fragment="tool" th:if="${fileTool.image()}">
+    <div class="image-viewer" data-image-viewer>
+        <div class="image-viewer-toolbar js-only" aria-label="Image viewer controls">
+            <div class="image-viewer-controls">
+                <button class="ghost icon-button action-icon" type="button" disabled
+                        data-image-action="zoom-out"
+                        title="Zoom out" aria-label="Zoom out">
+                    <i class="fas fa-magnifying-glass-minus" aria-hidden="true"></i>
+                </button>
+                <button class="ghost icon-button action-icon" type="button" disabled
+                        data-image-action="zoom-in"
+                        title="Zoom in" aria-label="Zoom in">
+                    <i class="fas fa-magnifying-glass-plus" aria-hidden="true"></i>
+                </button>
+                <button class="ghost icon-button action-icon" type="button" disabled
+                        data-image-action="one-to-one"
+                        title="Actual size" aria-label="Show at actual size">
+                    <span class="image-viewer-one-to-one" aria-hidden="true">1:1</span>
+                </button>
+                <button class="ghost icon-button action-icon" type="button" disabled
+                        data-image-action="reset"
+                        title="Fit and reset" aria-label="Fit image and reset transformations">
+                    <i class="fas fa-arrows-rotate" aria-hidden="true"></i>
+                </button>
+                <span class="image-viewer-control-divider" aria-hidden="true"></span>
+                <button class="ghost icon-button action-icon" type="button" disabled
+                        data-image-action="rotate-left"
+                        title="Rotate left" aria-label="Rotate left">
+                    <i class="fas fa-rotate-left" aria-hidden="true"></i>
+                </button>
+                <button class="ghost icon-button action-icon" type="button" disabled
+                        data-image-action="rotate-right"
+                        title="Rotate right" aria-label="Rotate right">
+                    <i class="fas fa-rotate-right" aria-hidden="true"></i>
+                </button>
+                <button class="ghost icon-button action-icon" type="button" disabled
+                        data-image-action="flip-horizontal"
+                        title="Flip horizontally" aria-label="Flip horizontally">
+                    <i class="fas fa-arrows-left-right" aria-hidden="true"></i>
+                </button>
+                <button class="ghost icon-button action-icon" type="button" disabled
+                        data-image-action="flip-vertical"
+                        title="Flip vertically" aria-label="Flip vertically">
+                    <i class="fas fa-arrows-up-down" aria-hidden="true"></i>
+                </button>
+            </div>
+            <button class="ghost icon-button action-icon" type="button" disabled
+                    data-image-action="fullscreen"
+                    aria-pressed="false"
+                    title="Open fullscreen viewer" aria-label="Open fullscreen viewer">
+                <i class="fas fa-expand" aria-hidden="true"></i>
+            </button>
+        </div>
+
+        <div class="image-viewer-stage" data-image-viewer-stage>
+            <img class="image-viewer-source"
+                 th:src="${filePreview.previewContentUrl(detail)}"
+                 th:alt="${detail.name()}"
+                 draggable="false"
+                 data-image-viewer-source>
+        </div>
+
+        <div class="image-viewer-statusbar js-only" aria-live="polite">
+            <span data-image-dimensions>Loading image...</span>
+            <span data-image-zoom>Fit</span>
+        </div>
+    </div>
+</th:block>
+</body>
+</html>

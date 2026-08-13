@@ -27,6 +27,7 @@
         <mermaid.version>11.15.0</mermaid.version>
         <mathjax.version>4.1.1</mathjax.version>
         <mathjax-font.version>4.1.1</mathjax-font.version>
+        <viewerjs.version>1.11.7</viewerjs.version>
         <commons-compress.version>1.28.0</commons-compress.version>
         <commons-codec.version>1.19.0</commons-codec.version>
         <commons-lang3.version>3.18.0</commons-lang3.version>
@@ -63,6 +64,11 @@
             <groupId>org.webjars.npm</groupId>
             <artifactId>codemirror</artifactId>
             <version>5.65.19</version>
+        </dependency>
+        <dependency>
+            <groupId>org.webjars.npm</groupId>
+            <artifactId>viewerjs</artifactId>
+            <version>${viewerjs.version}</version>
         </dependency>
         <dependency>
             <groupId>org.webjars.npm</groupId>

@@ -768,6 +768,25 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void imageDetailRendersEnhancedViewerWithFallbackImage() throws Exception {
+        String filename = "viewer-image-" + System.nanoTime() + ".jpg";
+        Files.write(ROOT.resolve(filename), new byte[] {(byte) 0xff, (byte) 0xd8, (byte) 0xff, (byte) 0xd9});
+
+        mockMvc.perform(get("/files/detail").param("path", filename))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("data-image-viewer")))
+                .andExpect(content().string(Matchers.containsString("data-image-viewer-source")))
+                .andExpect(content().string(Matchers.containsString("data-image-action=\"zoom-in\"")))
+                .andExpect(content().string(Matchers.containsString(
+                        "/webjars/viewerjs/1.11.7/dist/viewer.min.css"
+                )))
+                .andExpect(content().string(Matchers.containsString(
+                        "/webjars/viewerjs/1.11.7/dist/viewer.min.js"
+                )))
+                .andExpect(content().string(Matchers.containsString("/js/image-viewer.js")));
+    }
+
+    @Test
     void sharedFileLandingRendersTextPreviewEscaped() throws Exception {
         String filename = "shared-text-" + System.nanoTime() + ".html";
         Files.writeString(ROOT.resolve(filename), "<script>alert(1)</script>", StandardCharsets.UTF_8);

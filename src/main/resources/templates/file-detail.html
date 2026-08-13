@@ -15,6 +15,9 @@
     <th:block th:if="${fileTool.text()}">
         <th:block th:replace="~{fragments/assets :: fileToolsScript}"></th:block>
     </th:block>
+    <th:block th:if="${fileTool.image()}">
+        <th:block th:replace="~{fragments/assets :: imageViewerScript}"></th:block>
+    </th:block>
     <th:block th:if="${fileTool.comic()}">
         <th:block th:replace="~{fragments/assets :: comicViewerScript}"></th:block>
     </th:block>
@@ -44,13 +47,14 @@
             <span class="status-badge" th:text="${fileTool.label()}">Tool</span>
         </header>
 
-        <div class="preview-surface" th:if="${fileTool.image() or fileTool.video() or fileTool.pdf()}">
-            <img class="preview-media" th:if="${fileTool.image()}" th:src="${filePreview.previewContentUrl(detail)}" th:alt="${detail.name()}">
+        <div class="preview-surface" th:if="${fileTool.video() or fileTool.pdf()}">
             <video class="preview-media" th:if="${fileTool.video()}" controls
                    th:poster="${filePreview.cardMediaUrl(detail)}"
                    th:src="${filePreview.previewContentUrl(detail)}"></video>
             <iframe class="preview-frame" th:if="${fileTool.pdf()}" th:src="${filePreview.previewContentUrl(detail)}" title="Preview"></iframe>
         </div>
+
+        <th:block th:replace="~{fragments/file-tools/image-tool :: tool}"></th:block>
 
         <th:block th:replace="~{fragments/file-tools/comic-tool :: tool}"></th:block>
 

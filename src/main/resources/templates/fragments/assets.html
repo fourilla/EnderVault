@@ -126,6 +126,12 @@
     <script defer th:src="@{/js/file-tools.js}"></script>
 </th:block>
 
+<th:block th:fragment="imageViewerScript">
+    <link rel="stylesheet" th:href="@{/webjars/viewerjs/1.11.7/dist/viewer.min.css}">
+    <script defer th:src="@{/webjars/viewerjs/1.11.7/dist/viewer.min.js}"></script>
+    <script defer th:src="@{/js/image-viewer.js}"></script>
+</th:block>
+
 <th:block th:fragment="comicViewerScript">
     <script defer th:src="@{/js/comic-viewer.js}"></script>
 </th:block>

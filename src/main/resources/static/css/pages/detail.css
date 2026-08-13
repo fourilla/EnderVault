@@ -278,7 +278,7 @@ button.shared-download-button:disabled:hover {
     overflow: hidden;
     border: 1px solid var(--line);
     border-radius: var(--radius-panel);
-    background: #05070a;
+    background: var(--media-canvas-bg);
 }
 
 .comic-page-image {
