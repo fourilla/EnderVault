@@ -106,6 +106,23 @@ class FileActionRegistryTest {
     }
 
     @Test
+    void mp3FilesExposeAudioPreviewEvenWhenMediaTypeIsGeneric() {
+        FileToolDescriptor descriptor = registry.resolve(
+                "track.mp3",
+                false,
+                "application/octet-stream",
+                "mp3"
+        );
+
+        assertThat(descriptor.type()).isEqualTo(FileToolType.AUDIO);
+        assertThat(descriptor.audio()).isTrue();
+        assertThat(descriptor.previewable()).isTrue();
+        assertThat(descriptor.previewPageAvailable()).isTrue();
+        assertThat(registry.browserActions("track.mp3", false, "application/octet-stream", "mp3"))
+                .containsExactly(FileActionKind.DOWNLOAD, FileActionKind.PREVIEW);
+    }
+
+    @Test
     void browserActionsExposeDownloadOnlyForUnknownBinaryFiles() {
         assertThat(registry.browserActions("archive.bin", false, "application/octet-stream", "bin"))
                 .containsExactly(FileActionKind.DOWNLOAD);

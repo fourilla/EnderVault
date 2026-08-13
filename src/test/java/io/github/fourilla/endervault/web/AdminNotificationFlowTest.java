@@ -787,6 +787,26 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void audioDetailAndSharedLandingReuseNativeAudioPlayer() throws Exception {
+        String filename = "shared-audio-" + System.nanoTime() + ".mp3";
+        Files.write(ROOT.resolve(filename), new byte[] {0x49, 0x44, 0x33, 0x04});
+        ShareLink shareLink = shareLinkService.create("", filename, null);
+
+        mockMvc.perform(get("/files/detail").param("path", filename))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("Audio Player")))
+                .andExpect(content().string(Matchers.containsString("class=\"audio-tool-player\"")))
+                .andExpect(content().string(Matchers.containsString("preload=\"metadata\"")))
+                .andExpect(content().string(Matchers.containsString("/files/preview?item=")));
+
+        mockMvc.perform(get("/s/{token}", shareLink.token()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("Audio Player")))
+                .andExpect(content().string(Matchers.containsString("class=\"audio-tool-player\"")))
+                .andExpect(content().string(Matchers.containsString("/s/" + shareLink.token() + "/preview")));
+    }
+
+    @Test
     void sharedFileLandingRendersTextPreviewEscaped() throws Exception {
         String filename = "shared-text-" + System.nanoTime() + ".html";
         Files.writeString(ROOT.resolve(filename), "<script>alert(1)</script>", StandardCharsets.UTF_8);
