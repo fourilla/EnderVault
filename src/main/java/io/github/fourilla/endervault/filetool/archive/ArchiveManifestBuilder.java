@@ -16,6 +16,10 @@ final class ArchiveManifestBuilder {
     private int fileCount;
     private int rejectedEntryCount;
     private long totalUncompressedBytes;
+    private boolean browsable = true;
+    private boolean extractable = true;
+    private boolean stopScanning;
+    private boolean additionalProblems;
 
     ArchiveManifestBuilder(ArchiveFormat format, ArchiveLimits limits) {
         this.format = format;
@@ -26,6 +30,7 @@ final class ArchiveManifestBuilder {
         sourceEntryCount++;
         if (sourceEntryCount > limits.maxEntries()) {
             reject("The archive contains more than %d entries.".formatted(limits.maxEntries()));
+            stopScanning = true;
             return;
         }
 
@@ -36,37 +41,33 @@ final class ArchiveManifestBuilder {
             reject(ex.getMessage());
             return;
         }
-        if (unsupportedReason != null && !unsupportedReason.isBlank()) {
-            reject(unsupportedReason);
-            return;
-        }
         ArchiveEntryInfo existing = entries.get(path);
         if (existing != null && !(directory && existing.virtual())) {
             reject("The archive contains duplicate normalized paths.");
             return;
         }
-        if (!directory) {
-            if (size > limits.maxEntryBytes()) {
-                reject("An archive entry exceeds the per-file extraction limit.");
-                return;
-            }
-            if (size >= 0 && totalUncompressedBytes > limits.maxTotalBytes() - size) {
-                reject("The archive exceeds the total extraction size limit.");
-                return;
-            }
-            if (size > 0 && compressedSize > 0
-                    && size / (double) compressedSize > limits.maxCompressionRatio()) {
-                reject("An archive entry exceeds the configured compression ratio limit.");
-                return;
-            }
-        }
-
         if (!addVirtualParents(path)) {
             return;
         }
+        if (unsupportedReason != null && !unsupportedReason.isBlank()) {
+            blockExtraction(unsupportedReason);
+        }
+        if (!directory) {
+            if (size > limits.maxEntryBytes()) {
+                blockExtraction("An archive entry exceeds the per-file extraction limit.");
+            }
+            if (size >= 0 && totalUncompressedBytes > limits.maxTotalBytes() - size) {
+                blockExtraction("The archive exceeds the total extraction size limit.");
+            }
+            if (size > 0 && compressedSize > 0
+                    && size / (double) compressedSize > limits.maxCompressionRatio()) {
+                blockExtraction("An archive entry exceeds the configured compression ratio limit.");
+            }
+        }
+
         if (!directory) {
             if (size >= 0) {
-                totalUncompressedBytes += size;
+                totalUncompressedBytes = saturatingAdd(totalUncompressedBytes, size);
             }
             fileCount++;
         }
@@ -82,20 +83,32 @@ final class ArchiveManifestBuilder {
 
     void reject(String message) {
         rejectedEntryCount++;
-        if (problems.size() < 3 && message != null && !message.isBlank() && !problems.contains(message)) {
-            problems.add(message);
-        }
+        blockExtraction(message);
     }
 
-    boolean rejected() {
-        return rejectedEntryCount > 0;
+    void markUnreadable(String message) {
+        browsable = false;
+        extractable = false;
+        stopScanning = true;
+        entries.clear();
+        sourceEntryCount = 0;
+        fileCount = 0;
+        totalUncompressedBytes = 0L;
+        rejectedEntryCount = 0;
+        problems.clear();
+        additionalProblems = false;
+        recordProblem(message);
+    }
+
+    boolean shouldStopScanning() {
+        return stopScanning;
     }
 
     ArchiveManifest build() {
         int directoryCount = (int) entries.values().stream().filter(ArchiveEntryInfo::directory).count();
         String message = problems.isEmpty()
                 ? ""
-                : String.join(" ", problems) + (rejectedEntryCount > problems.size() ? " Additional entries were rejected." : "");
+                : String.join(" ", problems) + (additionalProblems ? " Additional archive issues were detected." : "");
         return new ArchiveManifest(
                 format,
                 List.copyOf(entries.values()),
@@ -104,7 +117,8 @@ final class ArchiveManifestBuilder {
                 directoryCount,
                 totalUncompressedBytes,
                 rejectedEntryCount,
-                rejectedEntryCount == 0,
+                browsable,
+                extractable,
                 message
         );
     }
@@ -127,6 +141,7 @@ final class ArchiveManifestBuilder {
         int newLeafEntry = entries.containsKey(path) ? 0 : 1;
         if (entries.size() + missing.size() + newLeafEntry > limits.maxEntries()) {
             reject("The archive expands to more than %d path entries.".formatted(limits.maxEntries()));
+            stopScanning = true;
             return false;
         }
         for (int index = missing.size() - 1; index >= 0; index--) {
@@ -141,5 +156,25 @@ final class ArchiveManifestBuilder {
             ));
         }
         return true;
+    }
+
+    private void blockExtraction(String message) {
+        extractable = false;
+        recordProblem(message);
+    }
+
+    private void recordProblem(String message) {
+        if (message == null || message.isBlank() || problems.contains(message)) {
+            return;
+        }
+        if (problems.size() < 3) {
+            problems.add(message);
+        } else {
+            additionalProblems = true;
+        }
+    }
+
+    private long saturatingAdd(long current, long value) {
+        return current > Long.MAX_VALUE - value ? Long.MAX_VALUE : current + value;
     }
 }

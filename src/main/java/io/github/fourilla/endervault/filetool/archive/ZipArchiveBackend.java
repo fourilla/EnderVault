@@ -32,6 +32,9 @@ final class ZipArchiveBackend implements ArchiveBackend {
                         entry.getCompressedSize(),
                         unsupportedReason(zip, entry)
                 );
+                if (manifest.shouldStopScanning()) {
+                    break;
+                }
             }
         } catch (IllegalArgumentException ex) {
             throw new StorageAccessException("This ZIP archive could not be opened.", ex);

@@ -41,7 +41,7 @@ final class TarArchiveBackend implements ArchiveBackend {
                         -1L,
                         unsupportedReason(entry)
                 );
-                if (manifest.rejected()) {
+                if (manifest.shouldStopScanning()) {
                     break;
                 }
             }

@@ -32,9 +32,12 @@ final class SevenZipArchiveBackend implements ArchiveBackend {
                         -1L,
                         unsupportedReason(entry)
                 );
+                if (manifest.shouldStopScanning()) {
+                    break;
+                }
             }
         } catch (PasswordRequiredException ex) {
-            throw new StorageAccessException("Password-protected 7-Zip archives are not supported yet.", ex);
+            manifest.markUnreadable("A password is required before this 7-Zip archive can be browsed.");
         }
         return manifest.build();
     }

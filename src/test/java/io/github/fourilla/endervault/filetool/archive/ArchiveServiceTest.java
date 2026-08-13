@@ -65,11 +65,52 @@ class ArchiveServiceTest {
 
         ArchiveManifest manifest = archiveService.manifest(archive);
 
+        assertThat(manifest.browsable()).isTrue();
         assertThat(manifest.extractable()).isFalse();
         assertThat(manifest.rejectedEntryCount()).isEqualTo(1);
         assertThat(manifest.children("")).extracting(ArchiveEntryInfo::name)
                 .containsExactly("safe.txt");
         assertThat(manifest.message()).contains("unsafe path segment");
+    }
+
+    @Test
+    void keepsEncryptedZipEntriesBrowseableWhenTheirNamesAreReadable() throws Exception {
+        Path archive = zip("encrypted.zip", List.of(
+                entry("library/series/volume/chapter.txt", "encrypted content"),
+                entry("library/index.txt", "encrypted index")
+        ));
+        markZipEntriesEncrypted(archive);
+
+        ArchiveManifest manifest = archiveService.manifest(archive);
+
+        assertThat(manifest.browsable()).isTrue();
+        assertThat(manifest.extractable()).isFalse();
+        assertThat(manifest.rejectedEntryCount()).isZero();
+        assertThat(manifest.fileCount()).isEqualTo(2);
+        assertThat(manifest.children("library")).extracting(ArchiveEntryInfo::name)
+                .containsExactly("series", "index.txt");
+        assertThat(manifest.children("library/series/volume")).extracting(ArchiveEntryInfo::name)
+                .containsExactly("chapter.txt");
+        assertThat(manifest.message()).contains("encrypted or unsupported entries");
+    }
+
+    @Test
+    void clearsEntriesWhenArchiveMetadataCannotBeBrowsed() {
+        NasProperties properties = new NasProperties();
+        ArchiveManifestBuilder builder = new ArchiveManifestBuilder(
+                ArchiveFormat.SEVEN_ZIP,
+                ArchiveLimits.from(properties.getFileTools())
+        );
+        builder.add("visible-before-lock.txt", false, 10L, 5L, null);
+
+        builder.markUnreadable("A password is required before this archive can be browsed.");
+        ArchiveManifest manifest = builder.build();
+
+        assertThat(manifest.browsable()).isFalse();
+        assertThat(manifest.extractable()).isFalse();
+        assertThat(manifest.entries()).isEmpty();
+        assertThat(manifest.fileCount()).isZero();
+        assertThat(manifest.message()).contains("password is required");
     }
 
     @Test
@@ -184,6 +225,25 @@ class ArchiveServiceTest {
             }
         }
         return archive;
+    }
+
+    private void markZipEntriesEncrypted(Path archive) throws IOException {
+        byte[] bytes = Files.readAllBytes(archive);
+        for (int index = 0; index <= bytes.length - 10; index++) {
+            if (hasSignature(bytes, index, 0x50, 0x4B, 0x03, 0x04)) {
+                bytes[index + 6] |= 0x01;
+            } else if (hasSignature(bytes, index, 0x50, 0x4B, 0x01, 0x02)) {
+                bytes[index + 8] |= 0x01;
+            }
+        }
+        Files.write(archive, bytes);
+    }
+
+    private boolean hasSignature(byte[] bytes, int offset, int first, int second, int third, int fourth) {
+        return Byte.toUnsignedInt(bytes[offset]) == first
+                && Byte.toUnsignedInt(bytes[offset + 1]) == second
+                && Byte.toUnsignedInt(bytes[offset + 2]) == third
+                && Byte.toUnsignedInt(bytes[offset + 3]) == fourth;
     }
 
     private Path tarArchive(String name, String content, OutputWrapper compressor) throws IOException {

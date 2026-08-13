@@ -9,6 +9,7 @@ public record ArchiveEntriesPayload(
         int fileCount,
         int directoryCount,
         String totalSizeLabel,
+        boolean browsable,
         boolean extractable,
         String message,
         List<ArchiveEntryPayload> entries
@@ -20,6 +21,7 @@ public record ArchiveEntriesPayload(
                 manifest.fileCount(),
                 manifest.directoryCount(),
                 manifest.totalSizeLabel(),
+                manifest.browsable(),
                 manifest.extractable(),
                 manifest.message(),
                 manifest.children(parentPath).stream().map(ArchiveEntryPayload::from).toList()

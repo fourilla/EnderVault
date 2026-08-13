@@ -91,12 +91,12 @@ td input[readonly] {
     border-bottom: 0;
 }
 
-.select-col {
+.table-wrap th.select-col {
     width: var(--table-select-col-width);
     text-align: center;
 }
 
-.select-cell {
+.table-wrap td.select-cell {
     text-align: center;
 }
 

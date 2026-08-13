@@ -13,6 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
     }
     let archiveExtractable = false;
+    let archiveStatusMessage = "Archive information is still loading.";
     let layoutTouched = false;
     if (submitButton) {
         submitButton.disabled = true;
@@ -24,6 +25,7 @@ document.addEventListener("DOMContentLoaded", () => {
             containerName.disabled = !createContainer;
         }
         containerNameField?.classList.toggle("is-disabled", !createContainer);
+        containerNameField?.setAttribute("aria-disabled", String(!createContainer));
     };
 
     containerToggle?.addEventListener("change", () => {
@@ -47,16 +49,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const updateSummary = (payload) => {
         archiveExtractable = payload.extractable;
+        archiveStatusMessage = payload.message || "Encrypted or unsupported archive extraction is not supported.";
         tool.querySelector("[data-archive-format]").textContent = payload.format;
-        tool.querySelector("[data-archive-files]").textContent = payload.fileCount;
-        tool.querySelector("[data-archive-directories]").textContent = payload.directoryCount;
-        tool.querySelector("[data-archive-size]").textContent = payload.totalSizeLabel;
+        tool.querySelector("[data-archive-files]").textContent = payload.browsable ? payload.fileCount : "Unknown";
+        tool.querySelector("[data-archive-directories]").textContent = payload.browsable
+            ? payload.directoryCount
+            : "Unknown";
+        tool.querySelector("[data-archive-size]").textContent = payload.browsable ? payload.totalSizeLabel : "Unknown";
         if (!payload.extractable) {
             status.textContent = payload.message || "This archive cannot be extracted safely.";
             status.classList.add("is-warning");
         }
         if (submitButton) {
-            submitButton.disabled = !archiveExtractable;
+            submitButton.disabled = false;
+            submitButton.classList.toggle("is-unavailable", !archiveExtractable);
+            submitButton.setAttribute("aria-disabled", String(!archiveExtractable));
+            submitButton.title = archiveExtractable ? "Extract archive" : archiveStatusMessage;
         }
     };
 
@@ -65,6 +73,13 @@ document.addEventListener("DOMContentLoaded", () => {
         list.className = "archive-tree-list";
         list.setAttribute("role", "group");
         return list;
+    };
+
+    const createUnavailableTreeMessage = () => {
+        const message = document.createElement("p");
+        message.className = "archive-tree-message muted";
+        message.textContent = "Archive contents cannot be browsed because its entry metadata is unavailable.";
+        return message;
     };
 
     const createNode = (entry) => {
@@ -151,34 +166,59 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const showTreeError = (error) => {
         archiveExtractable = false;
+        archiveStatusMessage = error.message || "Archive entries could not be loaded.";
         if (submitButton) {
-            submitButton.disabled = true;
+            submitButton.disabled = false;
+            submitButton.classList.add("is-unavailable");
+            submitButton.setAttribute("aria-disabled", "true");
+            submitButton.title = archiveStatusMessage;
         }
         status.hidden = false;
-        status.textContent = error.message || "Archive entries could not be loaded.";
+        status.textContent = archiveStatusMessage;
         status.classList.add("is-warning");
     };
+
+    const showUnavailableExtraction = () => {
+        showNotification?.({ type: "warning", message: archiveStatusMessage });
+    };
+
+    submitButton?.addEventListener("click", (event) => {
+        if (!archiveExtractable && !submitButton.disabled) {
+            event.preventDefault();
+            showUnavailableExtraction();
+        }
+    });
 
     requestJson(entriesUrl())
         .then((payload) => {
             updateSummary(payload);
             if (containerToggle && !layoutTouched) {
                 const topLevelCount = payload.entries.length;
-                containerToggle.checked = topLevelCount !== 1;
+                containerToggle.checked = !payload.browsable || topLevelCount !== 1;
                 updateContainerControls();
                 if (layoutHint) {
-                    layoutHint.textContent = topLevelCount === 1
-                        ? "One top-level item detected. Direct extraction is recommended."
-                        : topLevelCount === 0
-                            ? "The archive is empty, so a containing directory is recommended."
-                            : `${topLevelCount} top-level items detected. A containing directory is recommended.`;
+                    if (!payload.browsable) {
+                        layoutHint.textContent = "Archive layout is unavailable because its entry metadata cannot be read.";
+                    } else if (!payload.extractable && topLevelCount === 0) {
+                        layoutHint.textContent = "No safe top-level items are available for extraction.";
+                    } else {
+                        layoutHint.textContent = topLevelCount === 1
+                            ? "One top-level item detected. Direct extraction is recommended."
+                            : topLevelCount === 0
+                                ? "The archive is empty, so a containing directory is recommended."
+                                : `${topLevelCount} top-level items detected. A containing directory is recommended.`;
+                    }
                 }
             }
-            const list = createList();
-            list.setAttribute("role", "tree");
-            list.setAttribute("aria-label", "Archive contents");
-            payload.entries.forEach((entry) => list.append(createNode(entry)));
-            tree.replaceChildren(list);
+            if (!payload.browsable) {
+                tree.replaceChildren(createUnavailableTreeMessage());
+            } else {
+                const list = createList();
+                list.setAttribute("role", "tree");
+                list.setAttribute("aria-label", "Archive contents");
+                payload.entries.forEach((entry) => list.append(createNode(entry)));
+                tree.replaceChildren(list);
+            }
             if (payload.extractable && payload.entries.length === 0) {
                 status.textContent = "This archive is empty.";
             } else if (payload.extractable) {
@@ -188,6 +228,11 @@ document.addEventListener("DOMContentLoaded", () => {
         .catch(showTreeError);
 
     form?.addEventListener("submit", async (event) => {
+        if (!archiveExtractable) {
+            event.preventDefault();
+            showUnavailableExtraction();
+            return;
+        }
         if (!submitJsonForm) {
             return;
         }
@@ -202,7 +247,7 @@ document.addEventListener("DOMContentLoaded", () => {
         } catch (error) {
             showNotification?.({ type: "error", message: error.message || "Archive extraction could not be queued." });
         } finally {
-            submitButton.disabled = !archiveExtractable;
+            submitButton.disabled = false;
         }
     });
 });

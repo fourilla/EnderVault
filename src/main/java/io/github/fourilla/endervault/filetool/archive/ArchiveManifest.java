@@ -12,6 +12,7 @@ public record ArchiveManifest(
         int directoryCount,
         long totalUncompressedBytes,
         int rejectedEntryCount,
+        boolean browsable,
         boolean extractable,
         String message
 ) {
