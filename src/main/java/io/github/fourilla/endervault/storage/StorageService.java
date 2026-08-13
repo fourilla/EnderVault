@@ -27,6 +27,7 @@ public class StorageService {
     private final Path trashRoot;
     private final Path metadataRoot;
     private final Path uploadTempRoot;
+    private final Path archiveTempRoot;
     private final String trashDirectoryName;
     private final String metadataDirectoryName;
     private final StoragePathResolver pathResolver;
@@ -35,6 +36,7 @@ public class StorageService {
     private final StorageListingService listingService;
     private final StorageConflictResolver conflictResolver;
     private final StorageTreeOperations treeOperations;
+    private final ArchiveStagingCommitter archiveStagingCommitter;
     private final NasProperties.Share shareProperties;
 
     public StorageService(NasProperties nasProperties) {
@@ -50,12 +52,21 @@ public class StorageService {
         this.trashRoot = root.resolve(trashDirectoryName).normalize();
         this.metadataRoot = root.resolve(metadataDirectoryName).normalize();
         this.uploadTempRoot = metadataRoot.resolve("uploads").normalize();
+        this.archiveTempRoot = metadataRoot.resolve("archive-staging").normalize();
         this.pathResolver = new StoragePathResolver(root, trashRoot, metadataRoot, uploadTempRoot);
         this.zipWriter = new StorageZipWriter();
         this.uploadStagingService = new UploadStagingService(uploadTempRoot, pathResolver);
         this.listingService = new StorageListingService(root, trashRoot, pathResolver, fileActionRegistry);
         this.conflictResolver = new StorageConflictResolver(nasProperties, pathResolver);
         this.treeOperations = new StorageTreeOperations(pathResolver, uploadStagingService);
+        this.archiveStagingCommitter = new ArchiveStagingCommitter(
+                root,
+                archiveTempRoot,
+                pathResolver,
+                conflictResolver,
+                treeOperations,
+                listingService
+        );
         this.shareProperties = nasProperties.getShare();
     }
 
@@ -65,6 +76,7 @@ public class StorageService {
         createSystemDirectory(trashRoot, "Trash");
         createSystemDirectory(metadataRoot, "Metadata");
         createSystemDirectory(uploadTempRoot, "Upload temporary");
+        createSystemDirectory(archiveTempRoot, "Archive temporary");
     }
 
     public DirectoryListing list(StorageScope scope, String requestedPath) throws IOException {
@@ -150,6 +162,14 @@ public class StorageService {
 
     public Path resolveVaultPath(String vaultPath) throws IOException {
         return pathResolver.resolve(StorageScope.VAULT, vaultPath);
+    }
+
+    public Path resolveVaultDirectory(String vaultPath) throws IOException {
+        Path directory = pathResolver.resolveDirectory(StorageScope.VAULT, vaultPath);
+        if (!Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)) {
+            throw new NoSuchFileException(vaultPath == null ? "" : vaultPath);
+        }
+        return directory;
     }
 
     public FileItem describeVaultPath(String vaultPath) throws IOException {
@@ -462,6 +482,64 @@ public class StorageService {
                 resolvedTarget.path().getFileName().toString(),
                 pathResolver.toRelativePath(root, resolvedTarget.path())
         );
+    }
+
+    public Path createArchiveExtractionWorkspace() throws IOException {
+        return archiveStagingCommitter.createWorkspace();
+    }
+
+    public FileItem commitTemporaryDirectoryIntoVault(
+            Path temporaryDirectory,
+            String directoryPath,
+            String directoryName,
+            ConflictPolicy conflictPolicy
+    ) throws IOException {
+        return archiveStagingCommitter.commitDirectory(
+                temporaryDirectory,
+                directoryPath,
+                directoryName,
+                conflictPolicy
+        );
+    }
+
+    public void preflightArchiveExtraction(
+            String directoryPath,
+            boolean createContainingDirectory,
+            String directoryName,
+            List<StorageBatchEntry> topLevelEntries,
+            ConflictPolicy conflictPolicy
+    ) throws IOException {
+        archiveStagingCommitter.preflight(
+                directoryPath,
+                createContainingDirectory,
+                directoryName,
+                topLevelEntries,
+                conflictPolicy
+        );
+    }
+
+    public StorageBatchCommitResult commitArchiveContentsIntoVault(
+            Path temporaryDirectory,
+            String directoryPath,
+            List<StorageBatchEntry> topLevelEntries,
+            ConflictPolicy conflictPolicy,
+            StorageProgressListener progressListener
+    ) throws IOException {
+        return archiveStagingCommitter.commitContents(
+                temporaryDirectory,
+                directoryPath,
+                topLevelEntries,
+                conflictPolicy,
+                progressListener
+        );
+    }
+
+    public void deleteArchiveExtractionWorkspace(Path workspace) throws IOException {
+        archiveStagingCommitter.deleteWorkspace(workspace);
+    }
+
+    public void validateVaultEntryName(String name) {
+        pathResolver.validateSingleName(name);
     }
 
     public FileItem moveStagedUploadIntoVault(

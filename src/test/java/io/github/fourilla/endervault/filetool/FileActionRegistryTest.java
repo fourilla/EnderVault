@@ -66,6 +66,20 @@ class FileActionRegistryTest {
     }
 
     @Test
+    void supportedArchivesExposeArchiveToolsWithoutAStandalonePreviewPage() {
+        FileToolDescriptor descriptor = registry.resolve(
+                "backup.tar.gz",
+                false,
+                "application/gzip",
+                "gz"
+        );
+
+        assertThat(descriptor.type()).isEqualTo(FileToolType.ARCHIVE);
+        assertThat(descriptor.archive()).isTrue();
+        assertThat(descriptor.previewPageAvailable()).isFalse();
+    }
+
+    @Test
     void unknownBinaryFilesUseHexFallbackWithoutPreviewPage() {
         FileToolDescriptor descriptor = registry.resolve(
                 "blob.bin",

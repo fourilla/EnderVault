@@ -57,6 +57,10 @@ public record FileToolDescriptor(
         return type == FileToolType.COMIC;
     }
 
+    public boolean archive() {
+        return type == FileToolType.ARCHIVE;
+    }
+
     public boolean hex() {
         return type == FileToolType.HEX;
     }

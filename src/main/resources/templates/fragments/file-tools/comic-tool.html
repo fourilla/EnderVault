@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:fragment="tool" th:if="${fileTool.comic()}">
+    <div class="comic-viewer"
+         th:attr="data-comic-page-url=@{/files/detail/comic/page(path=${detail.path()})},
+                  data-comic-current=${comicPageIndex},
+                  data-comic-total=${comicManifest.pageCount()}">
+        <div class="comic-toolbar">
+            <span class="comic-status" th:if="${not comicManifest.empty()}"
+                  th:text="|Page ${comicPageNumber} / ${comicManifest.pageCount()}|">Page 1 / 1</span>
+            <span class="comic-status" th:if="${comicManifest.empty()}">No image pages found.</span>
+            <div class="comic-actions" th:if="${not comicManifest.empty()}">
+                <a class="ghost icon-button action-icon"
+                   data-comic-action="first"
+                   th:classappend="${comicPageNumber <= 1} ? ' is-disabled' : ''"
+                   th:href="@{/files/detail(path=${detail.path()}, comicPage=1)}"
+                   title="First page" aria-label="First page">
+                    <i class="fas fa-angles-left" aria-hidden="true"></i>
+                </a>
+                <a class="ghost icon-button action-icon"
+                   data-comic-action="previous"
+                   th:classappend="${comicPageNumber <= 1} ? ' is-disabled' : ''"
+                   th:href="@{/files/detail(path=${detail.path()}, comicPage=${comicPreviousPageNumber})}"
+                   title="Previous page" aria-label="Previous page">
+                    <i class="fas fa-chevron-left" aria-hidden="true"></i>
+                </a>
+                <form class="comic-page-form" method="get" th:action="@{/files/detail}">
+                    <input type="hidden" name="path" th:value="${detail.path()}">
+                    <input class="comic-page-input" type="number" name="comicPage"
+                           min="1" th:max="${comicManifest.pageCount()}" th:value="${comicPageNumber}"
+                           aria-label="Comic page number">
+                    <button class="ghost icon-button action-icon comic-page-submit" type="submit"
+                            data-comic-page-submit
+                            title="Go to page" aria-label="Go to page">
+                        <i class="fas fa-location-arrow" aria-hidden="true"></i>
+                    </button>
+                </form>
+                <a class="ghost icon-button action-icon"
+                   data-comic-action="next"
+                   th:classappend="${comicPageNumber >= comicManifest.pageCount()} ? ' is-disabled' : ''"
+                   th:href="@{/files/detail(path=${detail.path()}, comicPage=${comicNextPageNumber})}"
+                   title="Next page" aria-label="Next page">
+                    <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                </a>
+                <a class="ghost icon-button action-icon"
+                   data-comic-action="last"
+                   th:classappend="${comicPageNumber >= comicManifest.pageCount()} ? ' is-disabled' : ''"
+                   th:href="@{/files/detail(path=${detail.path()}, comicPage=${comicManifest.pageCount()})}"
+                   title="Last page" aria-label="Last page">
+                    <i class="fas fa-angles-right" aria-hidden="true"></i>
+                </a>
+                <button class="ghost icon-button action-icon js-only" type="button"
+                        data-comic-fullscreen
+                        title="Toggle fullscreen viewer" aria-label="Toggle fullscreen viewer">
+                    <i class="fas fa-expand" aria-hidden="true"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="comic-stage" th:if="${not comicManifest.empty()}">
+            <img class="comic-page-image"
+                 th:src="@{/files/detail/comic/page(path=${detail.path()}, page=${comicPageIndex})}"
+                 th:alt="|${detail.name()} page ${comicPageNumber}|"
+                 data-comic-image>
+        </div>
+
+        <aside class="comic-metadata" th:if="${comicManifest.metadata().present()}">
+            <h3>info.txt</h3>
+            <dl class="details compact-details" th:if="${comicManifest.metadata().hasEntries()}">
+                <div th:each="entry : ${comicManifest.metadata().entries()}">
+                    <dt th:text="${entry.name()}">title</dt>
+                    <dd th:text="${entry.value()}">value</dd>
+                </div>
+            </dl>
+            <p class="muted" th:if="${comicManifest.metadata().truncated()}">info.txt was truncated for preview.</p>
+            <details class="comic-raw-metadata">
+                <summary>Raw metadata</summary>
+                <pre th:text="${comicManifest.metadata().rawText()}">metadata</pre>
+            </details>
+        </aside>
+    </div>
+</th:block>
+</body>
+</html>

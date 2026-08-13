@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.task.TaskCanceledException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -445,5 +447,141 @@ class StorageServiceTest {
 
         assertThat(root.resolve("a.txt")).doesNotExist();
         assertThat(root.resolve("dir")).doesNotExist();
+    }
+
+    @Test
+    void commitsArchiveTopLevelEntriesDirectlyIntoDestination() throws Exception {
+        Files.createDirectories(root.resolve("target"));
+        Path workspace = storageService.createArchiveExtractionWorkspace();
+        Path content = Files.createDirectory(workspace.resolve("content"));
+        Files.createDirectories(content.resolve("docs"));
+        Files.writeString(content.resolve("docs").resolve("guide.txt"), "guide");
+        Files.writeString(content.resolve("readme.txt"), "readme");
+
+        StorageBatchCommitResult result = storageService.commitArchiveContentsIntoVault(
+                content,
+                "target",
+                List.of(
+                        new StorageBatchEntry("docs", true),
+                        new StorageBatchEntry("readme.txt", false)
+                ),
+                ConflictPolicy.CANCEL,
+                StorageProgressListener.NOOP
+        );
+
+        assertThat(result.committedPaths()).containsExactly("target/docs", "target/readme.txt");
+        assertThat(root.resolve("target/docs/guide.txt")).hasContent("guide");
+        assertThat(root.resolve("target/readme.txt")).hasContent("readme");
+        assertThat(content).isEmptyDirectory();
+    }
+
+    @Test
+    void rejectsKnownDirectArchiveConflictDuringPreflight() throws Exception {
+        Files.writeString(root.resolve("readme.txt"), "existing");
+
+        assertThatThrownBy(() -> storageService.preflightArchiveExtraction(
+                "",
+                false,
+                "ignored",
+                List.of(new StorageBatchEntry("readme.txt", false)),
+                ConflictPolicy.CANCEL
+        )).isInstanceOf(FileAlreadyExistsException.class);
+
+        assertThat(root.resolve("readme.txt")).hasContent("existing");
+    }
+
+    @Test
+    void directArchiveRenamePolicyReservesEveryPlannedTarget() throws Exception {
+        Files.writeString(root.resolve("report.txt"), "existing");
+        Path workspace = storageService.createArchiveExtractionWorkspace();
+        Path content = Files.createDirectory(workspace.resolve("content"));
+        Files.writeString(content.resolve("report.txt"), "first");
+        Files.writeString(content.resolve("report - 1.txt"), "second");
+
+        StorageBatchCommitResult result = storageService.commitArchiveContentsIntoVault(
+                content,
+                "",
+                List.of(
+                        new StorageBatchEntry("report.txt", false),
+                        new StorageBatchEntry("report - 1.txt", false)
+                ),
+                ConflictPolicy.RENAME,
+                StorageProgressListener.NOOP
+        );
+
+        assertThat(result.committedPaths()).containsExactly("report - 1.txt", "report - 1 - 1.txt");
+        assertThat(root.resolve("report.txt")).hasContent("existing");
+        assertThat(root.resolve("report - 1.txt")).hasContent("first");
+        assertThat(root.resolve("report - 1 - 1.txt")).hasContent("second");
+    }
+
+    @Test
+    void directArchiveCommitRollsBackAlreadyMovedEntriesWhenCanceled() throws Exception {
+        Path workspace = storageService.createArchiveExtractionWorkspace();
+        Path content = Files.createDirectory(workspace.resolve("content"));
+        Files.writeString(content.resolve("a.txt"), "a");
+        Files.writeString(content.resolve("b.txt"), "b");
+        StorageProgressListener cancelBeforeSecondMove = new StorageProgressListener() {
+            @Override
+            public void checkCanceled() {
+                if (Files.exists(root.resolve("a.txt"))) {
+                    throw new TaskCanceledException();
+                }
+            }
+        };
+
+        assertThatThrownBy(() -> storageService.commitArchiveContentsIntoVault(
+                content,
+                "",
+                List.of(
+                        new StorageBatchEntry("a.txt", false),
+                        new StorageBatchEntry("b.txt", false)
+                ),
+                ConflictPolicy.CANCEL,
+                cancelBeforeSecondMove
+        )).isInstanceOf(TaskCanceledException.class);
+
+        assertThat(content.resolve("a.txt")).hasContent("a");
+        assertThat(content.resolve("b.txt")).hasContent("b");
+        assertThat(root.resolve("a.txt")).doesNotExist();
+        assertThat(root.resolve("b.txt")).doesNotExist();
+    }
+
+    @Test
+    void directArchiveCommitLeavesChangedTargetAndReportsPartialFailure() throws Exception {
+        Path workspace = storageService.createArchiveExtractionWorkspace();
+        Path content = Files.createDirectory(workspace.resolve("content"));
+        Files.writeString(content.resolve("a.txt"), "a");
+        Files.writeString(content.resolve("b.txt"), "b");
+        StorageProgressListener mutateBeforeSecondMove = new StorageProgressListener() {
+            @Override
+            public void checkCanceled() {
+                if (Files.exists(root.resolve("a.txt"))) {
+                    try {
+                        Files.writeString(root.resolve("a.txt"), "changed after commit");
+                    } catch (java.io.IOException ex) {
+                        throw new IllegalStateException(ex);
+                    }
+                    throw new TaskCanceledException();
+                }
+            }
+        };
+
+        assertThatThrownBy(() -> storageService.commitArchiveContentsIntoVault(
+                content,
+                "",
+                List.of(
+                        new StorageBatchEntry("a.txt", false),
+                        new StorageBatchEntry("b.txt", false)
+                ),
+                ConflictPolicy.CANCEL,
+                mutateBeforeSecondMove
+        )).isInstanceOfSatisfying(PartialStorageCommitException.class, failure ->
+                assertThat(failure.remainingVaultPaths()).containsExactly("a.txt")
+        );
+
+        assertThat(root.resolve("a.txt")).hasContent("changed after commit");
+        assertThat(content.resolve("a.txt")).doesNotExist();
+        assertThat(content.resolve("b.txt")).hasContent("b");
     }
 }

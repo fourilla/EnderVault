@@ -1,5 +1,6 @@
 package io.github.fourilla.endervault.filetool;
 
+import io.github.fourilla.endervault.filetool.strategy.ArchiveFileToolStrategy;
 import io.github.fourilla.endervault.filetool.strategy.ComicFileToolStrategy;
 import io.github.fourilla.endervault.filetool.strategy.DirectoryFileToolStrategy;
 import io.github.fourilla.endervault.filetool.strategy.HexFileToolStrategy;
@@ -41,6 +42,7 @@ public class FileToolRegistry {
                 new DirectoryFileToolStrategy(),
                 new TextFileToolStrategy(),
                 new ComicFileToolStrategy(),
+                new ArchiveFileToolStrategy(),
                 new ImageFileToolStrategy(),
                 new VideoFileToolStrategy(),
                 new PdfFileToolStrategy(),

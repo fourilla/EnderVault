@@ -1068,6 +1068,26 @@ public class NasProperties {
         @Min(1024)
         private long comicInfoMaxBytes = 65536L;
 
+        @Min(1)
+        @Max(1000000)
+        private int archiveMaxEntries = 50000;
+
+        @Min(1024)
+        private long archiveEntryMaxBytes = 21474836480L;
+
+        @Min(1024)
+        private long archiveTotalMaxBytes = 107374182400L;
+
+        @Min(1)
+        private int archiveMaxCompressionRatio = 1000;
+
+        @Min(1024)
+        private int archiveMaxMemoryKiB = 262144;
+
+        @Min(1)
+        @Max(512)
+        private int archiveManifestCacheEntries = 32;
+
         public long getTextAutoLoadMaxBytes() {
             return textAutoLoadMaxBytes;
         }
@@ -1130,6 +1150,54 @@ public class NasProperties {
 
         public void setComicInfoMaxBytes(long comicInfoMaxBytes) {
             this.comicInfoMaxBytes = comicInfoMaxBytes;
+        }
+
+        public int getArchiveMaxEntries() {
+            return archiveMaxEntries;
+        }
+
+        public void setArchiveMaxEntries(int archiveMaxEntries) {
+            this.archiveMaxEntries = archiveMaxEntries;
+        }
+
+        public long getArchiveEntryMaxBytes() {
+            return archiveEntryMaxBytes;
+        }
+
+        public void setArchiveEntryMaxBytes(long archiveEntryMaxBytes) {
+            this.archiveEntryMaxBytes = archiveEntryMaxBytes;
+        }
+
+        public long getArchiveTotalMaxBytes() {
+            return archiveTotalMaxBytes;
+        }
+
+        public void setArchiveTotalMaxBytes(long archiveTotalMaxBytes) {
+            this.archiveTotalMaxBytes = archiveTotalMaxBytes;
+        }
+
+        public int getArchiveMaxCompressionRatio() {
+            return archiveMaxCompressionRatio;
+        }
+
+        public void setArchiveMaxCompressionRatio(int archiveMaxCompressionRatio) {
+            this.archiveMaxCompressionRatio = archiveMaxCompressionRatio;
+        }
+
+        public int getArchiveMaxMemoryKiB() {
+            return archiveMaxMemoryKiB;
+        }
+
+        public void setArchiveMaxMemoryKiB(int archiveMaxMemoryKiB) {
+            this.archiveMaxMemoryKiB = archiveMaxMemoryKiB;
+        }
+
+        public int getArchiveManifestCacheEntries() {
+            return archiveManifestCacheEntries;
+        }
+
+        public void setArchiveManifestCacheEntries(int archiveManifestCacheEntries) {
+            this.archiveManifestCacheEntries = archiveManifestCacheEntries;
         }
 
         @Deprecated

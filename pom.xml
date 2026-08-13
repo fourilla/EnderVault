@@ -27,6 +27,10 @@
         <mermaid.version>11.15.0</mermaid.version>
         <mathjax.version>4.1.1</mathjax.version>
         <mathjax-font.version>4.1.1</mathjax-font.version>
+        <commons-compress.version>1.28.0</commons-compress.version>
+        <commons-codec.version>1.19.0</commons-codec.version>
+        <commons-lang3.version>3.18.0</commons-lang3.version>
+        <xz.version>1.12</xz.version>
     </properties>
 
     <dependencies>
@@ -116,6 +120,16 @@
                     <artifactId>commons-logging</artifactId>
                 </exclusion>
             </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-compress</artifactId>
+            <version>${commons-compress.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.tukaani</groupId>
+            <artifactId>xz</artifactId>
+            <version>${xz.version}</version>
         </dependency>
         <dependency>
             <groupId>com.yubico</groupId>
