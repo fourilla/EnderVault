@@ -9,6 +9,7 @@ public enum TaskType {
     BOOKMARK_BULK_CREATE("Bookmark bulk add", "fas fa-list-ul"),
     REMOTE_DOWNLOAD("Remote download", "fas fa-cloud-arrow-down"),
     THUMBNAIL("Thumbnail", "fas fa-image"),
+    ARCHIVE_CREATE("ZIP creation", "fas fa-file-zipper"),
     ARCHIVE_EXTRACT("Archive extraction", "fas fa-box-open"),
     METADATA_INSPECTION("Metadata inspection", "fas fa-magnifying-glass-chart");
 

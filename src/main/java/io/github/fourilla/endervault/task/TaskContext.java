@@ -28,6 +28,10 @@ public class TaskContext {
         task.setMessage(message);
     }
 
+    public void targetPath(String targetPath) {
+        task.setTargetPath(targetPath);
+    }
+
     public boolean canceled() {
         return task.cancelRequested() || Thread.currentThread().isInterrupted();
     }

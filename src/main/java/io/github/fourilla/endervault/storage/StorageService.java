@@ -485,7 +485,11 @@ public class StorageService {
     }
 
     public Path createArchiveExtractionWorkspace() throws IOException {
-        return archiveStagingCommitter.createWorkspace();
+        return archiveStagingCommitter.createWorkspace("extract-");
+    }
+
+    public Path createArchiveCreationWorkspace() throws IOException {
+        return archiveStagingCommitter.createWorkspace("create-");
     }
 
     public FileItem commitTemporaryDirectoryIntoVault(
@@ -536,6 +540,19 @@ public class StorageService {
 
     public void deleteArchiveExtractionWorkspace(Path workspace) throws IOException {
         archiveStagingCommitter.deleteWorkspace(workspace);
+    }
+
+    public void deleteArchiveCreationWorkspace(Path workspace) throws IOException {
+        archiveStagingCommitter.deleteWorkspace(workspace);
+    }
+
+    public void preflightVaultFileCommit(
+            String directoryPath,
+            String filename,
+            ConflictPolicy conflictPolicy
+    ) throws IOException {
+        Path target = pathResolver.resolveChild(StorageScope.VAULT, directoryPath, filename, false);
+        conflictResolver.resolve(target, false, conflictPolicy);
     }
 
     public void validateVaultEntryName(String name) {
@@ -641,7 +658,17 @@ public class StorageService {
 
     public void writeZip(StorageScope scope, String directoryPath, List<String> itemNames, OutputStream outputStream)
             throws IOException {
-        try (StorageZipWriter.EntryWriter zip = zipWriter.open(outputStream)) {
+        writeZip(scope, directoryPath, itemNames, outputStream, StorageProgressListener.NOOP);
+    }
+
+    public void writeZip(
+            StorageScope scope,
+            String directoryPath,
+            List<String> itemNames,
+            OutputStream outputStream,
+            StorageProgressListener progressListener
+    ) throws IOException {
+        try (StorageZipWriter.EntryWriter zip = zipWriter.open(outputStream, progressListener)) {
             for (String itemName : itemNames) {
                 Path item = pathResolver.resolveChild(scope, directoryPath, itemName, true);
                 zip.write(item, item.getFileName().toString());

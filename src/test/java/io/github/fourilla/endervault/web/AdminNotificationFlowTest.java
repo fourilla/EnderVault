@@ -171,6 +171,43 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void filesPageRendersSharedZipCreationDialogAndScript() throws Exception {
+        mockMvc.perform(get("/files"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("id=\"compressSelectedButton\"")))
+                .andExpect(content().string(Matchers.containsString("id=\"archiveCreationDialog\"")))
+                .andExpect(content().string(Matchers.containsString("action=\"/files/archive/create\"")))
+                .andExpect(content().string(Matchers.containsString("/js/archive-create.js")));
+    }
+
+    @Test
+    void selectedItemsCanBeQueuedAsStoredZipArchive() throws Exception {
+        String directory = "archive-create-" + System.nanoTime();
+        Path source = Files.createDirectories(ROOT.resolve(directory));
+        Files.writeString(source.resolve("note.txt"), "archive me", StandardCharsets.UTF_8);
+
+        mockMvc.perform(post("/files/archive/create")
+                        .with(csrf())
+                        .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
+                        .header("X-Requested-With", "fetch")
+                        .param("path", directory)
+                        .param("items", "note.txt")
+                        .param("outputName", "saved")
+                        .param("conflictPolicy", "cancel"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.task.type").value("ARCHIVE_CREATE"))
+                .andExpect(jsonPath("$.redirectUrl").value("/files?path=" + directory));
+
+        Path archive = source.resolve("saved.zip");
+        long deadline = System.currentTimeMillis() + 5_000L;
+        while (!Files.exists(archive) && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20L);
+        }
+        assertThat(archive).exists().isNotEmptyFile();
+    }
+
+    @Test
     void selectedItemsCanBeMovedThroughTransferBuffer() throws Exception {
         String source = "transfer-source-" + System.nanoTime();
         String target = "transfer-target-" + System.nanoTime();

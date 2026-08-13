@@ -147,7 +147,7 @@ final class StorageTreeOperations {
 
     void rejectSymbolicLink(Path path) {
         if (Files.isSymbolicLink(path)) {
-            throw new StorageAccessException("Symbolic links cannot be copied.");
+            throw new StorageAccessException("Symbolic links are not supported by this storage operation.");
         }
     }
 

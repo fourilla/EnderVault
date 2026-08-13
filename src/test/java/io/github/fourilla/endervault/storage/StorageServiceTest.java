@@ -6,14 +6,21 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.task.TaskCanceledException;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -450,6 +457,70 @@ class StorageServiceTest {
     }
 
     @Test
+    void writesSelectedFilesAndDirectoriesToZipWithProgress() throws Exception {
+        Files.createDirectories(root.resolve("docs").resolve("empty"));
+        Files.writeString(root.resolve("docs").resolve("guide.txt"), "guide");
+        Files.writeString(root.resolve("root.txt"), "root");
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        AtomicLong processedBytes = new AtomicLong();
+        AtomicLong processedItems = new AtomicLong();
+
+        storageService.writeZip(
+                StorageScope.VAULT,
+                "",
+                List.of("docs", "root.txt"),
+                output,
+                new StorageProgressListener() {
+                    @Override
+                    public void onBytesProcessed(long bytes) {
+                        processedBytes.addAndGet(bytes);
+                    }
+
+                    @Override
+                    public void onItemProcessed() {
+                        processedItems.incrementAndGet();
+                    }
+                }
+        );
+
+        Map<String, String> entries = zipEntries(output.toByteArray());
+        assertThat(entries.keySet()).containsExactly(
+                "docs/",
+                "docs/empty/",
+                "docs/guide.txt",
+                "root.txt"
+        );
+        assertThat(entries.get("docs/guide.txt")).isEqualTo("guide");
+        assertThat(entries.get("root.txt")).isEqualTo("root");
+        assertThat(processedBytes).hasValue(9L);
+        assertThat(processedItems).hasValue(4L);
+    }
+
+    @Test
+    void zipWritingChecksCancellationWhileReadingFileContent() throws Exception {
+        Files.write(root.resolve("large.bin"), new byte[192 * 1024]);
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+
+        assertThatThrownBy(() -> storageService.writeZip(
+                StorageScope.VAULT,
+                "",
+                List.of("large.bin"),
+                output,
+                new StorageProgressListener() {
+                    private long processed;
+
+                    @Override
+                    public void onBytesProcessed(long bytes) {
+                        processed += bytes;
+                        if (processed >= 64 * 1024) {
+                            throw new TaskCanceledException();
+                        }
+                    }
+                }
+        )).isInstanceOf(TaskCanceledException.class);
+    }
+
+    @Test
     void commitsArchiveTopLevelEntriesDirectlyIntoDestination() throws Exception {
         Files.createDirectories(root.resolve("target"));
         Path workspace = storageService.createArchiveExtractionWorkspace();
@@ -583,5 +654,16 @@ class StorageServiceTest {
         assertThat(root.resolve("a.txt")).hasContent("changed after commit");
         assertThat(content.resolve("a.txt")).doesNotExist();
         assertThat(content.resolve("b.txt")).hasContent("b");
+    }
+
+    private Map<String, String> zipEntries(byte[] archive) throws Exception {
+        Map<String, String> entries = new LinkedHashMap<>();
+        try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(archive))) {
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                entries.put(entry.getName(), new String(zip.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
+            }
+        }
+        return entries;
     }
 }

@@ -44,9 +44,9 @@ final class ArchiveStagingCommitter {
         this.listingService = listingService;
     }
 
-    Path createWorkspace() throws IOException {
+    Path createWorkspace(String prefix) throws IOException {
         Files.createDirectories(archiveTempRoot);
-        return Files.createTempDirectory(archiveTempRoot, "extract-").toAbsolutePath().normalize();
+        return Files.createTempDirectory(archiveTempRoot, prefix).toAbsolutePath().normalize();
     }
 
     FileItem commitDirectory(
