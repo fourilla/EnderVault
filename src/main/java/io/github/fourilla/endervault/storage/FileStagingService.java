@@ -18,21 +18,21 @@ import java.util.List;
 import java.util.stream.Stream;
 import org.springframework.web.multipart.MultipartFile;
 
-final class UploadStagingService {
+final class FileStagingService {
 
     private static final DateTimeFormatter MODIFIED_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
-    private final Path uploadTempRoot;
+    private final Path fileStagingRoot;
     private final StoragePathResolver pathResolver;
     private final TemporaryArtifactRegistry temporaryArtifactRegistry;
 
-    UploadStagingService(
-            Path uploadTempRoot,
+    FileStagingService(
+            Path fileStagingRoot,
             StoragePathResolver pathResolver,
             TemporaryArtifactRegistry temporaryArtifactRegistry
     ) {
-        this.uploadTempRoot = uploadTempRoot;
+        this.fileStagingRoot = fileStagingRoot;
         this.pathResolver = pathResolver;
         this.temporaryArtifactRegistry = temporaryArtifactRegistry;
     }
@@ -42,8 +42,8 @@ final class UploadStagingService {
             return null;
         }
         String filename = safeSubmittedFilename(file);
-        Files.createDirectories(uploadTempRoot);
-        Path temporaryFile = Files.createTempFile(uploadTempRoot, "upload-", ".tmp");
+        Files.createDirectories(fileStagingRoot);
+        Path temporaryFile = Files.createTempFile(fileStagingRoot, "upload-", ".tmp");
         boolean staged = false;
         TemporaryArtifactRegistry.Registration registration = temporaryArtifactRegistry.register(
                 temporaryFile,
@@ -68,28 +68,28 @@ final class UploadStagingService {
     }
 
     Path createTemporaryFile(String prefix, String suffix) throws IOException {
-        Files.createDirectories(uploadTempRoot);
-        return Files.createTempFile(uploadTempRoot, prefix, suffix);
+        Files.createDirectories(fileStagingRoot);
+        return Files.createTempFile(fileStagingRoot, prefix, suffix);
     }
 
-    List<StorageService.TemporaryFileInfo> listTemporaryFiles() throws IOException {
-        Files.createDirectories(uploadTempRoot);
-        try (Stream<Path> stream = Files.list(uploadTempRoot)) {
+    List<StorageService.FileStagingInfo> listFiles() throws IOException {
+        Files.createDirectories(fileStagingRoot);
+        try (Stream<Path> stream = Files.list(fileStagingRoot)) {
             return stream
                     .filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))
                     .filter(path -> !Files.isSymbolicLink(path))
-                    .map(this::toTemporaryFileInfo)
-                    .sorted(Comparator.comparing(StorageService.TemporaryFileInfo::modifiedAt).reversed())
+                    .map(this::toFileStagingInfo)
+                    .sorted(Comparator.comparing(StorageService.FileStagingInfo::modifiedAt).reversed())
                     .toList();
         }
     }
 
-    void deleteTemporaryFile(String filename) throws IOException {
+    void deleteFile(String filename) throws IOException {
         pathResolver.validateSingleName(filename);
-        Path temporaryFile = uploadTempRoot.resolve(filename).normalize();
-        pathResolver.ensureInsideUploadTempRoot(temporaryFile);
+        Path temporaryFile = fileStagingRoot.resolve(filename).normalize();
+        pathResolver.ensureInsideFileStagingRoot(temporaryFile);
         if (temporaryArtifactRegistry.isActive(temporaryFile)) {
-            throw new StorageAccessException("Temporary file is still in use.");
+            throw new StorageAccessException("File staging artifact is still in use.");
         }
         if (Files.isRegularFile(temporaryFile, LinkOption.NOFOLLOW_LINKS)
                 && !Files.isSymbolicLink(temporaryFile)) {
@@ -97,14 +97,14 @@ final class UploadStagingService {
         }
     }
 
-    private StorageService.TemporaryFileInfo toTemporaryFileInfo(Path path) {
+    private StorageService.FileStagingInfo toFileStagingInfo(Path path) {
         try {
             long size = Files.size(path);
             Instant modified = Files.getLastModifiedTime(path).toInstant();
             String activeOperation = temporaryArtifactRegistry.find(path)
                     .map(artifact -> artifact.type().label())
                     .orElse(null);
-            return new StorageService.TemporaryFileInfo(
+            return new StorageService.FileStagingInfo(
                     path.getFileName().toString(),
                     size,
                     ByteSizeFormatter.humanSize(size),
@@ -114,7 +114,7 @@ final class UploadStagingService {
                     activeOperation
             );
         } catch (IOException ex) {
-            throw new StorageAccessException("Failed to read temporary upload metadata.", ex);
+            throw new StorageAccessException("Failed to read file staging metadata.", ex);
         }
     }
 

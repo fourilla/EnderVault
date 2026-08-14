@@ -378,6 +378,10 @@ public class BookmarkService {
         return faviconCacheService.orphanFiles(readAllMutable());
     }
 
+    public synchronized List<BookmarkFaviconTemporaryFile> temporaryFaviconCacheFiles() throws IOException {
+        return faviconCacheService.temporaryFiles();
+    }
+
     public synchronized void deleteFaviconCacheFile(String fileName) throws IOException {
         faviconCacheService.deleteOrphanFile(fileName, readAllMutable());
     }

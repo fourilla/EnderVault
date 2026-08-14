@@ -4,7 +4,9 @@ import io.github.fourilla.endervault.thumbnail.ThumbnailCacheFile;
 import io.github.fourilla.endervault.thumbnail.ThumbnailCacheScan;
 import io.github.fourilla.endervault.thumbnail.ThumbnailService;
 import io.github.fourilla.endervault.task.TaskContext;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactRetentionPolicy;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Component;
@@ -13,9 +15,14 @@ import org.springframework.stereotype.Component;
 public class ThumbnailMetadataInspector implements MetadataInspector {
 
     private final ThumbnailService thumbnailService;
+    private final TemporaryArtifactRetentionPolicy retentionPolicy;
 
-    public ThumbnailMetadataInspector(ThumbnailService thumbnailService) {
+    public ThumbnailMetadataInspector(
+            ThumbnailService thumbnailService,
+            TemporaryArtifactRetentionPolicy retentionPolicy
+    ) {
         this.thumbnailService = thumbnailService;
+        this.retentionPolicy = retentionPolicy;
     }
 
     @Override
@@ -30,6 +37,7 @@ public class ThumbnailMetadataInspector implements MetadataInspector {
 
     @Override
     public List<MetadataIssue> inspect(TaskContext context) throws IOException {
+        Instant now = Instant.now();
         ThumbnailCacheScan scan = thumbnailService.scanCache(context);
         List<MetadataIssue> issues = new ArrayList<>();
         for (ThumbnailCacheFile file : scan.orphanFiles()) {
@@ -50,14 +58,19 @@ public class ThumbnailMetadataInspector implements MetadataInspector {
             if (context != null) {
                 context.checkCanceled();
             }
+            boolean stale = retentionPolicy.isStale(file.modifiedAt(), now);
             issues.add(new MetadataIssue(
                     area(),
-                    MetadataIssueSeverity.INFO,
-                    MetadataIssueAction.DELETE_THUMBNAIL_CACHE,
+                    stale ? MetadataIssueSeverity.WARNING : MetadataIssueSeverity.INFO,
+                    stale ? MetadataIssueAction.DELETE_THUMBNAIL_CACHE : MetadataIssueAction.NONE,
                     file.relativePath(),
-                    "Thumbnail temporary file remains",
+                    stale
+                            ? "Stale thumbnail temporary file remains"
+                            : "Fresh thumbnail temporary file exists",
                     file.relativePath() + " (" + file.sizeLabel() + ", modified " + file.modifiedLabel() + ")",
-                    "Delete this leftover thumbnail temporary file."
+                    stale
+                            ? "Delete this disposable thumbnail temporary file."
+                            : "Review only. It may belong to a recent thumbnail operation."
             ));
         }
         return List.copyOf(issues);

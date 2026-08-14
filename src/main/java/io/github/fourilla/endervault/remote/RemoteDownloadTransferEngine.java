@@ -61,7 +61,7 @@ public class RemoteDownloadTransferEngine {
             RemoteDownloadTask task,
             RemoteDownloadRequestSpec requestSpec
     ) throws Exception {
-        Path temporaryFile = storageService.createUploadTemporaryFile("remote-download-", ".tmp");
+        Path temporaryFile = storageService.createFileStagingTemporaryFile("remote-download-", ".tmp");
         TemporaryArtifactRegistry.Registration registration = temporaryArtifactRegistry.register(
                 temporaryFile,
                 TemporaryArtifactType.REMOTE_DOWNLOAD,

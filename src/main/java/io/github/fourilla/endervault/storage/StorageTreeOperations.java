@@ -21,16 +21,16 @@ import java.util.stream.Stream;
 final class StorageTreeOperations {
 
     private final StoragePathResolver pathResolver;
-    private final UploadStagingService uploadStagingService;
+    private final FileStagingService fileStagingService;
     private final TemporaryArtifactRegistry temporaryArtifactRegistry;
 
     StorageTreeOperations(
             StoragePathResolver pathResolver,
-            UploadStagingService uploadStagingService,
+            FileStagingService fileStagingService,
             TemporaryArtifactRegistry temporaryArtifactRegistry
     ) {
         this.pathResolver = pathResolver;
-        this.uploadStagingService = uploadStagingService;
+        this.fileStagingService = fileStagingService;
         this.temporaryArtifactRegistry = temporaryArtifactRegistry;
     }
 
@@ -97,7 +97,7 @@ final class StorageTreeOperations {
             return;
         }
 
-        Path temporaryFile = uploadStagingService.createTemporaryFile("copy-overwrite-", ".tmp");
+        Path temporaryFile = fileStagingService.createTemporaryFile("copy-overwrite-", ".tmp");
         TemporaryArtifactRegistry.Registration registration = temporaryArtifactRegistry.register(
                 temporaryFile,
                 TemporaryArtifactType.FILE_COPY,

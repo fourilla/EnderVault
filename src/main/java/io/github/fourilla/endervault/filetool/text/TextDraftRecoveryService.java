@@ -61,7 +61,7 @@ public class TextDraftRecoveryService {
         }
         byte[] bytes = textFileService.validatedBytes(content);
         RecoveryDirectory recoveryDirectory = nearestExistingParent(originalPath);
-        Path temporaryFile = storageService.createUploadTemporaryFile("text-recovery-", ".tmp");
+        Path temporaryFile = storageService.createFileStagingTemporaryFile("text-recovery-", ".tmp");
         TemporaryArtifactRegistry.Registration registration = temporaryArtifactRegistry.register(
                 temporaryFile,
                 TemporaryArtifactType.TEXT_RECOVERY,

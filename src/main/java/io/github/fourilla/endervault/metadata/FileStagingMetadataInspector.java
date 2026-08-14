@@ -1,30 +1,32 @@
 package io.github.fourilla.endervault.metadata;
 
-import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.storage.StorageService;
-import io.github.fourilla.endervault.storage.StorageService.TemporaryFileInfo;
+import io.github.fourilla.endervault.storage.StorageService.FileStagingInfo;
 import io.github.fourilla.endervault.task.TaskContext;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactRetentionPolicy;
 import java.io.IOException;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Component;
 
 @Component
-public class UploadTempMetadataInspector implements MetadataInspector {
+public class FileStagingMetadataInspector implements MetadataInspector {
 
     private final StorageService storageService;
-    private final NasProperties.MetadataInspector metadataInspectorProperties;
+    private final TemporaryArtifactRetentionPolicy retentionPolicy;
 
-    public UploadTempMetadataInspector(StorageService storageService, NasProperties nasProperties) {
+    public FileStagingMetadataInspector(
+            StorageService storageService,
+            TemporaryArtifactRetentionPolicy retentionPolicy
+    ) {
         this.storageService = storageService;
-        this.metadataInspectorProperties = nasProperties.getMetadataInspector();
+        this.retentionPolicy = retentionPolicy;
     }
 
     @Override
     public MetadataArea area() {
-        return MetadataArea.UPLOAD_TEMP;
+        return MetadataArea.FILE_STAGING;
     }
 
     @Override
@@ -35,30 +37,28 @@ public class UploadTempMetadataInspector implements MetadataInspector {
     @Override
     public List<MetadataIssue> inspect(TaskContext context) throws IOException {
         Instant now = Instant.now();
-        Duration staleAfter = Duration.ofMinutes(Math.max(1, metadataInspectorProperties.getUploadTempStaleMinutes()));
         List<MetadataIssue> issues = new ArrayList<>();
-        for (TemporaryFileInfo file : storageService.listUploadTemporaryFiles()) {
+        for (FileStagingInfo file : storageService.listFileStagingFiles()) {
             if (context != null) {
                 context.checkCanceled();
             }
-            Duration age = Duration.between(file.modifiedAt(), now);
-            boolean stale = age.compareTo(staleAfter) >= 0;
+            boolean stale = retentionPolicy.isStale(file.modifiedAt(), now);
             boolean active = file.active();
             issues.add(new MetadataIssue(
                     area(),
                     stale && !active ? MetadataIssueSeverity.WARNING : MetadataIssueSeverity.INFO,
-                    stale && !active ? MetadataIssueAction.DELETE_UPLOAD_TEMP : MetadataIssueAction.NONE,
+                    stale && !active ? MetadataIssueAction.DELETE_FILE_STAGING : MetadataIssueAction.NONE,
                     file.name(),
                     active
-                            ? "Active temporary operation file"
+                            ? "Active file staging artifact"
                             : stale
-                                    ? "Stale temporary staging file remains"
-                                    : "Fresh temporary staging file exists",
+                                    ? "Stale file staging artifact remains"
+                                    : "Fresh file staging artifact exists",
                     file.name() + " (" + file.sizeLabel() + ", modified " + file.modifiedLabel() + ")",
                     active
                             ? "In use by " + file.activeOperation() + ". The inspector will not delete it."
                             : stale
-                                    ? "Delete this leftover temporary staging file."
+                                    ? "Delete this disposable staging artifact."
                                     : "Review only. It may belong to a recent operation."
             ));
         }
@@ -67,10 +67,10 @@ public class UploadTempMetadataInspector implements MetadataInspector {
 
     @Override
     public String repair(MetadataIssueAction action, String subject) throws IOException {
-        if (action != MetadataIssueAction.DELETE_UPLOAD_TEMP) {
-            throw new IllegalArgumentException("Unsupported upload temp repair action.");
+        if (action != MetadataIssueAction.DELETE_FILE_STAGING) {
+            throw new IllegalArgumentException("Unsupported file staging repair action.");
         }
-        storageService.deleteUploadTemporaryFile(subject);
-        return "Deleted upload temporary file: " + subject;
+        storageService.deleteFileStagingFile(subject);
+        return "Deleted file staging artifact: " + subject;
     }
 }

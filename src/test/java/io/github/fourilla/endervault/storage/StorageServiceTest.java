@@ -389,7 +389,7 @@ class StorageServiceTest {
         storageService.upload("", file);
 
         assertThat(Files.readString(root.resolve("clean.txt"))).isEqualTo("clean");
-        try (Stream<Path> temporaryFiles = Files.list(root.resolve(".endervault").resolve("uploads"))) {
+        try (Stream<Path> temporaryFiles = Files.list(root.resolve(".endervault").resolve("file-staging"))) {
             assertThat(temporaryFiles).isEmpty();
         }
     }

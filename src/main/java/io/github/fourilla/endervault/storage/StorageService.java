@@ -27,13 +27,13 @@ public class StorageService {
     private final Path root;
     private final Path trashRoot;
     private final Path metadataRoot;
-    private final Path uploadTempRoot;
+    private final Path fileStagingRoot;
     private final Path archiveTempRoot;
     private final String trashDirectoryName;
     private final String metadataDirectoryName;
     private final StoragePathResolver pathResolver;
     private final StorageZipWriter zipWriter;
-    private final UploadStagingService uploadStagingService;
+    private final FileStagingService fileStagingService;
     private final StorageListingService listingService;
     private final StorageConflictResolver conflictResolver;
     private final StorageTreeOperations treeOperations;
@@ -56,12 +56,12 @@ public class StorageService {
         this.metadataDirectoryName = validateConfiguredDirectory(storage.getMetadataDirectory());
         this.trashRoot = root.resolve(trashDirectoryName).normalize();
         this.metadataRoot = root.resolve(metadataDirectoryName).normalize();
-        this.uploadTempRoot = metadataRoot.resolve("uploads").normalize();
+        this.fileStagingRoot = metadataRoot.resolve("file-staging").normalize();
         this.archiveTempRoot = metadataRoot.resolve("archive-staging").normalize();
-        this.pathResolver = new StoragePathResolver(root, trashRoot, metadataRoot, uploadTempRoot);
+        this.pathResolver = new StoragePathResolver(root, trashRoot, metadataRoot, fileStagingRoot);
         this.zipWriter = new StorageZipWriter();
-        this.uploadStagingService = new UploadStagingService(
-                uploadTempRoot,
+        this.fileStagingService = new FileStagingService(
+                fileStagingRoot,
                 pathResolver,
                 temporaryArtifactRegistry
         );
@@ -69,7 +69,7 @@ public class StorageService {
         this.conflictResolver = new StorageConflictResolver(nasProperties, pathResolver);
         this.treeOperations = new StorageTreeOperations(
                 pathResolver,
-                uploadStagingService,
+                fileStagingService,
                 temporaryArtifactRegistry
         );
         this.archiveStagingCommitter = new ArchiveStagingCommitter(
@@ -78,7 +78,8 @@ public class StorageService {
                 pathResolver,
                 conflictResolver,
                 treeOperations,
-                listingService
+                listingService,
+                temporaryArtifactRegistry
         );
         this.shareProperties = nasProperties.getShare();
     }
@@ -88,7 +89,7 @@ public class StorageService {
         Files.createDirectories(root);
         createSystemDirectory(trashRoot, "Trash");
         createSystemDirectory(metadataRoot, "Metadata");
-        createSystemDirectory(uploadTempRoot, "Upload temporary");
+        createSystemDirectory(fileStagingRoot, "File staging");
         createSystemDirectory(archiveTempRoot, "Archive temporary");
     }
 
@@ -446,19 +447,19 @@ public class StorageService {
     }
 
     public StagedUpload stageUpload(MultipartFile file) throws IOException {
-        return uploadStagingService.stageUpload(file);
+        return fileStagingService.stageUpload(file);
     }
 
-    public Path createUploadTemporaryFile(String prefix, String suffix) throws IOException {
-        return uploadStagingService.createTemporaryFile(prefix, suffix);
+    public Path createFileStagingTemporaryFile(String prefix, String suffix) throws IOException {
+        return fileStagingService.createTemporaryFile(prefix, suffix);
     }
 
-    public List<TemporaryFileInfo> listUploadTemporaryFiles() throws IOException {
-        return uploadStagingService.listTemporaryFiles();
+    public List<FileStagingInfo> listFileStagingFiles() throws IOException {
+        return fileStagingService.listFiles();
     }
 
-    public void deleteUploadTemporaryFile(String filename) throws IOException {
-        uploadStagingService.deleteTemporaryFile(filename);
+    public void deleteFileStagingFile(String filename) throws IOException {
+        fileStagingService.deleteFile(filename);
     }
 
     public FileItem moveTemporaryFileIntoVault(Path temporaryFile, String directoryPath, String filename)
@@ -557,6 +558,15 @@ public class StorageService {
 
     public void deleteArchiveCreationWorkspace(Path workspace) throws IOException {
         archiveStagingCommitter.deleteWorkspace(workspace);
+    }
+
+    public List<ArchiveStagingInfo> listArchiveStagingArtifacts(StorageProgressListener progressListener)
+            throws IOException {
+        return archiveStagingCommitter.listArtifacts(progressListener);
+    }
+
+    public void deleteArchiveStagingArtifact(String name) throws IOException {
+        archiveStagingCommitter.deleteArtifact(name);
     }
 
     public void preflightVaultFileCommit(
@@ -753,8 +763,20 @@ public class StorageService {
     public record CommittedVaultFile(String name, String path) {
     }
 
-    public record TemporaryFileInfo(
+    public record FileStagingInfo(
             String name,
+            long size,
+            String sizeLabel,
+            Instant modifiedAt,
+            String modifiedLabel,
+            boolean active,
+            String activeOperation
+    ) {
+    }
+
+    public record ArchiveStagingInfo(
+            String name,
+            String operation,
             long size,
             String sizeLabel,
             Instant modifiedAt,

@@ -43,13 +43,13 @@ final class StoragePathResolver {
     private final Path root;
     private final Path trashRoot;
     private final Path metadataRoot;
-    private final Path uploadTempRoot;
+    private final Path fileStagingRoot;
 
-    StoragePathResolver(Path root, Path trashRoot, Path metadataRoot, Path uploadTempRoot) {
+    StoragePathResolver(Path root, Path trashRoot, Path metadataRoot, Path fileStagingRoot) {
         this.root = root;
         this.trashRoot = trashRoot;
         this.metadataRoot = metadataRoot;
-        this.uploadTempRoot = uploadTempRoot;
+        this.fileStagingRoot = fileStagingRoot;
     }
 
     Path resolveDirectory(StorageScope scope, String requestedPath) throws IOException {
@@ -208,9 +208,9 @@ final class StoragePathResolver {
         }
     }
 
-    void ensureInsideUploadTempRoot(Path candidate) {
-        if (!candidate.normalize().startsWith(uploadTempRoot)) {
-            throw new StorageAccessException("Path is outside upload temporary storage.");
+    void ensureInsideFileStagingRoot(Path candidate) {
+        if (!candidate.normalize().startsWith(fileStagingRoot)) {
+            throw new StorageAccessException("Path is outside file staging storage.");
         }
     }
 

@@ -73,6 +73,9 @@ public class NasProperties {
     private Upload upload = new Upload();
 
     @Valid
+    private TemporaryArtifacts temporaryArtifacts = new TemporaryArtifacts();
+
+    @Valid
     private ActivityLog activityLog = new ActivityLog();
 
     @Valid
@@ -223,6 +226,14 @@ public class NasProperties {
 
     public void setUpload(Upload upload) {
         this.upload = upload;
+    }
+
+    public TemporaryArtifacts getTemporaryArtifacts() {
+        return temporaryArtifacts;
+    }
+
+    public void setTemporaryArtifacts(TemporaryArtifacts temporaryArtifacts) {
+        this.temporaryArtifacts = temporaryArtifacts;
     }
 
     public ActivityLog getActivityLog() {
@@ -1332,30 +1343,30 @@ public class NasProperties {
 
     public static class Upload {
         @Min(1)
-        private int tempRetentionMinutes = 30;
+        private int conflictRetentionMinutes = 30;
 
         @Min(60000)
-        private long tempCleanupIntervalMs = 600000L;
+        private long conflictCleanupIntervalMs = 600000L;
 
         @Min(0)
         private int maxFilesPerRequest = 0;
 
         private boolean directoryUploadEnabled = false;
 
-        public int getTempRetentionMinutes() {
-            return tempRetentionMinutes;
+        public int getConflictRetentionMinutes() {
+            return conflictRetentionMinutes;
         }
 
-        public void setTempRetentionMinutes(int tempRetentionMinutes) {
-            this.tempRetentionMinutes = tempRetentionMinutes;
+        public void setConflictRetentionMinutes(int conflictRetentionMinutes) {
+            this.conflictRetentionMinutes = conflictRetentionMinutes;
         }
 
-        public long getTempCleanupIntervalMs() {
-            return tempCleanupIntervalMs;
+        public long getConflictCleanupIntervalMs() {
+            return conflictCleanupIntervalMs;
         }
 
-        public void setTempCleanupIntervalMs(long tempCleanupIntervalMs) {
-            this.tempCleanupIntervalMs = tempCleanupIntervalMs;
+        public void setConflictCleanupIntervalMs(long conflictCleanupIntervalMs) {
+            this.conflictCleanupIntervalMs = conflictCleanupIntervalMs;
         }
 
         public int getMaxFilesPerRequest() {
@@ -1372,6 +1383,19 @@ public class NasProperties {
 
         public void setDirectoryUploadEnabled(boolean directoryUploadEnabled) {
             this.directoryUploadEnabled = directoryUploadEnabled;
+        }
+    }
+
+    public static class TemporaryArtifacts {
+        @Min(1)
+        private int staleAfterMinutes = 30;
+
+        public int getStaleAfterMinutes() {
+            return staleAfterMinutes;
+        }
+
+        public void setStaleAfterMinutes(int staleAfterMinutes) {
+            this.staleAfterMinutes = staleAfterMinutes;
         }
     }
 
@@ -1503,9 +1527,6 @@ public class NasProperties {
     public static class MetadataInspector {
         private boolean enabled = true;
 
-        @Min(1)
-        private int uploadTempStaleMinutes = 30;
-
         @Min(0)
         private int maxIssuesPerArea = 5000;
 
@@ -1515,14 +1536,6 @@ public class NasProperties {
 
         public void setEnabled(boolean enabled) {
             this.enabled = enabled;
-        }
-
-        public int getUploadTempStaleMinutes() {
-            return uploadTempStaleMinutes;
-        }
-
-        public void setUploadTempStaleMinutes(int uploadTempStaleMinutes) {
-            this.uploadTempStaleMinutes = uploadTempStaleMinutes;
         }
 
         public int getMaxIssuesPerArea() {

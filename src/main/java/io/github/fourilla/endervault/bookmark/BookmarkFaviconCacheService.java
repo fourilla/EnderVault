@@ -112,10 +112,33 @@ final class BookmarkFaviconCacheService {
         return orphanFiles.stream().sorted().toList();
     }
 
+    List<BookmarkFaviconTemporaryFile> temporaryFiles() throws IOException {
+        if (!Files.isDirectory(faviconRoot, LinkOption.NOFOLLOW_LINKS)) {
+            return List.of();
+        }
+        try (var paths = Files.list(faviconRoot)) {
+            return paths
+                    .filter(candidate -> Files.isRegularFile(candidate, LinkOption.NOFOLLOW_LINKS))
+                    .filter(candidate -> !Files.isSymbolicLink(candidate))
+                    .filter(candidate -> candidate.getFileName().toString().endsWith(".tmp"))
+                    .map(this::toTemporaryFile)
+                    .sorted()
+                    .toList();
+        }
+    }
+
     void deleteOrphanFile(String fileName, List<BookmarkItem> bookmarks) throws IOException {
         String normalizedFileName = requireFaviconFileName(fileName);
         if (referencedFaviconFileNames(bookmarks).contains(normalizedFileName)) {
             throw new StorageAccessException("Bookmark favicon cache is still referenced.");
+        }
+
+        Path target = faviconRoot.resolve(normalizedFileName).normalize();
+        if (!target.startsWith(faviconRoot)) {
+            throw new StorageAccessException("Bookmark favicon cache path is invalid.");
+        }
+        if (temporaryArtifactRegistry.isActive(target)) {
+            throw new StorageAccessException("Bookmark favicon temporary file is still in use.");
         }
 
         List<BookmarkFaviconCacheEntry> entries = new ArrayList<>(registry.read());
@@ -124,10 +147,6 @@ final class BookmarkFaviconCacheService {
             registry.write(List.copyOf(entries));
         }
 
-        Path target = faviconRoot.resolve(normalizedFileName).normalize();
-        if (!target.startsWith(faviconRoot)) {
-            throw new StorageAccessException("Bookmark favicon cache path is invalid.");
-        }
         Files.deleteIfExists(target);
     }
 
@@ -224,6 +243,27 @@ final class BookmarkFaviconCacheService {
             );
         } catch (IOException ex) {
             throw new StorageAccessException("Failed to read bookmark favicon cache metadata.", ex);
+        }
+    }
+
+    private BookmarkFaviconTemporaryFile toTemporaryFile(Path path) {
+        try {
+            long size = Files.size(path);
+            Instant modified = Files.getLastModifiedTime(path).toInstant();
+            String activeOperation = temporaryArtifactRegistry.find(path)
+                    .map(artifact -> artifact.type().label())
+                    .orElse(null);
+            return new BookmarkFaviconTemporaryFile(
+                    path.getFileName().toString(),
+                    size,
+                    ByteSizeFormatter.humanSize(size),
+                    modified,
+                    MODIFIED_FORMATTER.format(modified),
+                    activeOperation != null,
+                    activeOperation
+            );
+        } catch (IOException ex) {
+            throw new StorageAccessException("Failed to read bookmark favicon temporary metadata.", ex);
         }
     }
 

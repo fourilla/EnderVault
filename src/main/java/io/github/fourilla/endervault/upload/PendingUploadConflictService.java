@@ -85,7 +85,7 @@ public class PendingUploadConflictService {
         }
     }
 
-    @Scheduled(fixedDelayString = "${nas.upload.temp-cleanup-interval-ms:600000}")
+    @Scheduled(fixedDelayString = "${nas.upload.conflict-cleanup-interval-ms:600000}")
     public void cleanupExpiredConflicts() {
         try {
             cleanupExpired();
@@ -112,7 +112,7 @@ public class PendingUploadConflictService {
 
     private void cleanupExpired() throws IOException {
         Instant now = Instant.now();
-        Duration expiration = Duration.ofMinutes(Math.max(1, uploadProperties.getTempRetentionMinutes()));
+        Duration expiration = Duration.ofMinutes(Math.max(1, uploadProperties.getConflictRetentionMinutes()));
         for (PendingUploadConflict conflict : new ArrayList<>(conflicts.values())) {
             if (conflict.expired(now, expiration) && conflicts.remove(conflict.id(), conflict)) {
                 try {

@@ -1,6 +1,8 @@
 package io.github.fourilla.endervault.storage;
 
+import io.github.fourilla.endervault.common.ByteSizeFormatter;
 import io.github.fourilla.endervault.common.StorageAccessException;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -8,8 +10,12 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,12 +26,16 @@ import java.util.stream.Stream;
 
 final class ArchiveStagingCommitter {
 
+    private static final DateTimeFormatter MODIFIED_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
+
     private final Path root;
     private final Path archiveTempRoot;
     private final StoragePathResolver pathResolver;
     private final StorageConflictResolver conflictResolver;
     private final StorageTreeOperations treeOperations;
     private final StorageListingService listingService;
+    private final TemporaryArtifactRegistry temporaryArtifactRegistry;
     private final Object commitMonitor = new Object();
 
     ArchiveStagingCommitter(
@@ -34,7 +44,8 @@ final class ArchiveStagingCommitter {
             StoragePathResolver pathResolver,
             StorageConflictResolver conflictResolver,
             StorageTreeOperations treeOperations,
-            StorageListingService listingService
+            StorageListingService listingService,
+            TemporaryArtifactRegistry temporaryArtifactRegistry
     ) {
         this.root = root;
         this.archiveTempRoot = archiveTempRoot;
@@ -42,6 +53,7 @@ final class ArchiveStagingCommitter {
         this.conflictResolver = conflictResolver;
         this.treeOperations = treeOperations;
         this.listingService = listingService;
+        this.temporaryArtifactRegistry = temporaryArtifactRegistry;
     }
 
     Path createWorkspace(String prefix) throws IOException {
@@ -130,6 +142,91 @@ final class ArchiveStagingCommitter {
         if (Files.exists(safeWorkspace, LinkOption.NOFOLLOW_LINKS)) {
             treeOperations.deleteRecursively(safeWorkspace);
         }
+    }
+
+    List<StorageService.ArchiveStagingInfo> listArtifacts(StorageProgressListener progressListener)
+            throws IOException {
+        StorageProgressListener progress = progressListener == null
+                ? StorageProgressListener.NOOP
+                : progressListener;
+        Files.createDirectories(archiveTempRoot);
+        List<Path> children;
+        try (Stream<Path> stream = Files.list(archiveTempRoot)) {
+            children = stream.toList();
+        }
+        List<StorageService.ArchiveStagingInfo> artifacts = new ArrayList<>(children.size());
+        for (Path child : children) {
+            progress.checkCanceled();
+            artifacts.add(toArchiveStagingInfo(child, progress));
+        }
+        return artifacts.stream()
+                .sorted(java.util.Comparator.comparing(StorageService.ArchiveStagingInfo::modifiedAt).reversed())
+                .toList();
+    }
+
+    void deleteArtifact(String name) throws IOException {
+        pathResolver.validateSingleName(name);
+        Path target = requireTemporaryPath(archiveTempRoot.resolve(name));
+        if (temporaryArtifactRegistry.isActive(target)) {
+            throw new StorageAccessException("Archive staging workspace is still in use.");
+        }
+        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
+            treeOperations.deleteRecursively(target);
+        }
+    }
+
+    private StorageService.ArchiveStagingInfo toArchiveStagingInfo(
+            Path artifact,
+            StorageProgressListener progress
+    ) throws IOException {
+        long size = 0L;
+        Instant modifiedAt = Files.getLastModifiedTime(artifact, LinkOption.NOFOLLOW_LINKS).toInstant();
+        if (!Files.isSymbolicLink(artifact)) {
+            try (Stream<Path> paths = Files.walk(artifact)) {
+                Iterator<Path> iterator = paths.iterator();
+                while (iterator.hasNext()) {
+                    Path path = iterator.next();
+                    progress.checkCanceled();
+                    BasicFileAttributes attributes = Files.readAttributes(
+                            path,
+                            BasicFileAttributes.class,
+                            LinkOption.NOFOLLOW_LINKS
+                    );
+                    if (attributes.isRegularFile()) {
+                        size = attributes.size() > Long.MAX_VALUE - size
+                                ? Long.MAX_VALUE
+                                : size + attributes.size();
+                    }
+                    if (attributes.lastModifiedTime().toInstant().isAfter(modifiedAt)) {
+                        modifiedAt = attributes.lastModifiedTime().toInstant();
+                    }
+                }
+            }
+        }
+        String activeOperation = temporaryArtifactRegistry.find(artifact)
+                .map(active -> active.type().label())
+                .orElse(null);
+        String name = artifact.getFileName().toString();
+        return new StorageService.ArchiveStagingInfo(
+                name,
+                archiveOperation(name),
+                size,
+                ByteSizeFormatter.humanSize(size),
+                modifiedAt,
+                MODIFIED_FORMATTER.format(modifiedAt),
+                activeOperation != null,
+                activeOperation
+        );
+    }
+
+    private String archiveOperation(String name) {
+        if (name.startsWith("create-")) {
+            return "Archive creation";
+        }
+        if (name.startsWith("extract-")) {
+            return "Archive extraction";
+        }
+        return "Unknown archive operation";
     }
 
     private List<PlannedBatchEntry> planBatchTargets(
