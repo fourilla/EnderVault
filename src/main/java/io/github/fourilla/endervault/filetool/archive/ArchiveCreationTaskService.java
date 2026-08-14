@@ -15,6 +15,8 @@ import io.github.fourilla.endervault.task.TaskContext;
 import io.github.fourilla.endervault.task.TaskManagerService;
 import io.github.fourilla.endervault.task.TaskOutcome;
 import io.github.fourilla.endervault.task.TaskType;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactType;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -39,17 +41,20 @@ public class ArchiveCreationTaskService {
     private final TaskManagerService taskManagerService;
     private final ActivityLogService activityLogService;
     private final ClientIpResolver clientIpResolver;
+    private final TemporaryArtifactRegistry temporaryArtifactRegistry;
 
     public ArchiveCreationTaskService(
             StorageService storageService,
             TaskManagerService taskManagerService,
             ActivityLogService activityLogService,
-            ClientIpResolver clientIpResolver
+            ClientIpResolver clientIpResolver,
+            TemporaryArtifactRegistry temporaryArtifactRegistry
     ) {
         this.storageService = storageService;
         this.taskManagerService = taskManagerService;
         this.activityLogService = activityLogService;
         this.clientIpResolver = clientIpResolver;
+        this.temporaryArtifactRegistry = temporaryArtifactRegistry;
     }
 
     public AppTask queue(
@@ -113,6 +118,7 @@ public class ArchiveCreationTaskService {
             TaskContext context
     ) throws IOException {
         Path workspace = null;
+        TemporaryArtifactRegistry.Registration registration = null;
         try {
             context.message("Scanning selected items.");
             StorageOperationSummary summary = storageService.summarizeVaultPaths(sourcePaths);
@@ -121,6 +127,11 @@ public class ArchiveCreationTaskService {
             context.checkCanceled();
 
             workspace = storageService.createArchiveCreationWorkspace();
+            registration = temporaryArtifactRegistry.register(
+                    workspace,
+                    TemporaryArtifactType.ARCHIVE_CREATION,
+                    context.taskId()
+            );
             Path temporaryArchive = workspace.resolve("archive.zip");
             context.message("Compressing selected items.");
             try (OutputStream outputStream = Files.newOutputStream(
@@ -175,6 +186,7 @@ public class ArchiveCreationTaskService {
             throw ex;
         } finally {
             cleanup(workspace);
+            close(registration);
         }
     }
 
@@ -287,6 +299,12 @@ public class ArchiveCreationTaskService {
             storageService.deleteArchiveCreationWorkspace(workspace);
         } catch (IOException | RuntimeException ex) {
             logger.warn("Failed to remove archive creation workspace {}.", workspace.getFileName());
+        }
+    }
+
+    private void close(TemporaryArtifactRegistry.Registration registration) {
+        if (registration != null) {
+            registration.close();
         }
     }
 

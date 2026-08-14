@@ -3,6 +3,7 @@ package io.github.fourilla.endervault.thumbnail;
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.task.TaskContext;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
@@ -45,8 +46,15 @@ final class ThumbnailCacheStore {
     private final Path videoPlaceholderFile;
     private final Path comicPlaceholderFile;
     private final Path pdfPlaceholderFile;
+    private final TemporaryArtifactRegistry temporaryArtifactRegistry;
 
-    ThumbnailCacheStore(Path vaultRoot, Path trashRoot, Path metadataRoot, String cacheDirectory) {
+    ThumbnailCacheStore(
+            Path vaultRoot,
+            Path trashRoot,
+            Path metadataRoot,
+            String cacheDirectory,
+            TemporaryArtifactRegistry temporaryArtifactRegistry
+    ) {
         this.vaultRoot = vaultRoot;
         this.trashRoot = trashRoot;
         this.metadataRoot = metadataRoot;
@@ -57,6 +65,7 @@ final class ThumbnailCacheStore {
         this.videoPlaceholderFile = cacheRoot.resolve("video-placeholder.png");
         this.comicPlaceholderFile = cacheRoot.resolve("comic-placeholder.png");
         this.pdfPlaceholderFile = cacheRoot.resolve("pdf-placeholder.png");
+        this.temporaryArtifactRegistry = temporaryArtifactRegistry;
     }
 
     void initialize() throws IOException {
@@ -135,7 +144,9 @@ final class ThumbnailCacheStore {
                     }
                     String filename = cacheFile.getFileName().toString().toLowerCase(Locale.ROOT);
                     if (filename.endsWith(".tmp")) {
-                        temporaryFiles.add(toCacheFile(cacheFile));
+                        if (!temporaryArtifactRegistry.isActive(cacheFile)) {
+                            temporaryFiles.add(toCacheFile(cacheFile));
+                        }
                         continue;
                     }
                     if (filename.endsWith(".jpg") && !expectedFiles.contains(cacheFile.toAbsolutePath().normalize())) {
@@ -161,6 +172,9 @@ final class ThumbnailCacheStore {
                 && !normalized.startsWith(comicCacheRoot)
                 && !normalized.startsWith(pdfCacheRoot)) {
             throw new StorageAccessException("Path is outside thumbnail cache.");
+        }
+        if (temporaryArtifactRegistry.isActive(normalized)) {
+            throw new StorageAccessException("Thumbnail temporary file is still in use.");
         }
         if (Files.isRegularFile(normalized, LinkOption.NOFOLLOW_LINKS) && !Files.isSymbolicLink(normalized)) {
             Files.deleteIfExists(normalized);

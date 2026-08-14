@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
 import io.github.fourilla.endervault.common.JsonRegistry;
 import io.github.fourilla.endervault.common.StorageAccessException;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactType;
 import java.io.IOException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
@@ -30,8 +32,14 @@ final class BookmarkFaviconCacheService {
 
     private final JsonRegistry<List<BookmarkFaviconCacheEntry>> registry;
     private final Path faviconRoot;
+    private final TemporaryArtifactRegistry temporaryArtifactRegistry;
 
-    BookmarkFaviconCacheService(ObjectMapper objectMapper, Path metadataRoot, String cacheDirectory) {
+    BookmarkFaviconCacheService(
+            ObjectMapper objectMapper,
+            Path metadataRoot,
+            String cacheDirectory,
+            TemporaryArtifactRegistry temporaryArtifactRegistry
+    ) {
         this.registry = new JsonRegistry<>(
                 objectMapper,
                 metadataRoot.resolve("bookmark-favicon-cache.json"),
@@ -43,6 +51,7 @@ final class BookmarkFaviconCacheService {
         if (!faviconRoot.startsWith(metadataRoot)) {
             throw new StorageAccessException("Bookmark favicon cache directory must stay inside metadata storage.");
         }
+        this.temporaryArtifactRegistry = temporaryArtifactRegistry;
     }
 
     void initialize() throws IOException {
@@ -145,6 +154,11 @@ final class BookmarkFaviconCacheService {
         }
 
         Path tempFile = Files.createTempFile(faviconRoot, "favicon-", ".tmp");
+        TemporaryArtifactRegistry.Registration registration = temporaryArtifactRegistry.register(
+                tempFile,
+                TemporaryArtifactType.BOOKMARK_FAVICON,
+                fileName
+        );
         try {
             Files.write(tempFile, favicon.bytes());
             try {
@@ -153,7 +167,11 @@ final class BookmarkFaviconCacheService {
                 Files.move(tempFile, target, StandardCopyOption.REPLACE_EXISTING);
             }
         } finally {
-            Files.deleteIfExists(tempFile);
+            try {
+                Files.deleteIfExists(tempFile);
+            } finally {
+                registration.close();
+            }
         }
 
         BookmarkFaviconCacheEntry cachedFavicon = new BookmarkFaviconCacheEntry(

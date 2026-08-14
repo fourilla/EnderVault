@@ -14,6 +14,7 @@ import io.github.fourilla.endervault.outbound.OutboundRouteStateService;
 import io.github.fourilla.endervault.outbound.OutboundRouteUnavailableException;
 import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthService;
 import io.github.fourilla.endervault.outbound.vpn.VpnTunnelHealthProbe;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -47,7 +48,8 @@ class BookmarkServiceTest {
                                 new VpnProxyHealthService(properties, new VpnTunnelHealthProbe())
                         )
                 ),
-                outboundRouteStateService
+                outboundRouteStateService,
+                new TemporaryArtifactRegistry()
         );
         bookmarkService.initialize();
     }

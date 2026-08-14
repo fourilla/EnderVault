@@ -43,16 +43,23 @@ public class UploadTempMetadataInspector implements MetadataInspector {
             }
             Duration age = Duration.between(file.modifiedAt(), now);
             boolean stale = age.compareTo(staleAfter) >= 0;
+            boolean active = file.active();
             issues.add(new MetadataIssue(
                     area(),
-                    stale ? MetadataIssueSeverity.WARNING : MetadataIssueSeverity.INFO,
-                    stale ? MetadataIssueAction.DELETE_UPLOAD_TEMP : MetadataIssueAction.NONE,
+                    stale && !active ? MetadataIssueSeverity.WARNING : MetadataIssueSeverity.INFO,
+                    stale && !active ? MetadataIssueAction.DELETE_UPLOAD_TEMP : MetadataIssueAction.NONE,
                     file.name(),
-                    stale ? "Stale upload temporary file remains" : "Fresh upload temporary file exists",
+                    active
+                            ? "Active temporary operation file"
+                            : stale
+                                    ? "Stale temporary staging file remains"
+                                    : "Fresh temporary staging file exists",
                     file.name() + " (" + file.sizeLabel() + ", modified " + file.modifiedLabel() + ")",
-                    stale
-                            ? "Delete this leftover upload temporary file."
-                            : "Review only. It may belong to an active upload or recent conflict flow."
+                    active
+                            ? "In use by " + file.activeOperation() + ". The inspector will not delete it."
+                            : stale
+                                    ? "Delete this leftover temporary staging file."
+                                    : "Review only. It may belong to a recent operation."
             ));
         }
         return List.copyOf(issues);

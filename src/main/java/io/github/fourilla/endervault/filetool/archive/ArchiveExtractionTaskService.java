@@ -16,6 +16,8 @@ import io.github.fourilla.endervault.task.TaskContext;
 import io.github.fourilla.endervault.task.TaskManagerService;
 import io.github.fourilla.endervault.task.TaskOutcome;
 import io.github.fourilla.endervault.task.TaskType;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactType;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -37,19 +39,22 @@ public class ArchiveExtractionTaskService {
     private final TaskManagerService taskManagerService;
     private final ActivityLogService activityLogService;
     private final ClientIpResolver clientIpResolver;
+    private final TemporaryArtifactRegistry temporaryArtifactRegistry;
 
     public ArchiveExtractionTaskService(
             ArchiveService archiveService,
             StorageService storageService,
             TaskManagerService taskManagerService,
             ActivityLogService activityLogService,
-            ClientIpResolver clientIpResolver
+            ClientIpResolver clientIpResolver,
+            TemporaryArtifactRegistry temporaryArtifactRegistry
     ) {
         this.archiveService = archiveService;
         this.storageService = storageService;
         this.taskManagerService = taskManagerService;
         this.activityLogService = activityLogService;
         this.clientIpResolver = clientIpResolver;
+        this.temporaryArtifactRegistry = temporaryArtifactRegistry;
     }
 
     public AppTask queue(
@@ -110,8 +115,14 @@ public class ArchiveExtractionTaskService {
                 snapshot.ip(),
                 context -> {
                     Path workspace = null;
+                    TemporaryArtifactRegistry.Registration registration = null;
                     try {
                         workspace = storageService.createArchiveExtractionWorkspace();
+                        registration = temporaryArtifactRegistry.register(
+                                workspace,
+                                TemporaryArtifactType.ARCHIVE_EXTRACTION,
+                                context.taskId()
+                        );
                         Path extractedDirectory = workspace.resolve("content");
                         Files.createDirectory(extractedDirectory);
                         archiveService.extract(archive, extractedDirectory, context);
@@ -179,6 +190,7 @@ public class ArchiveExtractionTaskService {
                         throw ex;
                     } finally {
                         cleanup(workspace);
+                        close(registration);
                     }
                 }
         );
@@ -253,6 +265,12 @@ public class ArchiveExtractionTaskService {
             storageService.deleteArchiveExtractionWorkspace(workspace);
         } catch (IOException | RuntimeException ex) {
             logger.warn("Failed to remove archive extraction workspace {}.", workspace.getFileName());
+        }
+    }
+
+    private void close(TemporaryArtifactRegistry.Registration registration) {
+        if (registration != null) {
+            registration.close();
         }
     }
 

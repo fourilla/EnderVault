@@ -10,7 +10,7 @@ public enum MetadataArea {
     SHARE_LINKS("Shared links", "Issued shared file and directory links", "fas fa-link"),
     TRASH("Trash", "Trash records and files stored under .trash", "fas fa-trash-can"),
     THUMBNAILS("Thumbnails", "Generated video and comic thumbnail cache", "fas fa-image"),
-    UPLOAD_TEMP("Upload temp", "Temporary files left by staged uploads", "fas fa-upload"),
+    UPLOAD_TEMP("Temporary staging", "Temporary files used by upload and file operations", "fas fa-upload"),
     TEXT_DRAFTS("Text drafts", "Recoverable text editor drafts and leases", "fas fa-file-pen"),
     BOOKMARKS("Bookmarks", "Saved web links and bookmark directories", "fas fa-bookmark"),
     STICKY_NOTES("Sticky notes", "Page and item notes whose targets may have moved or disappeared", "fas fa-note-sticky");

@@ -3,6 +3,8 @@ package io.github.fourilla.endervault.remote;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.storage.StorageService;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactType;
 import jakarta.annotation.PreDestroy;
 import java.io.IOException;
 import java.io.InputStream;
@@ -33,6 +35,7 @@ public class RemoteDownloadTransferEngine {
     private final RemoteDownloadHttpClient httpClient;
     private final RemoteDownloadFileNameResolver fileNameResolver;
     private final RemoteDownloadRetryPolicy retryPolicy;
+    private final TemporaryArtifactRegistry temporaryArtifactRegistry;
     private final ExecutorService segmentExecutor;
 
     public RemoteDownloadTransferEngine(
@@ -40,13 +43,15 @@ public class RemoteDownloadTransferEngine {
             StorageService storageService,
             RemoteDownloadHttpClient httpClient,
             RemoteDownloadFileNameResolver fileNameResolver,
-            RemoteDownloadRetryPolicy retryPolicy
+            RemoteDownloadRetryPolicy retryPolicy,
+            TemporaryArtifactRegistry temporaryArtifactRegistry
     ) {
         this.nasProperties = nasProperties;
         this.storageService = storageService;
         this.httpClient = httpClient;
         this.fileNameResolver = fileNameResolver;
         this.retryPolicy = retryPolicy;
+        this.temporaryArtifactRegistry = temporaryArtifactRegistry;
         int segmentWorkers = nasProperties.getRemoteDownload().getWorkerThreads()
                 * RemoteDownloadRequestParser.MAX_CONNECTIONS;
         this.segmentExecutor = Executors.newFixedThreadPool(segmentWorkers);
@@ -57,6 +62,11 @@ public class RemoteDownloadTransferEngine {
             RemoteDownloadRequestSpec requestSpec
     ) throws Exception {
         Path temporaryFile = storageService.createUploadTemporaryFile("remote-download-", ".tmp");
+        TemporaryArtifactRegistry.Registration registration = temporaryArtifactRegistry.register(
+                temporaryFile,
+                TemporaryArtifactType.REMOTE_DOWNLOAD,
+                task.id()
+        );
         boolean committed = false;
         try {
             String fileName = requestSpec.requestedConnections() == 1
@@ -79,6 +89,7 @@ public class RemoteDownloadTransferEngine {
                     // Metadata Inspector can remove a staging file that could not be deleted here.
                 }
             }
+            registration.close();
         }
     }
 

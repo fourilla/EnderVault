@@ -8,6 +8,10 @@ public class TaskContext {
         this.task = task;
     }
 
+    public String taskId() {
+        return task.id();
+    }
+
     public void setTotalBytes(long totalBytes) {
         task.setTotalBytes(totalBytes);
     }

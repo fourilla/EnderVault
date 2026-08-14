@@ -4,6 +4,7 @@ import io.github.fourilla.endervault.common.ByteSizeFormatter;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.filetool.FileActionRegistry;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -40,11 +41,15 @@ public class StorageService {
     private final NasProperties.Share shareProperties;
 
     public StorageService(NasProperties nasProperties) {
-        this(nasProperties, new FileActionRegistry());
+        this(nasProperties, new FileActionRegistry(), new TemporaryArtifactRegistry());
     }
 
     @Autowired
-    public StorageService(NasProperties nasProperties, FileActionRegistry fileActionRegistry) {
+    public StorageService(
+            NasProperties nasProperties,
+            FileActionRegistry fileActionRegistry,
+            TemporaryArtifactRegistry temporaryArtifactRegistry
+    ) {
         NasProperties.Storage storage = nasProperties.getStorage();
         this.root = storage.getRoot().toAbsolutePath().normalize();
         this.trashDirectoryName = validateConfiguredDirectory(storage.getTrashDirectory());
@@ -55,10 +60,18 @@ public class StorageService {
         this.archiveTempRoot = metadataRoot.resolve("archive-staging").normalize();
         this.pathResolver = new StoragePathResolver(root, trashRoot, metadataRoot, uploadTempRoot);
         this.zipWriter = new StorageZipWriter();
-        this.uploadStagingService = new UploadStagingService(uploadTempRoot, pathResolver);
+        this.uploadStagingService = new UploadStagingService(
+                uploadTempRoot,
+                pathResolver,
+                temporaryArtifactRegistry
+        );
         this.listingService = new StorageListingService(root, trashRoot, pathResolver, fileActionRegistry);
         this.conflictResolver = new StorageConflictResolver(nasProperties, pathResolver);
-        this.treeOperations = new StorageTreeOperations(pathResolver, uploadStagingService);
+        this.treeOperations = new StorageTreeOperations(
+                pathResolver,
+                uploadStagingService,
+                temporaryArtifactRegistry
+        );
         this.archiveStagingCommitter = new ArchiveStagingCommitter(
                 root,
                 archiveTempRoot,
@@ -745,7 +758,9 @@ public class StorageService {
             long size,
             String sizeLabel,
             Instant modifiedAt,
-            String modifiedLabel
+            String modifiedLabel,
+            boolean active,
+            String activeOperation
     ) {
     }
 }

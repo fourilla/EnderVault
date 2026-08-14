@@ -8,11 +8,13 @@ import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.auth.ClientIpResolver;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.filetool.FileActionRegistry;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.task.AppTask;
 import io.github.fourilla.endervault.task.TaskManagerService;
 import io.github.fourilla.endervault.task.TaskStatus;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -36,13 +38,15 @@ class ArchiveCreationTaskServiceTest {
     private StorageService storageService;
     private TaskManagerService taskManagerService;
     private ArchiveCreationTaskService service;
+    private TemporaryArtifactRegistry temporaryArtifactRegistry;
 
     @BeforeEach
     void setUp() throws Exception {
         NasProperties properties = new NasProperties();
         properties.getStorage().setRoot(root);
         properties.getTasks().setWorkerThreads(1);
-        storageService = new StorageService(properties);
+        temporaryArtifactRegistry = new TemporaryArtifactRegistry();
+        storageService = new StorageService(properties, new FileActionRegistry(), temporaryArtifactRegistry);
         storageService.initialize();
         taskManagerService = new TaskManagerService(properties);
         ActivityLogService activityLogService = new ActivityLogService(
@@ -54,7 +58,8 @@ class ArchiveCreationTaskServiceTest {
                 storageService,
                 taskManagerService,
                 activityLogService,
-                new ClientIpResolver(properties)
+                new ClientIpResolver(properties),
+                temporaryArtifactRegistry
         );
     }
 
@@ -86,6 +91,7 @@ class ArchiveCreationTaskServiceTest {
                 .containsEntry("note.txt", "note")
                 .containsKeys("docs/", "docs/empty/");
         assertThat(root.resolve(".endervault/archive-staging")).isEmptyDirectory();
+        assertThat(temporaryArtifactRegistry.activeArtifacts()).isEmpty();
     }
 
     @Test

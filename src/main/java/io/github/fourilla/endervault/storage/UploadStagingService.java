@@ -2,6 +2,8 @@ package io.github.fourilla.endervault.storage;
 
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
 import io.github.fourilla.endervault.common.StorageAccessException;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactType;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -23,10 +25,16 @@ final class UploadStagingService {
 
     private final Path uploadTempRoot;
     private final StoragePathResolver pathResolver;
+    private final TemporaryArtifactRegistry temporaryArtifactRegistry;
 
-    UploadStagingService(Path uploadTempRoot, StoragePathResolver pathResolver) {
+    UploadStagingService(
+            Path uploadTempRoot,
+            StoragePathResolver pathResolver,
+            TemporaryArtifactRegistry temporaryArtifactRegistry
+    ) {
         this.uploadTempRoot = uploadTempRoot;
         this.pathResolver = pathResolver;
+        this.temporaryArtifactRegistry = temporaryArtifactRegistry;
     }
 
     StorageService.StagedUpload stageUpload(MultipartFile file) throws IOException {
@@ -37,6 +45,11 @@ final class UploadStagingService {
         Files.createDirectories(uploadTempRoot);
         Path temporaryFile = Files.createTempFile(uploadTempRoot, "upload-", ".tmp");
         boolean staged = false;
+        TemporaryArtifactRegistry.Registration registration = temporaryArtifactRegistry.register(
+                temporaryFile,
+                TemporaryArtifactType.UPLOAD,
+                filename
+        );
         try (InputStream inputStream = file.getInputStream()) {
             Files.copy(inputStream, temporaryFile, StandardCopyOption.REPLACE_EXISTING);
             StorageService.StagedUpload stagedUpload =
@@ -44,8 +57,12 @@ final class UploadStagingService {
             staged = true;
             return stagedUpload;
         } finally {
-            if (!staged) {
-                Files.deleteIfExists(temporaryFile);
+            try {
+                if (!staged) {
+                    Files.deleteIfExists(temporaryFile);
+                }
+            } finally {
+                registration.close();
             }
         }
     }
@@ -71,6 +88,9 @@ final class UploadStagingService {
         pathResolver.validateSingleName(filename);
         Path temporaryFile = uploadTempRoot.resolve(filename).normalize();
         pathResolver.ensureInsideUploadTempRoot(temporaryFile);
+        if (temporaryArtifactRegistry.isActive(temporaryFile)) {
+            throw new StorageAccessException("Temporary file is still in use.");
+        }
         if (Files.isRegularFile(temporaryFile, LinkOption.NOFOLLOW_LINKS)
                 && !Files.isSymbolicLink(temporaryFile)) {
             Files.deleteIfExists(temporaryFile);
@@ -81,12 +101,17 @@ final class UploadStagingService {
         try {
             long size = Files.size(path);
             Instant modified = Files.getLastModifiedTime(path).toInstant();
+            String activeOperation = temporaryArtifactRegistry.find(path)
+                    .map(artifact -> artifact.type().label())
+                    .orElse(null);
             return new StorageService.TemporaryFileInfo(
                     path.getFileName().toString(),
                     size,
                     ByteSizeFormatter.humanSize(size),
                     modified,
-                    MODIFIED_FORMATTER.format(modified)
+                    MODIFIED_FORMATTER.format(modified),
+                    activeOperation != null,
+                    activeOperation
             );
         } catch (IOException ex) {
             throw new StorageAccessException("Failed to read temporary upload metadata.", ex);

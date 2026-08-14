@@ -1,6 +1,8 @@
 package io.github.fourilla.endervault.storage;
 
 import io.github.fourilla.endervault.common.StorageAccessException;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactType;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -20,10 +22,16 @@ final class StorageTreeOperations {
 
     private final StoragePathResolver pathResolver;
     private final UploadStagingService uploadStagingService;
+    private final TemporaryArtifactRegistry temporaryArtifactRegistry;
 
-    StorageTreeOperations(StoragePathResolver pathResolver, UploadStagingService uploadStagingService) {
+    StorageTreeOperations(
+            StoragePathResolver pathResolver,
+            UploadStagingService uploadStagingService,
+            TemporaryArtifactRegistry temporaryArtifactRegistry
+    ) {
         this.pathResolver = pathResolver;
         this.uploadStagingService = uploadStagingService;
+        this.temporaryArtifactRegistry = temporaryArtifactRegistry;
     }
 
     void move(Path source, Path target) throws IOException {
@@ -90,14 +98,23 @@ final class StorageTreeOperations {
         }
 
         Path temporaryFile = uploadStagingService.createTemporaryFile("copy-overwrite-", ".tmp");
+        TemporaryArtifactRegistry.Registration registration = temporaryArtifactRegistry.register(
+                temporaryFile,
+                TemporaryArtifactType.FILE_COPY,
+                target.toString()
+        );
         try {
             Files.deleteIfExists(temporaryFile);
             copyFileDirect(source, temporaryFile, progress);
             move(temporaryFile, target, true);
             temporaryFile = null;
         } finally {
-            if (temporaryFile != null) {
-                Files.deleteIfExists(temporaryFile);
+            try {
+                if (temporaryFile != null) {
+                    Files.deleteIfExists(temporaryFile);
+                }
+            } finally {
+                registration.close();
             }
         }
     }
