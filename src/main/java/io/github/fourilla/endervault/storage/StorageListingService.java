@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.storage;
 
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
+import io.github.fourilla.endervault.common.NaturalNameComparator;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.filetool.FileActionRegistry;
 import java.io.IOException;
@@ -124,7 +125,7 @@ final class StorageListingService {
         List<FileItem> results = new ArrayList<>();
         searchRecursively(scope, searchRoot, normalizedQuery, showHidden, results);
         return results.stream()
-                .sorted(Comparator.comparing(item -> item.path().toLowerCase(Locale.ROOT)))
+                .sorted(Comparator.comparing(FileItem::path, NaturalNameComparator.INSTANCE))
                 .toList();
     }
 
@@ -328,9 +329,7 @@ final class StorageListingService {
     }
 
     private Comparator<FileItem> itemComparator(FileSort sort, SortDirection direction) {
-        Comparator<FileItem> nameComparator = Comparator.comparing(
-                item -> item.name().toLowerCase(Locale.ROOT)
-        );
+        Comparator<FileItem> nameComparator = Comparator.comparing(FileItem::name, NaturalNameComparator.INSTANCE);
         Comparator<FileItem> primary = switch (sort) {
             case SIZE -> Comparator.comparingLong(FileItem::size);
             case MODIFIED -> Comparator.comparing(FileItem::modifiedAt);
@@ -348,7 +347,7 @@ final class StorageListingService {
     private Comparator<Path> pathNameComparator() {
         return Comparator
                 .comparing((Path path) -> !Files.isDirectory(path))
-                .thenComparing(path -> path.getFileName().toString().toLowerCase(Locale.ROOT));
+                .thenComparing(path -> path.getFileName().toString(), NaturalNameComparator.INSTANCE);
     }
 
     private boolean isHidden(Path path) {

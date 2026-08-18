@@ -1,5 +1,6 @@
 package io.github.fourilla.endervault.storage;
 
+import io.github.fourilla.endervault.common.NaturalNameComparator;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -12,7 +13,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Comparator;
-import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -91,7 +91,7 @@ final class StorageZipWriter {
         private Comparator<Path> pathNameComparator() {
             return Comparator
                     .comparing((Path path) -> !Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS))
-                    .thenComparing(path -> path.getFileName().toString().toLowerCase(Locale.ROOT));
+                    .thenComparing(path -> path.getFileName().toString(), NaturalNameComparator.INSTANCE);
         }
     }
 }

@@ -57,6 +57,20 @@ class ArchiveServiceTest {
     }
 
     @Test
+    void sortsArchiveChildrenByNaturalNameOrder() throws Exception {
+        Path archive = zip("natural.zip", List.of(
+                entry("pages/11.txt", "eleven"),
+                entry("pages/3.txt", "three"),
+                entry("pages/2.txt", "two")
+        ));
+
+        ArchiveManifest manifest = archiveService.manifest(archive);
+
+        assertThat(manifest.children("pages")).extracting(ArchiveEntryInfo::name)
+                .containsExactly("2.txt", "3.txt", "11.txt");
+    }
+
+    @Test
     void rejectsZipSlipPathsWithoutHidingSafeEntries() throws Exception {
         Path archive = zip("unsafe.zip", List.of(
                 entry("safe.txt", "safe"),

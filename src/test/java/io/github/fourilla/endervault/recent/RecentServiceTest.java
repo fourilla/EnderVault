@@ -60,6 +60,18 @@ class RecentServiceTest {
     }
 
     @Test
+    void sortsRecentItemsByNaturalNameOrder() throws Exception {
+        Files.writeString(root.resolve("chapter11.txt"), "eleven");
+        Files.writeString(root.resolve("chapter3.txt"), "three");
+        recentService.recordVaultPath("chapter11.txt");
+        recentService.recordVaultPath("chapter3.txt");
+
+        assertThat(recentService.list("", RecentSort.NAME, SortDirection.ASC))
+                .extracting(RecentListItem::name)
+                .containsExactly("chapter3.txt", "chapter11.txt");
+    }
+
+    @Test
     void trimsRecentItemsToConfiguredLimit() throws Exception {
         properties.getRecent().setMaxItems(1);
         Files.writeString(root.resolve("first.txt"), "first");

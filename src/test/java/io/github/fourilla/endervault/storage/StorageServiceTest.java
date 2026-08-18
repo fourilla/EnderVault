@@ -140,6 +140,31 @@ class StorageServiceTest {
     }
 
     @Test
+    void listsVaultFilesWithNaturalNameOrderingInBothDirections() throws Exception {
+        Files.writeString(root.resolve("Q11.txt"), "eleven");
+        Files.writeString(root.resolve("Q2-3.txt"), "two");
+        Files.writeString(root.resolve("Q1.txt"), "one");
+
+        DirectoryListing ascending = storageService.list(
+                StorageScope.VAULT,
+                "",
+                FileSort.NAME,
+                SortDirection.ASC
+        );
+        DirectoryListing descending = storageService.list(
+                StorageScope.VAULT,
+                "",
+                FileSort.NAME,
+                SortDirection.DESC
+        );
+
+        assertThat(ascending.files()).extracting(FileItem::name)
+                .containsExactly("Q1.txt", "Q2-3.txt", "Q11.txt");
+        assertThat(descending.files()).extracting(FileItem::name)
+                .containsExactly("Q11.txt", "Q2-3.txt", "Q1.txt");
+    }
+
+    @Test
     void listsVaultItemsByModifiedTime() throws Exception {
         Path older = root.resolve("older.txt");
         Path newer = root.resolve("newer.txt");
@@ -179,6 +204,16 @@ class StorageServiceTest {
 
         assertThat(results).extracting(FileItem::path).containsExactly("match-note.txt", "photos-match");
         assertThat(results).extracting(FileItem::typeLabel).containsExactly("Text", "Directory");
+    }
+
+    @Test
+    void searchResultsUseNaturalPathOrdering() throws Exception {
+        Files.writeString(root.resolve("report11.txt"), "eleven");
+        Files.writeString(root.resolve("report3.txt"), "three");
+
+        List<FileItem> results = storageService.search(StorageScope.VAULT, "", "report");
+
+        assertThat(results).extracting(FileItem::path).containsExactly("report3.txt", "report11.txt");
     }
 
     @Test
@@ -494,6 +529,22 @@ class StorageServiceTest {
         assertThat(entries.get("root.txt")).isEqualTo("root");
         assertThat(processedBytes).hasValue(9L);
         assertThat(processedItems).hasValue(4L);
+    }
+
+    @Test
+    void writesDirectoryChildrenToZipInNaturalNameOrder() throws Exception {
+        Files.createDirectories(root.resolve("docs"));
+        Files.writeString(root.resolve("docs").resolve("page11.txt"), "eleven");
+        Files.writeString(root.resolve("docs").resolve("page3.txt"), "three");
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+
+        storageService.writeZip(StorageScope.VAULT, "", List.of("docs"), output);
+
+        assertThat(zipEntries(output.toByteArray()).keySet()).containsExactly(
+                "docs/",
+                "docs/page3.txt",
+                "docs/page11.txt"
+        );
     }
 
     @Test
