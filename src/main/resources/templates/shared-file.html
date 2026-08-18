@@ -42,6 +42,13 @@
                        th:src="${sharedPreviewUrl}"></video>
             </div>
 
+            <th:block th:if="${fileTool.audio()}">
+                <th:block th:replace="~{fragments/file-tools/audio-tool :: player(
+                        ${sharedPreviewUrl},
+                        ${item.name()}
+                )}"></th:block>
+            </th:block>
+
             <div class="shared-text-preview" th:if="${fileTool.text()}"
                  th:data-text-extension="${detail.extension()}"
                  th:data-text-name="${detail.name()}"
@@ -57,7 +64,7 @@
                 </div>
             </div>
 
-            <div class="tool-message" th:unless="${fileTool.image() or fileTool.video() or fileTool.text()}">
+            <div class="tool-message" th:unless="${fileTool.image() or fileTool.video() or fileTool.audio() or fileTool.text()}">
                 <p>Preview is not available for this file yet.</p>
             </div>
         </section>

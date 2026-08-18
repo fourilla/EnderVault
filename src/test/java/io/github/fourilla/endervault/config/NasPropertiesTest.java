@@ -54,11 +54,18 @@ class NasPropertiesTest {
                 .withProperty("nas.share.max-expiration-days", "30")
                 .withProperty("nas.share.custom-token-min-length", "4")
                 .withProperty("nas.share.direct-download-link-enabled", "false")
-                .withProperty("nas.upload.temp-retention-minutes", "45")
+                .withProperty("nas.upload.conflict-retention-minutes", "45")
+                .withProperty("nas.temporary-artifacts.stale-after-minutes", "75")
                 .withProperty("nas.activity-log.max-archive-files", "12")
                 .withProperty("nas.activity-log.page-size-options", "25,50,100")
                 .withProperty("nas.tasks.worker-threads", "3")
                 .withProperty("nas.metadata-inspector.max-issues-per-area", "250")
+                .withProperty("nas.file-tools.archive-max-entries", "1200")
+                .withProperty("nas.file-tools.archive-entry-max-bytes", "2000000")
+                .withProperty("nas.file-tools.archive-total-max-bytes", "8000000")
+                .withProperty("nas.file-tools.archive-max-compression-ratio", "250")
+                .withProperty("nas.file-tools.archive-max-memory-kib", "131072")
+                .withProperty("nas.file-tools.archive-manifest-cache-entries", "8")
                 .withProperty("nas.outbound.initial-route", "vpn-required")
                 .withProperty("nas.outbound.vpn.enabled", "true")
                 .withProperty("nas.outbound.vpn.proxy-host", "gluetun")
@@ -81,11 +88,18 @@ class NasPropertiesTest {
         assertThat(properties.getShare().getMaxExpirationDays()).isEqualTo(30);
         assertThat(properties.getShare().getCustomTokenMinLength()).isEqualTo(4);
         assertThat(properties.getShare().isDirectDownloadLinkEnabled()).isFalse();
-        assertThat(properties.getUpload().getTempRetentionMinutes()).isEqualTo(45);
+        assertThat(properties.getUpload().getConflictRetentionMinutes()).isEqualTo(45);
+        assertThat(properties.getTemporaryArtifacts().getStaleAfterMinutes()).isEqualTo(75);
         assertThat(properties.getActivityLog().getMaxArchiveFiles()).isEqualTo(12);
         assertThat(properties.getActivityLog().getPageSizeOptions()).isEqualTo(List.of(25, 50, 100));
         assertThat(properties.getTasks().getWorkerThreads()).isEqualTo(3);
         assertThat(properties.getMetadataInspector().getMaxIssuesPerArea()).isEqualTo(250);
+        assertThat(properties.getFileTools().getArchiveMaxEntries()).isEqualTo(1200);
+        assertThat(properties.getFileTools().getArchiveEntryMaxBytes()).isEqualTo(2000000L);
+        assertThat(properties.getFileTools().getArchiveTotalMaxBytes()).isEqualTo(8000000L);
+        assertThat(properties.getFileTools().getArchiveMaxCompressionRatio()).isEqualTo(250);
+        assertThat(properties.getFileTools().getArchiveMaxMemoryKiB()).isEqualTo(131072);
+        assertThat(properties.getFileTools().getArchiveManifestCacheEntries()).isEqualTo(8);
         assertThat(properties.getOutbound().getInitialRoute()).isEqualTo(NetworkRoute.VPN_REQUIRED);
         assertThat(properties.getOutbound().getVpn().isEnabled()).isTrue();
         assertThat(properties.getOutbound().getVpn().getProxyHost()).isEqualTo("gluetun");

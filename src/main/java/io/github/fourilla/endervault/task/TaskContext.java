@@ -8,6 +8,10 @@ public class TaskContext {
         this.task = task;
     }
 
+    public String taskId() {
+        return task.id();
+    }
+
     public void setTotalBytes(long totalBytes) {
         task.setTotalBytes(totalBytes);
     }
@@ -26,6 +30,10 @@ public class TaskContext {
 
     public void message(String message) {
         task.setMessage(message);
+    }
+
+    public void targetPath(String targetPath) {
+        task.setTargetPath(targetPath);
     }
 
     public boolean canceled() {

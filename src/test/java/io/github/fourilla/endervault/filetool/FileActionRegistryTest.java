@@ -66,6 +66,20 @@ class FileActionRegistryTest {
     }
 
     @Test
+    void supportedArchivesExposeArchiveToolsWithoutAStandalonePreviewPage() {
+        FileToolDescriptor descriptor = registry.resolve(
+                "backup.tar.gz",
+                false,
+                "application/gzip",
+                "gz"
+        );
+
+        assertThat(descriptor.type()).isEqualTo(FileToolType.ARCHIVE);
+        assertThat(descriptor.archive()).isTrue();
+        assertThat(descriptor.previewPageAvailable()).isFalse();
+    }
+
+    @Test
     void unknownBinaryFilesUseHexFallbackWithoutPreviewPage() {
         FileToolDescriptor descriptor = registry.resolve(
                 "blob.bin",
@@ -88,6 +102,23 @@ class FileActionRegistryTest {
     @Test
     void browserActionsExposeDownloadAndPreviewForPreviewableFiles() {
         assertThat(registry.browserActions("clip.mp4", false, "video/mp4", "mp4"))
+                .containsExactly(FileActionKind.DOWNLOAD, FileActionKind.PREVIEW);
+    }
+
+    @Test
+    void mp3FilesExposeAudioPreviewEvenWhenMediaTypeIsGeneric() {
+        FileToolDescriptor descriptor = registry.resolve(
+                "track.mp3",
+                false,
+                "application/octet-stream",
+                "mp3"
+        );
+
+        assertThat(descriptor.type()).isEqualTo(FileToolType.AUDIO);
+        assertThat(descriptor.audio()).isTrue();
+        assertThat(descriptor.previewable()).isTrue();
+        assertThat(descriptor.previewPageAvailable()).isTrue();
+        assertThat(registry.browserActions("track.mp3", false, "application/octet-stream", "mp3"))
                 .containsExactly(FileActionKind.DOWNLOAD, FileActionKind.PREVIEW);
     }
 

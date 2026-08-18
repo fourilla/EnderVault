@@ -45,7 +45,7 @@ final class ThumbnailGenerator {
         }
 
         Files.createDirectories(cacheFile.getParent());
-        Path tempFile = cacheFile.resolveSibling(cacheFile.getFileName() + ".tmp");
+        Path tempFile = temporaryFile(cacheFile);
         FFmpegFrameGrabber grabber = new FFmpegFrameGrabber(videoFile.toFile());
         try {
             grabber.start();
@@ -81,7 +81,7 @@ final class ThumbnailGenerator {
         }
 
         Files.createDirectories(cacheFile.getParent());
-        Path tempFile = cacheFile.resolveSibling(cacheFile.getFileName() + ".tmp");
+        Path tempFile = temporaryFile(cacheFile);
         try {
             ComicPageResource firstPage = comicArchiveService.openPage(comicFile, 0);
             BufferedImage thumbnail;
@@ -106,7 +106,7 @@ final class ThumbnailGenerator {
         }
 
         Files.createDirectories(cacheFile.getParent());
-        Path tempFile = cacheFile.resolveSibling(cacheFile.getFileName() + ".tmp");
+        Path tempFile = temporaryFile(cacheFile);
         try (PDDocument document = Loader.loadPDF(pdfFile.toFile())) {
             if (document.getNumberOfPages() <= 0) {
                 throw new IOException("PDF has no pages: " + pdfFile);
@@ -360,5 +360,9 @@ final class ThumbnailGenerator {
         } catch (AtomicMoveNotSupportedException ex) {
             Files.move(tempFile, cacheFile, StandardCopyOption.REPLACE_EXISTING);
         }
+    }
+
+    static Path temporaryFile(Path cacheFile) {
+        return cacheFile.resolveSibling(cacheFile.getFileName() + ".tmp");
     }
 }

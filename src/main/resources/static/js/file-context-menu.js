@@ -300,9 +300,20 @@ document.addEventListener("DOMContentLoaded", () => {
         id: "download-selected",
         group: "transfer",
         label: (context) => `Download ${context.items.length} selected`,
-        icon: "fas fa-file-zipper",
+        icon: "fas fa-download",
         visible: (context) => context.mode === "selection",
         run: (context) => downloadSelected(context.items)
+    });
+
+    registerAction({
+        id: "compress-to-zip",
+        group: "transfer",
+        label: (context) => context.mode === "selection"
+                ? `Compress ${context.items.length} selected to ZIP`
+                : "Compress to ZIP",
+        icon: "fas fa-file-zipper",
+        visible: (context) => context.mode === "single" || context.mode === "selection",
+        run: (context) => window.EnderVaultArchiveCreation?.open(context.items)
     });
 
     registerAction({

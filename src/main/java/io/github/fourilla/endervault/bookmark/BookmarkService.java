@@ -7,6 +7,7 @@ import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.outbound.NetworkRoute;
 import io.github.fourilla.endervault.outbound.OutboundRouteStateService;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -39,7 +40,8 @@ public class BookmarkService {
             ObjectMapper objectMapper,
             NasProperties nasProperties,
             BookmarkMetadataFetcher metadataFetcher,
-            OutboundRouteStateService outboundRouteStateService
+            OutboundRouteStateService outboundRouteStateService,
+            TemporaryArtifactRegistry temporaryArtifactRegistry
     ) {
         this.nasProperties = nasProperties;
         this.outboundRouteStateService = outboundRouteStateService;
@@ -58,7 +60,8 @@ public class BookmarkService {
         this.faviconCacheService = new BookmarkFaviconCacheService(
                 objectMapper,
                 metadataRoot,
-                nasProperties.getBookmarks().getFaviconCacheDirectory()
+                nasProperties.getBookmarks().getFaviconCacheDirectory(),
+                temporaryArtifactRegistry
         );
         this.remoteMetadataApplier = new BookmarkRemoteMetadataApplier(
                 inputNormalizer,
@@ -373,6 +376,10 @@ public class BookmarkService {
 
     public synchronized List<BookmarkFaviconCacheFile> orphanFaviconCacheFiles() throws IOException {
         return faviconCacheService.orphanFiles(readAllMutable());
+    }
+
+    public synchronized List<BookmarkFaviconTemporaryFile> temporaryFaviconCacheFiles() throws IOException {
+        return faviconCacheService.temporaryFiles();
     }
 
     public synchronized void deleteFaviconCacheFile(String fileName) throws IOException {

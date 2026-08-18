@@ -7,6 +7,7 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.util.Set;
 
 final class StorageConflictResolver {
 
@@ -24,14 +25,27 @@ final class StorageConflictResolver {
 
     StorageConflictTarget resolve(Path requestedTarget, boolean sourceDirectory, ConflictPolicy policy)
             throws IOException {
-        if (!Files.exists(requestedTarget, LinkOption.NOFOLLOW_LINKS)) {
+        return resolve(requestedTarget, sourceDirectory, policy, Set.of());
+    }
+
+    StorageConflictTarget resolve(
+            Path requestedTarget,
+            boolean sourceDirectory,
+            ConflictPolicy policy,
+            Set<Path> reservedTargets
+    ) throws IOException {
+        Set<Path> reserved = reservedTargets == null ? Set.of() : reservedTargets;
+        if (!Files.exists(requestedTarget, LinkOption.NOFOLLOW_LINKS) && !reserved.contains(requestedTarget)) {
             return new StorageConflictTarget(requestedTarget, false);
         }
 
         ConflictPolicy effectivePolicy = effectivePolicy(policy);
         return switch (effectivePolicy) {
             case CANCEL -> throw new FileAlreadyExistsException(requestedTarget.getFileName().toString());
-            case RENAME -> new StorageConflictTarget(nextAvailableTarget(requestedTarget, sourceDirectory), false);
+            case RENAME -> new StorageConflictTarget(
+                    nextAvailableTarget(requestedTarget, sourceDirectory, reserved),
+                    false
+            );
             case OVERWRITE -> {
                 validateOverwriteTarget(requestedTarget, sourceDirectory);
                 yield new StorageConflictTarget(requestedTarget, true);
@@ -45,12 +59,13 @@ final class StorageConflictResolver {
         return resolve(target, sourceDirectory, policy);
     }
 
-    private ConflictPolicy effectivePolicy(ConflictPolicy policy) {
+    ConflictPolicy effectivePolicy(ConflictPolicy policy) {
         ConflictPolicy effective = policy == null ? defaultPolicy() : policy;
         return effective == null ? ConflictPolicy.CANCEL : effective;
     }
 
-    private Path nextAvailableTarget(Path requestedTarget, boolean directory) throws IOException {
+    private Path nextAvailableTarget(Path requestedTarget, boolean directory, Set<Path> reservedTargets)
+            throws IOException {
         String filename = requestedTarget.getFileName().toString();
         int extensionIndex = directory ? -1 : filename.lastIndexOf('.');
         String stem = extensionIndex > 0 ? filename.substring(0, extensionIndex) : filename;
@@ -61,7 +76,7 @@ final class StorageConflictResolver {
             pathResolver.validateSingleName(candidateName);
             Path candidate = parent.resolve(candidateName).normalize();
             pathResolver.ensureInsideBase(StorageScope.VAULT, candidate);
-            if (!Files.exists(candidate, LinkOption.NOFOLLOW_LINKS)) {
+            if (!Files.exists(candidate, LinkOption.NOFOLLOW_LINKS) && !reservedTargets.contains(candidate)) {
                 return candidate;
             }
         }

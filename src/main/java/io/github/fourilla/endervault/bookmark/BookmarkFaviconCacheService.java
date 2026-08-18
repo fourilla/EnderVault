@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
 import io.github.fourilla.endervault.common.JsonRegistry;
 import io.github.fourilla.endervault.common.StorageAccessException;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactType;
 import java.io.IOException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
@@ -30,8 +32,14 @@ final class BookmarkFaviconCacheService {
 
     private final JsonRegistry<List<BookmarkFaviconCacheEntry>> registry;
     private final Path faviconRoot;
+    private final TemporaryArtifactRegistry temporaryArtifactRegistry;
 
-    BookmarkFaviconCacheService(ObjectMapper objectMapper, Path metadataRoot, String cacheDirectory) {
+    BookmarkFaviconCacheService(
+            ObjectMapper objectMapper,
+            Path metadataRoot,
+            String cacheDirectory,
+            TemporaryArtifactRegistry temporaryArtifactRegistry
+    ) {
         this.registry = new JsonRegistry<>(
                 objectMapper,
                 metadataRoot.resolve("bookmark-favicon-cache.json"),
@@ -43,6 +51,7 @@ final class BookmarkFaviconCacheService {
         if (!faviconRoot.startsWith(metadataRoot)) {
             throw new StorageAccessException("Bookmark favicon cache directory must stay inside metadata storage.");
         }
+        this.temporaryArtifactRegistry = temporaryArtifactRegistry;
     }
 
     void initialize() throws IOException {
@@ -103,10 +112,33 @@ final class BookmarkFaviconCacheService {
         return orphanFiles.stream().sorted().toList();
     }
 
+    List<BookmarkFaviconTemporaryFile> temporaryFiles() throws IOException {
+        if (!Files.isDirectory(faviconRoot, LinkOption.NOFOLLOW_LINKS)) {
+            return List.of();
+        }
+        try (var paths = Files.list(faviconRoot)) {
+            return paths
+                    .filter(candidate -> Files.isRegularFile(candidate, LinkOption.NOFOLLOW_LINKS))
+                    .filter(candidate -> !Files.isSymbolicLink(candidate))
+                    .filter(candidate -> candidate.getFileName().toString().endsWith(".tmp"))
+                    .map(this::toTemporaryFile)
+                    .sorted()
+                    .toList();
+        }
+    }
+
     void deleteOrphanFile(String fileName, List<BookmarkItem> bookmarks) throws IOException {
         String normalizedFileName = requireFaviconFileName(fileName);
         if (referencedFaviconFileNames(bookmarks).contains(normalizedFileName)) {
             throw new StorageAccessException("Bookmark favicon cache is still referenced.");
+        }
+
+        Path target = faviconRoot.resolve(normalizedFileName).normalize();
+        if (!target.startsWith(faviconRoot)) {
+            throw new StorageAccessException("Bookmark favicon cache path is invalid.");
+        }
+        if (temporaryArtifactRegistry.isActive(target)) {
+            throw new StorageAccessException("Bookmark favicon temporary file is still in use.");
         }
 
         List<BookmarkFaviconCacheEntry> entries = new ArrayList<>(registry.read());
@@ -115,10 +147,6 @@ final class BookmarkFaviconCacheService {
             registry.write(List.copyOf(entries));
         }
 
-        Path target = faviconRoot.resolve(normalizedFileName).normalize();
-        if (!target.startsWith(faviconRoot)) {
-            throw new StorageAccessException("Bookmark favicon cache path is invalid.");
-        }
         Files.deleteIfExists(target);
     }
 
@@ -145,6 +173,11 @@ final class BookmarkFaviconCacheService {
         }
 
         Path tempFile = Files.createTempFile(faviconRoot, "favicon-", ".tmp");
+        TemporaryArtifactRegistry.Registration registration = temporaryArtifactRegistry.register(
+                tempFile,
+                TemporaryArtifactType.BOOKMARK_FAVICON,
+                fileName
+        );
         try {
             Files.write(tempFile, favicon.bytes());
             try {
@@ -153,7 +186,11 @@ final class BookmarkFaviconCacheService {
                 Files.move(tempFile, target, StandardCopyOption.REPLACE_EXISTING);
             }
         } finally {
-            Files.deleteIfExists(tempFile);
+            try {
+                Files.deleteIfExists(tempFile);
+            } finally {
+                registration.close();
+            }
         }
 
         BookmarkFaviconCacheEntry cachedFavicon = new BookmarkFaviconCacheEntry(
@@ -206,6 +243,27 @@ final class BookmarkFaviconCacheService {
             );
         } catch (IOException ex) {
             throw new StorageAccessException("Failed to read bookmark favicon cache metadata.", ex);
+        }
+    }
+
+    private BookmarkFaviconTemporaryFile toTemporaryFile(Path path) {
+        try {
+            long size = Files.size(path);
+            Instant modified = Files.getLastModifiedTime(path).toInstant();
+            String activeOperation = temporaryArtifactRegistry.find(path)
+                    .map(artifact -> artifact.type().label())
+                    .orElse(null);
+            return new BookmarkFaviconTemporaryFile(
+                    path.getFileName().toString(),
+                    size,
+                    ByteSizeFormatter.humanSize(size),
+                    modified,
+                    MODIFIED_FORMATTER.format(modified),
+                    activeOperation != null,
+                    activeOperation
+            );
+        } catch (IOException ex) {
+            throw new StorageAccessException("Failed to read bookmark favicon temporary metadata.", ex);
         }
     }
 

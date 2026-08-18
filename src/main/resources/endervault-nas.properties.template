@@ -70,10 +70,19 @@ nas.trash.cleanup-interval-ms=3600000
 # multipart request; with JS it also limits one selected/dropped upload batch
 # before files are sent individually for progress tracking. Directory upload is
 # reserved for a future dedicated implementation and stays disabled by default.
-nas.upload.temp-retention-minutes=30
-nas.upload.temp-cleanup-interval-ms=600000
+# Conflict retention controls how long a fully received upload may wait for a
+# user's collision decision; the cleanup interval only schedules that check.
+nas.upload.conflict-retention-minutes=30
+nas.upload.conflict-cleanup-interval-ms=600000
 nas.upload.max-files-per-request=0
 nas.upload.directory-upload-enabled=false
+
+# ---------------------------------------------------------------------------
+# Temporary artifacts
+# ---------------------------------------------------------------------------
+# Inactive disposable staging artifacts become repairable after this age.
+# Active work is always protected by the in-memory temporary artifact registry.
+nas.temporary-artifacts.stale-after-minutes=30
 
 # ---------------------------------------------------------------------------
 # Thumbnail cache
@@ -149,8 +158,9 @@ nas.share.directory-show-hidden-items=false
 # Large text files require manual loading to avoid opening huge files by
 # accident. Text drafts are recoverable server-side editor snapshots; retention
 # controls their lifetime, cleanup controls the scan interval, and lease seconds
-# limit how long an idle editor blocks another tab. Comic limits protect the
-# server from oversized archives.
+# limit how long an idle editor blocks another tab. Comic and archive limits
+# cap page reads, extracted entries/bytes, compression ratio, decoder memory,
+# and the number of cached archive manifests.
 nas.file-tools.text-auto-load-max-bytes=1048576
 nas.file-tools.text-manual-load-max-bytes=20971520
 nas.file-tools.text-draft-retention-hours=168
@@ -159,6 +169,12 @@ nas.file-tools.text-draft-lease-seconds=300
 nas.file-tools.comic-max-pages=5000
 nas.file-tools.comic-page-max-bytes=104857600
 nas.file-tools.comic-info-max-bytes=65536
+nas.file-tools.archive-max-entries=50000
+nas.file-tools.archive-entry-max-bytes=21474836480
+nas.file-tools.archive-total-max-bytes=107374182400
+nas.file-tools.archive-max-compression-ratio=1000
+nas.file-tools.archive-max-memory-kib=262144
+nas.file-tools.archive-manifest-cache-entries=32
 
 # ---------------------------------------------------------------------------
 # Remote download
@@ -223,7 +239,6 @@ nas.tasks.failed-display-ms=7000
 # Metadata inspector
 # ---------------------------------------------------------------------------
 nas.metadata-inspector.enabled=true
-nas.metadata-inspector.upload-temp-stale-minutes=30
 nas.metadata-inspector.max-issues-per-area=5000
 
 # ---------------------------------------------------------------------------
@@ -277,6 +292,14 @@ nas.notifications.telegram.activity.move=false
 nas.notifications.telegram.activity.copy=false
 nas.notifications.telegram.activity.download=false
 nas.notifications.telegram.activity.download-zip=false
+nas.notifications.telegram.activity.archive-create-queued=false
+nas.notifications.telegram.activity.archive-create-complete=false
+nas.notifications.telegram.activity.archive-create-failed=false
+nas.notifications.telegram.activity.archive-create-canceled=false
+nas.notifications.telegram.activity.archive-extract-queued=false
+nas.notifications.telegram.activity.archive-extract-complete=false
+nas.notifications.telegram.activity.archive-extract-failed=false
+nas.notifications.telegram.activity.archive-extract-canceled=false
 
 # Trash activity.
 nas.notifications.telegram.activity.trash-move=false

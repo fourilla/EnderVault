@@ -1,10 +1,13 @@
 package io.github.fourilla.endervault.metadata;
 
 import io.github.fourilla.endervault.bookmark.BookmarkFaviconCacheFile;
+import io.github.fourilla.endervault.bookmark.BookmarkFaviconTemporaryFile;
 import io.github.fourilla.endervault.bookmark.BookmarkItem;
 import io.github.fourilla.endervault.bookmark.BookmarkService;
 import io.github.fourilla.endervault.task.TaskContext;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactRetentionPolicy;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -17,9 +20,14 @@ import org.springframework.stereotype.Component;
 public class BookmarkMetadataInspector implements MetadataInspector {
 
     private final BookmarkService bookmarkService;
+    private final TemporaryArtifactRetentionPolicy retentionPolicy;
 
-    public BookmarkMetadataInspector(BookmarkService bookmarkService) {
+    public BookmarkMetadataInspector(
+            BookmarkService bookmarkService,
+            TemporaryArtifactRetentionPolicy retentionPolicy
+    ) {
         this.bookmarkService = bookmarkService;
+        this.retentionPolicy = retentionPolicy;
     }
 
     @Override
@@ -34,6 +42,7 @@ public class BookmarkMetadataInspector implements MetadataInspector {
 
     @Override
     public List<MetadataIssue> inspect(TaskContext context) throws IOException {
+        Instant now = Instant.now();
         List<BookmarkItem> items = bookmarkService.storedItems();
         Map<String, BookmarkItem> byId = new HashMap<>();
         Set<String> seenIds = new HashSet<>();
@@ -84,6 +93,12 @@ public class BookmarkMetadataInspector implements MetadataInspector {
             }
             issues.add(orphanFaviconIssue(file));
         }
+        for (BookmarkFaviconTemporaryFile file : bookmarkService.temporaryFaviconCacheFiles()) {
+            if (context != null) {
+                context.checkCanceled();
+            }
+            issues.add(temporaryFaviconIssue(file, retentionPolicy.isStale(file.modifiedAt(), now)));
+        }
         return List.copyOf(issues);
     }
 
@@ -123,6 +138,27 @@ public class BookmarkMetadataInspector implements MetadataInspector {
                 "Bookmark favicon cache is not referenced",
                 file.fileName() + " (" + registryState + ", " + file.sizeLabel() + ", modified " + file.modifiedLabel() + ")",
                 "Delete this orphan bookmark favicon cache."
+        );
+    }
+
+    private MetadataIssue temporaryFaviconIssue(BookmarkFaviconTemporaryFile file, boolean stale) {
+        boolean repairable = stale && !file.active();
+        return new MetadataIssue(
+                area(),
+                repairable ? MetadataIssueSeverity.WARNING : MetadataIssueSeverity.INFO,
+                repairable ? MetadataIssueAction.DELETE_BOOKMARK_FAVICON_CACHE : MetadataIssueAction.NONE,
+                file.fileName(),
+                file.active()
+                        ? "Active bookmark favicon temporary file"
+                        : stale
+                                ? "Stale bookmark favicon temporary file remains"
+                                : "Fresh bookmark favicon temporary file exists",
+                file.fileName() + " (" + file.sizeLabel() + ", modified " + file.modifiedLabel() + ")",
+                file.active()
+                        ? "In use by " + file.activeOperation() + ". The inspector will not delete it."
+                        : repairable
+                                ? "Delete this disposable favicon temporary file."
+                                : "Review only. It may belong to a recent metadata fetch."
         );
     }
 

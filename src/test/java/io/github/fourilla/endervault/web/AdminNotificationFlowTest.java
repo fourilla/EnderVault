@@ -171,6 +171,43 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void filesPageRendersSharedZipCreationDialogAndScript() throws Exception {
+        mockMvc.perform(get("/files"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("id=\"compressSelectedButton\"")))
+                .andExpect(content().string(Matchers.containsString("id=\"archiveCreationDialog\"")))
+                .andExpect(content().string(Matchers.containsString("action=\"/files/archive/create\"")))
+                .andExpect(content().string(Matchers.containsString("/js/archive-create.js")));
+    }
+
+    @Test
+    void selectedItemsCanBeQueuedAsStoredZipArchive() throws Exception {
+        String directory = "archive-create-" + System.nanoTime();
+        Path source = Files.createDirectories(ROOT.resolve(directory));
+        Files.writeString(source.resolve("note.txt"), "archive me", StandardCharsets.UTF_8);
+
+        mockMvc.perform(post("/files/archive/create")
+                        .with(csrf())
+                        .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
+                        .header("X-Requested-With", "fetch")
+                        .param("path", directory)
+                        .param("items", "note.txt")
+                        .param("outputName", "saved")
+                        .param("conflictPolicy", "cancel"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.task.type").value("ARCHIVE_CREATE"))
+                .andExpect(jsonPath("$.redirectUrl").value("/files?path=" + directory));
+
+        Path archive = source.resolve("saved.zip");
+        long deadline = System.currentTimeMillis() + 5_000L;
+        while (!Files.exists(archive) && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20L);
+        }
+        assertThat(archive).exists().isNotEmptyFile();
+    }
+
+    @Test
     void selectedItemsCanBeMovedThroughTransferBuffer() throws Exception {
         String source = "transfer-source-" + System.nanoTime();
         String target = "transfer-target-" + System.nanoTime();
@@ -728,6 +765,45 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(Matchers.containsString("/s/" + shareLink.token() + "/preview")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("fa-eye"))))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("target=\"_blank\""))));
+    }
+
+    @Test
+    void imageDetailRendersEnhancedViewerWithFallbackImage() throws Exception {
+        String filename = "viewer-image-" + System.nanoTime() + ".jpg";
+        Files.write(ROOT.resolve(filename), new byte[] {(byte) 0xff, (byte) 0xd8, (byte) 0xff, (byte) 0xd9});
+
+        mockMvc.perform(get("/files/detail").param("path", filename))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("data-image-viewer")))
+                .andExpect(content().string(Matchers.containsString("data-image-viewer-source")))
+                .andExpect(content().string(Matchers.containsString("data-image-action=\"zoom-in\"")))
+                .andExpect(content().string(Matchers.containsString(
+                        "/webjars/viewerjs/1.11.7/dist/viewer.min.css"
+                )))
+                .andExpect(content().string(Matchers.containsString(
+                        "/webjars/viewerjs/1.11.7/dist/viewer.min.js"
+                )))
+                .andExpect(content().string(Matchers.containsString("/js/image-viewer.js")));
+    }
+
+    @Test
+    void audioDetailAndSharedLandingReuseNativeAudioPlayer() throws Exception {
+        String filename = "shared-audio-" + System.nanoTime() + ".mp3";
+        Files.write(ROOT.resolve(filename), new byte[] {0x49, 0x44, 0x33, 0x04});
+        ShareLink shareLink = shareLinkService.create("", filename, null);
+
+        mockMvc.perform(get("/files/detail").param("path", filename))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("Audio Player")))
+                .andExpect(content().string(Matchers.containsString("class=\"audio-tool-player\"")))
+                .andExpect(content().string(Matchers.containsString("preload=\"metadata\"")))
+                .andExpect(content().string(Matchers.containsString("/files/preview?item=")));
+
+        mockMvc.perform(get("/s/{token}", shareLink.token()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("Audio Player")))
+                .andExpect(content().string(Matchers.containsString("class=\"audio-tool-player\"")))
+                .andExpect(content().string(Matchers.containsString("/s/" + shareLink.token() + "/preview")));
     }
 
     @Test

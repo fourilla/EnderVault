@@ -4,6 +4,7 @@ import io.github.fourilla.endervault.common.ByteSizeFormatter;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.filetool.FileActionRegistry;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -26,36 +27,60 @@ public class StorageService {
     private final Path root;
     private final Path trashRoot;
     private final Path metadataRoot;
-    private final Path uploadTempRoot;
+    private final Path fileStagingRoot;
+    private final Path archiveTempRoot;
     private final String trashDirectoryName;
     private final String metadataDirectoryName;
     private final StoragePathResolver pathResolver;
     private final StorageZipWriter zipWriter;
-    private final UploadStagingService uploadStagingService;
+    private final FileStagingService fileStagingService;
     private final StorageListingService listingService;
     private final StorageConflictResolver conflictResolver;
     private final StorageTreeOperations treeOperations;
+    private final ArchiveStagingCommitter archiveStagingCommitter;
     private final NasProperties.Share shareProperties;
 
     public StorageService(NasProperties nasProperties) {
-        this(nasProperties, new FileActionRegistry());
+        this(nasProperties, new FileActionRegistry(), new TemporaryArtifactRegistry());
     }
 
     @Autowired
-    public StorageService(NasProperties nasProperties, FileActionRegistry fileActionRegistry) {
+    public StorageService(
+            NasProperties nasProperties,
+            FileActionRegistry fileActionRegistry,
+            TemporaryArtifactRegistry temporaryArtifactRegistry
+    ) {
         NasProperties.Storage storage = nasProperties.getStorage();
         this.root = storage.getRoot().toAbsolutePath().normalize();
         this.trashDirectoryName = validateConfiguredDirectory(storage.getTrashDirectory());
         this.metadataDirectoryName = validateConfiguredDirectory(storage.getMetadataDirectory());
         this.trashRoot = root.resolve(trashDirectoryName).normalize();
         this.metadataRoot = root.resolve(metadataDirectoryName).normalize();
-        this.uploadTempRoot = metadataRoot.resolve("uploads").normalize();
-        this.pathResolver = new StoragePathResolver(root, trashRoot, metadataRoot, uploadTempRoot);
+        this.fileStagingRoot = metadataRoot.resolve("file-staging").normalize();
+        this.archiveTempRoot = metadataRoot.resolve("archive-staging").normalize();
+        this.pathResolver = new StoragePathResolver(root, trashRoot, metadataRoot, fileStagingRoot);
         this.zipWriter = new StorageZipWriter();
-        this.uploadStagingService = new UploadStagingService(uploadTempRoot, pathResolver);
+        this.fileStagingService = new FileStagingService(
+                fileStagingRoot,
+                pathResolver,
+                temporaryArtifactRegistry
+        );
         this.listingService = new StorageListingService(root, trashRoot, pathResolver, fileActionRegistry);
         this.conflictResolver = new StorageConflictResolver(nasProperties, pathResolver);
-        this.treeOperations = new StorageTreeOperations(pathResolver, uploadStagingService);
+        this.treeOperations = new StorageTreeOperations(
+                pathResolver,
+                fileStagingService,
+                temporaryArtifactRegistry
+        );
+        this.archiveStagingCommitter = new ArchiveStagingCommitter(
+                root,
+                archiveTempRoot,
+                pathResolver,
+                conflictResolver,
+                treeOperations,
+                listingService,
+                temporaryArtifactRegistry
+        );
         this.shareProperties = nasProperties.getShare();
     }
 
@@ -64,7 +89,8 @@ public class StorageService {
         Files.createDirectories(root);
         createSystemDirectory(trashRoot, "Trash");
         createSystemDirectory(metadataRoot, "Metadata");
-        createSystemDirectory(uploadTempRoot, "Upload temporary");
+        createSystemDirectory(fileStagingRoot, "File staging");
+        createSystemDirectory(archiveTempRoot, "Archive temporary");
     }
 
     public DirectoryListing list(StorageScope scope, String requestedPath) throws IOException {
@@ -150,6 +176,14 @@ public class StorageService {
 
     public Path resolveVaultPath(String vaultPath) throws IOException {
         return pathResolver.resolve(StorageScope.VAULT, vaultPath);
+    }
+
+    public Path resolveVaultDirectory(String vaultPath) throws IOException {
+        Path directory = pathResolver.resolveDirectory(StorageScope.VAULT, vaultPath);
+        if (!Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)) {
+            throw new NoSuchFileException(vaultPath == null ? "" : vaultPath);
+        }
+        return directory;
     }
 
     public FileItem describeVaultPath(String vaultPath) throws IOException {
@@ -413,19 +447,19 @@ public class StorageService {
     }
 
     public StagedUpload stageUpload(MultipartFile file) throws IOException {
-        return uploadStagingService.stageUpload(file);
+        return fileStagingService.stageUpload(file);
     }
 
-    public Path createUploadTemporaryFile(String prefix, String suffix) throws IOException {
-        return uploadStagingService.createTemporaryFile(prefix, suffix);
+    public Path createFileStagingTemporaryFile(String prefix, String suffix) throws IOException {
+        return fileStagingService.createTemporaryFile(prefix, suffix);
     }
 
-    public List<TemporaryFileInfo> listUploadTemporaryFiles() throws IOException {
-        return uploadStagingService.listTemporaryFiles();
+    public List<FileStagingInfo> listFileStagingFiles() throws IOException {
+        return fileStagingService.listFiles();
     }
 
-    public void deleteUploadTemporaryFile(String filename) throws IOException {
-        uploadStagingService.deleteTemporaryFile(filename);
+    public void deleteFileStagingFile(String filename) throws IOException {
+        fileStagingService.deleteFile(filename);
     }
 
     public FileItem moveTemporaryFileIntoVault(Path temporaryFile, String directoryPath, String filename)
@@ -462,6 +496,90 @@ public class StorageService {
                 resolvedTarget.path().getFileName().toString(),
                 pathResolver.toRelativePath(root, resolvedTarget.path())
         );
+    }
+
+    public Path createArchiveExtractionWorkspace() throws IOException {
+        return archiveStagingCommitter.createWorkspace("extract-");
+    }
+
+    public Path createArchiveCreationWorkspace() throws IOException {
+        return archiveStagingCommitter.createWorkspace("create-");
+    }
+
+    public FileItem commitTemporaryDirectoryIntoVault(
+            Path temporaryDirectory,
+            String directoryPath,
+            String directoryName,
+            ConflictPolicy conflictPolicy
+    ) throws IOException {
+        return archiveStagingCommitter.commitDirectory(
+                temporaryDirectory,
+                directoryPath,
+                directoryName,
+                conflictPolicy
+        );
+    }
+
+    public void preflightArchiveExtraction(
+            String directoryPath,
+            boolean createContainingDirectory,
+            String directoryName,
+            List<StorageBatchEntry> topLevelEntries,
+            ConflictPolicy conflictPolicy
+    ) throws IOException {
+        archiveStagingCommitter.preflight(
+                directoryPath,
+                createContainingDirectory,
+                directoryName,
+                topLevelEntries,
+                conflictPolicy
+        );
+    }
+
+    public StorageBatchCommitResult commitArchiveContentsIntoVault(
+            Path temporaryDirectory,
+            String directoryPath,
+            List<StorageBatchEntry> topLevelEntries,
+            ConflictPolicy conflictPolicy,
+            StorageProgressListener progressListener
+    ) throws IOException {
+        return archiveStagingCommitter.commitContents(
+                temporaryDirectory,
+                directoryPath,
+                topLevelEntries,
+                conflictPolicy,
+                progressListener
+        );
+    }
+
+    public void deleteArchiveExtractionWorkspace(Path workspace) throws IOException {
+        archiveStagingCommitter.deleteWorkspace(workspace);
+    }
+
+    public void deleteArchiveCreationWorkspace(Path workspace) throws IOException {
+        archiveStagingCommitter.deleteWorkspace(workspace);
+    }
+
+    public List<ArchiveStagingInfo> listArchiveStagingArtifacts(StorageProgressListener progressListener)
+            throws IOException {
+        return archiveStagingCommitter.listArtifacts(progressListener);
+    }
+
+    public void deleteArchiveStagingArtifact(String name) throws IOException {
+        archiveStagingCommitter.deleteArtifact(name);
+    }
+
+    public void preflightVaultFileCommit(
+            String directoryPath,
+            String filename,
+            ConflictPolicy conflictPolicy
+    ) throws IOException {
+        Path target = pathResolver.resolveChild(StorageScope.VAULT, directoryPath, filename, false);
+        conflictResolver.resolve(target, false, conflictPolicy);
+    }
+
+    public void validateVaultEntryName(String name) {
+        pathResolver.validateSingleName(name);
     }
 
     public FileItem moveStagedUploadIntoVault(
@@ -563,7 +681,17 @@ public class StorageService {
 
     public void writeZip(StorageScope scope, String directoryPath, List<String> itemNames, OutputStream outputStream)
             throws IOException {
-        try (StorageZipWriter.EntryWriter zip = zipWriter.open(outputStream)) {
+        writeZip(scope, directoryPath, itemNames, outputStream, StorageProgressListener.NOOP);
+    }
+
+    public void writeZip(
+            StorageScope scope,
+            String directoryPath,
+            List<String> itemNames,
+            OutputStream outputStream,
+            StorageProgressListener progressListener
+    ) throws IOException {
+        try (StorageZipWriter.EntryWriter zip = zipWriter.open(outputStream, progressListener)) {
             for (String itemName : itemNames) {
                 Path item = pathResolver.resolveChild(scope, directoryPath, itemName, true);
                 zip.write(item, item.getFileName().toString());
@@ -635,12 +763,26 @@ public class StorageService {
     public record CommittedVaultFile(String name, String path) {
     }
 
-    public record TemporaryFileInfo(
+    public record FileStagingInfo(
             String name,
             long size,
             String sizeLabel,
             Instant modifiedAt,
-            String modifiedLabel
+            String modifiedLabel,
+            boolean active,
+            String activeOperation
+    ) {
+    }
+
+    public record ArchiveStagingInfo(
+            String name,
+            String operation,
+            long size,
+            String sizeLabel,
+            Instant modifiedAt,
+            String modifiedLabel,
+            boolean active,
+            String activeOperation
     ) {
     }
 }

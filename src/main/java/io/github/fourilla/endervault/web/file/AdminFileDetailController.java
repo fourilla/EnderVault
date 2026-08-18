@@ -6,6 +6,7 @@ import io.github.fourilla.endervault.favorite.FavoriteService;
 import io.github.fourilla.endervault.filetool.FileToolDescriptor;
 import io.github.fourilla.endervault.filetool.FileToolService;
 import io.github.fourilla.endervault.filetool.TextFileContent;
+import io.github.fourilla.endervault.filetool.archive.ArchiveFormat;
 import io.github.fourilla.endervault.filetool.comic.ComicArchiveManifest;
 import io.github.fourilla.endervault.filetool.comic.ComicArchiveService;
 import io.github.fourilla.endervault.filetool.text.TextDraftLeaseException;
@@ -121,6 +122,11 @@ public class AdminFileDetailController {
             model.addAttribute("comicPageNumber", comicPageNumber);
             model.addAttribute("comicPreviousPageNumber", Math.max(1, comicPageNumber - 1));
             model.addAttribute("comicNextPageNumber", Math.min(comicManifest.pageCount(), comicPageNumber + 1));
+        }
+        if (fileTool.archive()) {
+            ArchiveFormat archiveFormat = ArchiveFormat.fromFilename(detail.name()).orElseThrow();
+            model.addAttribute("archiveSuggestedName", archiveFormat.suggestedDirectoryName(detail.name()));
+            model.addAttribute("archiveDestinationPath", detail.parentPath());
         }
         String shareBaseUrl = shareUrlBuilder.shareBaseUrl();
         model.addAttribute("shares", shareLinkService.listForVaultPath(detail.path())

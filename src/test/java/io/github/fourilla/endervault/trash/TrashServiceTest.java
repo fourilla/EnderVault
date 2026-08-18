@@ -17,6 +17,7 @@ import io.github.fourilla.endervault.recent.RecentService;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.storage.StorageService;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
@@ -58,7 +59,8 @@ class TrashServiceTest {
                                 new VpnProxyHealthService(properties, new VpnTunnelHealthProbe())
                         )
                 ),
-                new OutboundRouteStateService(properties)
+                new OutboundRouteStateService(properties),
+                new TemporaryArtifactRegistry()
         );
         bookmarkService.initialize();
         favoriteService = new FavoriteService(storageService, bookmarkService, objectMapper, properties);

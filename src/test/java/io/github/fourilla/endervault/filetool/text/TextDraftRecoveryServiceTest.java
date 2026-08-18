@@ -11,6 +11,7 @@ import io.github.fourilla.endervault.storage.FileDetail;
 import io.github.fourilla.endervault.storage.FileItem;
 import io.github.fourilla.endervault.storage.StorageScope;
 import io.github.fourilla.endervault.storage.StorageService;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -33,7 +34,8 @@ class TextDraftRecoveryServiceTest {
     void setUp() throws Exception {
         NasProperties properties = new NasProperties();
         properties.getStorage().setRoot(root);
-        storageService = new StorageService(properties);
+        TemporaryArtifactRegistry temporaryArtifactRegistry = new TemporaryArtifactRegistry();
+        storageService = new StorageService(properties, new FileActionRegistry(), temporaryArtifactRegistry);
         storageService.initialize();
 
         FileActionRegistry fileActionRegistry = new FileActionRegistry();
@@ -44,7 +46,12 @@ class TextDraftRecoveryServiceTest {
         );
         repository.initialize();
         textDraftService = new TextDraftService(repository, textFileService, properties);
-        recoveryService = new TextDraftRecoveryService(textDraftService, textFileService, storageService);
+        recoveryService = new TextDraftRecoveryService(
+                textDraftService,
+                textFileService,
+                storageService,
+                temporaryArtifactRegistry
+        );
     }
 
     @Test

@@ -14,6 +14,7 @@ import io.github.fourilla.endervault.outbound.OutboundRouteStateService;
 import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthService;
 import io.github.fourilla.endervault.outbound.vpn.VpnTunnelHealthProbe;
 import io.github.fourilla.endervault.storage.StorageService;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,7 +45,8 @@ class StickyNoteServiceTest {
                                 new VpnProxyHealthService(properties, new VpnTunnelHealthProbe())
                         )
                 ),
-                new OutboundRouteStateService(properties)
+                new OutboundRouteStateService(properties),
+                new TemporaryArtifactRegistry()
         );
         bookmarkService.initialize();
         service = new StickyNoteService(

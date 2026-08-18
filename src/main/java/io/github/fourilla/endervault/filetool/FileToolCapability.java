@@ -6,5 +6,7 @@ public enum FileToolCapability {
     TEXT_SOURCE,
     TEXT_EDIT,
     MARKDOWN_RENDER,
-    COMIC_VIEW
+    COMIC_VIEW,
+    ARCHIVE_BROWSE,
+    ARCHIVE_EXTRACT
 }

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:fragment="player(sourceUrl, fileName)">
+    <div class="audio-tool">
+        <div class="audio-tool-heading">
+            <span class="audio-tool-icon" aria-hidden="true">
+                <i class="fas fa-music"></i>
+            </span>
+            <div class="audio-tool-title">
+                <strong th:text="${fileName}" th:title="${fileName}">Audio file</strong>
+            </div>
+        </div>
+        <audio class="audio-tool-player" controls preload="metadata"
+               th:src="${sourceUrl}"
+               th:attr="aria-label=${'Audio player for ' + fileName}">
+            Your browser does not support HTML audio playback.
+        </audio>
+    </div>
+</th:block>
+</body>
+</html>

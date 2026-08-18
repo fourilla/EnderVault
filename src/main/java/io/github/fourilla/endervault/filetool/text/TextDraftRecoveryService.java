@@ -3,6 +3,8 @@ package io.github.fourilla.endervault.filetool.text;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
 import io.github.fourilla.endervault.storage.FileItem;
 import io.github.fourilla.endervault.storage.StorageService;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactType;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
@@ -22,15 +24,18 @@ public class TextDraftRecoveryService {
     private final TextDraftService textDraftService;
     private final TextFileService textFileService;
     private final StorageService storageService;
+    private final TemporaryArtifactRegistry temporaryArtifactRegistry;
 
     public TextDraftRecoveryService(
             TextDraftService textDraftService,
             TextFileService textFileService,
-            StorageService storageService
+            StorageService storageService,
+            TemporaryArtifactRegistry temporaryArtifactRegistry
     ) {
         this.textDraftService = textDraftService;
         this.textFileService = textFileService;
         this.storageService = storageService;
+        this.temporaryArtifactRegistry = temporaryArtifactRegistry;
     }
 
     public TextDraftSaveAsSuggestion suggestion(String originalPath) throws IOException {
@@ -56,7 +61,12 @@ public class TextDraftRecoveryService {
         }
         byte[] bytes = textFileService.validatedBytes(content);
         RecoveryDirectory recoveryDirectory = nearestExistingParent(originalPath);
-        Path temporaryFile = storageService.createUploadTemporaryFile("text-recovery-", ".tmp");
+        Path temporaryFile = storageService.createFileStagingTemporaryFile("text-recovery-", ".tmp");
+        TemporaryArtifactRegistry.Registration registration = temporaryArtifactRegistry.register(
+                temporaryFile,
+                TemporaryArtifactType.TEXT_RECOVERY,
+                draftId == null ? originalPath : draftId.toString()
+        );
         try {
             Files.write(
                     temporaryFile,
@@ -74,8 +84,12 @@ public class TextDraftRecoveryService {
             deleteDraftAfterRecovery(draftId, editorToken, claimedDraft);
             return new TextDraftRecoveryResult(saved, recoveryDirectory.fallback());
         } finally {
-            if (temporaryFile != null) {
-                Files.deleteIfExists(temporaryFile);
+            try {
+                if (temporaryFile != null) {
+                    Files.deleteIfExists(temporaryFile);
+                }
+            } finally {
+                registration.close();
             }
         }
     }

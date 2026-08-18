@@ -4,9 +4,11 @@ public enum FileToolType {
     DIRECTORY("directory", "Directory"),
     IMAGE("image", "Image Preview"),
     VIDEO("video", "Video Preview"),
+    AUDIO("audio", "Audio Player"),
     TEXT("text", "Text Editor"),
     PDF("pdf", "PDF Preview"),
     COMIC("comic", "Comic Viewer"),
+    ARCHIVE("archive", "Archive Explorer"),
     HEX("hex", "Hex Viewer");
 
     private final String id;

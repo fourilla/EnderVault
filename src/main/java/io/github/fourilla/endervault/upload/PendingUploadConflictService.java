@@ -2,6 +2,8 @@ package io.github.fourilla.endervault.upload;
 
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactType;
 import jakarta.annotation.PreDestroy;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -23,10 +25,16 @@ public class PendingUploadConflictService {
     private static final Logger logger = LoggerFactory.getLogger(PendingUploadConflictService.class);
 
     private final Map<String, PendingUploadConflict> conflicts = new ConcurrentHashMap<>();
+    private final Map<String, TemporaryArtifactRegistry.Registration> registrations = new ConcurrentHashMap<>();
     private final NasProperties.Upload uploadProperties;
+    private final TemporaryArtifactRegistry temporaryArtifactRegistry;
 
-    public PendingUploadConflictService(NasProperties nasProperties) {
+    public PendingUploadConflictService(
+            NasProperties nasProperties,
+            TemporaryArtifactRegistry temporaryArtifactRegistry
+    ) {
         this.uploadProperties = nasProperties.getUpload();
+        this.temporaryArtifactRegistry = temporaryArtifactRegistry;
     }
 
     public PendingUploadConflict create(Path temporaryFile, String directoryPath, String filename, long size)
@@ -40,6 +48,12 @@ public class PendingUploadConflictService {
                 size,
                 Instant.now()
         );
+        TemporaryArtifactRegistry.Registration registration = temporaryArtifactRegistry.register(
+                temporaryFile,
+                TemporaryArtifactType.UPLOAD_CONFLICT,
+                conflict.id()
+        );
+        registrations.put(conflict.id(), registration);
         conflicts.put(conflict.id(), conflict);
         return conflict;
     }
@@ -54,13 +68,24 @@ public class PendingUploadConflictService {
     }
 
     public void cancel(String id) throws IOException {
-        PendingUploadConflict conflict = conflicts.remove(cleanId(id));
-        if (conflict != null) {
-            Files.deleteIfExists(conflict.temporaryFile());
+        String normalizedId = cleanId(id);
+        PendingUploadConflict conflict = conflicts.remove(normalizedId);
+        try {
+            if (conflict != null) {
+                Files.deleteIfExists(conflict.temporaryFile());
+            }
+        } finally {
+            release(normalizedId);
         }
     }
 
-    @Scheduled(fixedDelayString = "${nas.upload.temp-cleanup-interval-ms:600000}")
+    public void release(PendingUploadConflict conflict) {
+        if (conflict != null) {
+            release(conflict.id());
+        }
+    }
+
+    @Scheduled(fixedDelayString = "${nas.upload.conflict-cleanup-interval-ms:600000}")
     public void cleanupExpiredConflicts() {
         try {
             cleanupExpired();
@@ -76,18 +101,33 @@ public class PendingUploadConflictService {
                 Files.deleteIfExists(conflict.temporaryFile());
             } catch (IOException ignored) {
                 // Best effort cleanup on shutdown.
+            } finally {
+                release(conflict.id());
             }
         }
         conflicts.clear();
+        registrations.values().forEach(TemporaryArtifactRegistry.Registration::close);
+        registrations.clear();
     }
 
     private void cleanupExpired() throws IOException {
         Instant now = Instant.now();
-        Duration expiration = Duration.ofMinutes(Math.max(1, uploadProperties.getTempRetentionMinutes()));
+        Duration expiration = Duration.ofMinutes(Math.max(1, uploadProperties.getConflictRetentionMinutes()));
         for (PendingUploadConflict conflict : new ArrayList<>(conflicts.values())) {
             if (conflict.expired(now, expiration) && conflicts.remove(conflict.id(), conflict)) {
-                Files.deleteIfExists(conflict.temporaryFile());
+                try {
+                    Files.deleteIfExists(conflict.temporaryFile());
+                } finally {
+                    release(conflict.id());
+                }
             }
+        }
+    }
+
+    private void release(String id) {
+        TemporaryArtifactRegistry.Registration registration = registrations.remove(id);
+        if (registration != null) {
+            registration.close();
         }
     }
 

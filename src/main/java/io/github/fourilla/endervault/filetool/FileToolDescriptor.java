@@ -45,6 +45,10 @@ public record FileToolDescriptor(
         return type == FileToolType.VIDEO;
     }
 
+    public boolean audio() {
+        return type == FileToolType.AUDIO;
+    }
+
     public boolean text() {
         return type == FileToolType.TEXT;
     }
@@ -55,6 +59,10 @@ public record FileToolDescriptor(
 
     public boolean comic() {
         return type == FileToolType.COMIC;
+    }
+
+    public boolean archive() {
+        return type == FileToolType.ARCHIVE;
     }
 
     public boolean hex() {

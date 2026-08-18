@@ -113,61 +113,69 @@ public class AdminFileUploadController {
             RedirectAttributes redirectAttributes
     ) throws IOException {
         PendingUploadConflict conflict = pendingUploadConflictService.resolve(id);
-        ConflictPolicy policy = effectiveUploadConflictPolicy(conflictPolicy);
-        String redirect = redirectToFiles(conflict.directoryPath(), view, sort, direction, page, size);
+        try {
+            ConflictPolicy policy = effectiveUploadConflictPolicy(conflictPolicy);
+            String redirect = redirectToFiles(conflict.directoryPath(), view, sort, direction, page, size);
 
-        if (policy == ConflictPolicy.CANCEL) {
-            Files.deleteIfExists(conflict.temporaryFile());
+            if (policy == ConflictPolicy.CANCEL) {
+                Files.deleteIfExists(conflict.temporaryFile());
+                activityLogService.record(
+                        "UPLOAD",
+                        request,
+                        targetPath(conflict.directoryPath(), conflict.filename()),
+                        null,
+                        false,
+                        "Upload canceled after file name conflict",
+                        Map.of("reason", "conflict-canceled")
+                );
+                FlashNotification notification = FlashNotification.warning("Upload canceled.");
+                return ActionResponseSupport.ok(
+                        request,
+                        redirectAttributes,
+                        notification,
+                        redirect,
+                        UploadConflictResolveResponse.ok(
+                                notification,
+                                null,
+                                ActionResponseSupport.redirectUrl(redirect)
+                        )
+                );
+            }
+
+            FileItem uploadedFile;
+            try {
+                uploadedFile = storageService.moveStagedUploadIntoVault(
+                        new StagedUpload(conflict.temporaryFile(), conflict.filename(), conflict.size()),
+                        conflict.directoryPath(),
+                        policy
+                );
+            } catch (IOException | RuntimeException ex) {
+                Files.deleteIfExists(conflict.temporaryFile());
+                throw ex;
+            }
             activityLogService.record(
                     "UPLOAD",
                     request,
-                    targetPath(conflict.directoryPath(), conflict.filename()),
+                    uploadedFile.path(),
                     null,
-                    false,
-                    "Upload canceled after file name conflict",
-                    Map.of("reason", "conflict-canceled")
+                    "Uploaded " + uploadedFile.name(),
+                    Map.of("size", uploadedFile.sizeLabel(), "conflictPolicy", policy.value())
             );
-            FlashNotification notification = FlashNotification.warning("Upload canceled.");
+            FlashNotification notification = FlashNotification.success("Upload complete.");
             return ActionResponseSupport.ok(
                     request,
                     redirectAttributes,
                     notification,
                     redirect,
-                    UploadConflictResolveResponse.ok(notification, null, ActionResponseSupport.redirectUrl(redirect))
+                    UploadConflictResolveResponse.ok(
+                            notification,
+                            UploadedFilePayload.from(uploadedFile),
+                            ActionResponseSupport.redirectUrl(redirect)
+                    )
             );
+        } finally {
+            pendingUploadConflictService.release(conflict);
         }
-
-        FileItem uploadedFile;
-        try {
-            uploadedFile = storageService.moveStagedUploadIntoVault(
-                    new StagedUpload(conflict.temporaryFile(), conflict.filename(), conflict.size()),
-                    conflict.directoryPath(),
-                    policy
-            );
-        } catch (IOException | RuntimeException ex) {
-            Files.deleteIfExists(conflict.temporaryFile());
-            throw ex;
-        }
-        activityLogService.record(
-                "UPLOAD",
-                request,
-                uploadedFile.path(),
-                null,
-                "Uploaded " + uploadedFile.name(),
-                Map.of("size", uploadedFile.sizeLabel(), "conflictPolicy", policy.value())
-        );
-        FlashNotification notification = FlashNotification.success("Upload complete.");
-        return ActionResponseSupport.ok(
-                request,
-                redirectAttributes,
-                notification,
-                redirect,
-                UploadConflictResolveResponse.ok(
-                        notification,
-                        UploadedFilePayload.from(uploadedFile),
-                        ActionResponseSupport.redirectUrl(redirect)
-                )
-        );
     }
 
     private Object validateUploadRequest(

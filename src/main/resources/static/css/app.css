@@ -10,6 +10,7 @@
 @import url("./components/controls.css");
 @import url("./components/directory-tree.css");
 @import url("./components/directory-picker.css");
+@import url("./components/archive-tree.css");
 @import url("./components/panels.css");
 @import url("./components/browser.css");
 @import url("./components/transfer-buffer.css");
@@ -18,6 +19,8 @@
 @import url("./pages/read-only.css");
 @import url("./pages/auth.css");
 @import url("./pages/detail.css");
+@import url("./pages/image-viewer.css");
+@import url("./pages/audio-player.css");
 @import url("./pages/comic-preview.css");
 @import url("./pages/dashboard.css");
 @import url("./pages/settings.css");

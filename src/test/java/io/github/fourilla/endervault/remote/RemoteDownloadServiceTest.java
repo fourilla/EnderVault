@@ -9,6 +9,7 @@ import com.sun.net.httpserver.HttpServer;
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.auth.ClientIpResolver;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.filetool.FileActionRegistry;
 import io.github.fourilla.endervault.outbound.NetworkRoute;
 import io.github.fourilla.endervault.outbound.OutboundHttpClientRegistry;
 import io.github.fourilla.endervault.outbound.OutboundRouteStateService;
@@ -17,6 +18,7 @@ import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthService;
 import io.github.fourilla.endervault.outbound.vpn.VpnTunnelHealthProbe;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
 import io.github.fourilla.endervault.storage.StorageService;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetAddress;
@@ -48,6 +50,7 @@ class RemoteDownloadServiceTest {
     private RemoteDownloadTransferEngine transferEngine;
     private RemoteDownloadRequestTicketService ticketService;
     private OutboundRouteStateService outboundRouteStateService;
+    private TemporaryArtifactRegistry temporaryArtifactRegistry;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -60,7 +63,12 @@ class RemoteDownloadServiceTest {
         properties.getRemoteDownload().setMaxRetries(2);
         outboundRouteStateService = new OutboundRouteStateService(properties);
 
-        StorageService storageService = new StorageService(properties);
+        temporaryArtifactRegistry = new TemporaryArtifactRegistry();
+        StorageService storageService = new StorageService(
+                properties,
+                new FileActionRegistry(),
+                temporaryArtifactRegistry
+        );
         storageService.initialize();
         ActivityLogService activityLogService = new ActivityLogService(
                 new ObjectMapper().findAndRegisterModules(),
@@ -85,7 +93,8 @@ class RemoteDownloadServiceTest {
                 storageService,
                 httpClient,
                 fileNameResolver,
-                retryPolicy
+                retryPolicy,
+                temporaryArtifactRegistry
         );
         ticketService = new RemoteDownloadRequestTicketService();
         remoteDownloadService = new RemoteDownloadService(
@@ -138,6 +147,7 @@ class RemoteDownloadServiceTest {
         assertThat(task.status()).isEqualTo(RemoteDownloadStatus.COMPLETE);
         assertThat(task.targetPath()).isEqualTo("incoming/downloaded.mp4");
         assertThat(root.resolve("incoming/downloaded.mp4")).hasBinaryContent(body);
+        assertThat(temporaryArtifactRegistry.activeArtifacts()).isEmpty();
         assertThatThrownBy(() -> remoteDownloadService.start(inspection.requestId(), request))
                 .hasMessageContaining("not found or expired");
     }
