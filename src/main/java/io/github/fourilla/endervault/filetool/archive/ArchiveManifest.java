@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.filetool.archive;
 
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
+import io.github.fourilla.endervault.common.NaturalNameComparator;
 import java.util.Comparator;
 import java.util.List;
 
@@ -26,8 +27,7 @@ public record ArchiveManifest(
         return entries.stream()
                 .filter(entry -> entry.parentPath().equals(parent))
                 .sorted(Comparator.comparing(ArchiveEntryInfo::directory).reversed()
-                        .thenComparing(ArchiveEntryInfo::name, String.CASE_INSENSITIVE_ORDER)
-                        .thenComparing(ArchiveEntryInfo::name))
+                        .thenComparing(ArchiveEntryInfo::name, NaturalNameComparator.INSTANCE))
                 .toList();
     }
 

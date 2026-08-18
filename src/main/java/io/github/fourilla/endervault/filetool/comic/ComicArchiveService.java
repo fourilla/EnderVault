@@ -1,5 +1,6 @@
 package io.github.fourilla.endervault.filetool.comic;
 
+import io.github.fourilla.endervault.common.NaturalNameComparator;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.storage.FileDetail;
@@ -116,7 +117,7 @@ public class ComicArchiveService {
 
         imageEntries.sort(Comparator.comparing(
                 ComicEntryCandidate::entryName,
-                ComicArchiveEntries::compareNaturally
+                NaturalNameComparator.INSTANCE
         ));
         List<ComicPage> pages = new ArrayList<>(imageEntries.size());
         for (int i = 0; i < imageEntries.size(); i++) {
