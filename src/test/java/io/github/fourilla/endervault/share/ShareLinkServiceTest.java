@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.publiclink.PublicLinkTokenService;
 import io.github.fourilla.endervault.storage.StorageService;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
@@ -31,7 +32,7 @@ class ShareLinkServiceTest {
         storageService.initialize();
 
         ObjectMapper objectMapper = JsonMapper.builder().findAndAddModules().build();
-        shareLinkService = new ShareLinkService(storageService, objectMapper, properties);
+        shareLinkService = new ShareLinkService(storageService, objectMapper, properties, new PublicLinkTokenService());
         shareLinkService.initialize();
     }
 
@@ -62,19 +63,19 @@ class ShareLinkServiceTest {
     void createsShareLinkWithCustomToken() throws Exception {
         Files.writeString(root.resolve("note.txt"), "hello");
 
-        ShareLink shareLink = shareLinkService.create("", "note.txt", null, "demo_123");
+        ShareLink shareLink = shareLinkService.create("", "note.txt", null, "demo_token_123");
 
-        assertThat(shareLink.token()).isEqualTo("demo_123");
-        assertThat(shareLinkService.requireUsable("demo_123")).isEqualTo(shareLink);
+        assertThat(shareLink.token()).isEqualTo("demo_token_123");
+        assertThat(shareLinkService.requireUsable("demo_token_123")).isEqualTo(shareLink);
     }
 
     @Test
     void rejectsDuplicateCustomShareToken() throws Exception {
         Files.writeString(root.resolve("a.txt"), "a");
         Files.writeString(root.resolve("b.txt"), "b");
-        shareLinkService.create("", "a.txt", null, "same-token");
+        shareLinkService.create("", "a.txt", null, "duplicate-share-token");
 
-        assertThatThrownBy(() -> shareLinkService.create("", "b.txt", null, "same-token"))
+        assertThatThrownBy(() -> shareLinkService.create("", "b.txt", null, "duplicate-share-token"))
                 .isInstanceOf(StorageAccessException.class)
                 .hasMessageContaining("already exists");
     }

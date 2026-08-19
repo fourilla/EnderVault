@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import io.github.fourilla.endervault.bookmark.BookmarkMetadataFetcher;
 import io.github.fourilla.endervault.bookmark.BookmarkService;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.publiclink.PublicLinkTokenService;
 import io.github.fourilla.endervault.favorite.FavoriteService;
 import io.github.fourilla.endervault.outbound.OutboundHttpClientRegistry;
 import io.github.fourilla.endervault.outbound.OutboundRouteStateService;
@@ -48,7 +49,12 @@ class TrashServiceTest {
         storageService.initialize();
 
         ObjectMapper objectMapper = JsonMapper.builder().findAndAddModules().build();
-        shareLinkService = new ShareLinkService(storageService, objectMapper, properties);
+        shareLinkService = new ShareLinkService(
+                storageService,
+                objectMapper,
+                properties,
+                new PublicLinkTokenService()
+        );
         shareLinkService.initialize();
         BookmarkService bookmarkService = new BookmarkService(
                 objectMapper,

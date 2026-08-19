@@ -1237,7 +1237,7 @@ public class NasProperties {
         private boolean customTokenEnabled = true;
 
         @Min(1)
-        private int customTokenMinLength = 3;
+        private int customTokenMinLength = 12;
 
         @Min(1)
         private int customTokenMaxLength = 64;
