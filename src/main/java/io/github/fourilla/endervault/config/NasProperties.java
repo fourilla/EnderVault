@@ -1342,32 +1342,10 @@ public class NasProperties {
     }
 
     public static class Upload {
-        @Min(1)
-        private int conflictRetentionMinutes = 30;
-
-        @Min(60000)
-        private long conflictCleanupIntervalMs = 600000L;
-
         @Min(0)
         private int maxFilesPerRequest = 0;
 
         private boolean directoryUploadEnabled = false;
-
-        public int getConflictRetentionMinutes() {
-            return conflictRetentionMinutes;
-        }
-
-        public void setConflictRetentionMinutes(int conflictRetentionMinutes) {
-            this.conflictRetentionMinutes = conflictRetentionMinutes;
-        }
-
-        public long getConflictCleanupIntervalMs() {
-            return conflictCleanupIntervalMs;
-        }
-
-        public void setConflictCleanupIntervalMs(long conflictCleanupIntervalMs) {
-            this.conflictCleanupIntervalMs = conflictCleanupIntervalMs;
-        }
 
         public int getMaxFilesPerRequest() {
             return maxFilesPerRequest;

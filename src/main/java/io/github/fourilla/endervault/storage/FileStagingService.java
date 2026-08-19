@@ -72,6 +72,22 @@ final class FileStagingService {
         return Files.createTempFile(fileStagingRoot, prefix, suffix);
     }
 
+    String filename(Path path) {
+        Path normalized = path.toAbsolutePath().normalize();
+        pathResolver.ensureInsideFileStagingRoot(normalized);
+        if (!normalized.getParent().equals(fileStagingRoot)) {
+            throw new StorageAccessException("File staging paths must identify a direct child.");
+        }
+        return normalized.getFileName().toString();
+    }
+
+    Path resolveFile(String filename) {
+        pathResolver.validateSingleName(filename);
+        Path resolved = fileStagingRoot.resolve(filename).normalize();
+        pathResolver.ensureInsideFileStagingRoot(resolved);
+        return resolved;
+    }
+
     List<StorageService.FileStagingInfo> listFiles() throws IOException {
         Files.createDirectories(fileStagingRoot);
         try (Stream<Path> stream = Files.list(fileStagingRoot)) {

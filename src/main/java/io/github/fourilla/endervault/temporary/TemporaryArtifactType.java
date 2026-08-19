@@ -2,7 +2,7 @@ package io.github.fourilla.endervault.temporary;
 
 public enum TemporaryArtifactType {
     UPLOAD("Upload"),
-    UPLOAD_CONFLICT("Pending upload conflict"),
+    PENDING_FILE_DECISION("Pending file decision"),
     REMOTE_DOWNLOAD("Remote download"),
     FILE_COPY("File copy"),
     TEXT_RECOVERY("Text draft recovery"),

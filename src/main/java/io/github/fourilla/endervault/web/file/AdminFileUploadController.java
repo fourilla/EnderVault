@@ -6,12 +6,15 @@ import static io.github.fourilla.endervault.web.file.FileRedirects.targetPath;
 
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.pending.PendingFileDecision;
+import io.github.fourilla.endervault.pending.PendingFileDecisionAction;
+import io.github.fourilla.endervault.pending.PendingFileDecisionService;
+import io.github.fourilla.endervault.pending.PendingFileDecisionService.PendingFileDecisionResult;
+import io.github.fourilla.endervault.pending.PendingFileDecisionSource;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
 import io.github.fourilla.endervault.storage.FileItem;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.storage.StorageService.StagedUpload;
-import io.github.fourilla.endervault.upload.PendingUploadConflictService;
-import io.github.fourilla.endervault.upload.PendingUploadConflictService.PendingUploadConflict;
 import io.github.fourilla.endervault.web.support.ActionResponse;
 import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.FlashNotification;
@@ -36,18 +39,18 @@ public class AdminFileUploadController {
 
     private final StorageService storageService;
     private final ActivityLogService activityLogService;
-    private final PendingUploadConflictService pendingUploadConflictService;
+    private final PendingFileDecisionService pendingFileDecisionService;
     private final NasProperties.Upload uploadProperties;
 
     public AdminFileUploadController(
             StorageService storageService,
             ActivityLogService activityLogService,
-            PendingUploadConflictService pendingUploadConflictService,
+            PendingFileDecisionService pendingFileDecisionService,
             NasProperties nasProperties
     ) {
         this.storageService = storageService;
         this.activityLogService = activityLogService;
-        this.pendingUploadConflictService = pendingUploadConflictService;
+        this.pendingFileDecisionService = pendingFileDecisionService;
         this.uploadProperties = nasProperties.getUpload();
     }
 
@@ -112,56 +115,32 @@ public class AdminFileUploadController {
             HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
-        PendingUploadConflict conflict = pendingUploadConflictService.resolve(id);
-        try {
-            ConflictPolicy policy = effectiveUploadConflictPolicy(conflictPolicy);
-            String redirect = redirectToFiles(conflict.directoryPath(), view, sort, direction, page, size);
+        PendingFileDecision decision = pendingFileDecisionService.require(id);
+        ConflictPolicy policy = effectiveUploadConflictPolicy(conflictPolicy);
+        String redirect = redirectToFiles(decision.destinationPath(), view, sort, direction, page, size);
+        PendingFileDecisionAction action = switch (policy) {
+            case RENAME -> PendingFileDecisionAction.KEEP_BOTH;
+            case OVERWRITE -> PendingFileDecisionAction.REPLACE;
+            case CANCEL -> PendingFileDecisionAction.DISCARD;
+        };
+        PendingFileDecisionResult result = pendingFileDecisionService.resolve(
+                decision.id(),
+                action,
+                null,
+                action == PendingFileDecisionAction.REPLACE
+        );
 
-            if (policy == ConflictPolicy.CANCEL) {
-                Files.deleteIfExists(conflict.temporaryFile());
-                activityLogService.record(
-                        "UPLOAD",
-                        request,
-                        targetPath(conflict.directoryPath(), conflict.filename()),
-                        null,
-                        false,
-                        "Upload canceled after file name conflict",
-                        Map.of("reason", "conflict-canceled")
-                );
-                FlashNotification notification = FlashNotification.warning("Upload canceled.");
-                return ActionResponseSupport.ok(
-                        request,
-                        redirectAttributes,
-                        notification,
-                        redirect,
-                        UploadConflictResolveResponse.ok(
-                                notification,
-                                null,
-                                ActionResponseSupport.redirectUrl(redirect)
-                        )
-                );
-            }
-
-            FileItem uploadedFile;
-            try {
-                uploadedFile = storageService.moveStagedUploadIntoVault(
-                        new StagedUpload(conflict.temporaryFile(), conflict.filename(), conflict.size()),
-                        conflict.directoryPath(),
-                        policy
-                );
-            } catch (IOException | RuntimeException ex) {
-                Files.deleteIfExists(conflict.temporaryFile());
-                throw ex;
-            }
+        if (result.discarded()) {
             activityLogService.record(
                     "UPLOAD",
                     request,
-                    uploadedFile.path(),
+                    targetPath(decision.destinationPath(), decision.originalFilename()),
                     null,
-                    "Uploaded " + uploadedFile.name(),
-                    Map.of("size", uploadedFile.sizeLabel(), "conflictPolicy", policy.value())
+                    false,
+                    "Upload canceled after file name conflict",
+                    Map.of("reason", "conflict-canceled")
             );
-            FlashNotification notification = FlashNotification.success("Upload complete.");
+            FlashNotification notification = FlashNotification.warning("Upload canceled.");
             return ActionResponseSupport.ok(
                     request,
                     redirectAttributes,
@@ -169,13 +148,33 @@ public class AdminFileUploadController {
                     redirect,
                     UploadConflictResolveResponse.ok(
                             notification,
-                            UploadedFilePayload.from(uploadedFile),
+                            null,
                             ActionResponseSupport.redirectUrl(redirect)
                     )
             );
-        } finally {
-            pendingUploadConflictService.release(conflict);
         }
+
+        FileItem uploadedFile = result.committedFile();
+        activityLogService.record(
+                "UPLOAD",
+                request,
+                uploadedFile.path(),
+                null,
+                "Uploaded " + uploadedFile.name(),
+                Map.of("size", uploadedFile.sizeLabel(), "conflictPolicy", policy.value())
+        );
+        FlashNotification notification = FlashNotification.success("Upload complete.");
+        return ActionResponseSupport.ok(
+                request,
+                redirectAttributes,
+                notification,
+                redirect,
+                UploadConflictResolveResponse.ok(
+                        notification,
+                        UploadedFilePayload.from(uploadedFile),
+                        ActionResponseSupport.redirectUrl(redirect)
+                )
+        );
     }
 
     private Object validateUploadRequest(
@@ -235,10 +234,11 @@ public class AdminFileUploadController {
         try {
             return storageService.moveStagedUploadIntoVault(stagedUpload, path, ConflictPolicy.CANCEL);
         } catch (FileAlreadyExistsException ex) {
-            PendingUploadConflict conflict;
+            PendingFileDecision conflict;
             try {
-                conflict = pendingUploadConflictService.create(
+                conflict = pendingFileDecisionService.create(
                         stagedUpload.temporaryFile(),
+                        PendingFileDecisionSource.ADMIN_UPLOAD,
                         path,
                         stagedUpload.filename(),
                         stagedUpload.size()
@@ -282,11 +282,11 @@ public class AdminFileUploadController {
             String directoryPath,
             String defaultPolicy
     ) {
-        static UploadConflictPayload from(PendingUploadConflict conflict, String defaultPolicy) {
+        static UploadConflictPayload from(PendingFileDecision conflict, String defaultPolicy) {
             return new UploadConflictPayload(
                     conflict.id(),
-                    conflict.filename(),
-                    conflict.directoryPath(),
+                    conflict.originalFilename(),
+                    conflict.destinationPath(),
                     defaultPolicy
             );
         }

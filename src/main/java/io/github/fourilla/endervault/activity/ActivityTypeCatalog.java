@@ -16,6 +16,7 @@ public final class ActivityTypeCatalog {
             new ActivityTypeOption("passkey-register", "PASSKEY_REGISTER", "Passkey register", "Authentication", false),
             new ActivityTypeOption("passkey-delete", "PASSKEY_DELETE", "Passkey delete", "Authentication", false),
             new ActivityTypeOption("upload", "UPLOAD", "Upload", "File management", false),
+            new ActivityTypeOption("pending-file-decision-resolve", "PENDING_FILE_DECISION_RESOLVE", "Pending file decision resolve", "File management", false),
             new ActivityTypeOption("create-directory", "CREATE_DIRECTORY", "Create directory", "File management", false),
             new ActivityTypeOption("create-file", "CREATE_FILE", "Create file", "File management", false),
             new ActivityTypeOption("text-save", "TEXT_SAVE", "Text save", "File management", false),

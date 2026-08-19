@@ -69,6 +69,8 @@ class AdminNotificationFlowTest {
         mockMvc.perform(get("/files"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"toastRegion\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-notification-center")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/notification-center.js")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-outbound-route-form")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/page-jump.js")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Open read-only mode")))
@@ -80,6 +82,21 @@ class AdminNotificationFlowTest {
                         org.hamcrest.Matchers.containsString("Shared links"))))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("Remote download"))));
+    }
+
+    @Test
+    void pendingDecisionPageAndNotificationApiRender() throws Exception {
+        mockMvc.perform(get("/admin/pending-decisions"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("Files Awaiting Review")))
+                .andExpect(content().string(Matchers.containsString("/js/pending-decisions.js")));
+
+        mockMvc.perform(get("/api/v1/notifications"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.actionableCount").isNumber())
+                .andExpect(jsonPath("$.reviewAllHref").value("/admin/pending-decisions"));
     }
 
     @Test

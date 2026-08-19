@@ -43,8 +43,13 @@
     <script defer th:src="@{/js/server-tasks.js}"></script>
     <script defer th:src="@{/js/favorites.js}"></script>
     <script defer th:src="@{/js/topbar-controls.js}"></script>
+    <script defer th:src="@{/js/notification-center.js}"></script>
     <script defer th:src="@{/js/outbound-route.js}"></script>
     <script defer th:src="@{/js/sticky-notes.js}"></script>
+</th:block>
+
+<th:block th:fragment="pendingDecisionsScript">
+    <script defer th:src="@{/js/pending-decisions.js}"></script>
 </th:block>
 
 <th:block th:fragment="adminActionsScript">

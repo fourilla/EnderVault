@@ -21,6 +21,7 @@ import io.github.fourilla.endervault.web.file.AdminFileShareController;
 import io.github.fourilla.endervault.web.file.AdminFileTransferController;
 import io.github.fourilla.endervault.web.file.AdminRecentController;
 import io.github.fourilla.endervault.web.metadata.AdminMetadataController;
+import io.github.fourilla.endervault.web.pending.AdminPendingFileDecisionController;
 import io.github.fourilla.endervault.web.remote.AdminRemoteDownloadController;
 import io.github.fourilla.endervault.web.settings.AdminAccountSettingsController;
 import io.github.fourilla.endervault.web.settings.AdminBookmarkSettingsController;
@@ -62,6 +63,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
         AdminVpnSettingsController.class,
         AdminVpnController.class,
         AdminMetadataController.class,
+        AdminPendingFileDecisionController.class,
         AdminStickyNoteController.class
 })
 public class AdminShellModelAdvice {
