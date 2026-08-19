@@ -100,6 +100,21 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void fileRequestManagementPageRendersCreationPolicy() throws Exception {
+        mockMvc.perform(get("/admin/file-requests"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("Create Request")))
+                .andExpect(content().string(Matchers.containsString("name=\"uploaderNamePolicy\"")))
+                .andExpect(content().string(Matchers.containsString("name=\"maxFileSizeGb\"")))
+                .andExpect(content().string(Matchers.containsString("data-storage-directory-picker")));
+
+        mockMvc.perform(get("/admin/dashboard"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("/admin/file-requests")))
+                .andExpect(content().string(Matchers.containsString("File requests")));
+    }
+
+    @Test
     void storageEntriesEndpointReturnsRequestedDirectoryTypesOnly() throws Exception {
         Path container = ROOT.resolve("entries-api-test");
         Files.createDirectories(container.resolve("nested"));

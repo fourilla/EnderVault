@@ -13,6 +13,7 @@ public record DashboardView(
         ThumbnailSummary thumbnails,
         RemoteDownloadSummary remoteDownloads,
         boolean remoteDownloadEnabled,
+        boolean fileRequestsEnabled,
         TaskSummary appTasks,
         List<DashboardTaskView> recentTasks,
         int activeSessions,

@@ -20,6 +20,7 @@ import io.github.fourilla.endervault.web.file.AdminFileMutationController;
 import io.github.fourilla.endervault.web.file.AdminFileShareController;
 import io.github.fourilla.endervault.web.file.AdminFileTransferController;
 import io.github.fourilla.endervault.web.file.AdminRecentController;
+import io.github.fourilla.endervault.web.filerequest.AdminFileRequestController;
 import io.github.fourilla.endervault.web.metadata.AdminMetadataController;
 import io.github.fourilla.endervault.web.pending.AdminPendingFileDecisionController;
 import io.github.fourilla.endervault.web.remote.AdminRemoteDownloadController;
@@ -50,6 +51,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
         AdminFileTransferController.class,
         AdminFavoriteController.class,
         AdminRecentController.class,
+        AdminFileRequestController.class,
         AdminLogController.class,
         AdminSessionController.class,
         AdminRemoteDownloadController.class,
