@@ -147,6 +147,11 @@ public class AdminShellModelAdvice {
         return BookmarkLinkClickAction.from(nasProperties);
     }
 
+    @ModelAttribute("fileRequestsEnabled")
+    public boolean fileRequestsEnabled() {
+        return nasProperties.getFileRequest().isEnabled();
+    }
+
     @ModelAttribute("outboundRoute")
     public OutboundRouteView outboundRoute() {
         return OutboundRouteView.from(

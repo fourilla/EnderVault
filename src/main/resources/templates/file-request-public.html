@@ -41,9 +41,8 @@
             </div>
         </dl>
 
-        <form class="file-request-upload-form"
-              th:attr="data-file-request-upload='',
-                       data-ticket-url=@{/r/{token}/tickets(token=${token})},
+        <form class="file-request-upload-form" data-file-request-upload
+              th:attr="data-ticket-url=@{/r/{token}/tickets(token=${token})},
                        data-upload-base=${uploadBase},
                        data-parallel-uploads=${fileRequest.parallelUploads()}">
             <label class="file-request-uploader-field"

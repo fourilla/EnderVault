@@ -40,7 +40,8 @@
                     <label>
                         <span>Destination</span>
                         <span class="input-action-field">
-                            <input id="fileRequestDestination" name="destinationPath" value=""
+                            <input id="fileRequestDestination" name="destinationPath"
+                                   th:value="${defaultDestinationPath}"
                                    placeholder="Vault root" autocomplete="off">
                             <button class="input-action-button js-only" type="button"
                                     data-directory-picker-open data-directory-picker-target="fileRequestDestination"

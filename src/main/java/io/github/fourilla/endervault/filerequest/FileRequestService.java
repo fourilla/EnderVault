@@ -103,6 +103,10 @@ public class FileRequestService {
                 .toList();
     }
 
+    public String normalizeDestinationPath(String destinationPath) throws IOException {
+        return storageService.normalizeVaultDirectory(destinationPath);
+    }
+
     public synchronized FileRequest require(String id) throws IOException {
         String normalizedId = cleanId(id);
         return repository.list().stream()

@@ -101,6 +101,58 @@ class PendingFileDecisionServiceTest {
     }
 
     @Test
+    void saveAsCommitsUsingRequestedFilename() throws Exception {
+        PendingFileDecisionService service = service(new TemporaryArtifactRegistry());
+        Path staged = storageService.createFileStagingTemporaryFile("request-", ".tmp");
+        Files.writeString(staged, "pending");
+        PendingFileDecision decision = service.create(
+                staged,
+                PendingFileDecisionSource.FILE_REQUEST,
+                "",
+                "note.txt",
+                Files.size(staged)
+        );
+
+        PendingFileDecisionService.PendingFileDecisionResult result = service.resolve(
+                decision.id(),
+                PendingFileDecisionAction.SAVE_AS,
+                "renamed.txt",
+                false
+        );
+
+        assertThat(result.committedFile().name()).isEqualTo("renamed.txt");
+        assertThat(Files.readString(root.resolve("renamed.txt"))).isEqualTo("pending");
+        assertThat(service.list()).isEmpty();
+    }
+
+    @Test
+    void replaceOverwritesUnchangedConflictTarget() throws Exception {
+        Path target = root.resolve("note.txt");
+        Files.writeString(target, "existing");
+        PendingFileDecisionService service = service(new TemporaryArtifactRegistry());
+        Path staged = storageService.createFileStagingTemporaryFile("request-", ".tmp");
+        Files.writeString(staged, "pending");
+        PendingFileDecision decision = service.create(
+                staged,
+                PendingFileDecisionSource.FILE_REQUEST,
+                "",
+                "note.txt",
+                Files.size(staged)
+        );
+
+        PendingFileDecisionService.PendingFileDecisionResult result = service.resolve(
+                decision.id(),
+                PendingFileDecisionAction.REPLACE,
+                null,
+                true
+        );
+
+        assertThat(result.committedFile().name()).isEqualTo("note.txt");
+        assertThat(Files.readString(target)).isEqualTo("pending");
+        assertThat(service.list()).isEmpty();
+    }
+
+    @Test
     void replaceRejectsTargetChangedAfterDecisionWasCreated() throws Exception {
         Path target = root.resolve("note.txt");
         Files.writeString(target, "existing");

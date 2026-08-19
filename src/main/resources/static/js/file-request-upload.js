@@ -10,6 +10,9 @@
     const queue = form.querySelector("[data-file-request-queue]");
     const status = form.querySelector("[data-file-request-status]");
     const uploaderName = form.elements.namedItem("uploaderName");
+    if (!input || !picker || !submit || !queue || !status) {
+        return;
+    }
     const csrfToken = document.querySelector('meta[name="_csrf"]')?.content || "";
     const csrfHeader = document.querySelector('meta[name="_csrf_header"]')?.content || "X-CSRF-TOKEN";
     const parallelUploads = Math.max(1, Number.parseInt(form.dataset.parallelUploads || "2", 10));
@@ -73,7 +76,44 @@
         submit.disabled = running || !items.some(item => item.state === "queued");
     };
 
+    const containsRelativePaths = (files) => Array.from(files || [])
+        .some(file => Boolean(file.webkitRelativePath));
+
+    const containsDirectory = async (dataTransfer, droppedFiles) => {
+        const items = Array.from(dataTransfer?.items || []);
+        const handleRequests = [];
+        for (const item of items) {
+            if (item.kind !== "file") {
+                continue;
+            }
+
+            const entry = item.webkitGetAsEntry?.();
+            if (entry) {
+                if (entry.isDirectory) {
+                    return true;
+                }
+                continue;
+            }
+
+            if (typeof item.getAsFileSystemHandle === "function") {
+                handleRequests.push(item.getAsFileSystemHandle().catch(() => null));
+            }
+        }
+        const handles = await Promise.all(handleRequests);
+        return handles.some(handle => handle?.kind === "directory")
+            || containsRelativePaths(droppedFiles);
+    };
+
+    const rejectDirectories = () => {
+        setStatus("Directory uploads are not supported yet. Select individual files instead.", true);
+        render();
+    };
+
     const addFiles = (files) => {
+        if (containsRelativePaths(files)) {
+            rejectDirectories();
+            return;
+        }
         Array.from(files || []).forEach((file) => {
             items.push({ id: nextId++, file, state: "queued", loaded: 0, message: "Ready" });
         });
@@ -204,7 +244,15 @@
         event.preventDefault();
         picker.classList.remove("is-dragging");
     }));
-    picker.addEventListener("drop", event => addFiles(event.dataTransfer?.files));
+    picker.addEventListener("drop", async (event) => {
+        // DataTransfer is only guaranteed to expose files during the drop event.
+        const droppedFiles = Array.from(event.dataTransfer?.files || []);
+        if (await containsDirectory(event.dataTransfer, droppedFiles)) {
+            rejectDirectories();
+            return;
+        }
+        addFiles(droppedFiles);
+    });
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
         if (running || !items.some(item => item.state === "queued")) return;

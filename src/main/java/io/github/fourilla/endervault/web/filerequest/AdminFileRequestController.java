@@ -50,7 +50,10 @@ public class AdminFileRequestController {
     }
 
     @GetMapping("/admin/file-requests")
-    public String requests(Model model) throws IOException {
+    public String requests(
+            @RequestParam(value = "destinationPath", required = false) String destinationPath,
+            Model model
+    ) throws IOException {
         List<FileRequestView> requests = fileRequestService.list().stream()
                 .map(request -> FileRequestView.from(request, fileRequestUrlBuilder.url(request.token())))
                 .toList();
@@ -63,6 +66,7 @@ public class AdminFileRequestController {
         model.addAttribute("defaultMaxFiles", properties.getDefaultMaxFiles());
         model.addAttribute("defaultUploaderNamePolicy",
                 UploaderNamePolicy.from(properties.getDefaultUploaderNamePolicy()));
+        model.addAttribute("defaultDestinationPath", fileRequestService.normalizeDestinationPath(destinationPath));
         return "file-requests";
     }
 

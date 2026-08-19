@@ -84,6 +84,8 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"toastRegion\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-notification-center")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/notification-center.js")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "data-file-requests-enabled=\"true\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-outbound-route-form")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/page-jump.js")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Open read-only mode")))
@@ -114,12 +116,19 @@ class AdminNotificationFlowTest {
 
     @Test
     void fileRequestManagementPageRendersCreationPolicy() throws Exception {
+        String destination = "request-destination-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(destination));
+
         mockMvc.perform(get("/admin/file-requests"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("Create Request")))
                 .andExpect(content().string(Matchers.containsString("name=\"uploaderNamePolicy\"")))
                 .andExpect(content().string(Matchers.containsString("name=\"maxFileSizeGb\"")))
                 .andExpect(content().string(Matchers.containsString("data-storage-directory-picker")));
+
+        mockMvc.perform(get("/admin/file-requests").param("destinationPath", destination))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("value=\"" + destination + "\"")));
 
         mockMvc.perform(get("/admin/dashboard"))
                 .andExpect(status().isOk())
@@ -149,6 +158,7 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("Send project files")))
                 .andExpect(content().string(Matchers.containsString("/js/file-request-upload.js")))
+                .andExpect(content().string(Matchers.containsString("data-file-request-upload")))
                 .andExpect(content().string(Matchers.containsString(
                         "/r/" + request.token() + "/uploads/"
                 )))
