@@ -31,16 +31,19 @@ public class PendingFileDecisionService {
     private final PendingFileDecisionRepository repository;
     private final StorageService storageService;
     private final TemporaryArtifactRegistry temporaryArtifactRegistry;
+    private final List<PendingFileDecisionResolutionObserver> resolutionObservers;
     private final Map<String, TemporaryArtifactRegistry.Registration> registrations = new HashMap<>();
 
     public PendingFileDecisionService(
             PendingFileDecisionRepository repository,
             StorageService storageService,
-            TemporaryArtifactRegistry temporaryArtifactRegistry
+            TemporaryArtifactRegistry temporaryArtifactRegistry,
+            List<PendingFileDecisionResolutionObserver> resolutionObservers
     ) {
         this.repository = repository;
         this.storageService = storageService;
         this.temporaryArtifactRegistry = temporaryArtifactRegistry;
+        this.resolutionObservers = List.copyOf(resolutionObservers);
     }
 
     @PostConstruct
@@ -63,6 +66,18 @@ public class PendingFileDecisionService {
             String originalFilename,
             long size
     ) throws IOException {
+        return create(stagedFile, source, destinationPath, originalFilename, size, null, null);
+    }
+
+    public synchronized PendingFileDecision create(
+            Path stagedFile,
+            PendingFileDecisionSource source,
+            String destinationPath,
+            String originalFilename,
+            long size,
+            String sourceReference,
+            String submittedBy
+    ) throws IOException {
         String stagingFilename = storageService.fileStagingFilename(stagedFile);
         storageService.validateVaultEntryName(originalFilename);
         PendingFileDecision decision = new PendingFileDecision(
@@ -73,7 +88,9 @@ public class PendingFileDecisionService {
                 originalFilename,
                 size,
                 Instant.now(),
-                targetSnapshot(destinationPath, originalFilename)
+                targetSnapshot(destinationPath, originalFilename),
+                cleanOptional(sourceReference),
+                cleanOptional(submittedBy)
         );
         register(decision, stagedFile);
         try {
@@ -114,6 +131,7 @@ public class PendingFileDecisionService {
         if (action == PendingFileDecisionAction.DISCARD) {
             Files.deleteIfExists(stagedFile);
             complete(decision.id());
+            notifyResolved(decision, action, true);
             return new PendingFileDecisionResult(decision, null, true);
         }
 
@@ -142,6 +160,7 @@ public class PendingFileDecisionService {
                 policy
         );
         complete(decision.id());
+        notifyResolved(decision, action, false);
         return new PendingFileDecisionResult(decision, committed, false);
     }
 
@@ -214,6 +233,31 @@ public class PendingFileDecisionService {
             throw new StorageAccessException("A new file name is required.");
         }
         return filename.trim();
+    }
+
+    private String cleanOptional(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private void notifyResolved(
+            PendingFileDecision decision,
+            PendingFileDecisionAction action,
+            boolean discarded
+    ) {
+        resolutionObservers.stream()
+                .filter(observer -> observer.supports(decision))
+                .forEach(observer -> {
+                    try {
+                        observer.afterResolved(decision, action, discarded);
+                    } catch (Exception ex) {
+                        logger.error(
+                                "Failed to apply pending decision side effects for {} using {}.",
+                                decision.id(),
+                                observer.getClass().getSimpleName(),
+                                ex
+                        );
+                    }
+                });
     }
 
     public record PendingFileDecisionResult(

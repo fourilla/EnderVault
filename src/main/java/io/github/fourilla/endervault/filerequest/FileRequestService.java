@@ -120,6 +120,41 @@ public class FileRequestService {
         return request;
     }
 
+    public synchronized FileRequest requireUsableById(String id) throws IOException {
+        FileRequest request = require(id);
+        if (!request.usable(Instant.now())) {
+            throw new NoSuchFileException("File request is unavailable.");
+        }
+        storageService.resolveVaultDirectory(request.destinationPath());
+        return request;
+    }
+
+    public synchronized FileRequest recordAcceptedUpload(String id, long size) throws IOException {
+        if (size < 0L) {
+            throw new StorageAccessException("Uploaded file size is invalid.");
+        }
+        FileRequest request = requireUsableById(id);
+        if (request.acceptedFiles() >= request.maxFiles()
+                || size > request.maxFileSizeBytes()
+                || request.acceptedBytes() > request.maxTotalBytes() - size) {
+            throw new StorageAccessException("File request quota has been reached.");
+        }
+        FileRequest updated = request.withAcceptedUpload(size);
+        replace(updated);
+        return updated;
+    }
+
+    public synchronized void releaseAcceptedUpload(String id, long size) throws IOException {
+        List<FileRequest> requests = readMutable();
+        for (int i = 0; i < requests.size(); i++) {
+            if (requests.get(i).id().equals(cleanId(id))) {
+                requests.set(i, requests.get(i).withoutAcceptedUpload(size));
+                repository.write(requests);
+                return;
+            }
+        }
+    }
+
     public synchronized void revoke(String id) throws IOException {
         update(id, FileRequest::revoke);
     }
@@ -184,6 +219,18 @@ public class FileRequestService {
         for (int i = 0; i < requests.size(); i++) {
             if (requests.get(i).id().equals(normalizedId)) {
                 requests.set(i, update.apply(requests.get(i)));
+                repository.write(requests);
+                return;
+            }
+        }
+        throw new NoSuchFileException("File request was not found.");
+    }
+
+    private void replace(FileRequest replacement) throws IOException {
+        List<FileRequest> requests = readMutable();
+        for (int i = 0; i < requests.size(); i++) {
+            if (requests.get(i).id().equals(replacement.id())) {
+                requests.set(i, replacement);
                 repository.write(requests);
                 return;
             }

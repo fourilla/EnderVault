@@ -131,7 +131,12 @@ class PendingFileDecisionServiceTest {
     private PendingFileDecisionService service(TemporaryArtifactRegistry artifacts) throws Exception {
         PendingFileDecisionRepository repository = new PendingFileDecisionRepository(objectMapper, properties);
         repository.initialize();
-        PendingFileDecisionService service = new PendingFileDecisionService(repository, storageService, artifacts);
+        PendingFileDecisionService service = new PendingFileDecisionService(
+                repository,
+                storageService,
+                artifacts,
+                java.util.List.of()
+        );
         service.restoreRegistrations();
         return service;
     }

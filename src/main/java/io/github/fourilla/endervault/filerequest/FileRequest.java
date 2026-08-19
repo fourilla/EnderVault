@@ -86,4 +86,23 @@ public record FileRequest(
                 acceptedBytes, acceptedFiles, createdAt, expiresAt, enabled
         );
     }
+
+    public FileRequest withAcceptedUpload(long size) {
+        return new FileRequest(
+                id, token, title, destinationPath, uploaderNamePolicy,
+                maxFileSizeBytes, maxTotalBytes, maxFiles, allowedExtensions,
+                Math.addExact(acceptedBytes, size), Math.addExact(acceptedFiles, 1),
+                createdAt, expiresAt, enabled
+        );
+    }
+
+    public FileRequest withoutAcceptedUpload(long size) {
+        return new FileRequest(
+                id, token, title, destinationPath, uploaderNamePolicy,
+                maxFileSizeBytes, maxTotalBytes, maxFiles, allowedExtensions,
+                Math.max(0L, acceptedBytes - Math.max(0L, size)),
+                Math.max(0, acceptedFiles - 1),
+                createdAt, expiresAt, enabled
+        );
+    }
 }

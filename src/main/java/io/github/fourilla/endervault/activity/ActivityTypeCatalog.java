@@ -50,6 +50,8 @@ public final class ActivityTypeCatalog {
             new ActivityTypeOption("file-request-create", "FILE_REQUEST_CREATE", "File request create", "File requests", false),
             new ActivityTypeOption("file-request-revoke", "FILE_REQUEST_REVOKE", "File request revoke", "File requests", false),
             new ActivityTypeOption("file-request-delete", "FILE_REQUEST_DELETE", "File request delete", "File requests", false),
+            new ActivityTypeOption("file-request-access", "FILE_REQUEST_ACCESS", "File request access", "File requests", false),
+            new ActivityTypeOption("file-request-upload", "FILE_REQUEST_UPLOAD", "File request upload", "File requests", false),
             new ActivityTypeOption("remote-download-queued", "REMOTE_DOWNLOAD_QUEUED", "Remote download queued", "Remote download", false),
             new ActivityTypeOption("remote-download-complete", "REMOTE_DOWNLOAD_COMPLETE", "Remote download complete", "Remote download", false),
             new ActivityTypeOption("remote-download-failed", "REMOTE_DOWNLOAD_FAILED", "Remote download failed", "Remote download", false),

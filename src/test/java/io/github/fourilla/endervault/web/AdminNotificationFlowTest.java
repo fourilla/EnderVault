@@ -5,6 +5,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -20,7 +21,12 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.fourilla.endervault.favorite.FavoriteService;
+import io.github.fourilla.endervault.filerequest.FileRequest;
+import io.github.fourilla.endervault.filerequest.FileRequestService;
+import io.github.fourilla.endervault.filerequest.UploaderNamePolicy;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.web.support.FlashNotification;
@@ -33,6 +39,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.security.test.context.support.WithAnonymousUser;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
@@ -55,6 +62,12 @@ class AdminNotificationFlowTest {
 
     @Autowired
     FavoriteService favoriteService;
+
+    @Autowired
+    FileRequestService fileRequestService;
+
+    @Autowired
+    ObjectMapper objectMapper;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -112,6 +125,86 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("/admin/file-requests")))
                 .andExpect(content().string(Matchers.containsString("File requests")));
+    }
+
+    @Test
+    @WithAnonymousUser
+    void publicFileRequestIssuesOneTimeTicketAndReceivesRawUpload() throws Exception {
+        String suffix = java.util.UUID.randomUUID().toString();
+        String filename = "public-request-" + suffix + ".txt";
+        String token = "public_request_" + suffix.replace("-", "_");
+        FileRequest request = fileRequestService.create(
+                "Send project files",
+                "",
+                UploaderNamePolicy.OPTIONAL,
+                1024,
+                4096,
+                3,
+                List.of("txt"),
+                7,
+                token
+        );
+
+        mockMvc.perform(get("/r/{token}", request.token()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("Send project files")))
+                .andExpect(content().string(Matchers.containsString("/js/file-request-upload.js")))
+                .andExpect(content().string(Matchers.containsString(
+                        "/r/" + request.token() + "/uploads/"
+                )))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("nas.storage.root"))));
+
+        byte[] content = "received".getBytes(StandardCharsets.UTF_8);
+        MvcResult ticketResult = mockMvc.perform(post("/r/{token}/tickets", request.token())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(java.util.Map.of(
+                                "filename", filename,
+                                "size", content.length,
+                                "uploaderName", "Alice"
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andReturn();
+        JsonNode ticket = objectMapper.readTree(ticketResult.getResponse().getContentAsByteArray());
+
+        mockMvc.perform(put("/r/{token}/uploads/{ticketId}", request.token(), ticket.get("ticketId").asText())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(content))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.message").value("Upload received."));
+
+        assertThat(Files.readAllBytes(ROOT.resolve(filename))).isEqualTo(content);
+        assertThat(fileRequestService.require(request.id()).acceptedFiles()).isEqualTo(1);
+    }
+
+    @Test
+    @WithAnonymousUser
+    void publicFileRequestUploadStillRequiresCsrfProof() throws Exception {
+        String token = "csrf_request_" + java.util.UUID.randomUUID().toString().replace("-", "_");
+        fileRequestService.create(
+                "CSRF protected upload",
+                "",
+                UploaderNamePolicy.NONE,
+                1024,
+                4096,
+                3,
+                List.of(),
+                7,
+                token
+        );
+
+        mockMvc.perform(post("/r/{token}/tickets", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(java.util.Map.of(
+                                "filename", "csrf.txt",
+                                "size", 4
+                        ))))
+                .andExpect(status().isForbidden());
     }
 
     @Test

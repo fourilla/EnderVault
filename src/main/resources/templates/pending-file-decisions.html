@@ -52,7 +52,12 @@
                         <span class="table-primary-text" th:title="${item.decision().originalFilename()}"
                               th:text="${item.decision().originalFilename()}">file.txt</span>
                     </td>
-                    <td th:text="${item.sourceLabel()}">File request</td>
+                    <td>
+                        <span th:text="${item.sourceLabel()}">File request</span>
+                        <small th:if="${item.decision().submittedBy() != null}"
+                               th:title="${item.decision().submittedBy()}"
+                               th:text="|From ${item.decision().submittedBy()}|">From uploader</small>
+                    </td>
                     <td>
                         <span class="table-primary-text" th:title="${item.destinationLabel()}"
                               th:text="${item.destinationLabel()}">/Uploads</span>

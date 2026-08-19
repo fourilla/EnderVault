@@ -336,6 +336,8 @@ nas.notifications.telegram.activity.share-download-zip=false
 nas.notifications.telegram.activity.file-request-create=false
 nas.notifications.telegram.activity.file-request-revoke=false
 nas.notifications.telegram.activity.file-request-delete=false
+nas.notifications.telegram.activity.file-request-access=false
+nas.notifications.telegram.activity.file-request-upload=false
 
 # Remote download activity.
 nas.notifications.telegram.activity.remote-download-queued=false

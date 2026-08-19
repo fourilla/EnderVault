@@ -10,7 +10,9 @@ public record PendingFileDecision(
         String originalFilename,
         long size,
         Instant createdAt,
-        TargetSnapshot targetSnapshot
+        TargetSnapshot targetSnapshot,
+        String sourceReference,
+        String submittedBy
 ) {
 
     public record TargetSnapshot(long size, Instant modifiedAt) {
