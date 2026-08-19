@@ -1424,6 +1424,10 @@ public class NasProperties {
         @Max(24)
         private int maxUploadHours = 24;
 
+        @Min(1)
+        @Max(3650)
+        private int pendingWarningDays = 30;
+
         public boolean isEnabled() {
             return enabled;
         }
@@ -1534,6 +1538,14 @@ public class NasProperties {
 
         public void setMaxUploadHours(int maxUploadHours) {
             this.maxUploadHours = maxUploadHours;
+        }
+
+        public int getPendingWarningDays() {
+            return pendingWarningDays;
+        }
+
+        public void setPendingWarningDays(int pendingWarningDays) {
+            this.pendingWarningDays = pendingWarningDays;
         }
     }
 

@@ -29,13 +29,14 @@ class FileRequestUploadServiceTest {
     private FileRequestService requestService;
     private PendingFileDecisionService pendingService;
     private FileRequestUploadService uploadService;
+    private StorageService storageService;
 
     @BeforeEach
     void setUp() throws Exception {
         NasProperties properties = new NasProperties();
         properties.getStorage().setRoot(root);
         TemporaryArtifactRegistry artifacts = new TemporaryArtifactRegistry();
-        StorageService storageService = new StorageService(properties, new FileActionRegistry(), artifacts);
+        storageService = new StorageService(properties, new FileActionRegistry(), artifacts);
         storageService.initialize();
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
@@ -123,6 +124,28 @@ class FileRequestUploadServiceTest {
     }
 
     @Test
+    void inspectorRepairOfMissingPendingDataReturnsReservedQuota() throws Exception {
+        Files.writeString(root.resolve("note.txt"), "existing");
+        FileRequest request = request(UploaderNamePolicy.OPTIONAL, 16, 32, 2, List.of("txt"));
+        byte[] content = "pending".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        FileRequestUploadService.UploadTicket ticket = uploadService.issueTicket(
+                request.token(), "note.txt", content.length, "Alice"
+        );
+        uploadService.receive(
+                request.token(), ticket.id(), new ByteArrayInputStream(content), content.length
+        );
+        var decision = pendingService.list().get(0);
+        Files.delete(storageService.resolveFileStagingFile(decision.stagingFilename()));
+
+        pendingService.removeMissingData(decision.id());
+
+        assertThat(pendingService.list()).isEmpty();
+        FileRequest repaired = requestService.require(request.id());
+        assertThat(repaired.acceptedFiles()).isZero();
+        assertThat(repaired.acceptedBytes()).isZero();
+    }
+
+    @Test
     void reservesQuotaAcrossOutstandingTickets() throws Exception {
         FileRequest request = request(UploaderNamePolicy.NONE, 4, 5, 2, List.of());
         uploadService.issueTicket(request.token(), "first.bin", 3, "ignored");
@@ -144,6 +167,17 @@ class FileRequestUploadServiceTest {
                 .isInstanceOf(FileRequestUploadRejectedException.class)
                 .hasMessageContaining("extension");
         assertThat(uploadService.outstandingTicketCount()).isZero();
+    }
+
+    @Test
+    void acceptsConfiguredCompoundExtensions() throws Exception {
+        FileRequest request = request(UploaderNamePolicy.NONE, 16, 32, 2, List.of("tar.gz"));
+
+        FileRequestUploadService.UploadTicket ticket = uploadService.issueTicket(
+                request.token(), "backup.TAR.GZ", 4, null
+        );
+
+        assertThat(ticket.filename()).isEqualTo("backup.TAR.GZ");
     }
 
     private FileRequest request(

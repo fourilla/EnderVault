@@ -92,6 +92,7 @@ nas.file-request.max-concurrent-uploads=4
 nas.file-request.max-concurrent-uploads-per-request=2
 nas.file-request.upload-ticket-ttl-minutes=10
 nas.file-request.max-upload-hours=24
+nas.file-request.pending-warning-days=30
 
 # ---------------------------------------------------------------------------
 # Temporary artifacts

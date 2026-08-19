@@ -772,6 +772,8 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Metadata Inspector")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("metadata-area-list")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("metadata-area-row")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("File requests")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Pending decisions")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("metadata-area-grid"))));
     }

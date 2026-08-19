@@ -11,6 +11,7 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -50,9 +51,8 @@ public class PendingFileDecisionService {
     public synchronized void restoreRegistrations() throws IOException {
         for (PendingFileDecision decision : repository.list()) {
             Path stagedFile = storageService.resolveFileStagingFile(decision.stagingFilename());
-            if (!Files.isRegularFile(stagedFile)) {
-                repository.remove(decision.id());
-                logger.warn("Removed pending file decision {} because its staging file is missing.", decision.id());
+            if (!validStagedFile(stagedFile)) {
+                logger.warn("Pending file decision {} has no safe staging file.", decision.id());
                 continue;
             }
             register(decision, stagedFile);
@@ -79,6 +79,9 @@ public class PendingFileDecisionService {
             String submittedBy
     ) throws IOException {
         String stagingFilename = storageService.fileStagingFilename(stagedFile);
+        if (!validStagedFile(stagedFile)) {
+            throw new StorageAccessException("Pending file data must be a regular staging file.");
+        }
         storageService.validateVaultEntryName(originalFilename);
         PendingFileDecision decision = new PendingFileDecision(
                 UUID.randomUUID().toString(),
@@ -122,9 +125,8 @@ public class PendingFileDecisionService {
     ) throws IOException {
         PendingFileDecision decision = require(id);
         Path stagedFile = storageService.resolveFileStagingFile(decision.stagingFilename());
-        if (!Files.isRegularFile(stagedFile)) {
-            repository.remove(decision.id());
-            release(decision.id());
+        if (!validStagedFile(stagedFile)) {
+            removeMissingData(decision.id());
             throw new NoSuchFileException("Pending file data is no longer available.");
         }
 
@@ -162,6 +164,18 @@ public class PendingFileDecisionService {
         complete(decision.id());
         notifyResolved(decision, action, false);
         return new PendingFileDecisionResult(decision, committed, false);
+    }
+
+    public synchronized PendingFileDecision removeMissingData(String id) throws IOException {
+        PendingFileDecision decision = require(id);
+        Path stagedFile = storageService.resolveFileStagingFile(decision.stagingFilename());
+        if (validStagedFile(stagedFile)) {
+            throw new StorageAccessException("Pending file data still exists.");
+        }
+        Files.deleteIfExists(stagedFile);
+        complete(decision.id());
+        notifyResolved(decision, PendingFileDecisionAction.DISCARD, true);
+        return decision;
     }
 
     @PreDestroy
@@ -258,6 +272,10 @@ public class PendingFileDecisionService {
                         );
                     }
                 });
+    }
+
+    private boolean validStagedFile(Path path) {
+        return Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) && !Files.isSymbolicLink(path);
     }
 
     public record PendingFileDecisionResult(

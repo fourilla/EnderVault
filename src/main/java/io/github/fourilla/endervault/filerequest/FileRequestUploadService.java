@@ -250,12 +250,19 @@ public class FileRequestUploadService {
         if (size < 0L || size > request.maxFileSizeBytes()) {
             throw rejected(HttpStatus.PAYLOAD_TOO_LARGE, "This file exceeds the request file-size limit.");
         }
-        if (!request.allowedExtensions().isEmpty()) {
-            String extension = extensionOf(filename);
-            if (!request.allowedExtensions().contains(extension)) {
-                throw rejected(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "This file extension is not accepted.");
+        if (!request.allowedExtensions().isEmpty() && !hasAllowedExtension(filename, request.allowedExtensions())) {
+            throw rejected(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "This file extension is not accepted.");
+        }
+    }
+
+    private boolean hasAllowedExtension(String filename, Iterable<String> extensions) {
+        String normalized = filename.toLowerCase(Locale.ROOT);
+        for (String extension : extensions) {
+            if (normalized.length() > extension.length() + 1 && normalized.endsWith("." + extension)) {
+                return true;
             }
         }
+        return false;
     }
 
     private void validateOutstandingTicketLimits(String requestId) {
@@ -303,13 +310,6 @@ public class FileRequestUploadService {
             throw rejected(HttpStatus.BAD_REQUEST, "Uploader name is invalid.");
         }
         return normalized.isBlank() ? null : normalized;
-    }
-
-    private String extensionOf(String filename) {
-        int dot = filename.lastIndexOf('.');
-        return dot < 0 || dot == filename.length() - 1
-                ? ""
-                : filename.substring(dot + 1).toLowerCase(Locale.ROOT);
     }
 
     private long reservedBytes(String requestId) {

@@ -128,6 +128,29 @@ class PendingFileDecisionServiceTest {
         assertThat(service.list()).extracting(PendingFileDecision::id).containsExactly(decision.id());
     }
 
+    @Test
+    void restartKeepsBrokenDecisionMetadataForInspectorRepair() throws Exception {
+        TemporaryArtifactRegistry firstArtifacts = new TemporaryArtifactRegistry();
+        PendingFileDecisionService first = service(firstArtifacts);
+        Path staged = storageService.createFileStagingTemporaryFile("request-", ".tmp");
+        Files.writeString(staged, "pending");
+        PendingFileDecision decision = first.create(
+                staged,
+                PendingFileDecisionSource.FILE_REQUEST,
+                "",
+                "note.txt",
+                Files.size(staged)
+        );
+        first.closeRegistrations();
+        Files.delete(staged);
+
+        PendingFileDecisionService restarted = service(new TemporaryArtifactRegistry());
+
+        assertThat(restarted.list()).extracting(PendingFileDecision::id).containsExactly(decision.id());
+        restarted.removeMissingData(decision.id());
+        assertThat(restarted.list()).isEmpty();
+    }
+
     private PendingFileDecisionService service(TemporaryArtifactRegistry artifacts) throws Exception {
         PendingFileDecisionRepository repository = new PendingFileDecisionRepository(objectMapper, properties);
         repository.initialize();
