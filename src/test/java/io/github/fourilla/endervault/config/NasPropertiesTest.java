@@ -54,7 +54,10 @@ class NasPropertiesTest {
                 .withProperty("nas.share.max-expiration-days", "30")
                 .withProperty("nas.share.custom-token-min-length", "4")
                 .withProperty("nas.share.direct-download-link-enabled", "false")
-                .withProperty("nas.upload.conflict-retention-minutes", "45")
+                .withProperty("nas.file-request.default-expiration-days", "14")
+                .withProperty("nas.file-request.default-max-files", "75")
+                .withProperty("nas.file-request.max-concurrent-uploads", "3")
+                .withProperty("nas.file-request.pending-warning-days", "45")
                 .withProperty("nas.temporary-artifacts.stale-after-minutes", "75")
                 .withProperty("nas.activity-log.max-archive-files", "12")
                 .withProperty("nas.activity-log.page-size-options", "25,50,100")
@@ -88,7 +91,10 @@ class NasPropertiesTest {
         assertThat(properties.getShare().getMaxExpirationDays()).isEqualTo(30);
         assertThat(properties.getShare().getCustomTokenMinLength()).isEqualTo(4);
         assertThat(properties.getShare().isDirectDownloadLinkEnabled()).isFalse();
-        assertThat(properties.getUpload().getConflictRetentionMinutes()).isEqualTo(45);
+        assertThat(properties.getFileRequest().getDefaultExpirationDays()).isEqualTo(14);
+        assertThat(properties.getFileRequest().getDefaultMaxFiles()).isEqualTo(75);
+        assertThat(properties.getFileRequest().getMaxConcurrentUploads()).isEqualTo(3);
+        assertThat(properties.getFileRequest().getPendingWarningDays()).isEqualTo(45);
         assertThat(properties.getTemporaryArtifacts().getStaleAfterMinutes()).isEqualTo(75);
         assertThat(properties.getActivityLog().getMaxArchiveFiles()).isEqualTo(12);
         assertThat(properties.getActivityLog().getPageSizeOptions()).isEqualTo(List.of(25, 50, 100));

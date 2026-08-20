@@ -16,7 +16,10 @@ public enum MetadataIssueAction {
     DELETE_TEXT_DRAFT_METADATA("Delete draft metadata", true),
     DELETE_TEXT_DRAFT_CONTENT("Delete draft content", true),
     MOVE_BOOKMARK_TO_ROOT("Move bookmark to recovered", true),
-    MOVE_BOOKMARK_TO_RECOVERED_DIRECTORY("Move bookmark to recovered", true);
+    MOVE_BOOKMARK_TO_RECOVERED_DIRECTORY("Move bookmark to recovered", true),
+    REVOKE_FILE_REQUEST("Revoke file request", true),
+    DELETE_FILE_REQUEST("Delete file request metadata", true),
+    REMOVE_MISSING_PENDING_DECISION("Remove missing pending decision", true);
 
     private final String label;
     private final boolean repairable;

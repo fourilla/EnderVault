@@ -20,7 +20,9 @@ import io.github.fourilla.endervault.web.file.AdminFileMutationController;
 import io.github.fourilla.endervault.web.file.AdminFileShareController;
 import io.github.fourilla.endervault.web.file.AdminFileTransferController;
 import io.github.fourilla.endervault.web.file.AdminRecentController;
+import io.github.fourilla.endervault.web.filerequest.AdminFileRequestController;
 import io.github.fourilla.endervault.web.metadata.AdminMetadataController;
+import io.github.fourilla.endervault.web.pending.AdminPendingFileDecisionController;
 import io.github.fourilla.endervault.web.remote.AdminRemoteDownloadController;
 import io.github.fourilla.endervault.web.settings.AdminAccountSettingsController;
 import io.github.fourilla.endervault.web.settings.AdminBookmarkSettingsController;
@@ -49,6 +51,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
         AdminFileTransferController.class,
         AdminFavoriteController.class,
         AdminRecentController.class,
+        AdminFileRequestController.class,
         AdminLogController.class,
         AdminSessionController.class,
         AdminRemoteDownloadController.class,
@@ -62,6 +65,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
         AdminVpnSettingsController.class,
         AdminVpnController.class,
         AdminMetadataController.class,
+        AdminPendingFileDecisionController.class,
         AdminStickyNoteController.class
 })
 public class AdminShellModelAdvice {
@@ -141,6 +145,11 @@ public class AdminShellModelAdvice {
     @ModelAttribute("bookmarkLinkClickAction")
     public String bookmarkLinkClickAction() {
         return BookmarkLinkClickAction.from(nasProperties);
+    }
+
+    @ModelAttribute("fileRequestsEnabled")
+    public boolean fileRequestsEnabled() {
+        return nasProperties.getFileRequest().isEnabled();
     }
 
     @ModelAttribute("outboundRoute")

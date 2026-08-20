@@ -70,12 +70,29 @@ nas.trash.cleanup-interval-ms=3600000
 # multipart request; with JS it also limits one selected/dropped upload batch
 # before files are sent individually for progress tracking. Directory upload is
 # reserved for a future dedicated implementation and stays disabled by default.
-# Conflict retention controls how long a fully received upload may wait for a
-# user's collision decision; the cleanup interval only schedules that check.
-nas.upload.conflict-retention-minutes=30
-nas.upload.conflict-cleanup-interval-ms=600000
 nas.upload.max-files-per-request=0
 nas.upload.directory-upload-enabled=false
+
+# ---------------------------------------------------------------------------
+# File requests
+# ---------------------------------------------------------------------------
+# Public upload requests use capability URLs under /r/{token}. Limits are
+# validated again by the server and cannot exceed the built-in hard ceilings.
+nas.file-request.enabled=true
+nas.file-request.default-expiration-days=7
+nas.file-request.default-max-file-size-bytes=10737418240
+nas.file-request.default-max-total-bytes=21474836480
+nas.file-request.default-max-files=100
+nas.file-request.default-uploader-name-policy=optional
+nas.file-request.custom-token-enabled=true
+nas.file-request.custom-token-min-length=12
+nas.file-request.custom-token-max-length=64
+nas.file-request.random-token-bytes=24
+nas.file-request.max-concurrent-uploads=4
+nas.file-request.max-concurrent-uploads-per-request=2
+nas.file-request.upload-ticket-ttl-minutes=10
+nas.file-request.max-upload-hours=24
+nas.file-request.pending-warning-days=30
 
 # ---------------------------------------------------------------------------
 # Temporary artifacts
@@ -145,7 +162,7 @@ nas.share.default-expiration-days=0
 nas.share.allow-never-expires=true
 nas.share.max-expiration-days=0
 nas.share.custom-token-enabled=true
-nas.share.custom-token-min-length=3
+nas.share.custom-token-min-length=12
 nas.share.custom-token-max-length=64
 nas.share.random-token-bytes=24
 nas.share.directory-share-enabled=true
@@ -282,6 +299,7 @@ nas.notifications.telegram.activity.passkey-delete=false
 
 # File management activity.
 nas.notifications.telegram.activity.upload=false
+nas.notifications.telegram.activity.pending-file-decision-resolve=false
 nas.notifications.telegram.activity.create-directory=false
 nas.notifications.telegram.activity.create-file=false
 nas.notifications.telegram.activity.text-save=false
@@ -316,6 +334,11 @@ nas.notifications.telegram.activity.share-access=false
 nas.notifications.telegram.activity.share-preview=false
 nas.notifications.telegram.activity.share-download=false
 nas.notifications.telegram.activity.share-download-zip=false
+nas.notifications.telegram.activity.file-request-create=false
+nas.notifications.telegram.activity.file-request-revoke=false
+nas.notifications.telegram.activity.file-request-delete=false
+nas.notifications.telegram.activity.file-request-access=false
+nas.notifications.telegram.activity.file-request-upload=false
 
 # Remote download activity.
 nas.notifications.telegram.activity.remote-download-queued=false

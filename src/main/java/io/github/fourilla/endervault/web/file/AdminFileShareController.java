@@ -3,6 +3,7 @@ package io.github.fourilla.endervault.web.file;
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.publiclink.PublicLinkTokenService;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.storage.FileDetail;
@@ -36,19 +37,22 @@ public class AdminFileShareController {
     private final ActivityLogService activityLogService;
     private final ShareUrlBuilder shareUrlBuilder;
     private final NasProperties.Share shareProperties;
+    private final PublicLinkTokenService publicLinkTokenService;
 
     public AdminFileShareController(
             StorageService storageService,
             ShareLinkService shareLinkService,
             ActivityLogService activityLogService,
             ShareUrlBuilder shareUrlBuilder,
-            NasProperties nasProperties
+            NasProperties nasProperties,
+            PublicLinkTokenService publicLinkTokenService
     ) {
         this.storageService = storageService;
         this.shareLinkService = shareLinkService;
         this.activityLogService = activityLogService;
         this.shareUrlBuilder = shareUrlBuilder;
         this.shareProperties = nasProperties.getShare();
+        this.publicLinkTokenService = publicLinkTokenService;
     }
 
     @PostMapping("/files/share")
@@ -67,8 +71,8 @@ public class AdminFileShareController {
                 request,
                 shareLink.path(),
                 null,
-                "Created share link " + shareLink.token(),
-                Map.of("token", shareLink.token(), "type", shareLink.type().name())
+                "Created share link",
+                shareMetadata(shareLink)
         );
         FlashNotification notification = FlashNotification.info("Share link created.", "Copy link", shareView.url());
         return ActionResponseSupport.ok(
@@ -96,8 +100,8 @@ public class AdminFileShareController {
                 request,
                 shareLink.path(),
                 null,
-                "Created share link " + shareLink.token(),
-                Map.of("token", shareLink.token(), "type", shareLink.type().name())
+                "Created share link",
+                shareMetadata(shareLink)
         );
         FlashNotification notification = FlashNotification.info("Share link created.", "Copy link", shareView.url());
         return ActionResponseSupport.ok(
@@ -118,7 +122,14 @@ public class AdminFileShareController {
     ) throws IOException {
         FileDetail detail = detailForPath(path);
         shareLinkService.revoke(token);
-        activityLogService.record("SHARE_REVOKE", request, detail.path(), null, "Revoked share link " + token);
+        activityLogService.record(
+                "SHARE_REVOKE",
+                request,
+                detail.path(),
+                null,
+                "Revoked share link",
+                shareMetadata(token)
+        );
         FlashNotification notification = FlashNotification.success("Share link revoked.");
         return ActionResponseSupport.ok(request, redirectAttributes, notification, redirectToDetail(detail.path()));
     }
@@ -132,7 +143,14 @@ public class AdminFileShareController {
     ) throws IOException {
         FileDetail detail = detailForPath(path);
         shareLinkService.delete(token);
-        activityLogService.record("SHARE_DELETE", request, detail.path(), null, "Deleted share link " + token);
+        activityLogService.record(
+                "SHARE_DELETE",
+                request,
+                detail.path(),
+                null,
+                "Deleted share link",
+                shareMetadata(token)
+        );
         FlashNotification notification = FlashNotification.success("Share link deleted.");
         return ActionResponseSupport.ok(request, redirectAttributes, notification, redirectToDetail(detail.path()));
     }
@@ -193,6 +211,17 @@ public class AdminFileShareController {
                 shareUrlBuilder.shareBaseUrl(),
                 shareUrlBuilder.directDownloadLinkEnabled()
         );
+    }
+
+    private Map<String, String> shareMetadata(ShareLink shareLink) {
+        return Map.of(
+                "tokenFingerprint", publicLinkTokenService.fingerprint(shareLink.token()),
+                "type", shareLink.type().name()
+        );
+    }
+
+    private Map<String, String> shareMetadata(String token) {
+        return Map.of("tokenFingerprint", publicLinkTokenService.fingerprint(token));
     }
 
     private String redirectToFiles(String path) {

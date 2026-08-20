@@ -14,7 +14,9 @@ public enum MetadataArea {
     ARCHIVE_STAGING("Archive staging", "Temporary workspaces used to create and extract archives", "fas fa-box-archive"),
     TEXT_DRAFTS("Text drafts", "Recoverable text editor drafts and leases", "fas fa-file-pen"),
     BOOKMARKS("Bookmarks", "Saved web links and bookmark directories", "fas fa-bookmark"),
-    STICKY_NOTES("Sticky notes", "Page and item notes whose targets may have moved or disappeared", "fas fa-note-sticky");
+    STICKY_NOTES("Sticky notes", "Page and item notes whose targets may have moved or disappeared", "fas fa-note-sticky"),
+    FILE_REQUESTS("File requests", "Public upload request records and destination directories", "fas fa-inbox"),
+    PENDING_FILE_DECISIONS("Pending decisions", "Fully received files waiting for an administrator decision", "fas fa-bell");
 
     private final String label;
     private final String description;

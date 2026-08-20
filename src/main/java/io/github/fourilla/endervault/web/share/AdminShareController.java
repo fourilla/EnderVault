@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.web.share;
 
 import io.github.fourilla.endervault.activity.ActivityLogService;
+import io.github.fourilla.endervault.publiclink.PublicLinkTokenService;
 import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.FlashNotification;
@@ -9,6 +10,7 @@ import io.github.fourilla.endervault.web.support.ShareUrlBuilder;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Map;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,15 +24,18 @@ public class AdminShareController {
     private final ShareLinkService shareLinkService;
     private final ActivityLogService activityLogService;
     private final ShareUrlBuilder shareUrlBuilder;
+    private final PublicLinkTokenService publicLinkTokenService;
 
     public AdminShareController(
             ShareLinkService shareLinkService,
             ActivityLogService activityLogService,
-            ShareUrlBuilder shareUrlBuilder
+            ShareUrlBuilder shareUrlBuilder,
+            PublicLinkTokenService publicLinkTokenService
     ) {
         this.shareLinkService = shareLinkService;
         this.activityLogService = activityLogService;
         this.shareUrlBuilder = shareUrlBuilder;
+        this.publicLinkTokenService = publicLinkTokenService;
     }
 
     @GetMapping("/admin/shares")
@@ -51,7 +56,14 @@ public class AdminShareController {
     )
             throws IOException {
         shareLinkService.revoke(token);
-        activityLogService.record("SHARE_REVOKE", request, null, null, "Revoked share link " + token);
+        activityLogService.record(
+                "SHARE_REVOKE",
+                request,
+                null,
+                null,
+                "Revoked share link",
+                shareMetadata(token)
+        );
         FlashNotification notification = FlashNotification.success("Share link revoked.");
         return ActionResponseSupport.ok(request, redirectAttributes, notification, "redirect:/admin/shares");
     }
@@ -64,7 +76,14 @@ public class AdminShareController {
     )
             throws IOException {
         shareLinkService.delete(token);
-        activityLogService.record("SHARE_DELETE", request, null, null, "Deleted share link " + token);
+        activityLogService.record(
+                "SHARE_DELETE",
+                request,
+                null,
+                null,
+                "Deleted share link",
+                shareMetadata(token)
+        );
         FlashNotification notification = FlashNotification.success("Share link deleted.");
         return ActionResponseSupport.ok(request, redirectAttributes, notification, "redirect:/admin/shares");
     }
@@ -84,5 +103,9 @@ public class AdminShareController {
 
     private String shareBaseUrl() {
         return shareUrlBuilder.shareBaseUrl();
+    }
+
+    private Map<String, String> shareMetadata(String token) {
+        return Map.of("tokenFingerprint", publicLinkTokenService.fingerprint(token));
     }
 }

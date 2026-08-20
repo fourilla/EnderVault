@@ -26,6 +26,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const currentPath = () => bulkForm.querySelector('input[name="path"]')?.value || "";
 
+    const fileRequestsEnabled = bulkForm.dataset.fileRequestsEnabled === "true";
+
     const itemNameFromCheckbox = (checkbox) => checkbox?.value || "";
 
     const checkboxForItem = (item) => item?.querySelector(checkboxSelector) || null;
@@ -132,6 +134,15 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
         window.location.href = url;
+    };
+
+    const createFileRequestFor = (destinationPath) => {
+        const query = new URLSearchParams();
+        if (destinationPath) {
+            query.set("destinationPath", destinationPath);
+        }
+        const suffix = query.toString();
+        navigateTo(`/admin/file-requests${suffix ? `?${suffix}` : ""}`);
     };
 
     const downloadSelected = (items) => {
@@ -346,6 +357,17 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     registerAction({
+        id: "create-file-request-for-directory",
+        group: "organize",
+        label: "Create file request here",
+        icon: "fas fa-inbox",
+        visible: (context) => fileRequestsEnabled
+                && context.mode === "single"
+                && context.item?.directory,
+        run: (context) => createFileRequestFor(context.item.path)
+    });
+
+    registerAction({
         id: "rename",
         group: "mutate",
         label: "Rename",
@@ -391,6 +413,15 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: "fas fa-folder-plus",
         visible: (context) => context.mode === "background" && Boolean(createDirectoryButton),
         run: () => createDirectoryButton.click()
+    });
+
+    registerAction({
+        id: "create-file-request-here",
+        group: "background",
+        label: "Create file request here",
+        icon: "fas fa-inbox",
+        visible: (context) => fileRequestsEnabled && context.mode === "background",
+        run: () => createFileRequestFor(currentPath())
     });
 
     registerAction({

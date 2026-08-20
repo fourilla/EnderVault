@@ -6,6 +6,7 @@ import io.github.fourilla.endervault.filetool.comic.ComicPageResource;
 import io.github.fourilla.endervault.filetool.FileToolDescriptor;
 import io.github.fourilla.endervault.filetool.FileToolService;
 import io.github.fourilla.endervault.filetool.text.TextFileService;
+import io.github.fourilla.endervault.publiclink.PublicLinkTokenService;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.share.ShareTargetType;
@@ -26,6 +27,7 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import org.springframework.core.io.Resource;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ContentDisposition;
@@ -52,6 +54,7 @@ public class SharedFileController {
     private final FileActionViewSupport fileActionViewSupport;
     private final FileToolService fileToolService;
     private final TextFileService textFileService;
+    private final PublicLinkTokenService publicLinkTokenService;
 
     public SharedFileController(
             ShareLinkService shareLinkService,
@@ -62,7 +65,8 @@ public class SharedFileController {
             FilePreviewSupport filePreviewSupport,
             FileActionViewSupport fileActionViewSupport,
             FileToolService fileToolService,
-            TextFileService textFileService
+            TextFileService textFileService,
+            PublicLinkTokenService publicLinkTokenService
     ) {
         this.shareLinkService = shareLinkService;
         this.storageService = storageService;
@@ -73,6 +77,7 @@ public class SharedFileController {
         this.fileActionViewSupport = fileActionViewSupport;
         this.fileToolService = fileToolService;
         this.textFileService = textFileService;
+        this.publicLinkTokenService = publicLinkTokenService;
     }
 
     @ModelAttribute("filePreview")
@@ -93,7 +98,14 @@ public class SharedFileController {
             Model model
     ) throws IOException {
         ShareLink shareLink = shareLinkService.requireUsable(token);
-        activityLogService.record("SHARE_ACCESS", request, shareLink.path(), path, "Accessed share link " + token);
+        activityLogService.record(
+                "SHARE_ACCESS",
+                request,
+                shareLink.path(),
+                path,
+                "Accessed share link",
+                shareMetadata(token)
+        );
         model.addAttribute("share", shareLink);
         model.addAttribute("token", token);
 
@@ -125,14 +137,20 @@ public class SharedFileController {
     ) throws IOException {
         ShareLink shareLink = shareLinkService.requireUsable(token);
         if (shareLink.type() != ShareTargetType.DIRECTORY) {
-            throw new NoSuchFileException(token);
+            throw new NoSuchFileException("Shared directory is unavailable.");
         }
 
         FileItem item = storageService.describeSharedFile(shareLink.path(), path, itemName);
         String vaultPath = SharedFileRoutes.itemVaultPath(shareLink.path(), path, itemName);
         FileDetail detail = storageService.detail(StorageScope.VAULT, vaultPath);
-        activityLogService.record("SHARE_ACCESS", request, shareLink.path(), item.path(),
-                "Accessed shared file " + item.name() + " from share link " + token);
+        activityLogService.record(
+                "SHARE_ACCESS",
+                request,
+                shareLink.path(),
+                item.path(),
+                "Accessed shared file " + item.name(),
+                shareMetadata(token)
+        );
         model.addAttribute("share", shareLink);
         model.addAttribute("token", token);
         return sharedFileView(
@@ -155,8 +173,14 @@ public class SharedFileController {
     ) throws IOException {
         ShareLink shareLink = shareLinkService.requireUsable(token);
         Path file = resolveSharedDownloadTarget(shareLink, path, item);
-        activityLogService.record("SHARE_DOWNLOAD", request, shareLink.path(), item,
-                "Downloaded from share link " + token);
+        activityLogService.record(
+                "SHARE_DOWNLOAD",
+                request,
+                shareLink.path(),
+                item,
+                "Downloaded from share link",
+                shareMetadata(token)
+        );
         return fileResponseService.attachment(file, headers);
     }
 
@@ -169,7 +193,7 @@ public class SharedFileController {
     ) throws IOException {
         ShareLink shareLink = shareLinkService.requireUsable(token);
         if (shareLink.type() != ShareTargetType.DIRECTORY) {
-            throw new NoSuchFileException(token);
+            throw new NoSuchFileException("Shared directory is unavailable.");
         }
 
         List<String> items = SelectedItems.from(request);
@@ -181,8 +205,14 @@ public class SharedFileController {
         response.setContentType("application/zip");
         response.setHeader(HttpHeaders.ACCEPT_RANGES, "none");
         response.setHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"shared-files.zip\"");
-        activityLogService.record("SHARE_DOWNLOAD_ZIP", request, shareLink.path(), path,
-                "Downloaded shared ZIP with " + items.size() + " item(s)");
+        activityLogService.record(
+                "SHARE_DOWNLOAD_ZIP",
+                request,
+                shareLink.path(),
+                path,
+                "Downloaded shared ZIP with " + items.size() + " item(s)",
+                shareMetadata(token)
+        );
         storageService.writeSharedZip(shareLink.path(), path, items, response.getOutputStream());
     }
 
@@ -209,10 +239,17 @@ public class SharedFileController {
         ShareLink shareLink = shareLinkService.requireUsable(token);
         Path file = resolveSharedDownloadTarget(shareLink, path, item);
         if (!SharedFileRoutes.isComic(file)) {
-            throw new NoSuchFileException(item == null ? token : item);
+            throw new NoSuchFileException("Shared comic is unavailable.");
         }
 
-        activityLogService.record("SHARE_PREVIEW", request, shareLink.path(), item, "Previewed comic from share link " + token);
+        activityLogService.record(
+                "SHARE_PREVIEW",
+                request,
+                shareLink.path(),
+                item,
+                "Previewed comic from share link",
+                shareMetadata(token)
+        );
         model.addAttribute("comicTitle", file.getFileName().toString());
         model.addAttribute("comicPageUrlPrefix", SharedFileRoutes.comicPageUrlPrefix(token, path, item));
         model.addAttribute("comicManifest", comicArchiveService.manifest(file));
@@ -229,7 +266,7 @@ public class SharedFileController {
         ShareLink shareLink = shareLinkService.requireUsable(token);
         Path file = resolveSharedDownloadTarget(shareLink, path, item);
         if (!SharedFileRoutes.isComic(file)) {
-            throw new NoSuchFileException(item == null ? token : item);
+            throw new NoSuchFileException("Shared comic is unavailable.");
         }
 
         ComicPageResource pageResource = comicArchiveService.openPage(file, page);
@@ -254,9 +291,13 @@ public class SharedFileController {
             return storageService.resolveVaultFile(shareLink.path());
         }
         if (item == null || item.isBlank()) {
-            throw new NoSuchFileException(shareLink.token());
+            throw new NoSuchFileException("Shared file is unavailable.");
         }
         return storageService.resolveSharedFile(shareLink.path(), path, item);
+    }
+
+    private Map<String, String> shareMetadata(String token) {
+        return Map.of("tokenFingerprint", publicLinkTokenService.fingerprint(token));
     }
 
     private String sharedFileView(

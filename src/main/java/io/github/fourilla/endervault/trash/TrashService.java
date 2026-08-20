@@ -3,6 +3,7 @@ package io.github.fourilla.endervault.trash;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.favorite.FavoriteService;
+import io.github.fourilla.endervault.filerequest.FileRequestService;
 import io.github.fourilla.endervault.recent.RecentService;
 import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.storage.FileItem;
@@ -25,6 +26,7 @@ public class TrashService {
     private final ShareLinkService shareLinkService;
     private final FavoriteService favoriteService;
     private final RecentService recentService;
+    private final FileRequestService fileRequestService;
     private final NasProperties.Trash trashProperties;
 
     public TrashService(
@@ -33,6 +35,7 @@ public class TrashService {
             ShareLinkService shareLinkService,
             FavoriteService favoriteService,
             RecentService recentService,
+            FileRequestService fileRequestService,
             NasProperties nasProperties
     ) {
         this.storageService = storageService;
@@ -40,6 +43,7 @@ public class TrashService {
         this.shareLinkService = shareLinkService;
         this.favoriteService = favoriteService;
         this.recentService = recentService;
+        this.fileRequestService = fileRequestService;
         this.trashProperties = nasProperties.getTrash();
     }
 
@@ -137,6 +141,7 @@ public class TrashService {
             throw ex;
         }
         shareLinkService.revokeVaultPath(item.path());
+        fileRequestService.revokeVaultPath(item.path());
         favoriteService.removeVaultPath(item.path());
         recentService.removeVaultPath(item.path());
         return record;

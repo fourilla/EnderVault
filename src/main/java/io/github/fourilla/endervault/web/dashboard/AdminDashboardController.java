@@ -72,6 +72,7 @@ public class AdminDashboardController {
                 thumbnailSummary(thumbnailStats),
                 remoteDownloadService.summary(3),
                 nasProperties.getRemoteDownload().isEnabled(),
+                nasProperties.getFileRequest().isEnabled(),
                 taskManagerService.summary(),
                 recentTasks(6),
                 sessionManagementService.activeCount(),

@@ -70,6 +70,9 @@ public class NasProperties {
     private Share share = new Share();
 
     @Valid
+    private FileRequest fileRequest = new FileRequest();
+
+    @Valid
     private Upload upload = new Upload();
 
     @Valid
@@ -218,6 +221,14 @@ public class NasProperties {
 
     public void setShare(Share share) {
         this.share = share;
+    }
+
+    public FileRequest getFileRequest() {
+        return fileRequest;
+    }
+
+    public void setFileRequest(FileRequest fileRequest) {
+        this.fileRequest = fileRequest;
     }
 
     public Upload getUpload() {
@@ -1237,7 +1248,7 @@ public class NasProperties {
         private boolean customTokenEnabled = true;
 
         @Min(1)
-        private int customTokenMinLength = 3;
+        private int customTokenMinLength = 12;
 
         @Min(1)
         private int customTokenMaxLength = 64;
@@ -1342,32 +1353,10 @@ public class NasProperties {
     }
 
     public static class Upload {
-        @Min(1)
-        private int conflictRetentionMinutes = 30;
-
-        @Min(60000)
-        private long conflictCleanupIntervalMs = 600000L;
-
         @Min(0)
         private int maxFilesPerRequest = 0;
 
         private boolean directoryUploadEnabled = false;
-
-        public int getConflictRetentionMinutes() {
-            return conflictRetentionMinutes;
-        }
-
-        public void setConflictRetentionMinutes(int conflictRetentionMinutes) {
-            this.conflictRetentionMinutes = conflictRetentionMinutes;
-        }
-
-        public long getConflictCleanupIntervalMs() {
-            return conflictCleanupIntervalMs;
-        }
-
-        public void setConflictCleanupIntervalMs(long conflictCleanupIntervalMs) {
-            this.conflictCleanupIntervalMs = conflictCleanupIntervalMs;
-        }
 
         public int getMaxFilesPerRequest() {
             return maxFilesPerRequest;
@@ -1383,6 +1372,180 @@ public class NasProperties {
 
         public void setDirectoryUploadEnabled(boolean directoryUploadEnabled) {
             this.directoryUploadEnabled = directoryUploadEnabled;
+        }
+    }
+
+    public static class FileRequest {
+        private boolean enabled = true;
+
+        @Min(0)
+        @Max(365)
+        private int defaultExpirationDays = 7;
+
+        @Min(1)
+        @Max(21474836480L)
+        private long defaultMaxFileSizeBytes = 10737418240L;
+
+        @Min(1)
+        @Max(107374182400L)
+        private long defaultMaxTotalBytes = 21474836480L;
+
+        @Min(1)
+        @Max(1000)
+        private int defaultMaxFiles = 100;
+
+        private String defaultUploaderNamePolicy = "optional";
+
+        private boolean customTokenEnabled = true;
+
+        @Min(1)
+        private int customTokenMinLength = 12;
+
+        @Min(1)
+        private int customTokenMaxLength = 64;
+
+        @Min(8)
+        @Max(64)
+        private int randomTokenBytes = 24;
+
+        @Min(1)
+        @Max(4)
+        private int maxConcurrentUploads = 4;
+
+        @Min(1)
+        @Max(2)
+        private int maxConcurrentUploadsPerRequest = 2;
+
+        @Min(1)
+        @Max(60)
+        private int uploadTicketTtlMinutes = 10;
+
+        @Min(1)
+        @Max(24)
+        private int maxUploadHours = 24;
+
+        @Min(1)
+        @Max(3650)
+        private int pendingWarningDays = 30;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public int getDefaultExpirationDays() {
+            return defaultExpirationDays;
+        }
+
+        public void setDefaultExpirationDays(int defaultExpirationDays) {
+            this.defaultExpirationDays = defaultExpirationDays;
+        }
+
+        public long getDefaultMaxFileSizeBytes() {
+            return defaultMaxFileSizeBytes;
+        }
+
+        public void setDefaultMaxFileSizeBytes(long defaultMaxFileSizeBytes) {
+            this.defaultMaxFileSizeBytes = defaultMaxFileSizeBytes;
+        }
+
+        public long getDefaultMaxTotalBytes() {
+            return defaultMaxTotalBytes;
+        }
+
+        public void setDefaultMaxTotalBytes(long defaultMaxTotalBytes) {
+            this.defaultMaxTotalBytes = defaultMaxTotalBytes;
+        }
+
+        public int getDefaultMaxFiles() {
+            return defaultMaxFiles;
+        }
+
+        public void setDefaultMaxFiles(int defaultMaxFiles) {
+            this.defaultMaxFiles = defaultMaxFiles;
+        }
+
+        public String getDefaultUploaderNamePolicy() {
+            return defaultUploaderNamePolicy;
+        }
+
+        public void setDefaultUploaderNamePolicy(String defaultUploaderNamePolicy) {
+            this.defaultUploaderNamePolicy = defaultUploaderNamePolicy;
+        }
+
+        public boolean isCustomTokenEnabled() {
+            return customTokenEnabled;
+        }
+
+        public void setCustomTokenEnabled(boolean customTokenEnabled) {
+            this.customTokenEnabled = customTokenEnabled;
+        }
+
+        public int getCustomTokenMinLength() {
+            return customTokenMinLength;
+        }
+
+        public void setCustomTokenMinLength(int customTokenMinLength) {
+            this.customTokenMinLength = customTokenMinLength;
+        }
+
+        public int getCustomTokenMaxLength() {
+            return customTokenMaxLength;
+        }
+
+        public void setCustomTokenMaxLength(int customTokenMaxLength) {
+            this.customTokenMaxLength = customTokenMaxLength;
+        }
+
+        public int getRandomTokenBytes() {
+            return randomTokenBytes;
+        }
+
+        public void setRandomTokenBytes(int randomTokenBytes) {
+            this.randomTokenBytes = randomTokenBytes;
+        }
+
+        public int getMaxConcurrentUploads() {
+            return maxConcurrentUploads;
+        }
+
+        public void setMaxConcurrentUploads(int maxConcurrentUploads) {
+            this.maxConcurrentUploads = maxConcurrentUploads;
+        }
+
+        public int getMaxConcurrentUploadsPerRequest() {
+            return maxConcurrentUploadsPerRequest;
+        }
+
+        public void setMaxConcurrentUploadsPerRequest(int maxConcurrentUploadsPerRequest) {
+            this.maxConcurrentUploadsPerRequest = maxConcurrentUploadsPerRequest;
+        }
+
+        public int getUploadTicketTtlMinutes() {
+            return uploadTicketTtlMinutes;
+        }
+
+        public void setUploadTicketTtlMinutes(int uploadTicketTtlMinutes) {
+            this.uploadTicketTtlMinutes = uploadTicketTtlMinutes;
+        }
+
+        public int getMaxUploadHours() {
+            return maxUploadHours;
+        }
+
+        public void setMaxUploadHours(int maxUploadHours) {
+            this.maxUploadHours = maxUploadHours;
+        }
+
+        public int getPendingWarningDays() {
+            return pendingWarningDays;
+        }
+
+        public void setPendingWarningDays(int pendingWarningDays) {
+            this.pendingWarningDays = pendingWarningDays;
         }
     }
 

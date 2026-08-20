@@ -454,6 +454,14 @@ public class StorageService {
         return fileStagingService.createTemporaryFile(prefix, suffix);
     }
 
+    public String fileStagingFilename(Path path) {
+        return fileStagingService.filename(path);
+    }
+
+    public Path resolveFileStagingFile(String filename) {
+        return fileStagingService.resolveFile(filename);
+    }
+
     public List<FileStagingInfo> listFileStagingFiles() throws IOException {
         return fileStagingService.listFiles();
     }

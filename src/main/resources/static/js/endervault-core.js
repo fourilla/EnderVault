@@ -36,7 +36,15 @@
         return payload;
     };
 
-    const submitJsonForm = (form, formData = new FormData(form), action = form.action, method = form.method || "POST") =>
+    const formAction = (form) => form.getAttribute("action") || window.location.href;
+    const formMethod = (form) => form.getAttribute("method") || "POST";
+
+    const submitJsonForm = (
+            form,
+            formData = new FormData(form),
+            action = formAction(form),
+            method = formMethod(form)
+    ) =>
         requestJson(action, {
             method: method.toUpperCase(),
             body: formData
@@ -368,8 +376,8 @@
     const submitJsonFormResolvingConflicts = (
             form,
             formData = new FormData(form),
-            action = form.action,
-            method = form.method || "POST"
+            action = formAction(form),
+            method = formMethod(form)
     ) => requestJsonResolvingConflicts(action, {
         method: method.toUpperCase(),
         body: formData

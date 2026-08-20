@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+    <title th:text="|${fileRequest.title()} - EnderVault File Request|">EnderVault File Request</title>
+    <th:block th:replace="~{fragments/assets :: styles(true)}"></th:block>
+    <script defer th:src="@{/js/file-request-upload.js}"></script>
+</head>
+<body>
+<header class="topbar file-request-public-topbar">
+    <span class="brand">EnderVault Request</span>
+</header>
+
+<main class="workspace file-request-public-workspace">
+    <section class="file-request-public-panel">
+        <header class="file-request-public-heading">
+            <p class="eyebrow">File request</p>
+            <h1 th:text="${fileRequest.title()}">Upload files</h1>
+            <p>Files are sent directly to this EnderVault. The destination and existing contents are private.</p>
+        </header>
+
+        <dl class="file-request-limit-list">
+            <div>
+                <dt>Per file</dt>
+                <dd th:text="${fileRequest.maxFileSizeLabel()}">10 GB</dd>
+            </div>
+            <div>
+                <dt>Remaining</dt>
+                <dd th:text="|${fileRequest.remainingFiles()} files / ${fileRequest.remainingTotalLabel()}|">100 files</dd>
+            </div>
+            <div>
+                <dt>Accepted</dt>
+                <dd th:text="${fileRequest.extensionsLabel()}">Any file type</dd>
+            </div>
+            <div>
+                <dt>Expires</dt>
+                <dd th:text="${fileRequest.expiresLabel()}">Never</dd>
+            </div>
+        </dl>
+
+        <form class="file-request-upload-form" data-file-request-upload
+              th:attr="data-ticket-url=@{/r/{token}/tickets(token=${token})},
+                       data-upload-base=${uploadBase},
+                       data-parallel-uploads=${fileRequest.parallelUploads()}">
+            <label class="file-request-uploader-field"
+                   th:unless="${fileRequest.uploaderNamePolicy().name() == 'NONE'}">
+                <span>Uploader name</span>
+                <input name="uploaderName" maxlength="100"
+                       th:required="${fileRequest.uploaderNamePolicy().name() == 'REQUIRED'}"
+                       th:placeholder="${fileRequest.uploaderNamePolicy().name() == 'REQUIRED'} ? 'Required' : 'Optional'">
+            </label>
+
+            <input class="visually-hidden" id="fileRequestInput" type="file" multiple data-file-request-input>
+            <button class="file-request-drop-zone" type="button" data-file-request-pick>
+                <i class="fas fa-cloud-arrow-up" aria-hidden="true"></i>
+                <strong>Choose files</strong>
+                <span>or drag and drop them here</span>
+            </button>
+
+            <div class="file-request-queue" data-file-request-queue hidden></div>
+            <p class="file-request-live-status" data-file-request-status aria-live="polite"></p>
+
+            <div class="form-actions end">
+                <button class="icon-text-button" type="submit" data-file-request-submit disabled>
+                    <i class="fas fa-upload" aria-hidden="true"></i>
+                    <span>Upload selected files</span>
+                </button>
+            </div>
+        </form>
+    </section>
+</main>
+</body>
+</html>
