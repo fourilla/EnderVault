@@ -56,8 +56,11 @@ class NasPropertiesTest {
                 .withProperty("nas.share.direct-download-link-enabled", "false")
                 .withProperty("nas.file-request.default-expiration-days", "14")
                 .withProperty("nas.file-request.default-max-files", "75")
-                .withProperty("nas.file-request.max-concurrent-uploads", "3")
+                .withProperty("nas.file-request.max-concurrent-uploads-per-request", "2")
                 .withProperty("nas.file-request.pending-warning-days", "45")
+                .withProperty("nas.upload.resumable-chunk-size-bytes", "16777216")
+                .withProperty("nas.upload.max-concurrent-chunks", "5")
+                .withProperty("nas.upload.resumable-session-retention-hours", "36")
                 .withProperty("nas.temporary-artifacts.stale-after-minutes", "75")
                 .withProperty("nas.activity-log.max-archive-files", "12")
                 .withProperty("nas.activity-log.page-size-options", "25,50,100")
@@ -93,8 +96,11 @@ class NasPropertiesTest {
         assertThat(properties.getShare().isDirectDownloadLinkEnabled()).isFalse();
         assertThat(properties.getFileRequest().getDefaultExpirationDays()).isEqualTo(14);
         assertThat(properties.getFileRequest().getDefaultMaxFiles()).isEqualTo(75);
-        assertThat(properties.getFileRequest().getMaxConcurrentUploads()).isEqualTo(3);
+        assertThat(properties.getFileRequest().getMaxConcurrentUploadsPerRequest()).isEqualTo(2);
         assertThat(properties.getFileRequest().getPendingWarningDays()).isEqualTo(45);
+        assertThat(properties.getUpload().getResumableChunkSizeBytes()).isEqualTo(16777216L);
+        assertThat(properties.getUpload().getMaxConcurrentChunks()).isEqualTo(5);
+        assertThat(properties.getUpload().getResumableSessionRetentionHours()).isEqualTo(36);
         assertThat(properties.getTemporaryArtifacts().getStaleAfterMinutes()).isEqualTo(75);
         assertThat(properties.getActivityLog().getMaxArchiveFiles()).isEqualTo(12);
         assertThat(properties.getActivityLog().getPageSizeOptions()).isEqualTo(List.of(25, 50, 100));

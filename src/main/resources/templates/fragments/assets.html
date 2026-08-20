@@ -62,12 +62,19 @@
 
 <th:block th:fragment="fileToolbarScript">
     <script defer th:src="@{/js/file-browser-refresh.js}"></script>
+    <script defer th:src="@{/webjars/tus-js-client/4.3.1/dist/tus.min.js}"></script>
+    <script defer th:src="@{/js/resumable-upload-client.js}"></script>
     <script defer th:src="@{/js/file-uploads.js}"></script>
     <script defer th:src="@{/js/file-selection.js}"></script>
     <script defer th:src="@{/js/file-actions.js}"></script>
     <script defer th:src="@{/js/file-transfer-buffer.js}"></script>
     <script defer th:src="@{/js/archive-create.js}"></script>
     <script defer th:src="@{/js/file-context-menu.js}"></script>
+</th:block>
+
+<th:block th:fragment="resumableUploadScript">
+    <script defer th:src="@{/webjars/tus-js-client/4.3.1/dist/tus.min.js}"></script>
+    <script defer th:src="@{/js/resumable-upload-client.js}"></script>
 </th:block>
 
 <th:block th:fragment="selectionScript">

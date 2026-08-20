@@ -11,7 +11,7 @@ EnderVault는 현재 개인 사용을 중심으로 개발 중인 beta 프로젝�
 
 ## Features
 
-- 파일/디렉토리 탐색, 생성, 검색, 업로드, 다운로드, 이동, 복사, 이름 변경
+- 파일/디렉토리 탐색, 생성, 검색, 재개 가능한 업로드, 다운로드, 이동, 복사, 이름 변경
 - table/grid 보기, 정렬, 페이징, 숨김 항목 정책과 모바일용 read-only mode
 - 이미지, 영상, 텍스트, PDF, CBZ 미리보기와 영상/PDF/CBZ 썸네일 캐시
 - CodeMirror 기반 텍스트 편집, 서버 draft 복구와 Markdown 미리보기
@@ -189,5 +189,6 @@ Inspect는 기본적으로 파일 정보와 Range 지원을 확인하기 위해 
 - HTTPS reverse proxy 사용
 - Passkey 사용 시 도메인/RP 설정 확인
 - Remote download는 보안 영향을 이해한 뒤 필요한 경우에만 활성화
+- reverse proxy를 사용한다면 요청 body 상한을 `nas.upload.resumable-chunk-size-bytes`보다 크게 설정하고, 업로드 경로(`/api/v1/uploads/`)의 request buffering과 timeout 정책을 점검
 
 EnderVault는 개인용 단일 관리자 NAS를 전제로 설계되었습니다. 인터넷에 직접 공개하기 전에는 HTTPS, 방화벽, 프록시 설정, 공유 링크 정책을 충분히 확인하세요.

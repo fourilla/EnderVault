@@ -1,0 +1,20 @@
+package io.github.fourilla.endervault.upload;
+
+public enum ResumableUploadStatus {
+    ADMITTED,
+    UPLOADING,
+    STAGED,
+    FINALIZING,
+    PENDING,
+    COMPLETED,
+    CANCELED,
+    FAILED;
+
+    public boolean terminal() {
+        return this == PENDING || this == COMPLETED || this == CANCELED || this == FAILED;
+    }
+
+    public boolean reservesQuota() {
+        return this == ADMITTED || this == UPLOADING || this == STAGED || this == FINALIZING;
+    }
+}

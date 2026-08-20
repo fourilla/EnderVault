@@ -17,6 +17,7 @@ public record FileRequest(
         List<String> allowedExtensions,
         long acceptedBytes,
         int acceptedFiles,
+        List<String> acceptedUploadIds,
         Instant createdAt,
         Instant expiresAt,
         boolean enabled
@@ -27,6 +28,7 @@ public record FileRequest(
 
     public FileRequest {
         allowedExtensions = allowedExtensions == null ? List.of() : List.copyOf(allowedExtensions);
+        acceptedUploadIds = acceptedUploadIds == null ? List.of() : List.copyOf(acceptedUploadIds);
     }
 
     public boolean expired(Instant now) {
@@ -75,7 +77,7 @@ public record FileRequest(
         return new FileRequest(
                 id, token, title, destinationPath, uploaderNamePolicy,
                 maxFileSizeBytes, maxTotalBytes, maxFiles, allowedExtensions,
-                acceptedBytes, acceptedFiles, createdAt, expiresAt, false
+                acceptedBytes, acceptedFiles, acceptedUploadIds, createdAt, expiresAt, false
         );
     }
 
@@ -83,26 +85,36 @@ public record FileRequest(
         return new FileRequest(
                 id, token, title, path, uploaderNamePolicy,
                 maxFileSizeBytes, maxTotalBytes, maxFiles, allowedExtensions,
-                acceptedBytes, acceptedFiles, createdAt, expiresAt, enabled
+                acceptedBytes, acceptedFiles, acceptedUploadIds, createdAt, expiresAt, enabled
         );
     }
 
-    public FileRequest withAcceptedUpload(long size) {
+    public FileRequest withAcceptedUpload(String uploadId, long size) {
+        if (acceptedUploadIds.contains(uploadId)) {
+            return this;
+        }
+        List<String> nextUploadIds = new java.util.ArrayList<>(acceptedUploadIds);
+        nextUploadIds.add(uploadId);
         return new FileRequest(
                 id, token, title, destinationPath, uploaderNamePolicy,
                 maxFileSizeBytes, maxTotalBytes, maxFiles, allowedExtensions,
                 Math.addExact(acceptedBytes, size), Math.addExact(acceptedFiles, 1),
-                createdAt, expiresAt, enabled
+                nextUploadIds, createdAt, expiresAt, enabled
         );
     }
 
-    public FileRequest withoutAcceptedUpload(long size) {
+    public FileRequest withoutAcceptedUpload(String uploadId, long size) {
+        if (!acceptedUploadIds.contains(uploadId)) {
+            return this;
+        }
+        List<String> nextUploadIds = new java.util.ArrayList<>(acceptedUploadIds);
+        nextUploadIds.remove(uploadId);
         return new FileRequest(
                 id, token, title, destinationPath, uploaderNamePolicy,
                 maxFileSizeBytes, maxTotalBytes, maxFiles, allowedExtensions,
                 Math.max(0L, acceptedBytes - Math.max(0L, size)),
                 Math.max(0, acceptedFiles - 1),
-                createdAt, expiresAt, enabled
+                nextUploadIds, createdAt, expiresAt, enabled
         );
     }
 }

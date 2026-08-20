@@ -58,6 +58,7 @@ class FileRequestMetadataInspectorTest {
                 List.of(),
                 0,
                 0,
+                List.of(),
                 Instant.now().minusSeconds(3600),
                 expiresAt,
                 enabled

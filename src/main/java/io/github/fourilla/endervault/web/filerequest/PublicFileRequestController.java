@@ -5,27 +5,22 @@ import io.github.fourilla.endervault.common.ByteSizeFormatter;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.filerequest.FileRequest;
 import io.github.fourilla.endervault.filerequest.FileRequestService;
-import io.github.fourilla.endervault.filerequest.FileRequestUploadRejectedException;
-import io.github.fourilla.endervault.filerequest.FileRequestUploadService;
-import io.github.fourilla.endervault.filerequest.FileRequestUploadService.UploadReceipt;
-import io.github.fourilla.endervault.filerequest.FileRequestUploadService.UploadTicket;
 import io.github.fourilla.endervault.filerequest.UploaderNamePolicy;
 import io.github.fourilla.endervault.publiclink.PublicLinkTokenService;
+import io.github.fourilla.endervault.upload.ResumableUploadAdmissionRequest;
+import io.github.fourilla.endervault.upload.ResumableUploadAdmissionResponse;
+import io.github.fourilla.endervault.upload.ResumableUploadService;
+import io.github.fourilla.endervault.upload.ResumableUploadSession;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
-import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseBody;
 
@@ -33,20 +28,20 @@ import org.springframework.web.bind.annotation.ResponseBody;
 public class PublicFileRequestController {
 
     private final FileRequestService fileRequestService;
-    private final FileRequestUploadService fileRequestUploadService;
+    private final ResumableUploadService resumableUploadService;
     private final PublicLinkTokenService publicLinkTokenService;
     private final ActivityLogService activityLogService;
     private final NasProperties.FileRequest properties;
 
     public PublicFileRequestController(
             FileRequestService fileRequestService,
-            FileRequestUploadService fileRequestUploadService,
+            ResumableUploadService resumableUploadService,
             PublicLinkTokenService publicLinkTokenService,
             ActivityLogService activityLogService,
             NasProperties nasProperties
     ) {
         this.fileRequestService = fileRequestService;
-        this.fileRequestUploadService = fileRequestUploadService;
+        this.resumableUploadService = resumableUploadService;
         this.publicLinkTokenService = publicLinkTokenService;
         this.activityLogService = activityLogService;
         this.properties = nasProperties.getFileRequest();
@@ -61,7 +56,7 @@ public class PublicFileRequestController {
                 properties.getMaxConcurrentUploadsPerRequest()
         ));
         model.addAttribute("token", token);
-        model.addAttribute("uploadBase", "/r/" + token + "/uploads/");
+        model.addAttribute("uploadAdmissionUrl", "/r/" + token + "/upload-sessions");
         activityLogService.record(
                 "FILE_REQUEST_ACCESS",
                 servletRequest,
@@ -74,67 +69,25 @@ public class PublicFileRequestController {
     }
 
     @PostMapping(
-            value = "/r/{token}/tickets",
+            value = "/r/{token}/upload-sessions",
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE
     )
     @ResponseBody
-    public TicketResponse createTicket(
+    public ResumableUploadAdmissionResponse createUploadSession(
             @PathVariable String token,
-            @RequestBody TicketRequest request
+            @RequestBody ResumableUploadAdmissionRequest request
     ) throws IOException {
-        UploadTicket ticket = fileRequestUploadService.issueTicket(
+        ResumableUploadSession session = resumableUploadService.admitFileRequest(
                 token,
                 request.filename(),
+                request.contentType(),
                 request.size(),
-                request.uploaderName()
+                request.uploaderName(),
+                request.fingerprint(),
+                request.resumeSessionId()
         );
-        return new TicketResponse(true, ticket.id(), ticket.expiresAt());
-    }
-
-    @PutMapping(
-            value = "/r/{token}/uploads/{ticketId}",
-            consumes = MediaType.APPLICATION_OCTET_STREAM_VALUE,
-            produces = MediaType.APPLICATION_JSON_VALUE
-    )
-    @ResponseBody
-    public UploadResponse upload(
-            @PathVariable String token,
-            @PathVariable String ticketId,
-            HttpServletRequest servletRequest
-    ) throws IOException {
-        UploadReceipt receipt = fileRequestUploadService.receive(
-                token,
-                ticketId,
-                servletRequest.getInputStream(),
-                servletRequest.getContentLengthLong()
-        );
-        activityLogService.record(
-                "FILE_REQUEST_UPLOAD",
-                servletRequest,
-                receipt.committedPath(),
-                null,
-                "File received through file request",
-                metadata(
-                        receipt.requestId(),
-                        token,
-                        receipt.uploaderName(),
-                        receipt.originalFilename(),
-                        receipt.size(),
-                        receipt.pendingDecision()
-                )
-        );
-        return new UploadResponse(true, "Upload received.");
-    }
-
-    @ExceptionHandler(FileRequestUploadRejectedException.class)
-    @ResponseBody
-    public ResponseEntity<ErrorResponse> uploadRejected(FileRequestUploadRejectedException exception) {
-        ResponseEntity.BodyBuilder response = ResponseEntity.status(exception.status());
-        if (exception.retryAfterSeconds() != null) {
-            response.header(HttpHeaders.RETRY_AFTER, String.valueOf(exception.retryAfterSeconds()));
-        }
-        return response.body(new ErrorResponse(false, exception.getMessage(), exception.retryAfterSeconds()));
+        return ResumableUploadAdmissionResponse.from(session, resumableUploadService);
     }
 
     private Map<String, String> metadata(
@@ -161,18 +114,6 @@ public class PublicFileRequestController {
             metadata.put("pendingDecision", String.valueOf(pending));
         }
         return Map.copyOf(metadata);
-    }
-
-    public record TicketRequest(String filename, long size, String uploaderName) {
-    }
-
-    public record TicketResponse(boolean ok, String ticketId, Instant expiresAt) {
-    }
-
-    public record UploadResponse(boolean ok, String message) {
-    }
-
-    public record ErrorResponse(boolean ok, String message, Integer retryAfterSeconds) {
     }
 
     public record PublicFileRequestView(

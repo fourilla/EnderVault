@@ -32,6 +32,8 @@
         <commons-codec.version>1.19.0</commons-codec.version>
         <commons-lang3.version>3.18.0</commons-lang3.version>
         <xz.version>1.12</xz.version>
+        <tus-java-server.version>1.0.0-3.3</tus-java-server.version>
+        <tus-js-client.version>4.3.1</tus-js-client.version>
     </properties>
 
     <dependencies>
@@ -136,6 +138,28 @@
             <groupId>org.tukaani</groupId>
             <artifactId>xz</artifactId>
             <version>${xz.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>me.desair.tus</groupId>
+            <artifactId>tus-java-server</artifactId>
+            <version>${tus-java-server.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-api</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.webjars.npm</groupId>
+            <artifactId>tus-js-client</artifactId>
+            <version>${tus-js-client.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>com.yubico</groupId>

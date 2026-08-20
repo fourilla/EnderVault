@@ -19,7 +19,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class StorageService {
@@ -426,32 +425,20 @@ public class StorageService {
         return listingService.mediaType(file);
     }
 
-    public FileItem upload(String directoryPath, MultipartFile file) throws IOException {
-        return upload(directoryPath, file, null);
-    }
-
-    public FileItem upload(String directoryPath, MultipartFile file, ConflictPolicy conflictPolicy) throws IOException {
-        if (file.isEmpty()) {
-            return null;
-        }
-        StagedUpload stagedUpload = stageUpload(file);
-        try {
-            FileItem item = moveStagedUploadIntoVault(stagedUpload, directoryPath, conflictPolicy);
-            stagedUpload = null;
-            return item;
-        } finally {
-            if (stagedUpload != null) {
-                Files.deleteIfExists(stagedUpload.temporaryFile());
-            }
-        }
-    }
-
-    public StagedUpload stageUpload(MultipartFile file) throws IOException {
-        return fileStagingService.stageUpload(file);
-    }
-
     public Path createFileStagingTemporaryFile(String prefix, String suffix) throws IOException {
         return fileStagingService.createTemporaryFile(prefix, suffix);
+    }
+
+    public Path resumableUploadProtocolRoot() throws IOException {
+        return fileStagingService.resumableProtocolRoot();
+    }
+
+    public Path claimResumableUploadData(Path protocolData, String sessionId) throws IOException {
+        return fileStagingService.claimResumableUpload(protocolData, sessionId);
+    }
+
+    public Path resumableUploadStagingFile(String sessionId) {
+        return fileStagingService.resumableStagingFile(sessionId);
     }
 
     public String fileStagingFilename(Path path) {
@@ -588,22 +575,6 @@ public class StorageService {
 
     public void validateVaultEntryName(String name) {
         pathResolver.validateSingleName(name);
-    }
-
-    public FileItem moveStagedUploadIntoVault(
-            StagedUpload stagedUpload,
-            String directoryPath,
-            ConflictPolicy conflictPolicy
-    ) throws IOException {
-        if (stagedUpload == null) {
-            return null;
-        }
-        return moveTemporaryFileIntoVault(
-                stagedUpload.temporaryFile(),
-                directoryPath,
-                stagedUpload.filename(),
-                conflictPolicy
-        );
     }
 
     public StorageOperationSummary summarizeVaultPaths(List<String> vaultPaths) throws IOException {
@@ -763,9 +734,6 @@ public class StorageService {
         if (!Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)) {
             throw new StorageAccessException(label + " path is not a directory.");
         }
-    }
-
-    public record StagedUpload(Path temporaryFile, String filename, long size) {
     }
 
     public record CommittedVaultFile(String name, String path) {

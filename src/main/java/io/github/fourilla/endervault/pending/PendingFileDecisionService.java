@@ -19,6 +19,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -115,6 +116,16 @@ public class PendingFileDecisionService {
         String cleanId = cleanId(id);
         return repository.find(cleanId)
                 .orElseThrow(() -> new NoSuchFileException("Pending file decision was not found."));
+    }
+
+    public synchronized Optional<PendingFileDecision> findBySourceReference(
+            PendingFileDecisionSource source,
+            String sourceReference
+    ) throws IOException {
+        return repository.list().stream()
+                .filter(decision -> decision.source() == source)
+                .filter(decision -> java.util.Objects.equals(decision.sourceReference(), sourceReference))
+                .findFirst();
     }
 
     public synchronized PendingFileDecisionResult resolve(

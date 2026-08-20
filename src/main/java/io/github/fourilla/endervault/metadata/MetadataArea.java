@@ -11,6 +11,7 @@ public enum MetadataArea {
     TRASH("Trash", "Trash records and files stored under .trash", "fas fa-trash-can"),
     THUMBNAILS("Thumbnails", "Generated video and comic thumbnail cache", "fas fa-image"),
     FILE_STAGING("File staging", "Temporary files used by upload and file operations", "fas fa-file-circle-check"),
+    RESUMABLE_UPLOADS("Resumable uploads", "Durable upload sessions and resumable protocol data", "fas fa-cloud-arrow-up"),
     ARCHIVE_STAGING("Archive staging", "Temporary workspaces used to create and extract archives", "fas fa-box-archive"),
     TEXT_DRAFTS("Text drafts", "Recoverable text editor drafts and leases", "fas fa-file-pen"),
     BOOKMARKS("Bookmarks", "Saved web links and bookmark directories", "fas fa-bookmark"),

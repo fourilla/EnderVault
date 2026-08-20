@@ -7,6 +7,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const uploadState = {
         uploads: new Map(),
         nextId: 1,
+        queue: [],
+        running: 0,
         conflictQueue: [],
         conflictDialogOpen: false
     };
@@ -16,6 +18,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const maxFilesPerRequest = Math.max(0, Number.parseInt(uploadForm.dataset.maxFilesPerRequest || "0", 10) || 0);
+    const maxConcurrentUploads = Math.max(
+        1,
+        Number.parseInt(uploadForm.dataset.maxConcurrentUploads || "1", 10) || 1
+    );
 
     const showUploadStatus = (message, error = false) => {
         window.EnderVault.showToast(error ? "error" : "info", message);
@@ -30,7 +36,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const activeUploads = () =>
         Array.from(uploadState.uploads.values()).filter((upload) =>
-            ["uploading", "conflict", "resolving"].includes(upload.status));
+            ["queued", "fingerprinting", "reserving", "uploading", "canceling", "conflict", "resolving"]
+                .includes(upload.status));
 
     window.addEventListener("beforeunload", (event) => {
         if (activeUploads().length === 0) {
@@ -53,6 +60,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         switch (upload.status) {
+            case "queued":
+                return "Waiting to upload";
             case "complete":
                 return "Complete";
             case "failed":
@@ -88,13 +97,21 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     const cancelUpload = (upload) => {
-        if (upload.status !== "uploading" || upload.cancelRequested) {
+        if (!["queued", "fingerprinting", "reserving", "uploading"].includes(upload.status)
+                || upload.cancelRequested) {
             return;
         }
 
         upload.cancelRequested = true;
+        if (upload.status === "queued") {
+            finishUpload(upload, "canceled");
+            return;
+        }
+        upload.status = "canceling";
         renderUploadPanel();
-        upload.xhr?.abort();
+        upload.handle?.abort()
+            .then(() => finishUpload(upload, "canceled"))
+            .catch((error) => finishUpload(upload, "failed", error.message || "Cancel failed."));
     };
 
     function renderUploadPanel() {
@@ -114,31 +131,16 @@ document.addEventListener("DOMContentLoaded", () => {
                 percent: ["complete", "conflict", "resolving"].includes(upload.status) ? 100 : uploadPercent(upload),
                 message: uploadStatusText(upload),
                 cancelRequested: upload.cancelRequested,
-                cancelable: upload.status === "uploading",
+                cancelable: ["queued", "fingerprinting", "reserving", "uploading"].includes(upload.status),
                 onCancel: () => cancelUpload(upload)
             });
         });
         updateUploadButtonState();
     }
 
-    const uploadFormData = (file) => {
-        const formData = new FormData();
-        Array.from(uploadForm.elements).forEach((control) => {
-            if (!control.name || control.disabled || control.type === "file") {
-                return;
-            }
-            if ((control.type === "checkbox" || control.type === "radio") && !control.checked) {
-                return;
-            }
-            formData.append(control.name, control.value);
-        });
-        formData.append(fileUploadInput.name || "files", file, file.name);
-        formData.set("conflictPolicy", "ask");
-        return formData;
-    };
-
     const finishUpload = (upload, status, message = "") => {
-        if (!["uploading", "conflict", "resolving"].includes(upload.status)) {
+        if (!["queued", "fingerprinting", "reserving", "uploading", "canceling", "conflict", "resolving"]
+                .includes(upload.status)) {
             return;
         }
 
@@ -241,14 +243,6 @@ document.addEventListener("DOMContentLoaded", () => {
         showNextConflictDialog();
     };
 
-    const parseUploadResponse = (xhr) => {
-        try {
-            return JSON.parse(xhr.responseText || "{}");
-        } catch (error) {
-            return null;
-        }
-    };
-
     const validateUploadBatch = (files) => {
         if (!files || files.length === 0) {
             return false;
@@ -263,50 +257,66 @@ document.addEventListener("DOMContentLoaded", () => {
         return true;
     };
 
-    function sendFileUpload(upload) {
-        const xhr = new XMLHttpRequest();
-        upload.xhr = xhr;
-
-        xhr.open((uploadForm.method || "POST").toUpperCase(), uploadForm.action);
-        xhr.setRequestHeader("Accept", "application/json");
-        xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
-
-        xhr.upload.onprogress = (event) => {
-            upload.loaded = event.loaded;
-            if (event.lengthComputable) {
-                upload.total = event.total;
-            }
-            renderUploadPanel();
-        };
-
-        xhr.onload = () => {
-            const body = parseUploadResponse(xhr);
-            if (!body) {
-                finishUpload(upload, "failed", "The server response could not be read.");
+    async function sendFileUpload(upload) {
+        const uploadClient = window.EnderVaultResumableUpload;
+        if (!uploadClient) {
+            finishUpload(upload, "failed", "Resumable upload support is unavailable.");
+            return;
+        }
+        try {
+            upload.handle = uploadClient.create({
+                file: upload.file,
+                context: uploadForm.dataset.admissionUrl,
+                admissionUrl: uploadForm.dataset.admissionUrl,
+                onState: (state, message) => {
+                    upload.status = state;
+                    upload.message = message;
+                    renderUploadPanel();
+                },
+                onProgress: (sent, total) => {
+                    upload.loaded = sent;
+                    upload.total = total;
+                    renderUploadPanel();
+                }
+            });
+            const result = await upload.handle.start();
+            if (!result || result.status === "CANCELED") {
+                finishUpload(upload, "canceled");
                 return;
             }
-
-            if (xhr.status >= 200 && xhr.status < 300 && body.ok !== false) {
-                upload.redirectUrl = body.redirectUrl;
-                finishUpload(upload, "complete");
+            if (result.status === "PENDING" && result.pendingDecisionId) {
+                queueUploadConflict(upload, {
+                    id: result.pendingDecisionId,
+                    fileName: upload.file.name,
+                    directoryPath: uploadForm.elements.namedItem("path")?.value || "",
+                    defaultPolicy: result.defaultConflictPolicy || "cancel"
+                });
                 return;
             }
-
-            if (xhr.status === 409 && body.conflict) {
-                upload.redirectUrl = body.redirectUrl;
-                queueUploadConflict(upload, body.conflict);
+            if (result.status === "COMPLETED") {
+                finishUpload(upload, "complete", result.message || "Upload complete");
                 return;
             }
-
-            const message = body.notification?.message || "Upload failed.";
-            finishUpload(upload, "failed", message);
-        };
-
-        xhr.onerror = () => finishUpload(upload, "failed", "Upload failed.");
-        xhr.onabort = () => finishUpload(upload, "canceled");
-
-        xhr.send(uploadFormData(upload.file));
+            finishUpload(upload, "failed", result.message || "Upload could not be finalized.");
+        } catch (error) {
+            finishUpload(upload, "failed", error.message || "Upload failed.");
+        }
     }
+
+    const startQueuedUploads = () => {
+        while (uploadState.running < maxConcurrentUploads && uploadState.queue.length > 0) {
+            const upload = uploadState.queue.shift();
+            if (!upload || upload.status !== "queued") {
+                continue;
+            }
+            uploadState.running += 1;
+            sendFileUpload(upload).finally(() => {
+                uploadState.running = Math.max(0, uploadState.running - 1);
+                startQueuedUploads();
+            });
+        }
+        renderUploadPanel();
+    };
 
     const startFileUploads = (files) => {
         if (!validateUploadBatch(files)) {
@@ -319,18 +329,18 @@ document.addEventListener("DOMContentLoaded", () => {
                 file,
                 loaded: 0,
                 total: file.size,
-                status: "uploading",
+                status: "queued",
                 message: "",
-                xhr: null,
+                handle: null,
                 redirectUrl: null,
                 removeTimer: null,
                 cancelRequested: false
             };
             uploadState.nextId += 1;
             uploadState.uploads.set(upload.id, upload);
-            sendFileUpload(upload);
+            uploadState.queue.push(upload);
         });
-        renderUploadPanel();
+        startQueuedUploads();
     };
 
     uploadButton.dataset.readyTitle = uploadButton.title;

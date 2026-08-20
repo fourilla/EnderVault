@@ -45,7 +45,7 @@ class TemporaryArtifactRegistryTest {
 
         TemporaryArtifactRegistry.Registration first = registry.register(
                 temporaryFile,
-                TemporaryArtifactType.UPLOAD,
+                TemporaryArtifactType.ARCHIVE_CREATION,
                 "first"
         );
         assertThatThrownBy(() -> registry.register(

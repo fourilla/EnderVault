@@ -18,13 +18,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.springframework.mock.web.MockMultipartFile;
 
 class StorageServiceTest {
 
@@ -405,28 +403,6 @@ class StorageServiceTest {
                 .isInstanceOf(StorageAccessException.class);
         assertThatThrownBy(() -> storageService.createFile("", "note.txt "))
                 .isInstanceOf(StorageAccessException.class);
-    }
-
-    @Test
-    void uploadsAndRenamesFilesWithinVault() throws Exception {
-        MockMultipartFile file = new MockMultipartFile("files", "demo.txt", "text/plain", "demo".getBytes());
-
-        storageService.upload("", file);
-        storageService.rename("", "demo.txt", "renamed.txt");
-
-        assertThat(Files.readString(root.resolve("renamed.txt"))).isEqualTo("demo");
-    }
-
-    @Test
-    void uploadDoesNotLeaveInternalTemporaryFiles() throws Exception {
-        MockMultipartFile file = new MockMultipartFile("files", "clean.txt", "text/plain", "clean".getBytes());
-
-        storageService.upload("", file);
-
-        assertThat(Files.readString(root.resolve("clean.txt"))).isEqualTo("clean");
-        try (Stream<Path> temporaryFiles = Files.list(root.resolve(".endervault").resolve("file-staging"))) {
-            assertThat(temporaryFiles).isEmpty();
-        }
     }
 
     @Test
