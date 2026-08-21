@@ -19,14 +19,20 @@ public class FileCommitStartupRecoveryService {
     private static final Logger logger = LoggerFactory.getLogger(FileCommitStartupRecoveryService.class);
 
     private final FileCommitCoordinator coordinator;
+    private final FileCommitBatchCoordinator batchCoordinator;
     private final PendingFileDecisionService pendingFileDecisionService;
+    private final io.github.fourilla.endervault.storage.StorageService storageService;
 
     public FileCommitStartupRecoveryService(
             FileCommitCoordinator coordinator,
-            PendingFileDecisionService pendingFileDecisionService
+            FileCommitBatchCoordinator batchCoordinator,
+            PendingFileDecisionService pendingFileDecisionService,
+            io.github.fourilla.endervault.storage.StorageService storageService
     ) {
         this.coordinator = coordinator;
+        this.batchCoordinator = batchCoordinator;
         this.pendingFileDecisionService = pendingFileDecisionService;
+        this.storageService = storageService;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -78,6 +84,9 @@ public class FileCommitStartupRecoveryService {
         if (owner.type() == FileCommitOwnerType.PENDING_FILE_DECISION) {
             return recoverPendingDecision(entry);
         }
+        if (owner.type() == FileCommitOwnerType.ARCHIVE_EXTRACT) {
+            return recoverArchiveExtraction(entry);
+        }
         PendingFileDecisionSource pendingSource = pendingSource(owner.type());
         Optional<PendingFileDecision> existingPending = pendingFileDecisionService.findBySourceReference(
                 pendingSource,
@@ -109,6 +118,32 @@ public class FileCommitStartupRecoveryService {
         } catch (FileCommitConflictException ex) {
             handoffConflict(coordinator.singleFilePlan(ex.operationId()), pendingSource);
             return RecoveryOutcome.PENDING;
+        }
+    }
+
+    private RecoveryOutcome recoverArchiveExtraction(FileCommitJournalEntry entry) throws IOException {
+        FileCommitPhase phase = entry.state().phase();
+        if (phase == FileCommitPhase.NEEDS_REVIEW || phase == FileCommitPhase.ABORTED) {
+            return RecoveryOutcome.DEFERRED;
+        }
+        java.nio.file.Path workspace = batchCoordinator.archiveWorkspace(entry.manifest().operationId());
+        if (phase == FileCommitPhase.COMPLETED) {
+            batchCoordinator.complete(entry.manifest().operationId());
+            cleanupArchiveWorkspace(workspace);
+            return RecoveryOutcome.RECOVERED;
+        }
+        FileCommitBatchCoordinator.StagedBatchCommit commit =
+                batchCoordinator.resumeArchiveExtraction(entry.manifest().operationId());
+        batchCoordinator.complete(commit.operationId());
+        cleanupArchiveWorkspace(commit.workspace());
+        return RecoveryOutcome.RECOVERED;
+    }
+
+    private void cleanupArchiveWorkspace(java.nio.file.Path workspace) {
+        try {
+            storageService.deleteArchiveExtractionWorkspace(workspace);
+        } catch (IOException | RuntimeException ex) {
+            logger.warn("Recovered archive commit but could not remove workspace {}.", workspace.getFileName());
         }
     }
 
@@ -187,7 +222,8 @@ public class FileCommitStartupRecoveryService {
     private boolean supports(FileCommitOwnerType ownerType) {
         return ownerType == FileCommitOwnerType.REMOTE_DOWNLOAD
                 || ownerType == FileCommitOwnerType.ARCHIVE_CREATE
-                || ownerType == FileCommitOwnerType.PENDING_FILE_DECISION;
+                || ownerType == FileCommitOwnerType.PENDING_FILE_DECISION
+                || ownerType == FileCommitOwnerType.ARCHIVE_EXTRACT;
     }
 
     private PendingFileDecisionSource pendingSource(FileCommitOwnerType ownerType) {
@@ -206,4 +242,5 @@ public class FileCommitStartupRecoveryService {
 
     public record RecoverySummary(int recovered, int pending, int deferred) {
     }
+
 }

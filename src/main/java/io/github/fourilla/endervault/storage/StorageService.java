@@ -77,7 +77,6 @@ public class StorageService {
                 pathResolver,
                 conflictResolver,
                 treeOperations,
-                listingService,
                 temporaryArtifactRegistry
         );
         this.shareProperties = nasProperties.getShare();
@@ -554,20 +553,6 @@ public class StorageService {
         return fileStagingService.claimTemporaryFile(safeOutput, "archive-output-", ".tmp");
     }
 
-    public FileItem commitTemporaryDirectoryIntoVault(
-            Path temporaryDirectory,
-            String directoryPath,
-            String directoryName,
-            ConflictPolicy conflictPolicy
-    ) throws IOException {
-        return archiveStagingCommitter.commitDirectory(
-                temporaryDirectory,
-                directoryPath,
-                directoryName,
-                conflictPolicy
-        );
-    }
-
     public void preflightArchiveExtraction(
             String directoryPath,
             boolean createContainingDirectory,
@@ -584,20 +569,44 @@ public class StorageService {
         );
     }
 
-    public StorageBatchCommitResult commitArchiveContentsIntoVault(
+    public ArchiveCommitPlan planArchiveCommit(
             Path temporaryDirectory,
             String directoryPath,
+            boolean createContainingDirectory,
+            String directoryName,
             List<StorageBatchEntry> topLevelEntries,
-            ConflictPolicy conflictPolicy,
-            StorageProgressListener progressListener
+            ConflictPolicy conflictPolicy
     ) throws IOException {
-        return archiveStagingCommitter.commitContents(
+        return archiveStagingCommitter.planCommit(
                 temporaryDirectory,
                 directoryPath,
+                createContainingDirectory,
+                directoryName,
                 topLevelEntries,
-                conflictPolicy,
-                progressListener
+                conflictPolicy
         );
+    }
+
+    public String archiveStagingCommitPath(Path path) throws IOException {
+        return archiveStagingCommitter.storageRelativeCommitPath(path);
+    }
+
+    public Path resolveArchiveStagingCommitPath(String storageRelativePath) throws IOException {
+        return archiveStagingCommitter.resolveCommitPath(storageRelativePath);
+    }
+
+    public Path archiveStagingWorkspaceFor(Path commitPath) throws IOException {
+        return archiveStagingCommitter.workspaceForCommitPath(commitPath);
+    }
+
+    public Path resolveVaultCommitTarget(String vaultPath) throws IOException {
+        return pathResolver.resolveRestoreTargetPath(vaultPath);
+    }
+
+    public void commitArchiveStagedEntryNoReplace(Path stagedPath, String targetPath) throws IOException {
+        Path source = resolveArchiveStagingCommitPath(archiveStagingCommitPath(stagedPath));
+        Path target = resolveVaultCommitTarget(targetPath);
+        treeOperations.commitEntryNoReplace(source, target);
     }
 
     public void deleteArchiveExtractionWorkspace(Path workspace) throws IOException {

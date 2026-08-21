@@ -10,7 +10,6 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
@@ -369,17 +368,7 @@ public class FileCommitCoordinator {
     }
 
     private boolean matchesFingerprint(FileCommitFingerprint expected, Path path) throws IOException {
-        if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(path)) {
-            return false;
-        }
-        FileCommitFingerprint actual = fingerprint(path);
-        if (expected.size() != actual.size()) {
-            return false;
-        }
-        if (expected.fileKey() != null || actual.fileKey() != null) {
-            return Objects.equals(expected.fileKey(), actual.fileKey());
-        }
-        return Objects.equals(expected.modifiedAt(), actual.modifiedAt());
+        return FileCommitFingerprints.matchesRegularFile(expected, path);
     }
 
     private FileCommitJournalEntry abort(FileCommitJournalEntry entry, String detail) throws IOException {
@@ -506,17 +495,7 @@ public class FileCommitCoordinator {
     }
 
     static FileCommitFingerprint fingerprint(Path path) throws IOException {
-        BasicFileAttributes attributes = Files.readAttributes(
-                path,
-                BasicFileAttributes.class,
-                LinkOption.NOFOLLOW_LINKS
-        );
-        Object fileKey = attributes.fileKey();
-        return new FileCommitFingerprint(
-                attributes.size(),
-                attributes.lastModifiedTime().toInstant(),
-                fileKey == null ? null : fileKey.toString()
-        );
+        return FileCommitFingerprints.regularFile(path);
     }
 
     private void requireRegularFile(Path path, String message) throws IOException {

@@ -10,6 +10,9 @@ import io.github.fourilla.endervault.pending.PendingFileDecisionAction;
 import io.github.fourilla.endervault.pending.PendingFileDecisionService;
 import io.github.fourilla.endervault.pending.PendingFileDecisionSource;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
+import io.github.fourilla.endervault.storage.ArchiveCommitPlan;
+import io.github.fourilla.endervault.storage.StorageBatchEntry;
+import io.github.fourilla.endervault.storage.StorageProgressListener;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
 import java.io.IOException;
@@ -30,6 +33,7 @@ class FileCommitStartupRecoveryServiceTest {
     private StorageService storageService;
     private FileCommitJournalStore journalStore;
     private FileCommitCoordinator coordinator;
+    private FileCommitBatchCoordinator batchCoordinator;
     private PendingFileDecisionService pendingFileDecisionService;
     private FileCommitStartupRecoveryService recoveryService;
 
@@ -48,6 +52,7 @@ class FileCommitStartupRecoveryServiceTest {
         journalStore = new FileCommitJournalStore(objectMapper, properties);
         journalStore.initialize();
         coordinator = new FileCommitCoordinator(journalStore, storageService, properties);
+        batchCoordinator = new FileCommitBatchCoordinator(journalStore, coordinator, storageService);
         PendingFileDecisionRepository repository = new PendingFileDecisionRepository(objectMapper, properties);
         repository.initialize();
         pendingFileDecisionService = new PendingFileDecisionService(
@@ -57,7 +62,12 @@ class FileCommitStartupRecoveryServiceTest {
                 temporaryArtifactRegistry,
                 List.of()
         );
-        recoveryService = new FileCommitStartupRecoveryService(coordinator, pendingFileDecisionService);
+        recoveryService = new FileCommitStartupRecoveryService(
+                coordinator,
+                batchCoordinator,
+                pendingFileDecisionService,
+                storageService
+        );
     }
 
     @Test
@@ -240,6 +250,40 @@ class FileCommitStartupRecoveryServiceTest {
                 .containsExactly(decision.id());
         assertThat(staged).hasContent("pending content");
         assertThat(journalStore.list()).isEmpty();
+    }
+
+    @Test
+    void finishesArchiveBatchAndRemovesItsWorkspaceAfterStartup() throws Exception {
+        Path workspace = storageService.createArchiveExtractionWorkspace();
+        Path content = Files.createDirectory(workspace.resolve("content"));
+        Files.writeString(content.resolve("a.txt"), "a");
+        Files.writeString(content.resolve("b.txt"), "b");
+        ArchiveCommitPlan plan = storageService.planArchiveCommit(
+                content,
+                "",
+                false,
+                "ignored",
+                List.of(
+                        new StorageBatchEntry("a.txt", false),
+                        new StorageBatchEntry("b.txt", false)
+                ),
+                ConflictPolicy.CANCEL
+        );
+        FileCommitBatchCoordinator.StagedBatchCommit commit = batchCoordinator.commitArchiveExtraction(
+                new FileCommitOwner(FileCommitOwnerType.ARCHIVE_EXTRACT, "extract-task-1"),
+                plan,
+                ConflictPolicy.CANCEL,
+                StorageProgressListener.NOOP
+        );
+
+        FileCommitStartupRecoveryService.RecoverySummary summary = recoveryService.recover();
+
+        assertThat(summary.recovered()).isEqualTo(1);
+        assertThat(root.resolve("a.txt")).hasContent("a");
+        assertThat(root.resolve("b.txt")).hasContent("b");
+        assertThat(workspace).doesNotExist();
+        assertThat(journalStore.list()).isEmpty();
+        assertThat(commit.result().committedCount()).isEqualTo(2);
     }
 
     private Path stagedFile(String content) throws IOException {

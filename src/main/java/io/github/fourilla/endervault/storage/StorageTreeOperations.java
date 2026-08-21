@@ -94,6 +94,32 @@ final class StorageTreeOperations {
         forceDirectory(source.getParent());
     }
 
+    void commitEntryNoReplace(Path source, Path target) throws IOException {
+        rejectSymbolicLink(source);
+        boolean validSource = Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)
+                || Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS);
+        if (!validSource) {
+            throw new StorageAccessException("Archive commit source is not a regular file or directory.");
+        }
+        Path targetParent = target.getParent();
+        if (targetParent == null || !Files.isDirectory(targetParent, LinkOption.NOFOLLOW_LINKS)) {
+            throw new StorageAccessException("Archive commit destination directory is unavailable.");
+        }
+        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
+            throw new java.nio.file.FileAlreadyExistsException(target.toString());
+        }
+        if (!Files.getFileStore(source).equals(Files.getFileStore(targetParent))) {
+            throw new StorageAccessException("Crash-safe archive commit requires one filesystem.");
+        }
+        try {
+            Files.move(source, target, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException ex) {
+            throw new StorageAccessException("The destination filesystem does not support atomic archive commits.", ex);
+        }
+        forceDirectory(targetParent);
+        forceDirectory(source.getParent());
+    }
+
     void createRegularFileReplacementBackup(Path target, Path backup) throws IOException {
         rejectSymbolicLink(target);
         if (!Files.isRegularFile(target, LinkOption.NOFOLLOW_LINKS)) {

@@ -16,7 +16,7 @@ public record FileCommitManifest(
         Instant createdAt
 ) {
 
-    public static final int CURRENT_SCHEMA_VERSION = 1;
+    public static final int CURRENT_SCHEMA_VERSION = 2;
 
     public FileCommitManifest {
         if (schemaVersion != CURRENT_SCHEMA_VERSION) {

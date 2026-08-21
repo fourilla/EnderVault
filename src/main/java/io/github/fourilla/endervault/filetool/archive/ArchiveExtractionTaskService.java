@@ -3,10 +3,11 @@ package io.github.fourilla.endervault.filetool.archive;
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.auth.ClientIpResolver;
 import io.github.fourilla.endervault.common.StorageAccessException;
+import io.github.fourilla.endervault.filecommit.FileCommitBatchCoordinator;
+import io.github.fourilla.endervault.filecommit.FileCommitOwner;
+import io.github.fourilla.endervault.filecommit.FileCommitOwnerType;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
-import io.github.fourilla.endervault.storage.FileItem;
-import io.github.fourilla.endervault.storage.PartialStorageCommitException;
-import io.github.fourilla.endervault.storage.StorageBatchCommitResult;
+import io.github.fourilla.endervault.storage.ArchiveCommitPlan;
 import io.github.fourilla.endervault.storage.StorageBatchEntry;
 import io.github.fourilla.endervault.storage.StorageProgressListener;
 import io.github.fourilla.endervault.storage.StorageService;
@@ -40,6 +41,7 @@ public class ArchiveExtractionTaskService {
     private final ActivityLogService activityLogService;
     private final ClientIpResolver clientIpResolver;
     private final TemporaryArtifactRegistry temporaryArtifactRegistry;
+    private final FileCommitBatchCoordinator fileCommitBatchCoordinator;
 
     public ArchiveExtractionTaskService(
             ArchiveService archiveService,
@@ -47,7 +49,8 @@ public class ArchiveExtractionTaskService {
             TaskManagerService taskManagerService,
             ActivityLogService activityLogService,
             ClientIpResolver clientIpResolver,
-            TemporaryArtifactRegistry temporaryArtifactRegistry
+            TemporaryArtifactRegistry temporaryArtifactRegistry,
+            FileCommitBatchCoordinator fileCommitBatchCoordinator
     ) {
         this.archiveService = archiveService;
         this.storageService = storageService;
@@ -55,6 +58,7 @@ public class ArchiveExtractionTaskService {
         this.activityLogService = activityLogService;
         this.clientIpResolver = clientIpResolver;
         this.temporaryArtifactRegistry = temporaryArtifactRegistry;
+        this.fileCommitBatchCoordinator = fileCommitBatchCoordinator;
     }
 
     public AppTask queue(
@@ -115,6 +119,9 @@ public class ArchiveExtractionTaskService {
                 snapshot.ip(),
                 context -> {
                     Path workspace = null;
+                    FileCommitOwner commitOwner = new FileCommitOwner(
+                            FileCommitOwnerType.ARCHIVE_EXTRACT, context.taskId()
+                    );
                     TemporaryArtifactRegistry.Registration registration = null;
                     try {
                         workspace = storageService.createArchiveExtractionWorkspace();
@@ -128,28 +135,25 @@ public class ArchiveExtractionTaskService {
                         archiveService.extract(archive, extractedDirectory, context);
                         context.checkCanceled();
                         context.message("Committing extracted files.");
-                        String committedTarget;
-                        int committedCount;
-                        if (createContainingDirectory) {
-                            FileItem committed = storageService.commitTemporaryDirectoryIntoVault(
-                                    extractedDirectory,
-                                    destinationPath,
-                                    safeName,
-                                    safePolicy
-                            );
-                            committedTarget = committed.path();
-                            committedCount = 1;
-                        } else {
-                            StorageBatchCommitResult committed = storageService.commitArchiveContentsIntoVault(
-                                    extractedDirectory,
-                                    destinationPath,
-                                    topLevelEntries,
-                                    safePolicy,
-                                    cancellationListener(context)
-                            );
-                            committedTarget = destinationPath;
-                            committedCount = committed.committedCount();
-                        }
+                        ArchiveCommitPlan commitPlan = storageService.planArchiveCommit(
+                                extractedDirectory,
+                                destinationPath,
+                                createContainingDirectory,
+                                safeName,
+                                topLevelEntries,
+                                safePolicy
+                        );
+                        FileCommitBatchCoordinator.StagedBatchCommit committed =
+                                fileCommitBatchCoordinator.commitArchiveExtraction(
+                                        commitOwner,
+                                        commitPlan,
+                                        safePolicy,
+                                        cancellationListener(context)
+                                );
+                        String committedTarget = createContainingDirectory
+                                ? committed.result().committedPaths().get(0)
+                                : destinationPath;
+                        int committedCount = committed.result().committedCount();
                         activityLogService.record(
                                 "ARCHIVE_EXTRACT_COMPLETE",
                                 snapshot.actor(),
@@ -164,6 +168,7 @@ public class ArchiveExtractionTaskService {
                                         "committedItems", Integer.toString(committedCount)
                                 )
                         );
+                        fileCommitBatchCoordinator.complete(committed.operationId());
                         return createContainingDirectory
                                 ? TaskOutcome.complete("Extracted archive to /" + committedTarget + ".")
                                 : TaskOutcome.complete(
@@ -174,9 +179,6 @@ public class ArchiveExtractionTaskService {
                                                         displayVaultPath(committedTarget)
                                                 )
                                 );
-                    } catch (PartialStorageCommitException ex) {
-                        recordPartialFailure(archivePath, destinationPath, snapshot, ex);
-                        return TaskOutcome.partial(ex.getMessage());
                     } catch (TaskCanceledException ex) {
                         recordFailure("ARCHIVE_EXTRACT_CANCELED", archivePath, destinationPath, snapshot, ex);
                         throw ex;
@@ -189,7 +191,7 @@ public class ArchiveExtractionTaskService {
                         recordFailure("ARCHIVE_EXTRACT_FAILED", archivePath, destinationPath, snapshot, ex);
                         throw ex;
                     } finally {
-                        cleanup(workspace);
+                        cleanup(workspace, commitOwner);
                         close(registration);
                     }
                 }
@@ -236,35 +238,17 @@ public class ArchiveExtractionTaskService {
         );
     }
 
-    private void recordPartialFailure(
-            String archivePath,
-            String destinationPath,
-            RequestSnapshot request,
-            PartialStorageCommitException failure
-    ) {
-        activityLogService.record(
-                "ARCHIVE_EXTRACT_FAILED",
-                request.actor(),
-                request.ip(),
-                archivePath,
-                destinationPath,
-                false,
-                "Archive extraction partially committed",
-                Map.of(
-                        "reason", failure.getClass().getSimpleName(),
-                        "unresolvedItems", Integer.toString(failure.remainingVaultPaths().size())
-                )
-        );
-    }
-
-    private void cleanup(Path workspace) {
+    private void cleanup(Path workspace, FileCommitOwner commitOwner) {
         if (workspace == null) {
             return;
         }
         try {
+            if (fileCommitBatchCoordinator.hasActiveJournal(commitOwner)) {
+                return;
+            }
             storageService.deleteArchiveExtractionWorkspace(workspace);
         } catch (IOException | RuntimeException ex) {
-            logger.warn("Failed to remove archive extraction workspace {}.", workspace.getFileName());
+            logger.warn("Could not safely remove archive extraction workspace {}.", workspace.getFileName());
         }
     }
 
