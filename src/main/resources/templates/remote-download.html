@@ -51,10 +51,6 @@
                     </button>
                 </div>
             </label>
-            <label>
-                Connections
-                <input type="number" name="connections" value="1" min="1" max="8" required>
-            </label>
             <button class="icon-button" type="submit" title="Inspect remote file" aria-label="Inspect remote file">
                 <i class="fas fa-cloud-arrow-down" aria-hidden="true"></i>
                 <span class="visually-hidden">Inspect remote file</span>
@@ -72,6 +68,17 @@
                             <option value="vpn-required">VPN for this download</option>
                         </select>
                     </label>
+                    <label>
+                        Connections
+                        <input type="number" name="connections" value="1" min="1" max="8" required>
+                    </label>
+                    <label class="remote-request-toggle js-only">
+                        <span>
+                            <strong>Remember last destination</strong>
+                            <small>Keep the last queued destination in this browser.</small>
+                        </span>
+                        <input type="checkbox" data-remote-remember-destination checked>
+                    </label>
                     <label class="remote-request-toggle">
                         <span>
                             <strong>Skip inspection</strong>
@@ -81,13 +88,6 @@
                                name="skipInspection"
                                value="true"
                                th:checked="${skipInspectByDefault}">
-                    </label>
-                    <label class="remote-request-toggle js-only">
-                        <span>
-                            <strong>Remember last destination</strong>
-                            <small>Keep the last queued destination in this browser.</small>
-                        </span>
-                        <input type="checkbox" data-remote-remember-destination checked>
                     </label>
                     <div class="remote-request-field remote-custom-headers">
                         <div class="remote-request-field-heading">
