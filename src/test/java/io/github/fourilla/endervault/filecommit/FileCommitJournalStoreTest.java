@@ -61,14 +61,45 @@ class FileCommitJournalStoreTest {
         FileCommitManifest manifest = manifest();
         store.create(manifest);
 
-        assertThatThrownBy(() -> store.deleteCompleted(manifest.operationId()))
+        assertThatThrownBy(() -> store.deleteFinished(manifest.operationId()))
                 .isInstanceOf(IllegalStateException.class);
 
         advanceToCompleted(manifest.operationId());
-        store.deleteCompleted(manifest.operationId());
+        store.deleteFinished(manifest.operationId());
 
         assertThat(store.list()).isEmpty();
         assertThat(Files.exists(journalRoot.resolve(manifest.operationId()))).isFalse();
+    }
+
+    @Test
+    void allowsAnAbortedJournalToBeDeleted() throws IOException {
+        FileCommitManifest manifest = manifest();
+        store.create(manifest);
+        store.updateState(state(manifest.operationId(), FileCommitPhase.ABORTED, 0));
+
+        store.deleteFinished(manifest.operationId());
+
+        assertThat(store.list()).isEmpty();
+    }
+
+    @Test
+    void rejectsAmbiguousJournalsForOneOwner() throws IOException {
+        FileCommitManifest first = manifest();
+        FileCommitManifest second = new FileCommitManifest(
+                FileCommitManifest.CURRENT_SCHEMA_VERSION,
+                UUID.randomUUID().toString(),
+                first.owner(),
+                FileCommitOperationType.SINGLE_FILE,
+                ConflictPolicy.CANCEL,
+                List.of(item()),
+                Instant.now()
+        );
+        store.create(first);
+        store.create(second);
+
+        assertThatThrownBy(() -> store.findByOwner(first.owner()))
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("Multiple file commit journals");
     }
 
     @Test
@@ -116,6 +147,21 @@ class FileCommitJournalStoreTest {
                 .isInstanceOf(IOException.class);
         assertThat(Files.readString(journalRoot.resolve(manifest.operationId()).resolve("state.json")))
                 .isEqualTo("{broken");
+    }
+
+    @Test
+    void finishesDeletingATombstonedJournalAfterRestart() throws IOException {
+        FileCommitManifest manifest = manifest();
+        store.create(manifest);
+        Path operationDirectory = journalRoot.resolve(manifest.operationId());
+        Path deletingDirectory = journalRoot.resolve(".deleting-" + manifest.operationId() + "-interrupted");
+        Files.move(operationDirectory, deletingDirectory);
+
+        FileCommitJournalStore restarted = new FileCommitJournalStore(objectMapper, journalRoot);
+        restarted.initialize();
+
+        assertThat(Files.exists(deletingDirectory)).isFalse();
+        assertThat(restarted.list()).isEmpty();
     }
 
     private void advanceToCompleted(String operationId) throws IOException {

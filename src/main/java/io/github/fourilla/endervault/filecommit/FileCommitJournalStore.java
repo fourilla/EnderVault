@@ -4,15 +4,18 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.fourilla.endervault.config.NasProperties;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryNotEmptyException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 
@@ -21,6 +24,7 @@ public class FileCommitJournalStore {
 
     private static final String MANIFEST_FILE = "manifest.json";
     private static final String STATE_FILE = "state.json";
+    private static final String DELETING_PREFIX = ".deleting-";
 
     private final Path journalRoot;
     private final DurableJsonFileWriter jsonWriter;
@@ -46,6 +50,7 @@ public class FileCommitJournalStore {
         Files.createDirectories(journalRoot);
         requireSafeDirectory(journalRoot);
         cleanupInterruptedWrites(journalRoot);
+        cleanupDeletingDirectories();
     }
 
     public synchronized FileCommitJournalEntry create(FileCommitManifest manifest) throws IOException {
@@ -58,7 +63,7 @@ public class FileCommitJournalStore {
             jsonWriter.forceDirectory(operationDirectory);
             return new FileCommitJournalEntry(manifest, state);
         } catch (IOException | RuntimeException ex) {
-            deleteOperationDirectory(operationDirectory);
+            tombstoneAndDelete(operationDirectory, manifest.operationId());
             throw ex;
         }
     }
@@ -83,7 +88,8 @@ public class FileCommitJournalStore {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(journalRoot)) {
             for (Path operationDirectory : stream) {
                 if (!Files.isDirectory(operationDirectory, LinkOption.NOFOLLOW_LINKS)
-                        || Files.isSymbolicLink(operationDirectory)) {
+                        || Files.isSymbolicLink(operationDirectory)
+                        || operationDirectory.getFileName().toString().startsWith(DELETING_PREFIX)) {
                     continue;
                 }
                 entries.add(load(operationDirectory.getFileName().toString()));
@@ -93,6 +99,16 @@ public class FileCommitJournalStore {
         return List.copyOf(entries);
     }
 
+    public synchronized Optional<FileCommitJournalEntry> findByOwner(FileCommitOwner owner) throws IOException {
+        List<FileCommitJournalEntry> matches = list().stream()
+                .filter(entry -> entry.manifest().owner().equals(owner))
+                .toList();
+        if (matches.size() > 1) {
+            throw new IOException("Multiple file commit journals exist for one owner: " + owner);
+        }
+        return matches.stream().findFirst();
+    }
+
     public synchronized FileCommitJournalEntry updateState(FileCommitJournalState state) throws IOException {
         FileCommitJournalEntry current = load(state.operationId());
         validateTransition(current.state(), state, current.manifest().items().size());
@@ -100,13 +116,13 @@ public class FileCommitJournalStore {
         return new FileCommitJournalEntry(current.manifest(), state);
     }
 
-    public synchronized void deleteCompleted(String operationId) throws IOException {
+    public synchronized void deleteFinished(String operationId) throws IOException {
         FileCommitJournalEntry entry = load(operationId);
-        if (entry.state().phase() != FileCommitPhase.COMPLETED) {
-            throw new IllegalStateException("Only completed file commit journals can be deleted.");
+        if (entry.state().phase() != FileCommitPhase.COMPLETED
+                && entry.state().phase() != FileCommitPhase.ABORTED) {
+            throw new IllegalStateException("Only completed or aborted file commit journals can be deleted.");
         }
-        Path operationDirectory = operationDirectory(operationId);
-        deleteOperationDirectory(operationDirectory);
+        tombstoneAndDelete(operationDirectory(operationId), operationId);
         jsonWriter.forceDirectory(journalRoot);
     }
 
@@ -137,7 +153,10 @@ public class FileCommitJournalStore {
             return current == FileCommitPhase.COMMITTING || current == FileCommitPhase.NEEDS_REVIEW;
         }
         if (next == FileCommitPhase.NEEDS_REVIEW) {
-            return current != FileCommitPhase.COMPLETED;
+            return current != FileCommitPhase.COMPLETED && current != FileCommitPhase.ABORTED;
+        }
+        if (next == FileCommitPhase.ABORTED) {
+            return current != FileCommitPhase.COMPLETED && current != FileCommitPhase.ABORTED;
         }
         return switch (current) {
             case PREPARED -> next == FileCommitPhase.COMMITTING;
@@ -147,7 +166,7 @@ public class FileCommitJournalStore {
             case NEEDS_REVIEW -> next == FileCommitPhase.COMMITTING
                     || next == FileCommitPhase.FILES_MOVED
                     || next == FileCommitPhase.APPLYING_METADATA;
-            case COMPLETED -> false;
+            case ABORTED, COMPLETED -> false;
         };
     }
 
@@ -185,6 +204,35 @@ public class FileCommitJournalStore {
             }
         }
         Files.deleteIfExists(operationDirectory);
+    }
+
+    private void tombstoneAndDelete(Path operationDirectory, String operationId) throws IOException {
+        if (!Files.exists(operationDirectory, LinkOption.NOFOLLOW_LINKS)) {
+            return;
+        }
+        requireSafeDirectory(operationDirectory);
+        Path deletingDirectory = journalRoot.resolve(
+                DELETING_PREFIX + FileCommitJournalPaths.requireOperationId(operationId) + "-" + java.util.UUID.randomUUID()
+        );
+        try {
+            Files.move(operationDirectory, deletingDirectory, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException ex) {
+            Files.move(operationDirectory, deletingDirectory);
+        }
+        jsonWriter.forceDirectory(journalRoot);
+        deleteOperationDirectory(deletingDirectory);
+    }
+
+    private void cleanupDeletingDirectories() throws IOException {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(journalRoot, DELETING_PREFIX + "*")) {
+            for (Path deletingDirectory : stream) {
+                if (Files.isDirectory(deletingDirectory, LinkOption.NOFOLLOW_LINKS)
+                        && !Files.isSymbolicLink(deletingDirectory)) {
+                    deleteOperationDirectory(deletingDirectory);
+                }
+            }
+        }
+        jsonWriter.forceDirectory(journalRoot);
     }
 
     private void requireSafeDirectory(Path directory) throws IOException {

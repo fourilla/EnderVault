@@ -19,6 +19,8 @@ import me.desair.tus.server.exception.TusException;
 import me.desair.tus.server.upload.UploadInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -121,14 +123,18 @@ public class ResumableUploadCoordinator {
         try {
             for (ResumableUploadSession session : uploadService.list()) {
                 try {
+                    if (session.status() == ResumableUploadStatus.FINALIZING
+                            || uploadService.hasActiveFileCommitJournal(session.id())) {
+                        tryFinalize(session.id(), null);
+                        continue;
+                    }
                     if (session.expired(Instant.now())) {
                         deleteProtocolDataIfPresent(session);
                         uploadService.remove(session.id());
                         continue;
                     }
                     if (session.status() == ResumableUploadStatus.UPLOADING
-                            || session.status() == ResumableUploadStatus.STAGED
-                            || session.status() == ResumableUploadStatus.FINALIZING) {
+                            || session.status() == ResumableUploadStatus.STAGED) {
                         tryFinalize(session.id(), null);
                     }
                 } catch (Exception ex) {
@@ -140,6 +146,11 @@ public class ResumableUploadCoordinator {
         } catch (IOException ex) {
             logger.warn("Failed to clean resumable upload state.", ex);
         }
+    }
+
+    @EventListener(ApplicationReadyEvent.class)
+    public void recoverAfterStartup() {
+        cleanupAndRecover();
     }
 
     public void deleteProtocolDataIfPresent(ResumableUploadSession session) {

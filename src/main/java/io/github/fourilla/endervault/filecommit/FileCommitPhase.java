@@ -6,5 +6,6 @@ public enum FileCommitPhase {
     FILES_MOVED,
     APPLYING_METADATA,
     NEEDS_REVIEW,
+    ABORTED,
     COMPLETED
 }

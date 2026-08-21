@@ -6,9 +6,12 @@ import io.github.fourilla.endervault.temporary.TemporaryArtifactType;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.channels.FileChannel;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.FileStore;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
@@ -50,6 +53,52 @@ final class StorageTreeOperations {
             } else {
                 Files.move(source, target);
             }
+        }
+    }
+
+    void commitRegularFileNoReplace(Path source, Path target) throws IOException {
+        rejectSymbolicLink(source);
+        if (!Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)) {
+            throw new StorageAccessException("File commit source is not a regular file.");
+        }
+        Path targetParent = target.getParent();
+        if (targetParent == null || !Files.isDirectory(targetParent, LinkOption.NOFOLLOW_LINKS)) {
+            throw new StorageAccessException("File commit destination directory is unavailable.");
+        }
+        FileStore sourceStore = Files.getFileStore(source);
+        FileStore targetStore = Files.getFileStore(targetParent);
+        if (!sourceStore.equals(targetStore)) {
+            throw new StorageAccessException("Crash-safe file commit requires staging and destination on one filesystem.");
+        }
+
+        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
+            if (Files.isSymbolicLink(target)
+                    || !Files.isRegularFile(target, LinkOption.NOFOLLOW_LINKS)
+                    || !Files.isSameFile(source, target)) {
+                throw new java.nio.file.FileAlreadyExistsException(target.toString());
+            }
+            forceDirectory(targetParent);
+        } else {
+            try {
+                Files.createLink(target, source);
+            } catch (UnsupportedOperationException ex) {
+                throw new StorageAccessException(
+                        "The destination filesystem does not support crash-safe file commits.",
+                        ex
+                );
+            }
+            forceDirectory(targetParent);
+        }
+
+        Files.delete(source);
+        forceDirectory(source.getParent());
+    }
+
+    private void forceDirectory(Path directory) throws IOException {
+        try (FileChannel channel = FileChannel.open(directory, StandardOpenOption.READ)) {
+            channel.force(true);
+        } catch (AccessDeniedException | UnsupportedOperationException ex) {
+            // Windows does not generally allow opening a directory as a FileChannel.
         }
     }
 

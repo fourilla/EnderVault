@@ -493,6 +493,19 @@ public class StorageService {
         );
     }
 
+    public CommittedVaultFile commitStagedRegularFileNoReplace(
+            Path stagedFile,
+            String directoryPath,
+            String filename
+    ) throws IOException {
+        Path target = pathResolver.resolveChild(StorageScope.VAULT, directoryPath, filename, false);
+        treeOperations.commitRegularFileNoReplace(stagedFile, target);
+        return new CommittedVaultFile(
+                target.getFileName().toString(),
+                pathResolver.toRelativePath(root, target)
+        );
+    }
+
     public Path createArchiveExtractionWorkspace() throws IOException {
         return archiveStagingCommitter.createWorkspace("extract-");
     }
