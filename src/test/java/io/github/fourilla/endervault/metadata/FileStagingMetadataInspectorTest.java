@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.filetool.FileActionRegistry;
+import io.github.fourilla.endervault.filecommit.FileCommitCoordinator;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
 import io.github.fourilla.endervault.temporary.TemporaryArtifactRetentionPolicy;
@@ -31,6 +32,7 @@ class FileStagingMetadataInspectorTest {
     private StorageService storageService;
     private FileStagingMetadataInspector inspector;
     private ResumableUploadService resumableUploadService;
+    private FileCommitCoordinator fileCommitCoordinator;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -42,10 +44,13 @@ class FileStagingMetadataInspectorTest {
         storageService.initialize();
         resumableUploadService = mock(ResumableUploadService.class);
         when(resumableUploadService.activeStagingFilenames()).thenReturn(Set.of());
+        fileCommitCoordinator = mock(FileCommitCoordinator.class);
+        when(fileCommitCoordinator.activeStagingFilenames()).thenReturn(Set.of());
         inspector = new FileStagingMetadataInspector(
                 storageService,
                 new TemporaryArtifactRetentionPolicy(properties),
-                resumableUploadService
+                resumableUploadService,
+                fileCommitCoordinator
         );
     }
 
@@ -96,6 +101,26 @@ class FileStagingMetadataInspectorTest {
         assertThatThrownBy(() -> inspector.repair(MetadataIssueAction.DELETE_FILE_STAGING, filename))
                 .isInstanceOf(StorageAccessException.class)
                 .hasMessageContaining("resumable upload");
+        assertThat(temporaryFile).exists();
+    }
+
+    @Test
+    void fileCommitJournalStagingIsInformationalAndCannotBeRepaired() throws Exception {
+        String filename = "remote-download-journal.tmp";
+        Path temporaryFile = storageService.resolveFileStagingFile(filename);
+        Files.writeString(temporaryFile, "waiting for recovery");
+        Files.setLastModifiedTime(temporaryFile, FileTime.from(Instant.now().minusSeconds(3600)));
+        when(fileCommitCoordinator.activeStagingFilenames()).thenReturn(Set.of(filename));
+        when(fileCommitCoordinator.referencesStagingFile(filename)).thenReturn(true);
+
+        MetadataIssue issue = inspector.inspect().getFirst();
+
+        assertThat(issue.severity()).isEqualTo(MetadataIssueSeverity.INFO);
+        assertThat(issue.action()).isEqualTo(MetadataIssueAction.NONE);
+        assertThat(issue.recommendation()).contains("File commit recovery");
+        assertThatThrownBy(() -> inspector.repair(MetadataIssueAction.DELETE_FILE_STAGING, filename))
+                .isInstanceOf(StorageAccessException.class)
+                .hasMessageContaining("file commit journal");
         assertThat(temporaryFile).exists();
     }
 }

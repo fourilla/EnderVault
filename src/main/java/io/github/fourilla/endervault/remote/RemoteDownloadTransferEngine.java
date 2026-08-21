@@ -2,10 +2,13 @@ package io.github.fourilla.endervault.remote;
 
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.filecommit.FileCommitConflictException;
+import io.github.fourilla.endervault.filecommit.FileCommitCoordinator;
+import io.github.fourilla.endervault.filecommit.FileCommitOwner;
+import io.github.fourilla.endervault.filecommit.FileCommitOwnerType;
 import io.github.fourilla.endervault.pending.PendingFileDecision;
 import io.github.fourilla.endervault.pending.PendingFileDecisionService;
 import io.github.fourilla.endervault.pending.PendingFileDecisionSource;
-import io.github.fourilla.endervault.storage.ConflictPolicy;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
 import io.github.fourilla.endervault.temporary.TemporaryArtifactType;
@@ -16,7 +19,6 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
-import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
@@ -28,11 +30,14 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 @Component
 public class RemoteDownloadTransferEngine {
 
+    private static final Logger logger = LoggerFactory.getLogger(RemoteDownloadTransferEngine.class);
     private static final int BUFFER_SIZE = 64 * 1024;
 
     private final NasProperties nasProperties;
@@ -42,6 +47,7 @@ public class RemoteDownloadTransferEngine {
     private final RemoteDownloadRetryPolicy retryPolicy;
     private final TemporaryArtifactRegistry temporaryArtifactRegistry;
     private final PendingFileDecisionService pendingFileDecisionService;
+    private final FileCommitCoordinator fileCommitCoordinator;
     private final ExecutorService segmentExecutor;
 
     public RemoteDownloadTransferEngine(
@@ -51,7 +57,8 @@ public class RemoteDownloadTransferEngine {
             RemoteDownloadFileNameResolver fileNameResolver,
             RemoteDownloadRetryPolicy retryPolicy,
             TemporaryArtifactRegistry temporaryArtifactRegistry,
-            PendingFileDecisionService pendingFileDecisionService
+            PendingFileDecisionService pendingFileDecisionService,
+            FileCommitCoordinator fileCommitCoordinator
     ) {
         this.nasProperties = nasProperties;
         this.storageService = storageService;
@@ -60,6 +67,7 @@ public class RemoteDownloadTransferEngine {
         this.retryPolicy = retryPolicy;
         this.temporaryArtifactRegistry = temporaryArtifactRegistry;
         this.pendingFileDecisionService = pendingFileDecisionService;
+        this.fileCommitCoordinator = fileCommitCoordinator;
         int segmentWorkers = nasProperties.getRemoteDownload().getWorkerThreads()
                 * RemoteDownloadRequestParser.MAX_CONNECTIONS;
         this.segmentExecutor = Executors.newFixedThreadPool(segmentWorkers);
@@ -77,21 +85,24 @@ public class RemoteDownloadTransferEngine {
         );
         boolean committed = false;
         boolean retainedForDecision = false;
+        FileCommitOwner commitOwner = new FileCommitOwner(FileCommitOwnerType.REMOTE_DOWNLOAD, task.id());
         try {
             String fileName = requestSpec.requestedConnections() == 1
                     ? downloadSingle(task, requestSpec, temporaryFile)
                     : downloadParallel(task, requestSpec, temporaryFile);
             throwIfCanceled(task);
             try {
-                StorageService.CommittedVaultFile committedFile = storageService.commitTemporaryFileIntoVault(
+                FileCommitCoordinator.StagedFileCommit stagedCommit = fileCommitCoordinator.commitSingleFile(
+                        commitOwner,
                         temporaryFile,
                         requestSpec.targetDirectory(),
-                        fileName,
-                        ConflictPolicy.CANCEL
+                        fileName
                 );
+                fileCommitCoordinator.complete(stagedCommit.operationId());
                 committed = true;
+                StorageService.CommittedVaultFile committedFile = stagedCommit.file();
                 return RemoteDownloadTransferResult.committed(committedFile.name(), committedFile.path());
-            } catch (FileAlreadyExistsException ex) {
+            } catch (FileCommitConflictException ex) {
                 registration.close();
                 registration = null;
                 PendingFileDecision decision = pendingFileDecisionService.create(
@@ -104,6 +115,7 @@ public class RemoteDownloadTransferEngine {
                         task.actor()
                 );
                 retainedForDecision = true;
+                fileCommitCoordinator.completeConflict(ex.operationId());
                 return RemoteDownloadTransferResult.pending(
                         fileName,
                         fileNameResolver.targetPath(requestSpec.targetDirectory(), fileName),
@@ -111,7 +123,7 @@ public class RemoteDownloadTransferEngine {
                 );
             }
         } finally {
-            if (!committed && !retainedForDecision) {
+            if (!committed && !retainedForDecision && !journalProtects(commitOwner)) {
                 try {
                     Files.deleteIfExists(temporaryFile);
                 } catch (IOException ignored) {
@@ -121,6 +133,15 @@ public class RemoteDownloadTransferEngine {
             if (registration != null) {
                 registration.close();
             }
+        }
+    }
+
+    private boolean journalProtects(FileCommitOwner owner) {
+        try {
+            return fileCommitCoordinator.hasActiveJournal(owner);
+        } catch (IOException ex) {
+            logger.warn("Could not verify the file commit journal for remote download {}.", owner.id());
+            return true;
         }
     }
 

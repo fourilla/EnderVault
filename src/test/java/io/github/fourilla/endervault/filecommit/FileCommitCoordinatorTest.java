@@ -8,7 +8,6 @@ import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
 import io.github.fourilla.endervault.storage.StorageService;
 import java.io.IOException;
-import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -105,12 +104,36 @@ class FileCommitCoordinatorTest {
         createCommittingJournal(owner, staged, "incoming/upload.txt");
         Files.writeString(target, "existing payload");
 
-        assertThatThrownBy(() -> coordinator.commitSingleFile(owner, staged, "incoming", "upload.txt"))
-                .isInstanceOf(FileAlreadyExistsException.class);
+        FileCommitConflictException conflict = org.assertj.core.api.Assertions.catchThrowableOfType(
+                () -> coordinator.commitSingleFile(owner, staged, "incoming", "upload.txt"),
+                FileCommitConflictException.class
+        );
 
         assertThat(Files.readString(staged)).isEqualTo("new payload");
         assertThat(Files.readString(target)).isEqualTo("existing payload");
+        assertThat(journalStore.load(conflict.operationId()).state().phase()).isEqualTo(FileCommitPhase.ABORTED);
+
+        coordinator.completeConflict(conflict.operationId());
+
         assertThat(journalStore.list()).isEmpty();
+    }
+
+    @Test
+    void journalsAnInitialDestinationCollisionUntilPendingHandoffCompletes() throws IOException {
+        FileCommitOwner owner = owner();
+        Path staged = stagedFile("new payload");
+        Path target = target("incoming/upload.txt");
+        Files.writeString(target, "existing payload");
+
+        FileCommitConflictException conflict = org.assertj.core.api.Assertions.catchThrowableOfType(
+                () -> coordinator.commitSingleFile(owner, staged, "incoming", "upload.txt"),
+                FileCommitConflictException.class
+        );
+
+        assertThat(Files.readString(staged)).isEqualTo("new payload");
+        assertThat(Files.readString(target)).isEqualTo("existing payload");
+        assertThat(journalStore.load(conflict.operationId()).state().phase())
+                .isEqualTo(FileCommitPhase.ABORTED);
     }
 
     @Test

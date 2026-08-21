@@ -15,7 +15,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -48,7 +50,7 @@ public class FileCommitCoordinator {
         Objects.requireNonNull(owner, "owner");
         CommitPaths paths = commitPaths(stagedFile, destinationPath, filename);
         Optional<FileCommitJournalEntry> existing = journalStore.findByOwner(owner);
-        if (existing.isPresent() && isFinished(existing.get().state().phase())) {
+        if (existing.isPresent() && existing.get().state().phase() == FileCommitPhase.COMPLETED) {
             journalStore.deleteFinished(existing.get().manifest().operationId());
             existing = Optional.empty();
         }
@@ -65,6 +67,24 @@ public class FileCommitCoordinator {
 
     public synchronized boolean hasActiveJournal(FileCommitOwner owner) throws IOException {
         return journalStore.findByOwner(owner).isPresent();
+    }
+
+    public synchronized Set<String> activeStagingFilenames() throws IOException {
+        String stagingPrefix = metadataDirectory + "/" + FILE_STAGING_DIRECTORY + "/";
+        return journalStore.list().stream()
+                .flatMap(entry -> entry.manifest().items().stream())
+                .map(FileCommitItem::stagingPath)
+                .filter(path -> path.startsWith(stagingPrefix))
+                .map(path -> path.substring(stagingPrefix.length()))
+                .filter(filename -> !filename.isBlank() && !filename.contains("/"))
+                .collect(Collectors.toUnmodifiableSet());
+    }
+
+    public synchronized boolean referencesStagingFile(String filename) throws IOException {
+        String stagingFilename = storageService.fileStagingFilename(
+                storageService.resolveFileStagingFile(filename)
+        );
+        return activeStagingFilenames().contains(stagingFilename);
     }
 
     public synchronized void complete(String operationId) throws IOException {
@@ -85,11 +105,23 @@ public class FileCommitCoordinator {
         }
     }
 
+    public synchronized void completeConflict(String operationId) throws IOException {
+        FileCommitJournalEntry entry = journalStore.load(operationId);
+        if (entry.state().phase() != FileCommitPhase.ABORTED) {
+            throw new IllegalStateException("File commit is not waiting for conflict handoff.");
+        }
+        journalStore.deleteFinished(operationId);
+    }
+
+    public synchronized void completeConflictForOwnerIfPresent(FileCommitOwner owner) throws IOException {
+        Optional<FileCommitJournalEntry> existing = journalStore.findByOwner(owner);
+        if (existing.isPresent() && existing.get().state().phase() == FileCommitPhase.ABORTED) {
+            completeConflict(existing.get().manifest().operationId());
+        }
+    }
+
     private FileCommitJournalEntry createJournal(FileCommitOwner owner, CommitPaths paths) throws IOException {
         requireRegularFile(paths.stagedFile(), "File commit staging data is unavailable.");
-        if (Files.exists(paths.targetFile(), LinkOption.NOFOLLOW_LINKS)) {
-            throw new FileAlreadyExistsException(paths.targetFile().toString());
-        }
         FileCommitManifest manifest = new FileCommitManifest(
                 FileCommitManifest.CURRENT_SCHEMA_VERSION,
                 UUID.randomUUID().toString(),
@@ -110,6 +142,9 @@ public class FileCommitCoordinator {
 
     private StagedFileCommit resume(FileCommitJournalEntry initial, CommitPaths paths) throws IOException {
         FileCommitJournalEntry entry = initial;
+        if (entry.state().phase() == FileCommitPhase.ABORTED) {
+            throw conflict(entry, paths.targetFile());
+        }
         if (entry.state().phase() == FileCommitPhase.NEEDS_REVIEW) {
             throw recoveryRequired(entry, "File commit is waiting for manual recovery.");
         }
@@ -148,8 +183,8 @@ public class FileCommitCoordinator {
             requireRegularFile(paths.stagedFile(), "File commit staging data is unsafe.");
             requireRegularFile(paths.targetFile(), "File commit target is unsafe.");
             if (!Files.isSameFile(paths.stagedFile(), paths.targetFile())) {
-                abort(entry, "Destination was occupied before commit completed.");
-                throw new FileAlreadyExistsException(paths.targetFile().toString());
+                FileCommitJournalEntry aborted = abort(entry, "Destination was occupied before commit completed.");
+                throw conflict(aborted, paths.targetFile());
             }
             requireFingerprint(expected, paths.stagedFile(), entry, "Staging data changed before commit.");
             storageService.commitStagedRegularFileNoReplace(
@@ -162,8 +197,8 @@ public class FileCommitCoordinator {
                         paths.stagedFile(), paths.destinationPath(), paths.filename()
                 );
             } catch (FileAlreadyExistsException ex) {
-                abort(entry, "Destination was occupied before commit completed.");
-                throw ex;
+                FileCommitJournalEntry aborted = abort(entry, "Destination was occupied before commit completed.");
+                throw conflict(aborted, paths.targetFile());
             }
         } else if (!targetExists) {
             throw markRecoveryRequired(entry, "Both staging data and destination are missing.");
@@ -225,14 +260,17 @@ public class FileCommitCoordinator {
         return Objects.equals(expected.modifiedAt(), actual.modifiedAt());
     }
 
-    private void abort(FileCommitJournalEntry entry, String detail) throws IOException {
-        FileCommitJournalEntry aborted = update(
+    private FileCommitJournalEntry abort(FileCommitJournalEntry entry, String detail) throws IOException {
+        return update(
                 entry,
                 FileCommitPhase.ABORTED,
                 entry.state().nextItemIndex(),
                 detail
         );
-        journalStore.deleteFinished(aborted.manifest().operationId());
+    }
+
+    private FileCommitConflictException conflict(FileCommitJournalEntry entry, Path target) {
+        return new FileCommitConflictException(target.toString(), entry.manifest().operationId());
     }
 
     private FileCommitRecoveryRequiredException markRecoveryRequired(
@@ -311,10 +349,6 @@ public class FileCommitCoordinator {
         if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(path)) {
             throw new NoSuchFileException(path.toString(), null, message);
         }
-    }
-
-    private boolean isFinished(FileCommitPhase phase) {
-        return phase == FileCommitPhase.COMPLETED || phase == FileCommitPhase.ABORTED;
     }
 
     private String requireDirectoryName(String value) {

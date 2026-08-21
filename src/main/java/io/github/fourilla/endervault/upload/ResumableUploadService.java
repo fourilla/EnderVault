@@ -7,6 +7,7 @@ import io.github.fourilla.endervault.filerequest.FileRequestPendingDecisionObser
 import io.github.fourilla.endervault.filerequest.FileRequestService;
 import io.github.fourilla.endervault.filerequest.UploaderNamePolicy;
 import io.github.fourilla.endervault.filecommit.FileCommitCoordinator;
+import io.github.fourilla.endervault.filecommit.FileCommitConflictException;
 import io.github.fourilla.endervault.filecommit.FileCommitOwner;
 import io.github.fourilla.endervault.filecommit.FileCommitOwnerType;
 import io.github.fourilla.endervault.pending.PendingFileDecision;
@@ -226,6 +227,7 @@ public class ResumableUploadService {
                 pendingSource(session), sourceReference
         );
         if (existingPending.isPresent()) {
+            fileCommitCoordinator.completeConflictForOwnerIfPresent(commitOwner(session));
             recordAcceptedQuota(session);
             ResumableUploadSession pending = session.pending(existingPending.get().id());
             repository.save(pending);
@@ -262,6 +264,21 @@ public class ResumableUploadService {
             ResumableUploadSession completed = committedSession.completed(committed.path());
             repository.save(completed);
             return FinalizationResult.from(completed);
+        } catch (FileCommitConflictException ex) {
+            PendingFileDecision pendingDecision = pendingFileDecisionService.create(
+                    stagedFile,
+                    pendingSource(session),
+                    session.destinationPath(),
+                    session.originalFilename(),
+                    session.size(),
+                    sourceReference,
+                    session.submittedBy()
+            );
+            fileCommitCoordinator.completeConflict(ex.operationId());
+            recordAcceptedQuota(session);
+            ResumableUploadSession pending = finalizing.pending(pendingDecision.id());
+            repository.save(pending);
+            return FinalizationResult.from(pending);
         } catch (FileAlreadyExistsException ex) {
             PendingFileDecision pendingDecision = pendingFileDecisionService.create(
                     stagedFile,
