@@ -69,6 +69,29 @@ public class FileCommitCoordinator {
         return journalStore.findByOwner(owner).isPresent();
     }
 
+    public synchronized List<FileCommitJournalEntry> listJournals() throws IOException {
+        return journalStore.list();
+    }
+
+    public synchronized SingleFileCommitPlan singleFilePlan(String operationId) throws IOException {
+        FileCommitJournalEntry entry = journalStore.load(operationId);
+        CommitPaths paths = recoveryPaths(entry);
+        return new SingleFileCommitPlan(
+                entry.manifest().operationId(),
+                entry.manifest().owner(),
+                entry.state().phase(),
+                paths.stagedFile(),
+                paths.destinationPath(),
+                paths.filename(),
+                entry.manifest().items().get(0).stagingFingerprint()
+        );
+    }
+
+    public synchronized StagedFileCommit resumeSingleFile(String operationId) throws IOException {
+        FileCommitJournalEntry entry = journalStore.load(operationId);
+        return resume(entry, recoveryPaths(entry));
+    }
+
     public synchronized Set<String> activeStagingFilenames() throws IOException {
         String stagingPrefix = metadataDirectory + "/" + FILE_STAGING_DIRECTORY + "/";
         return journalStore.list().stream()
@@ -307,6 +330,50 @@ public class FileCommitCoordinator {
         ));
     }
 
+    private CommitPaths recoveryPaths(FileCommitJournalEntry entry) throws IOException {
+        FileCommitManifest manifest = entry.manifest();
+        if (manifest.operationType() != FileCommitOperationType.SINGLE_FILE || manifest.items().size() != 1) {
+            throw rejectRecoveryPlan(entry, "Stored file commit is not a single-file plan.");
+        }
+        FileCommitItem item = manifest.items().get(0);
+        String stagingPrefix = metadataDirectory + "/" + FILE_STAGING_DIRECTORY + "/";
+        if (!item.stagingPath().startsWith(stagingPrefix)) {
+            throw rejectRecoveryPlan(entry, "Stored staging path is outside file staging.");
+        }
+        String stagingFilename = item.stagingPath().substring(stagingPrefix.length());
+        if (stagingFilename.isBlank() || stagingFilename.contains("/")) {
+            throw rejectRecoveryPlan(entry, "Stored staging path is not a direct file-staging child.");
+        }
+
+        String targetPath = item.targetPath();
+        int separator = targetPath.lastIndexOf('/');
+        String destinationPath = separator < 0 ? "" : targetPath.substring(0, separator);
+        String filename = separator < 0 ? targetPath : targetPath.substring(separator + 1);
+        CommitPaths paths;
+        try {
+            paths = commitPaths(
+                    storageRoot.resolve(item.stagingPath()).normalize(),
+                    destinationPath,
+                    filename
+            );
+        } catch (IllegalArgumentException | StorageAccessException ex) {
+            throw rejectRecoveryPlan(entry, "Stored file commit path is invalid.");
+        }
+        requireMatchingPlan(entry, manifest.owner(), paths);
+        return paths;
+    }
+
+    private FileCommitRecoveryRequiredException rejectRecoveryPlan(
+            FileCommitJournalEntry entry,
+            String detail
+    ) throws IOException {
+        FileCommitPhase phase = entry.state().phase();
+        if (phase == FileCommitPhase.ABORTED || phase == FileCommitPhase.COMPLETED) {
+            return recoveryRequired(entry, detail);
+        }
+        return markRecoveryRequired(entry, detail);
+    }
+
     private CommitPaths commitPaths(Path stagedFile, String destinationPath, String filename) throws IOException {
         Objects.requireNonNull(stagedFile, "stagedFile");
         String stagingFilename = storageService.fileStagingFilename(stagedFile);
@@ -366,6 +433,17 @@ public class FileCommitCoordinator {
     }
 
     public record StagedFileCommit(String operationId, StorageService.CommittedVaultFile file) {
+    }
+
+    public record SingleFileCommitPlan(
+            String operationId,
+            FileCommitOwner owner,
+            FileCommitPhase phase,
+            Path stagedFile,
+            String destinationPath,
+            String filename,
+            FileCommitFingerprint stagingFingerprint
+    ) {
     }
 
     private record CommitPaths(
