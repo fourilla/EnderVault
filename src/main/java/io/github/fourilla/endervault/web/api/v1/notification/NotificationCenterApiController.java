@@ -1,7 +1,8 @@
 package io.github.fourilla.endervault.web.api.v1.notification;
 
-import io.github.fourilla.endervault.pending.PendingFileDecision;
-import io.github.fourilla.endervault.pending.PendingFileDecisionService;
+import io.github.fourilla.endervault.notificationcenter.ActionRequiredItem;
+import io.github.fourilla.endervault.notificationcenter.NotificationCenterService;
+import io.github.fourilla.endervault.notificationcenter.NotificationCenterService.NotificationCenterSnapshot;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -19,20 +20,24 @@ public class NotificationCenterApiController {
     private static final DateTimeFormatter CREATED_AT_FORMATTER =
             DateTimeFormatter.ofPattern("MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
-    private final PendingFileDecisionService pendingFileDecisionService;
+    private final NotificationCenterService notificationCenterService;
 
-    public NotificationCenterApiController(PendingFileDecisionService pendingFileDecisionService) {
-        this.pendingFileDecisionService = pendingFileDecisionService;
+    public NotificationCenterApiController(NotificationCenterService notificationCenterService) {
+        this.notificationCenterService = notificationCenterService;
     }
 
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     public NotificationCenterResponse notifications() throws IOException {
-        List<PendingFileDecision> decisions = pendingFileDecisionService.list();
-        List<NotificationCenterItem> items = decisions.stream()
-                .limit(PREVIEW_LIMIT)
+        NotificationCenterSnapshot snapshot = notificationCenterService.snapshot(PREVIEW_LIMIT);
+        List<NotificationCenterItem> items = snapshot.items().stream()
                 .map(NotificationCenterItem::from)
                 .toList();
-        return new NotificationCenterResponse(true, decisions.size(), items, "/admin/pending-decisions");
+        return new NotificationCenterResponse(
+                true,
+                snapshot.actionableCount(),
+                items,
+                snapshot.reviewAllHref()
+        );
     }
 
     public record NotificationCenterResponse(
@@ -51,17 +56,14 @@ public class NotificationCenterApiController {
             String createdLabel,
             String href
     ) {
-        static NotificationCenterItem from(PendingFileDecision decision) {
-            String destination = decision.destinationPath() == null || decision.destinationPath().isBlank()
-                    ? "/"
-                    : "/" + decision.destinationPath();
+        static NotificationCenterItem from(ActionRequiredItem item) {
             return new NotificationCenterItem(
-                    decision.id(),
-                    "PENDING_FILE_DECISION",
-                    decision.originalFilename(),
-                    decision.source().label() + " awaiting review in " + destination,
-                    CREATED_AT_FORMATTER.format(decision.createdAt()),
-                    "/admin/pending-decisions#decision-" + decision.id()
+                    item.id(),
+                    item.type(),
+                    item.title(),
+                    item.detail(),
+                    CREATED_AT_FORMATTER.format(item.createdAt()),
+                    item.href()
             );
         }
     }
