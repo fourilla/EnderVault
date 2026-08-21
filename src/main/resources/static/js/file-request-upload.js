@@ -16,6 +16,9 @@
     }
 
     const parallelUploads = Math.max(1, Number.parseInt(form.dataset.parallelUploads || "2", 10));
+    const acceptedExtensions = input.accept.split(",")
+        .map(extension => extension.trim().toLowerCase())
+        .filter(extension => extension.startsWith(".") && extension.length > 1);
     const items = [];
     let nextId = 1;
     let running = false;
@@ -90,14 +93,16 @@
             details.append(name, meta);
 
             row.append(icon, details);
-            if (["queued", "fingerprinting", "reserving", "uploading"].includes(item.state)) {
+            const active = ["queued", "fingerprinting", "reserving", "uploading"].includes(item.state);
+            const dismissible = ["complete", "pending", "failed", "canceled"].includes(item.state);
+            if (active || dismissible) {
                 const remove = document.createElement("button");
                 remove.className = "ghost icon-button action-icon";
                 remove.type = "button";
-                remove.title = item.state === "queued" ? "Remove" : "Cancel upload";
+                remove.title = item.state === "queued" || dismissible ? "Remove" : "Cancel upload";
                 remove.setAttribute("aria-label", `${remove.title} ${item.file.name}`);
                 remove.innerHTML = '<i class="fas fa-xmark" aria-hidden="true"></i>';
-                remove.addEventListener("click", () => cancelItem(item));
+                remove.addEventListener("click", () => dismissible ? removeItem(item) : cancelItem(item));
                 row.append(remove);
             }
             return row;
@@ -135,12 +140,38 @@
         render();
     };
 
+    const acceptsFile = (file) => {
+        if (acceptedExtensions.length === 0) {
+            return true;
+        }
+        const filename = file.name.toLowerCase();
+        return acceptedExtensions.some(extension =>
+            filename.length > extension.length && filename.endsWith(extension));
+    };
+
+    const sameLocalFile = (left, right) => left.name === right.name
+        && left.size === right.size
+        && left.lastModified === right.lastModified
+        && left.type === right.type;
+
     const addFiles = (files) => {
         if (containsRelativePaths(files)) {
             rejectDirectories();
             return;
         }
-        Array.from(files || []).forEach((file) => {
+        const selected = Array.from(files || []);
+        const accepted = selected.filter(acceptsFile);
+        const rejected = selected.length - accepted.length;
+        accepted.forEach((file) => {
+            const failed = items.find(item => item.state === "failed" && sameLocalFile(item.file, file));
+            if (failed) {
+                failed.file = file;
+                failed.state = "queued";
+                failed.loaded = 0;
+                failed.message = "Ready";
+                failed.handle = null;
+                return;
+            }
             items.push({
                 id: nextId++,
                 file,
@@ -150,7 +181,11 @@
                 handle: null
             });
         });
-        setStatus(items.length ? `${items.length} file(s) selected.` : "");
+        const selectedMessage = accepted.length > 0 ? `${accepted.length} file(s) selected.` : "";
+        const rejectedMessage = rejected > 0
+            ? `${rejected} file(s) skipped because their extensions are not accepted.`
+            : "";
+        setStatus([selectedMessage, rejectedMessage].filter(Boolean).join(" "), rejected > 0);
         render();
     };
 
@@ -200,6 +235,7 @@
             }
         };
         await Promise.all(Array.from({ length: Math.min(parallelUploads, pending.length) }, worker));
+        return pending;
     };
 
     picker.addEventListener("click", () => input.click());
@@ -230,11 +266,11 @@
         running = true;
         render();
         setStatus("Uploads are in progress.");
-        await runQueue();
+        const attempted = await runQueue();
         running = false;
-        const failed = items.filter(item => item.state === "failed").length;
+        const failed = attempted.filter(item => item.state === "failed").length;
         const message = failed
-            ? `${failed} upload(s) failed. Reselect the same files to resume them.`
+            ? `${failed} upload(s) failed. Review the message shown for each file.`
             : "All uploads were received.";
         setStatus(message, failed > 0);
         render();

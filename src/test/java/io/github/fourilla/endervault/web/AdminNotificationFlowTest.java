@@ -179,6 +179,7 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(Matchers.containsString("Send project files")))
                 .andExpect(content().string(Matchers.containsString("/js/file-request-upload.js")))
                 .andExpect(content().string(Matchers.containsString("data-file-request-upload")))
+                .andExpect(content().string(Matchers.containsString("accept=\".txt\"")))
                 .andExpect(content().string(Matchers.containsString(
                         "/r/" + request.token() + "/upload-sessions"
                 )))

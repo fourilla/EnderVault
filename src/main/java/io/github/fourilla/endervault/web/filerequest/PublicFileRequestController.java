@@ -123,6 +123,7 @@ public class PublicFileRequestController {
             String remainingTotalLabel,
             int remainingFiles,
             String extensionsLabel,
+            String acceptAttribute,
             String expiresLabel,
             int parallelUploads
     ) {
@@ -138,6 +139,9 @@ public class PublicFileRequestController {
                             : request.allowedExtensions().stream().map(extension -> "." + extension).reduce(
                                     (left, right) -> left + ", " + right
                             ).orElse("Any file type"),
+                    request.allowedExtensions().stream()
+                            .map(extension -> "." + extension)
+                            .collect(java.util.stream.Collectors.joining(",")),
                     request.expiresLabel(),
                     parallelUploads
             );
