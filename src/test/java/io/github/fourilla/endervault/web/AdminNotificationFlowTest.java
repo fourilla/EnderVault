@@ -2,10 +2,11 @@ package io.github.fourilla.endervault.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.head;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -18,7 +19,10 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -29,6 +33,12 @@ import io.github.fourilla.endervault.filerequest.FileRequestService;
 import io.github.fourilla.endervault.filerequest.UploaderNamePolicy;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
+import io.github.fourilla.endervault.storage.StorageService;
+import io.github.fourilla.endervault.upload.ResumableUploadService;
+import io.github.fourilla.endervault.upload.ResumableUploadRepository;
+import io.github.fourilla.endervault.upload.ResumableUploadSession;
+import io.github.fourilla.endervault.upload.ResumableUploadSource;
+import io.github.fourilla.endervault.upload.ResumableUploadStatus;
 import io.github.fourilla.endervault.web.support.FlashNotification;
 import io.github.fourilla.endervault.web.support.FlashNotifications;
 import org.hamcrest.Matchers;
@@ -42,7 +52,6 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.security.test.context.support.WithAnonymousUser;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -67,6 +76,15 @@ class AdminNotificationFlowTest {
     FileRequestService fileRequestService;
 
     @Autowired
+    ResumableUploadService resumableUploadService;
+
+    @Autowired
+    ResumableUploadRepository resumableUploadRepository;
+
+    @Autowired
+    StorageService storageService;
+
+    @Autowired
     ObjectMapper objectMapper;
 
     @DynamicPropertySource
@@ -81,6 +99,8 @@ class AdminNotificationFlowTest {
     void filesPageRendersToastRegion() throws Exception {
         mockMvc.perform(get("/files"))
                 .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"_csrf\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"_csrf_header\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"toastRegion\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-notification-center")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/notification-center.js")))
@@ -138,7 +158,7 @@ class AdminNotificationFlowTest {
 
     @Test
     @WithAnonymousUser
-    void publicFileRequestIssuesOneTimeTicketAndReceivesRawUpload() throws Exception {
+    void publicFileRequestAdmitsAndReceivesResumableUpload() throws Exception {
         String suffix = java.util.UUID.randomUUID().toString();
         String filename = "public-request-" + suffix + ".txt";
         String token = "public_request_" + suffix.replace("-", "_");
@@ -159,37 +179,61 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(Matchers.containsString("Send project files")))
                 .andExpect(content().string(Matchers.containsString("/js/file-request-upload.js")))
                 .andExpect(content().string(Matchers.containsString("data-file-request-upload")))
+                .andExpect(content().string(Matchers.containsString("accept=\".txt\"")))
                 .andExpect(content().string(Matchers.containsString(
-                        "/r/" + request.token() + "/uploads/"
+                        "/r/" + request.token() + "/upload-sessions"
                 )))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("nas.storage.root"))));
 
         byte[] content = "received".getBytes(StandardCharsets.UTF_8);
-        MvcResult ticketResult = mockMvc.perform(post("/r/{token}/tickets", request.token())
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .accept(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsBytes(java.util.Map.of(
-                                "filename", filename,
-                                "size", content.length,
-                                "uploaderName", "Alice"
-                        ))))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.ok").value(true))
-                .andReturn();
-        JsonNode ticket = objectMapper.readTree(ticketResult.getResponse().getContentAsByteArray());
+        JsonNode result = admitAndUpload(
+                "/r/" + request.token() + "/upload-sessions",
+                filename,
+                "Alice",
+                content,
+                "a".repeat(64)
+        );
 
-        mockMvc.perform(put("/r/{token}/uploads/{ticketId}", request.token(), ticket.get("ticketId").asText())
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                        .accept(MediaType.APPLICATION_JSON)
-                        .content(content))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.ok").value(true))
-                .andExpect(jsonPath("$.message").value("Upload received."));
-
+        assertThat(result.get("status").asText()).isEqualTo("RECEIVED");
+        assertThat(result.get("message").asText()).isEqualTo("Upload received.");
         assertThat(Files.readAllBytes(ROOT.resolve(filename))).isEqualTo(content);
         assertThat(fileRequestService.require(request.id()).acceptedFiles()).isEqualTo(1);
+    }
+
+    @Test
+    @WithAnonymousUser
+    void publicFileRequestDoesNotRevealWhetherUploadedFilenameAlreadyExists() throws Exception {
+        String suffix = java.util.UUID.randomUUID().toString();
+        String filename = "private-conflict-" + suffix + ".txt";
+        String token = "private_conflict_" + suffix.replace("-", "_");
+        byte[] existing = "existing".getBytes(StandardCharsets.UTF_8);
+        Files.write(ROOT.resolve(filename), existing);
+        FileRequest request = fileRequestService.create(
+                "Private collision status",
+                "",
+                UploaderNamePolicy.NONE,
+                1024,
+                4096,
+                3,
+                List.of("txt"),
+                7,
+                token
+        );
+
+        JsonNode result = admitAndUpload(
+                "/r/" + request.token() + "/upload-sessions",
+                filename,
+                null,
+                "replacement".getBytes(StandardCharsets.UTF_8),
+                "9".repeat(64)
+        );
+
+        assertThat(result.get("status").asText()).isEqualTo("RECEIVED");
+        assertThat(result.get("message").asText()).isEqualTo("Upload received.");
+        assertThat(result.get("committedPath").isNull()).isTrue();
+        assertThat(result.get("pendingDecisionId").isNull()).isTrue();
+        assertThat(result.get("defaultConflictPolicy").isNull()).isTrue();
+        assertThat(Files.readAllBytes(ROOT.resolve(filename))).isEqualTo(existing);
     }
 
     @Test
@@ -208,13 +252,424 @@ class AdminNotificationFlowTest {
                 token
         );
 
-        mockMvc.perform(post("/r/{token}/tickets", token)
+        mockMvc.perform(post("/r/{token}/upload-sessions", token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsBytes(java.util.Map.of(
+                        .content(objectMapper.writeValueAsBytes(Map.of(
                                 "filename", "csrf.txt",
-                                "size", 4
+                                "contentType", "text/plain",
+                                "size", 4,
+                                "lastModified", 0,
+                                "fingerprint", "b".repeat(64)
                         ))))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithAnonymousUser
+    void publicFileRequestDoesNotExposeMissingDestinationPath() throws Exception {
+        String suffix = java.util.UUID.randomUUID().toString();
+        String destination = "private-request-destination-" + suffix;
+        Files.createDirectories(ROOT.resolve(destination));
+        String token = "missing_destination_" + suffix.replace("-", "_");
+        fileRequestService.create(
+                "Missing destination",
+                destination,
+                UploaderNamePolicy.NONE,
+                1024,
+                4096,
+                2,
+                List.of("txt"),
+                7,
+                token
+        );
+        Files.delete(ROOT.resolve(destination));
+
+        mockMvc.perform(post("/r/{token}/upload-sessions", token)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(Map.of(
+                                "filename", "example.txt",
+                                "contentType", "text/plain",
+                                "size", 8,
+                                "lastModified", 0,
+                                "fingerprint", "3".repeat(64)
+                        ))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.notification.message").value("File request is unavailable."))
+                .andExpect(content().string(Matchers.not(Matchers.containsString(destination))));
+    }
+
+    @Test
+    @WithAnonymousUser
+    void publicFileRequestAdmissionReusesActiveSessionAndCreatesNewOneAfterCancel() throws Exception {
+        String token = "resume_request_" + java.util.UUID.randomUUID().toString().replace("-", "_");
+        fileRequestService.create(
+                "Resume upload",
+                "",
+                UploaderNamePolicy.NONE,
+                1024,
+                4096,
+                2,
+                List.of("txt"),
+                7,
+                token
+        );
+        String admissionUrl = "/r/" + token + "/upload-sessions";
+        String fingerprint = "d".repeat(64);
+
+        JsonNode first = admitUploadSession(admissionUrl, "resume.txt", null, 8, fingerprint);
+        JsonNode reused = admitUploadSession(
+                admissionUrl, "resume.txt", null, 8, fingerprint, first.get("sessionId").asText()
+        );
+        assertThat(reused.get("sessionId").asText()).isEqualTo(first.get("sessionId").asText());
+
+        JsonNode duplicate = admitUploadSession(admissionUrl, "resume.txt", null, 8, fingerprint);
+        assertThat(duplicate.get("sessionId").asText()).isNotEqualTo(first.get("sessionId").asText());
+        mockMvc.perform(delete(duplicate.get("statusUrl").asText()).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELED"));
+
+        mockMvc.perform(delete(first.get("statusUrl").asText()).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELED"));
+        assertThat(resumableUploadService.list())
+                .noneMatch(session -> session.id().equals(first.get("sessionId").asText()));
+
+        JsonNode replacement = admitUploadSession(admissionUrl, "resume.txt", null, 8, fingerprint);
+        assertThat(replacement.get("sessionId").asText()).isNotEqualTo(first.get("sessionId").asText());
+    }
+
+    @Test
+    @WithAnonymousUser
+    void admittedUploadSessionCreatesOnlyOneProtocolResource() throws Exception {
+        String token = "single_protocol_" + java.util.UUID.randomUUID().toString().replace("-", "_");
+        fileRequestService.create(
+                "Single protocol resource",
+                "",
+                UploaderNamePolicy.NONE,
+                1024,
+                4096,
+                2,
+                List.of("txt"),
+                7,
+                token
+        );
+        JsonNode admission = admitUploadSession(
+                "/r/" + token + "/upload-sessions", "single.txt", null, 8, "6".repeat(64)
+        );
+        String sessionId = admission.get("sessionId").asText();
+        String endpoint = admission.get("endpoint").asText();
+        String metadata = "filename "
+                + Base64.getEncoder().encodeToString("single.txt".getBytes(StandardCharsets.UTF_8))
+                + ",sessionId "
+                + Base64.getEncoder().encodeToString(sessionId.getBytes(StandardCharsets.UTF_8));
+
+        mockMvc.perform(post(endpoint)
+                        .with(csrf())
+                        .header("Tus-Resumable", "1.0.0")
+                        .header("Upload-Length", 8)
+                        .header("Upload-Metadata", metadata))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post(endpoint)
+                        .with(csrf())
+                        .header("Tus-Resumable", "1.0.0")
+                        .header("Upload-Length", 8)
+                        .header("Upload-Metadata", metadata))
+                .andExpect(status().isConflict());
+
+        mockMvc.perform(delete(admission.get("statusUrl").asText()).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELED"));
+    }
+
+    @Test
+    void fullyReceivedFileRequestUploadFinishesAfterRequestIsRevoked() throws Exception {
+        String suffix = java.util.UUID.randomUUID().toString();
+        String filename = "revoked-finalize-" + suffix + ".txt";
+        String token = "revoked_finalize_" + suffix.replace("-", "_");
+        byte[] content = "received-before-revoke".getBytes(StandardCharsets.UTF_8);
+        FileRequest request = fileRequestService.create(
+                "Revoke finalization boundary",
+                "",
+                UploaderNamePolicy.NONE,
+                1024,
+                4096,
+                2,
+                List.of("txt"),
+                7,
+                token
+        );
+        ResumableUploadSession session = resumableUploadService.admitFileRequest(
+                token, filename, "text/plain", content.length, null, "7".repeat(64), null
+        );
+        Path staged = storageService.resumableUploadStagingFile(session.id());
+        Files.createDirectories(staged.getParent());
+        Files.write(staged, content);
+        resumableUploadService.markStaged(session.id(), staged);
+
+        fileRequestService.revoke(request.id());
+        var result = resumableUploadService.finalizeStaged(session.id());
+
+        assertThat(result.status()).isEqualTo(ResumableUploadStatus.COMPLETED);
+        assertThat(Files.readAllBytes(ROOT.resolve(filename))).isEqualTo(content);
+        assertThat(fileRequestService.require(request.id()).acceptedFiles()).isEqualTo(1);
+    }
+
+    @Test
+    @WithAnonymousUser
+    void publicUploaderCanCancelReservedSessionAfterRequestIsRevoked() throws Exception {
+        String suffix = java.util.UUID.randomUUID().toString();
+        String token = "revoked_cancel_" + suffix.replace("-", "_");
+        FileRequest request = fileRequestService.create(
+                "Cancel after revoke",
+                "",
+                UploaderNamePolicy.NONE,
+                1024,
+                4096,
+                2,
+                List.of("txt"),
+                7,
+                token
+        );
+        JsonNode admission = admitUploadSession(
+                "/r/" + token + "/upload-sessions",
+                "cancel-after-revoke.txt",
+                null,
+                8,
+                "6".repeat(64)
+        );
+
+        fileRequestService.revoke(request.id());
+
+        mockMvc.perform(delete(admission.get("statusUrl").asText()).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELED"));
+        assertThat(resumableUploadService.list())
+                .noneMatch(session -> session.id().equals(admission.get("sessionId").asText()));
+    }
+
+    @Test
+    void fullyReceivedFileRequestUploadFinishesAfterRequestRecordIsDeleted() throws Exception {
+        String suffix = java.util.UUID.randomUUID().toString();
+        String filename = "deleted-finalize-" + suffix + ".txt";
+        String token = "deleted_finalize_" + suffix.replace("-", "_");
+        byte[] content = "received-before-delete".getBytes(StandardCharsets.UTF_8);
+        FileRequest request = fileRequestService.create(
+                "Delete finalization boundary",
+                "",
+                UploaderNamePolicy.NONE,
+                1024,
+                4096,
+                2,
+                List.of("txt"),
+                7,
+                token
+        );
+        ResumableUploadSession session = resumableUploadService.admitFileRequest(
+                token, filename, "text/plain", content.length, null, "8".repeat(64), null
+        );
+        Path staged = storageService.resumableUploadStagingFile(session.id());
+        Files.createDirectories(staged.getParent());
+        Files.write(staged, content);
+        resumableUploadService.markStaged(session.id(), staged);
+
+        fileRequestService.delete(request.id());
+        var result = resumableUploadService.finalizeStaged(session.id());
+
+        assertThat(result.status()).isEqualTo(ResumableUploadStatus.COMPLETED);
+        assertThat(Files.readAllBytes(ROOT.resolve(filename))).isEqualTo(content);
+    }
+
+    @Test
+    @WithAnonymousUser
+    void publicFileRequestAdmissionReservesQuotaWithoutDoubleCountingResume() throws Exception {
+        String token = "quota_request_" + java.util.UUID.randomUUID().toString().replace("-", "_");
+        fileRequestService.create(
+                "One upload only",
+                "",
+                UploaderNamePolicy.NONE,
+                1024,
+                1024,
+                1,
+                List.of("txt"),
+                7,
+                token
+        );
+        String admissionUrl = "/r/" + token + "/upload-sessions";
+        JsonNode admitted = admitUploadSession(admissionUrl, "first.txt", null, 8, "e".repeat(64));
+
+        JsonNode resumed = admitUploadSession(
+                admissionUrl,
+                "first.txt",
+                null,
+                8,
+                "e".repeat(64),
+                admitted.get("sessionId").asText()
+        );
+        assertThat(resumed.get("sessionId").asText()).isEqualTo(admitted.get("sessionId").asText());
+
+        mockMvc.perform(post(admissionUrl)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(Map.of(
+                                "filename", "second.txt",
+                                "contentType", "text/plain",
+                                "size", 8,
+                                "lastModified", 0,
+                                "fingerprint", "f".repeat(64)
+                        ))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.ok").value(false));
+    }
+
+    @Test
+    void expiredUploadSessionDoesNotReserveFileRequestQuota() throws Exception {
+        String suffix = java.util.UUID.randomUUID().toString();
+        String token = "expired_reservation_" + suffix.replace("-", "_");
+        FileRequest request = fileRequestService.create(
+                "Expired reservation",
+                "",
+                UploaderNamePolicy.NONE,
+                1024,
+                1024,
+                1,
+                List.of("txt"),
+                7,
+                token
+        );
+        Instant now = Instant.now();
+        ResumableUploadSession expired = new ResumableUploadSession(
+                java.util.UUID.randomUUID().toString(),
+                ResumableUploadSource.FILE_REQUEST,
+                request.id(),
+                "",
+                "expired.txt",
+                "text/plain",
+                8,
+                null,
+                "4".repeat(64),
+                now.minusSeconds(7200),
+                now.minusSeconds(3600),
+                ResumableUploadStatus.ADMITTED,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+        resumableUploadRepository.save(expired);
+
+        ResumableUploadSession admitted = resumableUploadService.admitFileRequest(
+                token, "replacement.txt", "text/plain", 8, null, "5".repeat(64), null
+        );
+
+        assertThat(admitted.id()).isNotEqualTo(expired.id());
+        resumableUploadService.remove(expired.id());
+        resumableUploadService.remove(admitted.id());
+    }
+
+    private JsonNode admitAndUpload(
+            String admissionUrl,
+            String filename,
+            String uploaderName,
+            byte[] content,
+            String fingerprint
+    ) throws Exception {
+        JsonNode admission = admitUploadSession(
+                admissionUrl, filename, uploaderName, content.length, fingerprint
+        );
+        String sessionId = admission.get("sessionId").asText();
+        String endpoint = admission.get("endpoint").asText();
+        String metadata = "filename " + Base64.getEncoder().encodeToString(filename.getBytes(StandardCharsets.UTF_8))
+                + ",sessionId " + Base64.getEncoder().encodeToString(sessionId.getBytes(StandardCharsets.UTF_8));
+
+        MvcResult protocolCreation = mockMvc.perform(post(endpoint)
+                        .with(csrf())
+                        .header("Tus-Resumable", "1.0.0")
+                        .header("Upload-Length", content.length)
+                        .header("Upload-Metadata", metadata))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String uploadUrl = protocolCreation.getResponse().getHeader(HttpHeaders.LOCATION);
+        assertThat(uploadUrl).isNotBlank();
+
+        int firstChunkLength = Math.max(1, content.length / 2);
+        byte[] firstChunk = java.util.Arrays.copyOfRange(content, 0, firstChunkLength);
+        byte[] secondChunk = java.util.Arrays.copyOfRange(content, firstChunkLength, content.length);
+        mockMvc.perform(patch(uploadUrl)
+                        .with(csrf())
+                        .header("Tus-Resumable", "1.0.0")
+                        .header("Upload-Offset", 0)
+                        .header(HttpHeaders.CONTENT_TYPE, "application/offset+octet-stream")
+                        .content(firstChunk))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(head(uploadUrl)
+                        .with(csrf())
+                        .header("Tus-Resumable", "1.0.0"))
+                .andExpect(status().isNoContent())
+                .andExpect(header().string("Upload-Offset", String.valueOf(firstChunkLength)));
+
+        mockMvc.perform(patch(uploadUrl)
+                        .with(csrf())
+                        .header("Tus-Resumable", "1.0.0")
+                        .header("Upload-Offset", firstChunkLength)
+                        .header(HttpHeaders.CONTENT_TYPE, "application/offset+octet-stream")
+                        .content(secondChunk))
+                .andExpect(status().isNoContent());
+
+        MvcResult statusResult = mockMvc.perform(get(admission.get("statusUrl").asText())
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andReturn();
+        return objectMapper.readTree(statusResult.getResponse().getContentAsByteArray());
+    }
+
+    private JsonNode admitUploadSession(
+            String admissionUrl,
+            String filename,
+            String uploaderName,
+            long size,
+            String fingerprint
+    ) throws Exception {
+        return admitUploadSession(admissionUrl, filename, uploaderName, size, fingerprint, null);
+    }
+
+    private JsonNode admitUploadSession(
+            String admissionUrl,
+            String filename,
+            String uploaderName,
+            long size,
+            String fingerprint,
+            String resumeSessionId
+    ) throws Exception {
+        Map<String, Object> admissionRequest = new java.util.LinkedHashMap<>();
+        admissionRequest.put("filename", filename);
+        admissionRequest.put("contentType", "text/plain");
+        admissionRequest.put("size", size);
+        admissionRequest.put("lastModified", 0);
+        admissionRequest.put("fingerprint", fingerprint);
+        if (resumeSessionId != null) {
+            admissionRequest.put("resumeSessionId", resumeSessionId);
+        }
+        if (uploaderName != null) {
+            admissionRequest.put("uploaderName", uploaderName);
+        }
+
+        MvcResult admissionResult = mockMvc.perform(post(admissionUrl)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(admissionRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andReturn();
+        JsonNode admission = objectMapper.readTree(admissionResult.getResponse().getContentAsByteArray());
+        return admission;
     }
 
     @Test
@@ -1088,20 +1543,20 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void uploadCanReturnJsonForXhrProgressFlow() throws Exception {
+    void adminUploadUsesResumableProtocolAndFinalizesIntoVault() throws Exception {
         String filename = "ajax-upload-" + System.nanoTime() + ".txt";
-        MockMultipartFile file = new MockMultipartFile("files", filename, "text/plain", "upload".getBytes());
+        byte[] content = "upload".getBytes(StandardCharsets.UTF_8);
 
-        mockMvc.perform(multipart("/files/upload")
-                        .file(file)
-                        .with(csrf())
-                        .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.ok").value(true))
-                .andExpect(jsonPath("$.notification.type").value("success"))
-                .andExpect(jsonPath("$.uploadedFiles[0].name").value(filename));
+        JsonNode result = admitAndUpload(
+                "/api/v1/files/upload-sessions",
+                filename,
+                null,
+                content,
+                "c".repeat(64)
+        );
 
-        assertThat(ROOT.resolve(filename)).exists();
+        assertThat(result.get("status").asText()).isEqualTo("COMPLETED");
+        assertThat(Files.readAllBytes(ROOT.resolve(filename))).isEqualTo(content);
     }
 
     @Test

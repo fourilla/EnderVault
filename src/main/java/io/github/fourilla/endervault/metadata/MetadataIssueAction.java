@@ -11,6 +11,7 @@ public enum MetadataIssueAction {
     DELETE_THUMBNAIL_CACHE("Delete cache file", true),
     DELETE_BOOKMARK_FAVICON_CACHE("Delete favicon cache", true),
     DELETE_FILE_STAGING("Delete staging file", true),
+    DELETE_RESUMABLE_UPLOAD("Delete resumable upload", true),
     DELETE_ARCHIVE_STAGING("Delete archive workspace", true),
     DELETE_TEXT_DRAFT("Delete text draft", true),
     DELETE_TEXT_DRAFT_METADATA("Delete draft metadata", true),

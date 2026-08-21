@@ -3,9 +3,7 @@ package io.github.fourilla.endervault.storage;
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
-import io.github.fourilla.endervault.temporary.TemporaryArtifactType;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -16,7 +14,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Stream;
-import org.springframework.web.multipart.MultipartFile;
 
 final class FileStagingService {
 
@@ -37,39 +34,60 @@ final class FileStagingService {
         this.temporaryArtifactRegistry = temporaryArtifactRegistry;
     }
 
-    StorageService.StagedUpload stageUpload(MultipartFile file) throws IOException {
-        if (file.isEmpty()) {
-            return null;
-        }
-        String filename = safeSubmittedFilename(file);
-        Files.createDirectories(fileStagingRoot);
-        Path temporaryFile = Files.createTempFile(fileStagingRoot, "upload-", ".tmp");
-        boolean staged = false;
-        TemporaryArtifactRegistry.Registration registration = temporaryArtifactRegistry.register(
-                temporaryFile,
-                TemporaryArtifactType.UPLOAD,
-                filename
-        );
-        try (InputStream inputStream = file.getInputStream()) {
-            Files.copy(inputStream, temporaryFile, StandardCopyOption.REPLACE_EXISTING);
-            StorageService.StagedUpload stagedUpload =
-                    new StorageService.StagedUpload(temporaryFile, filename, Files.size(temporaryFile));
-            staged = true;
-            return stagedUpload;
-        } finally {
-            try {
-                if (!staged) {
-                    Files.deleteIfExists(temporaryFile);
-                }
-            } finally {
-                registration.close();
-            }
-        }
-    }
-
     Path createTemporaryFile(String prefix, String suffix) throws IOException {
         Files.createDirectories(fileStagingRoot);
         return Files.createTempFile(fileStagingRoot, prefix, suffix);
+    }
+
+    Path resumableProtocolRoot() throws IOException {
+        Path protocolRoot = fileStagingRoot.resolve("resumable-protocol").normalize();
+        pathResolver.ensureInsideFileStagingRoot(protocolRoot);
+        if (Files.isSymbolicLink(protocolRoot)) {
+            throw new StorageAccessException("Resumable upload storage cannot be a symbolic link.");
+        }
+        Files.createDirectories(protocolRoot);
+        if (!Files.isDirectory(protocolRoot, LinkOption.NOFOLLOW_LINKS)) {
+            throw new StorageAccessException("Resumable upload storage is not a directory.");
+        }
+        return protocolRoot;
+    }
+
+    Path claimResumableUpload(Path protocolData, String sessionId) throws IOException {
+        if (sessionId == null || !sessionId.matches("[0-9a-fA-F-]{36}")) {
+            throw new StorageAccessException("Invalid resumable upload session id.");
+        }
+        Path protocolRoot = resumableProtocolRoot().toAbsolutePath().normalize();
+        Path source = protocolData.toAbsolutePath().normalize();
+        if (!source.startsWith(protocolRoot) || source.equals(protocolRoot)) {
+            throw new StorageAccessException("Resumable upload data is outside protocol storage.");
+        }
+        if (!Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(source)) {
+            throw new StorageAccessException("Resumable upload data is not a regular file.");
+        }
+
+        Files.createDirectories(fileStagingRoot);
+        Path target = resumableStagingFile(sessionId);
+        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
+            if (Files.isRegularFile(target, LinkOption.NOFOLLOW_LINKS)
+                    && !Files.isSymbolicLink(target)
+                    && Files.size(target) == Files.size(source)) {
+                Files.deleteIfExists(source);
+                return target;
+            }
+            throw new StorageAccessException("Resumable upload staging target already exists.");
+        }
+        try {
+            return Files.move(source, target, StandardCopyOption.ATOMIC_MOVE);
+        } catch (java.nio.file.AtomicMoveNotSupportedException ex) {
+            return Files.move(source, target);
+        }
+    }
+
+    Path resumableStagingFile(String sessionId) {
+        if (sessionId == null || !sessionId.matches("[0-9a-fA-F-]{36}")) {
+            throw new StorageAccessException("Invalid resumable upload session id.");
+        }
+        return resolveFile("resumable-" + sessionId + ".tmp");
     }
 
     String filename(Path path) {
@@ -134,14 +152,4 @@ final class FileStagingService {
         }
     }
 
-    private String safeSubmittedFilename(MultipartFile file) {
-        String originalFilename = file.getOriginalFilename();
-        if (originalFilename == null || originalFilename.isBlank()) {
-            throw new StorageAccessException("Uploaded file name is blank.");
-        }
-        String cleaned = originalFilename.replace('\\', '/');
-        String filename = Path.of(cleaned).getFileName().toString();
-        pathResolver.validateSingleName(filename);
-        return filename;
-    }
 }

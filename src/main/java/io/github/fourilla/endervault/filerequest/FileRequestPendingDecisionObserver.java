@@ -28,7 +28,23 @@ public class FileRequestPendingDecisionObserver implements PendingFileDecisionRe
             boolean discarded
     ) throws Exception {
         if (discarded) {
-            fileRequestService.releaseAcceptedUpload(decision.sourceReference(), decision.size());
+            FileRequestUploadReference reference = FileRequestUploadReference.parse(decision.sourceReference());
+            fileRequestService.releaseAcceptedUpload(reference.requestId(), reference.uploadId(), decision.size());
+        }
+    }
+
+    public record FileRequestUploadReference(String requestId, String uploadId) {
+
+        public static String format(String requestId, String uploadId) {
+            return requestId + ":" + uploadId;
+        }
+
+        public static FileRequestUploadReference parse(String value) {
+            int separator = value == null ? -1 : value.indexOf(':');
+            if (separator <= 0 || separator == value.length() - 1) {
+                throw new IllegalArgumentException("Invalid file request upload reference.");
+            }
+            return new FileRequestUploadReference(value.substring(0, separator), value.substring(separator + 1));
         }
     }
 }

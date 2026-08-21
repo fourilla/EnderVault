@@ -7,6 +7,7 @@
     <meta name="_csrf_header" th:content="${_csrf.headerName}">
     <title th:text="|${fileRequest.title()} - EnderVault File Request|">EnderVault File Request</title>
     <th:block th:replace="~{fragments/assets :: styles(true)}"></th:block>
+    <th:block th:replace="~{fragments/assets :: resumableUploadScript}"></th:block>
     <script defer th:src="@{/js/file-request-upload.js}"></script>
 </head>
 <body>
@@ -42,8 +43,7 @@
         </dl>
 
         <form class="file-request-upload-form" data-file-request-upload
-              th:attr="data-ticket-url=@{/r/{token}/tickets(token=${token})},
-                       data-upload-base=${uploadBase},
+              th:attr="data-admission-url=${uploadAdmissionUrl},
                        data-parallel-uploads=${fileRequest.parallelUploads()}">
             <label class="file-request-uploader-field"
                    th:unless="${fileRequest.uploaderNamePolicy().name() == 'NONE'}">
@@ -53,7 +53,8 @@
                        th:placeholder="${fileRequest.uploaderNamePolicy().name() == 'REQUIRED'} ? 'Required' : 'Optional'">
             </label>
 
-            <input class="visually-hidden" id="fileRequestInput" type="file" multiple data-file-request-input>
+            <input class="visually-hidden" id="fileRequestInput" type="file" multiple data-file-request-input
+                   th:attr="accept=${fileRequest.acceptAttribute()}">
             <button class="file-request-drop-zone" type="button" data-file-request-pick>
                 <i class="fas fa-cloud-arrow-up" aria-hidden="true"></i>
                 <strong>Choose files</strong>

@@ -10,12 +10,15 @@
     const queue = form.querySelector("[data-file-request-queue]");
     const status = form.querySelector("[data-file-request-status]");
     const uploaderName = form.elements.namedItem("uploaderName");
-    if (!input || !picker || !submit || !queue || !status) {
+    const uploadClient = window.EnderVaultResumableUpload;
+    if (!input || !picker || !submit || !queue || !status || !uploadClient) {
         return;
     }
-    const csrfToken = document.querySelector('meta[name="_csrf"]')?.content || "";
-    const csrfHeader = document.querySelector('meta[name="_csrf_header"]')?.content || "X-CSRF-TOKEN";
+
     const parallelUploads = Math.max(1, Number.parseInt(form.dataset.parallelUploads || "2", 10));
+    const acceptedExtensions = input.accept.split(",")
+        .map(extension => extension.trim().toLowerCase())
+        .filter(extension => extension.startsWith(".") && extension.length > 1);
     const items = [];
     let nextId = 1;
     let running = false;
@@ -27,19 +30,52 @@
         return `${(bytes / (1024 ** index)).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
     };
 
+    const activeItems = () => items.filter(item =>
+        ["fingerprinting", "reserving", "uploading", "canceling"].includes(item.state));
+
     const setStatus = (message, failed = false) => {
         status.textContent = message;
         status.classList.toggle("is-error", failed);
     };
 
-    const render = () => {
+    const removeItem = (item) => {
+        const index = items.indexOf(item);
+        if (index >= 0) {
+            items.splice(index, 1);
+        }
+        render();
+    };
+
+    const cancelItem = async (item) => {
+        if (!item.handle || item.state === "queued") {
+            removeItem(item);
+            return;
+        }
+        if (!["fingerprinting", "reserving", "uploading"].includes(item.state)) {
+            return;
+        }
+        item.state = "canceling";
+        item.message = "Canceling";
+        render();
+        try {
+            await item.handle.abort();
+            item.state = "canceled";
+            item.message = "Canceled";
+        } catch (error) {
+            item.state = "failed";
+            item.message = error.message || "Cancel failed";
+        }
+        render();
+    };
+
+    function render() {
         queue.hidden = items.length === 0;
         queue.replaceChildren(...items.map((item) => {
             const row = document.createElement("div");
             row.className = `file-request-queue-item is-${item.state}`;
 
             const icon = document.createElement("i");
-            icon.className = item.state === "complete"
+            icon.className = item.state === "complete" || item.state === "pending"
                 ? "fas fa-circle-check"
                 : item.state === "failed"
                     ? "fas fa-circle-exclamation"
@@ -57,36 +93,33 @@
             details.append(name, meta);
 
             row.append(icon, details);
-            if (item.state === "queued") {
+            const active = ["queued", "fingerprinting", "reserving", "uploading"].includes(item.state);
+            const dismissible = ["complete", "pending", "failed", "canceled"].includes(item.state);
+            if (active || dismissible) {
                 const remove = document.createElement("button");
                 remove.className = "ghost icon-button action-icon";
                 remove.type = "button";
-                remove.title = "Remove";
-                remove.setAttribute("aria-label", `Remove ${item.file.name}`);
+                remove.title = item.state === "queued" || dismissible ? "Remove" : "Cancel upload";
+                remove.setAttribute("aria-label", `${remove.title} ${item.file.name}`);
                 remove.innerHTML = '<i class="fas fa-xmark" aria-hidden="true"></i>';
-                remove.addEventListener("click", () => {
-                    const index = items.findIndex(candidate => candidate.id === item.id);
-                    if (index >= 0) items.splice(index, 1);
-                    render();
-                });
+                remove.addEventListener("click", () => dismissible ? removeItem(item) : cancelItem(item));
                 row.append(remove);
             }
             return row;
         }));
         submit.disabled = running || !items.some(item => item.state === "queued");
-    };
+    }
 
     const containsRelativePaths = (files) => Array.from(files || [])
         .some(file => Boolean(file.webkitRelativePath));
 
     const containsDirectory = async (dataTransfer, droppedFiles) => {
-        const items = Array.from(dataTransfer?.items || []);
+        const itemsToInspect = Array.from(dataTransfer?.items || []);
         const handleRequests = [];
-        for (const item of items) {
+        for (const item of itemsToInspect) {
             if (item.kind !== "file") {
                 continue;
             }
-
             const entry = item.webkitGetAsEntry?.();
             if (entry) {
                 if (entry.isDirectory) {
@@ -94,14 +127,12 @@
                 }
                 continue;
             }
-
             if (typeof item.getAsFileSystemHandle === "function") {
                 handleRequests.push(item.getAsFileSystemHandle().catch(() => null));
             }
         }
         const handles = await Promise.all(handleRequests);
-        return handles.some(handle => handle?.kind === "directory")
-            || containsRelativePaths(droppedFiles);
+        return handles.some(handle => handle?.kind === "directory") || containsRelativePaths(droppedFiles);
     };
 
     const rejectDirectories = () => {
@@ -109,109 +140,84 @@
         render();
     };
 
+    const acceptsFile = (file) => {
+        if (acceptedExtensions.length === 0) {
+            return true;
+        }
+        const filename = file.name.toLowerCase();
+        return acceptedExtensions.some(extension =>
+            filename.length > extension.length && filename.endsWith(extension));
+    };
+
+    const sameLocalFile = (left, right) => left.name === right.name
+        && left.size === right.size
+        && left.lastModified === right.lastModified
+        && left.type === right.type;
+
     const addFiles = (files) => {
         if (containsRelativePaths(files)) {
             rejectDirectories();
             return;
         }
-        Array.from(files || []).forEach((file) => {
-            items.push({ id: nextId++, file, state: "queued", loaded: 0, message: "Ready" });
-        });
-        setStatus(items.length ? `${items.length} file(s) selected.` : "");
-        render();
-    };
-
-    const parseResponse = async (response) => {
-        try {
-            return await response.json();
-        } catch (error) {
-            return { ok: false, message: "The server response could not be read." };
-        }
-    };
-
-    const issueTicket = async (item) => {
-        const response = await fetch(form.dataset.ticketUrl, {
-            method: "POST",
-            credentials: "same-origin",
-            headers: {
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-                [csrfHeader]: csrfToken
-            },
-            body: JSON.stringify({
-                filename: item.file.name,
-                size: item.file.size,
-                uploaderName: uploaderName?.value || null
-            })
-        });
-        const body = await parseResponse(response);
-        if (!response.ok || body.ok === false) {
-            throw new Error(body.message || "Upload could not be reserved.");
-        }
-        return body.ticketId;
-    };
-
-    const uploadOnce = (item, ticketId) => new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        const url = `${form.dataset.uploadBase}${encodeURIComponent(ticketId)}`;
-        xhr.open("PUT", url);
-        xhr.setRequestHeader("Accept", "application/json");
-        xhr.setRequestHeader("Content-Type", "application/octet-stream");
-        xhr.setRequestHeader(csrfHeader, csrfToken);
-        xhr.upload.onprogress = (event) => {
-            item.loaded = event.loaded;
-            render();
-        };
-        xhr.onload = () => {
-            let body;
-            try {
-                body = JSON.parse(xhr.responseText || "{}");
-            } catch (error) {
-                body = { ok: false, message: "The server response could not be read." };
-            }
-            if (xhr.status >= 200 && xhr.status < 300 && body.ok !== false) {
-                resolve(body);
+        const selected = Array.from(files || []);
+        const accepted = selected.filter(acceptsFile);
+        const rejected = selected.length - accepted.length;
+        accepted.forEach((file) => {
+            const failed = items.find(item => item.state === "failed" && sameLocalFile(item.file, file));
+            if (failed) {
+                failed.file = file;
+                failed.state = "queued";
+                failed.loaded = 0;
+                failed.message = "Ready";
+                failed.handle = null;
                 return;
             }
-            const failure = new Error(body.message || "Upload failed.");
-            failure.retryAfterSeconds = body.retryAfterSeconds;
-            failure.status = xhr.status;
-            reject(failure);
-        };
-        xhr.onerror = () => reject(new Error("Upload connection failed."));
-        xhr.send(item.file);
-    });
-
-    const uploadWithRetry = async (item, ticketId) => {
-        for (let attempt = 0; attempt < 10; attempt += 1) {
-            try {
-                return await uploadOnce(item, ticketId);
-            } catch (error) {
-                if (error.status !== 429 || attempt === 9) {
-                    throw error;
-                }
-                item.message = "Waiting for upload capacity";
-                render();
-                const delay = Math.max(1, Number(error.retryAfterSeconds) || 2) * 1000;
-                await new Promise(resolve => window.setTimeout(resolve, delay));
-            }
-        }
-        throw new Error("Upload capacity remained unavailable.");
+            items.push({
+                id: nextId++,
+                file,
+                state: "queued",
+                loaded: 0,
+                message: "Ready",
+                handle: null
+            });
+        });
+        const selectedMessage = accepted.length > 0 ? `${accepted.length} file(s) selected.` : "";
+        const rejectedMessage = rejected > 0
+            ? `${rejected} file(s) skipped because their extensions are not accepted.`
+            : "";
+        setStatus([selectedMessage, rejectedMessage].filter(Boolean).join(" "), rejected > 0);
+        render();
     };
 
     const processItem = async (item) => {
-        item.state = "reserving";
-        item.message = "Reserving";
-        render();
+        item.handle = uploadClient.create({
+            file: item.file,
+            context: form.dataset.admissionUrl,
+            admissionUrl: form.dataset.admissionUrl,
+            uploaderName: uploaderName?.value || null,
+            onState: (state, message) => {
+                item.state = state;
+                item.message = message;
+                render();
+            },
+            onProgress: (sent) => {
+                item.loaded = sent;
+                render();
+            }
+        });
         try {
-            const ticketId = await issueTicket(item);
-            item.state = "uploading";
-            item.message = "Uploading";
-            render();
-            const result = await uploadWithRetry(item, ticketId);
-            item.state = "complete";
-            item.loaded = item.file.size;
-            item.message = result.message || "Upload received";
+            const result = await item.handle.start();
+            if (!result || result.status === "CANCELED") {
+                item.state = "canceled";
+                item.message = "Canceled";
+            } else if (result.status === "RECEIVED") {
+                item.state = "complete";
+                item.loaded = item.file.size;
+                item.message = result.message || "Upload received";
+            } else {
+                item.state = "failed";
+                item.message = result.message || "Upload could not be finalized";
+            }
         } catch (error) {
             item.state = "failed";
             item.message = error.message || "Upload failed";
@@ -229,6 +235,7 @@
             }
         };
         await Promise.all(Array.from({ length: Math.min(parallelUploads, pending.length) }, worker));
+        return pending;
     };
 
     picker.addEventListener("click", () => input.click());
@@ -245,7 +252,6 @@
         picker.classList.remove("is-dragging");
     }));
     picker.addEventListener("drop", async (event) => {
-        // DataTransfer is only guaranteed to expose files during the drop event.
         const droppedFiles = Array.from(event.dataTransfer?.files || []);
         if (await containsDirectory(event.dataTransfer, droppedFiles)) {
             rejectDirectories();
@@ -260,10 +266,20 @@
         running = true;
         render();
         setStatus("Uploads are in progress.");
-        await runQueue();
+        const attempted = await runQueue();
         running = false;
-        const failed = items.filter(item => item.state === "failed").length;
-        setStatus(failed ? `${failed} upload(s) failed. You can retry them by selecting the files again.` : "All uploads were received.", failed > 0);
+        const failed = attempted.filter(item => item.state === "failed").length;
+        const message = failed
+            ? `${failed} upload(s) failed. Review the message shown for each file.`
+            : "All uploads were received.";
+        setStatus(message, failed > 0);
         render();
+    });
+    window.addEventListener("beforeunload", (event) => {
+        if (activeItems().length === 0) {
+            return;
+        }
+        event.preventDefault();
+        event.returnValue = "";
     });
 })();

@@ -88,6 +88,7 @@ public class FileRequestService {
                 extensions,
                 0L,
                 0,
+                List.of(),
                 now,
                 expiresAt,
                 true
@@ -120,7 +121,7 @@ public class FileRequestService {
         FileRequest request = findByToken(token)
                 .filter(item -> item.usable(Instant.now()))
                 .orElseThrow(() -> new NoSuchFileException("File request is unavailable."));
-        storageService.resolveVaultDirectory(request.destinationPath());
+        requireAvailableDestination(request);
         return request;
     }
 
@@ -129,34 +130,51 @@ public class FileRequestService {
         if (!request.usable(Instant.now())) {
             throw new NoSuchFileException("File request is unavailable.");
         }
-        storageService.resolveVaultDirectory(request.destinationPath());
+        requireAvailableDestination(request);
         return request;
     }
 
-    public synchronized FileRequest recordAcceptedUpload(String id, long size) throws IOException {
+    public synchronized FileRequest recordAcceptedUpload(String id, String uploadId, long size) throws IOException {
         if (size < 0L) {
             throw new StorageAccessException("Uploaded file size is invalid.");
         }
-        FileRequest request = requireUsableById(id);
+        FileRequest request = require(id);
+        String normalizedUploadId = cleanUploadId(uploadId);
+        if (request.acceptedUploadIds().contains(normalizedUploadId)) {
+            return request;
+        }
         if (request.acceptedFiles() >= request.maxFiles()
                 || size > request.maxFileSizeBytes()
                 || request.acceptedBytes() > request.maxTotalBytes() - size) {
             throw new StorageAccessException("File request quota has been reached.");
         }
-        FileRequest updated = request.withAcceptedUpload(size);
+        FileRequest updated = request.withAcceptedUpload(normalizedUploadId, size);
         replace(updated);
         return updated;
     }
 
-    public synchronized void releaseAcceptedUpload(String id, long size) throws IOException {
+    public synchronized void releaseAcceptedUpload(String id, String uploadId, long size) throws IOException {
         List<FileRequest> requests = readMutable();
         for (int i = 0; i < requests.size(); i++) {
             if (requests.get(i).id().equals(cleanId(id))) {
-                requests.set(i, requests.get(i).withoutAcceptedUpload(size));
-                repository.write(requests);
+                FileRequest current = requests.get(i);
+                FileRequest updated = current.withoutAcceptedUpload(cleanUploadId(uploadId), size);
+                if (updated != current) {
+                    requests.set(i, updated);
+                    repository.write(requests);
+                }
                 return;
             }
         }
+    }
+
+    public synchronized FileRequest requireUploadSessionAllowedById(String id) throws IOException {
+        FileRequest request = require(id);
+        if (!properties.isEnabled() || !request.enabled()) {
+            throw new NoSuchFileException("File request is unavailable.");
+        }
+        requireAvailableDestination(request);
+        return request;
     }
 
     public synchronized void revoke(String id) throws IOException {
@@ -296,6 +314,23 @@ public class FileRequestService {
             throw new StorageAccessException("File request id is required.");
         }
         return id.trim();
+    }
+
+    private String cleanUploadId(String uploadId) {
+        String normalized = uploadId == null ? "" : uploadId.trim();
+        try {
+            return UUID.fromString(normalized).toString();
+        } catch (IllegalArgumentException ex) {
+            throw new StorageAccessException("Upload id is invalid.");
+        }
+    }
+
+    private void requireAvailableDestination(FileRequest request) throws IOException {
+        try {
+            storageService.resolveVaultDirectory(request.destinationPath());
+        } catch (IOException | StorageAccessException ex) {
+            throw new NoSuchFileException("File request is unavailable.");
+        }
     }
 
     private List<FileRequest> readMutable() throws IOException {

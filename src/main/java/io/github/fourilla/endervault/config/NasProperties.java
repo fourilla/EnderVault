@@ -1358,6 +1358,21 @@ public class NasProperties {
 
         private boolean directoryUploadEnabled = false;
 
+        @Min(1048576)
+        @Max(67108864)
+        private long resumableChunkSizeBytes = 33554432L;
+
+        @Min(1)
+        @Max(16)
+        private int maxConcurrentChunks = 4;
+
+        @Min(1)
+        @Max(168)
+        private int resumableSessionRetentionHours = 24;
+
+        @Min(60000)
+        private long resumableCleanupIntervalMs = 600000L;
+
         public int getMaxFilesPerRequest() {
             return maxFilesPerRequest;
         }
@@ -1372,6 +1387,38 @@ public class NasProperties {
 
         public void setDirectoryUploadEnabled(boolean directoryUploadEnabled) {
             this.directoryUploadEnabled = directoryUploadEnabled;
+        }
+
+        public long getResumableChunkSizeBytes() {
+            return resumableChunkSizeBytes;
+        }
+
+        public void setResumableChunkSizeBytes(long resumableChunkSizeBytes) {
+            this.resumableChunkSizeBytes = resumableChunkSizeBytes;
+        }
+
+        public int getMaxConcurrentChunks() {
+            return maxConcurrentChunks;
+        }
+
+        public void setMaxConcurrentChunks(int maxConcurrentChunks) {
+            this.maxConcurrentChunks = maxConcurrentChunks;
+        }
+
+        public int getResumableSessionRetentionHours() {
+            return resumableSessionRetentionHours;
+        }
+
+        public void setResumableSessionRetentionHours(int resumableSessionRetentionHours) {
+            this.resumableSessionRetentionHours = resumableSessionRetentionHours;
+        }
+
+        public long getResumableCleanupIntervalMs() {
+            return resumableCleanupIntervalMs;
+        }
+
+        public void setResumableCleanupIntervalMs(long resumableCleanupIntervalMs) {
+            this.resumableCleanupIntervalMs = resumableCleanupIntervalMs;
         }
     }
 
@@ -1409,20 +1456,8 @@ public class NasProperties {
         private int randomTokenBytes = 24;
 
         @Min(1)
-        @Max(4)
-        private int maxConcurrentUploads = 4;
-
-        @Min(1)
         @Max(2)
         private int maxConcurrentUploadsPerRequest = 2;
-
-        @Min(1)
-        @Max(60)
-        private int uploadTicketTtlMinutes = 10;
-
-        @Min(1)
-        @Max(24)
-        private int maxUploadHours = 24;
 
         @Min(1)
         @Max(3650)
@@ -1508,36 +1543,12 @@ public class NasProperties {
             this.randomTokenBytes = randomTokenBytes;
         }
 
-        public int getMaxConcurrentUploads() {
-            return maxConcurrentUploads;
-        }
-
-        public void setMaxConcurrentUploads(int maxConcurrentUploads) {
-            this.maxConcurrentUploads = maxConcurrentUploads;
-        }
-
         public int getMaxConcurrentUploadsPerRequest() {
             return maxConcurrentUploadsPerRequest;
         }
 
         public void setMaxConcurrentUploadsPerRequest(int maxConcurrentUploadsPerRequest) {
             this.maxConcurrentUploadsPerRequest = maxConcurrentUploadsPerRequest;
-        }
-
-        public int getUploadTicketTtlMinutes() {
-            return uploadTicketTtlMinutes;
-        }
-
-        public void setUploadTicketTtlMinutes(int uploadTicketTtlMinutes) {
-            this.uploadTicketTtlMinutes = uploadTicketTtlMinutes;
-        }
-
-        public int getMaxUploadHours() {
-            return maxUploadHours;
-        }
-
-        public void setMaxUploadHours(int maxUploadHours) {
-            this.maxUploadHours = maxUploadHours;
         }
 
         public int getPendingWarningDays() {
