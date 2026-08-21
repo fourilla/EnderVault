@@ -16,7 +16,9 @@ import io.github.fourilla.endervault.outbound.OutboundRouteStateService;
 import io.github.fourilla.endervault.outbound.OutboundRouteUnavailableException;
 import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthService;
 import io.github.fourilla.endervault.outbound.vpn.VpnTunnelHealthProbe;
-import io.github.fourilla.endervault.storage.ConflictPolicy;
+import io.github.fourilla.endervault.pending.PendingFileDecisionAction;
+import io.github.fourilla.endervault.pending.PendingFileDecisionRepository;
+import io.github.fourilla.endervault.pending.PendingFileDecisionService;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
 import java.io.IOException;
@@ -51,6 +53,7 @@ class RemoteDownloadServiceTest {
     private RemoteDownloadRequestTicketService ticketService;
     private OutboundRouteStateService outboundRouteStateService;
     private TemporaryArtifactRegistry temporaryArtifactRegistry;
+    private PendingFileDecisionService pendingFileDecisionService;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -70,10 +73,8 @@ class RemoteDownloadServiceTest {
                 temporaryArtifactRegistry
         );
         storageService.initialize();
-        ActivityLogService activityLogService = new ActivityLogService(
-                new ObjectMapper().findAndRegisterModules(),
-                properties
-        );
+        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        ActivityLogService activityLogService = new ActivityLogService(objectMapper, properties);
         activityLogService.initialize();
         RemoteDownloadValidator validator = new RemoteDownloadValidator(properties);
         OutboundHttpClientRegistry registry = new OutboundHttpClientRegistry(
@@ -82,6 +83,16 @@ class RemoteDownloadServiceTest {
         RemoteDownloadHttpClient httpClient = new RemoteDownloadHttpClient(properties, validator, registry);
         RemoteDownloadFileNameResolver fileNameResolver = new RemoteDownloadFileNameResolver();
         RemoteDownloadRetryPolicy retryPolicy = new RemoteDownloadRetryPolicy(properties);
+        RemoteDownloadTaskStore taskStore = new RemoteDownloadTaskStore(properties);
+        PendingFileDecisionRepository pendingRepository = new PendingFileDecisionRepository(objectMapper, properties);
+        pendingRepository.initialize();
+        pendingFileDecisionService = new PendingFileDecisionService(
+                pendingRepository,
+                storageService,
+                temporaryArtifactRegistry,
+                List.of(new RemoteDownloadPendingDecisionObserver(taskStore))
+        );
+        pendingFileDecisionService.restoreRegistrations();
         RemoteDownloadInspectionService inspectionService = new RemoteDownloadInspectionService(
                 properties,
                 httpClient,
@@ -94,7 +105,8 @@ class RemoteDownloadServiceTest {
                 httpClient,
                 fileNameResolver,
                 retryPolicy,
-                temporaryArtifactRegistry
+                temporaryArtifactRegistry,
+                pendingFileDecisionService
         );
         ticketService = new RemoteDownloadRequestTicketService();
         remoteDownloadService = new RemoteDownloadService(
@@ -105,7 +117,8 @@ class RemoteDownloadServiceTest {
                 new RemoteDownloadRequestParser(validator),
                 inspectionService,
                 ticketService,
-                transferEngine
+                transferEngine,
+                taskStore
         );
     }
 
@@ -257,7 +270,6 @@ class RemoteDownloadServiceTest {
                 "",
                 NetworkRoute.DIRECT,
                 1,
-                "default",
                 false,
                 "Authorization: Bearer secret",
                 request
@@ -382,7 +394,7 @@ class RemoteDownloadServiceTest {
     }
 
     @Test
-    void reportsExistingDestinationWithoutReplacingIt() throws Exception {
+    void retainsExistingDestinationAndQueuesDownloadedFileForReview() throws Exception {
         byte[] original = "existing content".getBytes(StandardCharsets.UTF_8);
         byte[] remote = "remote content".getBytes(StandardCharsets.UTF_8);
         Files.write(root.resolve("note.txt"), original);
@@ -404,42 +416,22 @@ class RemoteDownloadServiceTest {
         RemoteDownloadTask task = remoteDownloadService.start(inspection.requestId(), request);
         waitUntilFinished(task);
 
-        assertThat(task.status()).isEqualTo(RemoteDownloadStatus.FAILED);
-        assertThat(task.message()).isEqualTo("A file named \"note.txt\" already exists in the target directory.");
+        assertThat(task.status()).isEqualTo(RemoteDownloadStatus.PENDING);
+        assertThat(task.pendingDecisionId()).isNotBlank();
         assertThat(root.resolve("note.txt")).hasBinaryContent(original);
-    }
-
-    @Test
-    void appliesSelectedRenamePolicyWhenTheDownloadIsCommitted() throws Exception {
-        byte[] original = "existing content".getBytes(StandardCharsets.UTF_8);
-        byte[] remote = "remote content".getBytes(StandardCharsets.UTF_8);
-        Files.write(root.resolve("note.txt"), original);
-        startServer("/files/note.txt", exchange -> normalResponse(
-                exchange,
-                remote,
+        assertThat(pendingFileDecisionService.list()).hasSize(1);
+        pendingFileDecisionService.resolve(
+                task.pendingDecisionId(),
+                PendingFileDecisionAction.KEEP_BOTH,
                 null,
-                "application/octet-stream"
-        ));
-
-        MockHttpServletRequest request = request();
-        RemoteDownloadInspection inspection = remoteDownloadService.inspect(
-                serverUrl("/files/note.txt"),
-                "",
-                NetworkRoute.DIRECT,
-                1,
-                "rename",
-                false,
-                "",
-                request
+                false
         );
-        RemoteDownloadTask task = remoteDownloadService.start(inspection.requestId(), request);
-        waitUntilFinished(task);
-
         assertThat(task.status()).isEqualTo(RemoteDownloadStatus.COMPLETE);
-        assertThat(task.conflictPolicy()).isEqualTo(ConflictPolicy.RENAME);
         assertThat(task.targetPath()).isEqualTo("note - 1.txt");
         assertThat(root.resolve("note.txt")).hasBinaryContent(original);
         assertThat(root.resolve("note - 1.txt")).hasBinaryContent(remote);
+        assertThat(pendingFileDecisionService.list()).isEmpty();
+        assertThat(temporaryArtifactRegistry.activeArtifacts()).isEmpty();
     }
 
     @Test
@@ -457,7 +449,6 @@ class RemoteDownloadServiceTest {
                 "",
                 NetworkRoute.DIRECT,
                 1,
-                "cancel",
                 true,
                 "",
                 request
@@ -485,7 +476,6 @@ class RemoteDownloadServiceTest {
                 "",
                 NetworkRoute.DIRECT,
                 1,
-                "cancel",
                 true,
                 "",
                 request
@@ -507,7 +497,6 @@ class RemoteDownloadServiceTest {
                 "",
                 NetworkRoute.DIRECT,
                 1,
-                "cancel",
                 true,
                 "",
                 owner
@@ -581,7 +570,6 @@ class RemoteDownloadServiceTest {
                 path,
                 route,
                 connections,
-                "default",
                 false,
                 "",
                 request

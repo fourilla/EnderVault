@@ -210,7 +210,6 @@ document.addEventListener("DOMContentLoaded", () => {
         text('[data-remote-probe="statusLabel"]', probe.statusLabel);
         text('[data-remote-probe="rangeCapabilityLabel"]', probe.rangeCapabilityLabel);
         text('[data-remote-probe="requestOptionsLabel"]', probe.requestOptionsLabel);
-        text('[data-remote-probe="conflictPolicyLabel"]', probe.conflictPolicyLabel);
         text('[data-remote-probe="detail"]', probe.detail);
 
         const warning = dialog?.querySelector("[data-remote-warning]");
@@ -477,7 +476,7 @@ document.addEventListener("DOMContentLoaded", () => {
             sourceUrl: task.sourceUrl,
             target: task.targetPath || task.targetDirectory || "/",
             networkRouteLabel: task.networkRouteLabel,
-            conflictPolicyLabel: task.conflictPolicyLabel,
+            pendingDecisionId: task.pendingDecisionId,
             connections: task.actualConnections > 0
                     ? `${task.actualConnections} active / ${task.requestedConnections} requested`
                     : `Pending / ${task.requestedConnections} requested`,

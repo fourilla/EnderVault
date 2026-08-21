@@ -1,5 +1,7 @@
 package io.github.fourilla.endervault.pending;
 
+import io.github.fourilla.endervault.storage.FileItem;
+
 public interface PendingFileDecisionResolutionObserver {
 
     boolean supports(PendingFileDecision decision);
@@ -7,6 +9,7 @@ public interface PendingFileDecisionResolutionObserver {
     void afterResolved(
             PendingFileDecision decision,
             PendingFileDecisionAction action,
-            boolean discarded
+            boolean discarded,
+            FileItem committedFile
     ) throws Exception;
 }

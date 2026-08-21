@@ -144,7 +144,7 @@ public class PendingFileDecisionService {
         if (action == PendingFileDecisionAction.DISCARD) {
             Files.deleteIfExists(stagedFile);
             complete(decision.id());
-            notifyResolved(decision, action, true);
+            notifyResolved(decision, action, true, null);
             return new PendingFileDecisionResult(decision, null, true);
         }
 
@@ -173,7 +173,7 @@ public class PendingFileDecisionService {
                 policy
         );
         complete(decision.id());
-        notifyResolved(decision, action, false);
+        notifyResolved(decision, action, false, committed);
         return new PendingFileDecisionResult(decision, committed, false);
     }
 
@@ -185,7 +185,7 @@ public class PendingFileDecisionService {
         }
         Files.deleteIfExists(stagedFile);
         complete(decision.id());
-        notifyResolved(decision, PendingFileDecisionAction.DISCARD, true);
+        notifyResolved(decision, PendingFileDecisionAction.DISCARD, true, null);
         return decision;
     }
 
@@ -267,13 +267,14 @@ public class PendingFileDecisionService {
     private void notifyResolved(
             PendingFileDecision decision,
             PendingFileDecisionAction action,
-            boolean discarded
+            boolean discarded,
+            FileItem committedFile
     ) {
         resolutionObservers.stream()
                 .filter(observer -> observer.supports(decision))
                 .forEach(observer -> {
                     try {
-                        observer.afterResolved(decision, action, discarded);
+                        observer.afterResolved(decision, action, discarded, committedFile);
                     } catch (Exception ex) {
                         logger.error(
                                 "Failed to apply pending decision side effects for {} using {}.",

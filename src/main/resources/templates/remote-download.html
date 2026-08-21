@@ -51,10 +51,6 @@
                     </button>
                 </div>
             </label>
-            <label>
-                Connections
-                <input type="number" name="connections" value="1" min="1" max="8" required>
-            </label>
             <button class="icon-button" type="submit" title="Inspect remote file" aria-label="Inspect remote file">
                 <i class="fas fa-cloud-arrow-down" aria-hidden="true"></i>
                 <span class="visually-hidden">Inspect remote file</span>
@@ -73,13 +69,15 @@
                         </select>
                     </label>
                     <label>
-                        Conflict policy
-                        <select name="conflictPolicy">
-                            <option value="default">Use application default</option>
-                            <option value="cancel">Cancel on conflict</option>
-                            <option value="rename">Rename and continue</option>
-                            <option value="overwrite">Overwrite</option>
-                        </select>
+                        Connections
+                        <input type="number" name="connections" value="1" min="1" max="8" required>
+                    </label>
+                    <label class="remote-request-toggle js-only">
+                        <span>
+                            <strong>Remember last destination</strong>
+                            <small>Keep the last queued destination in this browser.</small>
+                        </span>
+                        <input type="checkbox" data-remote-remember-destination checked>
                     </label>
                     <label class="remote-request-toggle">
                         <span>
@@ -90,13 +88,6 @@
                                name="skipInspection"
                                value="true"
                                th:checked="${skipInspectByDefault}">
-                    </label>
-                    <label class="remote-request-toggle js-only">
-                        <span>
-                            <strong>Remember last destination</strong>
-                            <small>Keep the last queued destination in this browser.</small>
-                        </span>
-                        <input type="checkbox" data-remote-remember-destination checked>
                     </label>
                     <div class="remote-request-field remote-custom-headers">
                         <div class="remote-request-field-heading">
@@ -192,10 +183,6 @@
                 <div>
                     <dt>Request</dt>
                     <dd data-remote-probe="requestOptionsLabel">-</dd>
-                </div>
-                <div>
-                    <dt>Conflict</dt>
-                    <dd data-remote-probe="conflictPolicyLabel">-</dd>
                 </div>
                 <div>
                     <dt>Detail</dt>
@@ -312,7 +299,7 @@
                 <div><dt>Destination</dt><dd data-remote-task-detail="target">-</dd></div>
                 <div><dt>Route</dt><dd data-remote-task-detail="networkRouteLabel">-</dd></div>
                 <div><dt>Connections</dt><dd data-remote-task-detail="connections">-</dd></div>
-                <div><dt>Conflict</dt><dd data-remote-task-detail="conflictPolicyLabel">-</dd></div>
+                <div><dt>Pending decision</dt><dd data-remote-task-detail="pendingDecisionId">-</dd></div>
                 <div><dt>Retries</dt><dd data-remote-task-detail="retryCount">-</dd></div>
                 <div><dt>Created</dt><dd data-remote-task-detail="createdLabel">-</dd></div>
                 <div><dt>Started</dt><dd data-remote-task-detail="startedLabel">-</dd></div>

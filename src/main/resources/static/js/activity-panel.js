@@ -1,5 +1,5 @@
 (function () {
-    const terminalStatuses = new Set(["complete", "partial", "failed", "canceled"]);
+    const terminalStatuses = new Set(["pending", "complete", "partial", "failed", "canceled"]);
     const state = {
         items: new Map(),
         minimized: false,
@@ -109,6 +109,9 @@
         const status = normalizeStatus(item.status);
         if (status === "complete" || status === "partial") {
             return "upload-complete";
+        }
+        if (status === "pending") {
+            return "upload-pending";
         }
         if (status === "failed") {
             return "upload-failed";

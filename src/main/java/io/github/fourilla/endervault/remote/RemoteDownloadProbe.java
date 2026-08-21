@@ -2,7 +2,6 @@ package io.github.fourilla.endervault.remote;
 
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
 import io.github.fourilla.endervault.outbound.NetworkRoute;
-import io.github.fourilla.endervault.storage.ConflictPolicy;
 
 public record RemoteDownloadProbe(
         String sourceUrl,
@@ -16,7 +15,6 @@ public record RemoteDownloadProbe(
         RemoteDownloadProbeStatus status,
         RemoteDownloadRangeCapability rangeCapability,
         int requestedConnections,
-        ConflictPolicy conflictPolicy,
         boolean inspectionSkipped,
         int customHeaderCount,
         boolean cookieIncluded,
@@ -52,14 +50,6 @@ public record RemoteDownloadProbe(
         String inspection = inspectionSkipped ? ", inspection skipped" : "";
         return requestedConnections + " connection(s), " + customHeaderCount + " custom header(s)"
                 + cookie + inspection;
-    }
-
-    public String conflictPolicyLabel() {
-        return switch (conflictPolicy) {
-            case CANCEL -> "Cancel";
-            case RENAME -> "Rename and continue";
-            case OVERWRITE -> "Overwrite";
-        };
     }
 
     public boolean startAllowed() {

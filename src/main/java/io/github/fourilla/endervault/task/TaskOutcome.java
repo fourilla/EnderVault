@@ -9,6 +9,10 @@ public record TaskOutcome(
         return new TaskOutcome(TaskStatus.COMPLETE, message);
     }
 
+    public static TaskOutcome pending(String message) {
+        return new TaskOutcome(TaskStatus.PENDING, message);
+    }
+
     public static TaskOutcome partial(String message) {
         return new TaskOutcome(TaskStatus.PARTIAL, message);
     }

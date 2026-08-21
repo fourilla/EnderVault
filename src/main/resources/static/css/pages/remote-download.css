@@ -4,7 +4,7 @@
 
 .remote-download-form {
     display: grid;
-    grid-template-columns: minmax(260px, 1.5fr) minmax(210px, 1fr) minmax(110px, 0.35fr) auto;
+    grid-template-columns: minmax(260px, 1.5fr) minmax(210px, 1fr) auto;
     gap: var(--space-xl);
     align-items: end;
 }

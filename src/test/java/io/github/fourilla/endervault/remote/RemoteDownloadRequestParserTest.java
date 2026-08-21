@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.outbound.NetworkRoute;
-import io.github.fourilla.endervault.storage.ConflictPolicy;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,7 +28,6 @@ class RemoteDownloadRequestParserTest {
                 "incoming",
                 NetworkRoute.DIRECT,
                 4,
-                ConflictPolicy.RENAME,
                 false,
                 "Authorization: Bearer secret\nCookie: session=secret\nX-Client: EnderVault"
         );
@@ -37,7 +35,6 @@ class RemoteDownloadRequestParserTest {
         assertThat(request.sourceUri().toString()).contains("token=secret");
         assertThat(request.sourceLabel()).isEqualTo("https://example.com/file.bin?...");
         assertThat(request.requestedConnections()).isEqualTo(4);
-        assertThat(request.conflictPolicy()).isEqualTo(ConflictPolicy.RENAME);
         assertThat(request.inspectionSkipped()).isFalse();
         assertThat(request.headers()).containsEntry("Authorization", "Bearer secret")
                 .containsEntry("Cookie", "session=secret")
@@ -51,7 +48,6 @@ class RemoteDownloadRequestParserTest {
                 "",
                 NetworkRoute.DIRECT,
                 1,
-                ConflictPolicy.CANCEL,
                 false,
                 "Range: bytes=0-100"
         )).hasMessageContaining("managed by EnderVault");
@@ -61,7 +57,6 @@ class RemoteDownloadRequestParserTest {
                 "",
                 NetworkRoute.DIRECT,
                 1,
-                ConflictPolicy.CANCEL,
                 false,
                 "X-HTTP-Method-Override: DELETE"
         )).hasMessageContaining("managed by EnderVault");
@@ -74,7 +69,6 @@ class RemoteDownloadRequestParserTest {
                 "",
                 NetworkRoute.DIRECT,
                 1,
-                ConflictPolicy.CANCEL,
                 false,
                 "Authorization: Bearer secret"
         )).hasMessageContaining("Remote URL is required");
@@ -87,7 +81,6 @@ class RemoteDownloadRequestParserTest {
                 "",
                 NetworkRoute.DIRECT,
                 9,
-                ConflictPolicy.CANCEL,
                 false,
                 ""
         )).hasMessageContaining("between 1 and 8");
@@ -100,7 +93,6 @@ class RemoteDownloadRequestParserTest {
                 "",
                 NetworkRoute.DIRECT,
                 2,
-                ConflictPolicy.CANCEL,
                 true,
                 ""
         )).hasMessageContaining("exactly 1 connection");

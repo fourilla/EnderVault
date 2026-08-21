@@ -30,7 +30,7 @@ public class PendingFileDecisionMetadataInspector implements MetadataInspector {
     ) {
         this.pendingFileDecisionService = pendingFileDecisionService;
         this.storageService = storageService;
-        this.warningAge = Duration.ofDays(nasProperties.getFileRequest().getPendingWarningDays());
+        this.warningAge = Duration.ofDays(nasProperties.getPendingFileDecisions().getWarningDays());
     }
 
     @Override

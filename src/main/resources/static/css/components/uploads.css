@@ -137,6 +137,10 @@
     background: var(--success);
 }
 
+.upload-pending .upload-progress-bar {
+    background: var(--warning);
+}
+
 .upload-failed .upload-progress-bar,
 .upload-canceled .upload-progress-bar {
     background: var(--danger);
@@ -147,6 +151,11 @@
     border-color: var(--danger-line);
 }
 
+.upload-pending {
+    border-color: var(--warning-line);
+}
+
+.upload-pending,
 .upload-complete,
 .upload-failed,
 .upload-canceled {

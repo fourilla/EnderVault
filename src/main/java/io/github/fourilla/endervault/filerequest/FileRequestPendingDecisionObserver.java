@@ -4,6 +4,7 @@ import io.github.fourilla.endervault.pending.PendingFileDecision;
 import io.github.fourilla.endervault.pending.PendingFileDecisionAction;
 import io.github.fourilla.endervault.pending.PendingFileDecisionResolutionObserver;
 import io.github.fourilla.endervault.pending.PendingFileDecisionSource;
+import io.github.fourilla.endervault.storage.FileItem;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -25,7 +26,8 @@ public class FileRequestPendingDecisionObserver implements PendingFileDecisionRe
     public void afterResolved(
             PendingFileDecision decision,
             PendingFileDecisionAction action,
-            boolean discarded
+            boolean discarded,
+            FileItem committedFile
     ) throws Exception {
         if (discarded) {
             FileRequestUploadReference reference = FileRequestUploadReference.parse(decision.sourceReference());

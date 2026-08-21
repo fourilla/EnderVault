@@ -77,6 +77,7 @@ public class AppTask {
     public String statusClass() {
         return switch (status) {
             case COMPLETE -> "active";
+            case PENDING -> "warning";
             case PARTIAL, QUEUED, RUNNING -> "expired";
             case FAILED, CANCELED -> "revoked";
         };
@@ -123,7 +124,7 @@ public class AppTask {
         if (itemTotal > 0L) {
             return boundedPercent(processedItems(), itemTotal);
         }
-        return status == TaskStatus.COMPLETE || status == TaskStatus.PARTIAL ? 100 : 0;
+        return status == TaskStatus.PENDING || status == TaskStatus.COMPLETE || status == TaskStatus.PARTIAL ? 100 : 0;
     }
 
     public String progressLabel() {
@@ -165,12 +166,21 @@ public class AppTask {
     void markComplete(String message) {
         status = TaskStatus.COMPLETE;
         finishedAt = Instant.now();
+        cancelRequested = false;
         this.message = blankToDefault(message, "Complete.");
+    }
+
+    void markPending(String message) {
+        status = TaskStatus.PENDING;
+        finishedAt = Instant.now();
+        cancelRequested = false;
+        this.message = blankToDefault(message, "Waiting for review.");
     }
 
     void markPartial(String message) {
         status = TaskStatus.PARTIAL;
         finishedAt = Instant.now();
+        cancelRequested = false;
         this.message = blankToDefault(message, "Completed with warnings.");
     }
 

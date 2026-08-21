@@ -60,7 +60,10 @@
                 list.replaceChildren(...response.items.map(itemElement));
                 list.hidden = response.items.length === 0;
                 empty.hidden = response.items.length !== 0;
-                reviewAll.href = response.reviewAllHref;
+                reviewAll.hidden = !response.reviewAllHref;
+                if (response.reviewAllHref) {
+                    reviewAll.href = response.reviewAllHref;
+                }
             } catch (error) {
                 count.textContent = "Unavailable";
             }

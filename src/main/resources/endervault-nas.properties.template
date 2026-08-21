@@ -97,7 +97,13 @@ nas.file-request.custom-token-max-length=64
 nas.file-request.random-token-bytes=24
 # Per-request share of the global resumable chunk concurrency.
 nas.file-request.max-concurrent-uploads-per-request=2
-nas.file-request.pending-warning-days=30
+
+# ---------------------------------------------------------------------------
+# Pending file decisions
+# ---------------------------------------------------------------------------
+# Completed staging files are never deleted automatically. This age only marks
+# unresolved decisions as warnings in Metadata Inspector.
+nas.pending-file-decisions.warning-days=30
 
 # ---------------------------------------------------------------------------
 # Temporary artifacts
