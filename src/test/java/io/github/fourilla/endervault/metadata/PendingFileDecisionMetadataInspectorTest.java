@@ -35,7 +35,7 @@ class PendingFileDecisionMetadataInspectorTest {
         when(storageService.resolveFileStagingFile("old.tmp")).thenReturn(oldStaged);
         when(storageService.resolveVaultDirectory("incoming")).thenReturn(root);
         NasProperties properties = new NasProperties();
-        properties.getFileRequest().setPendingWarningDays(30);
+        properties.getPendingFileDecisions().setWarningDays(30);
         PendingFileDecisionMetadataInspector inspector = new PendingFileDecisionMetadataInspector(
                 pendingService,
                 storageService,

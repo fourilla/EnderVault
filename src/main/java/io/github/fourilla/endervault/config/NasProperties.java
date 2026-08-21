@@ -73,6 +73,9 @@ public class NasProperties {
     private FileRequest fileRequest = new FileRequest();
 
     @Valid
+    private PendingFileDecisions pendingFileDecisions = new PendingFileDecisions();
+
+    @Valid
     private Upload upload = new Upload();
 
     @Valid
@@ -229,6 +232,14 @@ public class NasProperties {
 
     public void setFileRequest(FileRequest fileRequest) {
         this.fileRequest = fileRequest;
+    }
+
+    public PendingFileDecisions getPendingFileDecisions() {
+        return pendingFileDecisions;
+    }
+
+    public void setPendingFileDecisions(PendingFileDecisions pendingFileDecisions) {
+        this.pendingFileDecisions = pendingFileDecisions;
     }
 
     public Upload getUpload() {
@@ -1459,10 +1470,6 @@ public class NasProperties {
         @Max(2)
         private int maxConcurrentUploadsPerRequest = 2;
 
-        @Min(1)
-        @Max(3650)
-        private int pendingWarningDays = 30;
-
         public boolean isEnabled() {
             return enabled;
         }
@@ -1550,13 +1557,19 @@ public class NasProperties {
         public void setMaxConcurrentUploadsPerRequest(int maxConcurrentUploadsPerRequest) {
             this.maxConcurrentUploadsPerRequest = maxConcurrentUploadsPerRequest;
         }
+    }
 
-        public int getPendingWarningDays() {
-            return pendingWarningDays;
+    public static class PendingFileDecisions {
+        @Min(1)
+        @Max(3650)
+        private int warningDays = 30;
+
+        public int getWarningDays() {
+            return warningDays;
         }
 
-        public void setPendingWarningDays(int pendingWarningDays) {
-            this.pendingWarningDays = pendingWarningDays;
+        public void setWarningDays(int warningDays) {
+            this.warningDays = warningDays;
         }
     }
 
