@@ -152,6 +152,89 @@ class FileCommitCoordinatorTest {
                 .isEqualTo(FileCommitPhase.NEEDS_REVIEW);
     }
 
+    @Test
+    void replacesAnUnchangedTargetAndRemovesTheRecoveryBackup() throws IOException {
+        FileCommitOwner owner = owner();
+        Path staged = stagedFile("replacement");
+        Path target = target("incoming/note.txt");
+        Files.writeString(target, "existing");
+
+        FileCommitCoordinator.StagedFileCommit commit = coordinator.commitSingleFile(
+                owner,
+                staged,
+                "incoming",
+                "note.txt",
+                ConflictPolicy.OVERWRITE
+        );
+
+        assertThat(target).hasContent("replacement");
+        assertThat(staged).doesNotExist();
+        assertThat(replacementBackup(commit.operationId())).doesNotExist();
+        assertThat(journalStore.load(commit.operationId()).state().phase())
+                .isEqualTo(FileCommitPhase.APPLYING_METADATA);
+    }
+
+    @Test
+    void resumesReplacementAfterAtomicMoveBeforeJournalAdvance() throws IOException {
+        FileCommitOwner owner = owner();
+        Path staged = stagedFile("replacement");
+        Path target = target("incoming/note.txt");
+        Files.writeString(target, "existing");
+        FileCommitJournalEntry journal = createCommittingJournal(
+                owner,
+                staged,
+                "incoming/note.txt",
+                ConflictPolicy.OVERWRITE,
+                FileCommitCoordinator.fingerprint(target)
+        );
+        Path backup = replacementBackup(journal.manifest().operationId());
+        storageService.createStagedRegularFileReplacementBackup("incoming", "note.txt", backup);
+        storageService.commitStagedRegularFileReplace(staged, "incoming", "note.txt");
+
+        FileCommitCoordinator.StagedFileCommit commit = coordinator.commitSingleFile(
+                owner,
+                staged,
+                "incoming",
+                "note.txt",
+                ConflictPolicy.OVERWRITE
+        );
+
+        assertThat(commit.operationId()).isEqualTo(journal.manifest().operationId());
+        assertThat(target).hasContent("replacement");
+        assertThat(backup).doesNotExist();
+        assertThat(journalStore.load(commit.operationId()).state().phase())
+                .isEqualTo(FileCommitPhase.APPLYING_METADATA);
+    }
+
+    @Test
+    void refusesToReplaceATargetChangedAfterTheJournalWasPrepared() throws IOException {
+        FileCommitOwner owner = owner();
+        Path staged = stagedFile("replacement");
+        Path target = target("incoming/note.txt");
+        Files.writeString(target, "existing");
+        FileCommitJournalEntry journal = createCommittingJournal(
+                owner,
+                staged,
+                "incoming/note.txt",
+                ConflictPolicy.OVERWRITE,
+                FileCommitCoordinator.fingerprint(target)
+        );
+        Files.writeString(target, "changed outside EnderVault");
+
+        assertThatThrownBy(() -> coordinator.commitSingleFile(
+                owner,
+                staged,
+                "incoming",
+                "note.txt",
+                ConflictPolicy.OVERWRITE
+        )).isInstanceOf(FileCommitRecoveryRequiredException.class);
+
+        assertThat(staged).hasContent("replacement");
+        assertThat(target).hasContent("changed outside EnderVault");
+        assertThat(journalStore.load(journal.manifest().operationId()).state().phase())
+                .isEqualTo(FileCommitPhase.NEEDS_REVIEW);
+    }
+
     private Path stagedFile(String content) throws IOException {
         Path staged = storageService.resumableUploadStagingFile(UUID.randomUUID().toString());
         Files.writeString(staged, content);
@@ -169,18 +252,28 @@ class FileCommitCoordinatorTest {
             Path staged,
             String targetPath
     ) throws IOException {
+        return createCommittingJournal(owner, staged, targetPath, ConflictPolicy.CANCEL, null);
+    }
+
+    private FileCommitJournalEntry createCommittingJournal(
+            FileCommitOwner owner,
+            Path staged,
+            String targetPath,
+            ConflictPolicy conflictPolicy,
+            FileCommitFingerprint targetSnapshot
+    ) throws IOException {
         FileCommitManifest manifest = new FileCommitManifest(
                 FileCommitManifest.CURRENT_SCHEMA_VERSION,
                 UUID.randomUUID().toString(),
                 owner,
                 FileCommitOperationType.SINGLE_FILE,
-                ConflictPolicy.CANCEL,
+                conflictPolicy,
                 List.of(new FileCommitItem(
                         0,
                         ".endervault/file-staging/" + staged.getFileName(),
                         targetPath,
                         FileCommitCoordinator.fingerprint(staged),
-                        null
+                        targetSnapshot
                 )),
                 Instant.now()
         );
@@ -192,6 +285,10 @@ class FileCommitCoordinatorTest {
                 "Committing staged file.",
                 Instant.now()
         ));
+    }
+
+    private Path replacementBackup(String operationId) {
+        return storageService.resolveFileStagingFile("file-commit-backup-" + operationId + ".tmp");
     }
 
     private FileCommitOwner owner() {

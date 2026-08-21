@@ -1,6 +1,10 @@
 package io.github.fourilla.endervault.pending;
 
 import io.github.fourilla.endervault.common.StorageAccessException;
+import io.github.fourilla.endervault.filecommit.FileCommitConflictException;
+import io.github.fourilla.endervault.filecommit.FileCommitCoordinator;
+import io.github.fourilla.endervault.filecommit.FileCommitOwner;
+import io.github.fourilla.endervault.filecommit.FileCommitOwnerType;
 import io.github.fourilla.endervault.pending.PendingFileDecision.TargetSnapshot;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
 import io.github.fourilla.endervault.storage.FileItem;
@@ -32,6 +36,7 @@ public class PendingFileDecisionService {
 
     private final PendingFileDecisionRepository repository;
     private final StorageService storageService;
+    private final FileCommitCoordinator fileCommitCoordinator;
     private final TemporaryArtifactRegistry temporaryArtifactRegistry;
     private final List<PendingFileDecisionResolutionObserver> resolutionObservers;
     private final Map<String, TemporaryArtifactRegistry.Registration> registrations = new HashMap<>();
@@ -39,11 +44,13 @@ public class PendingFileDecisionService {
     public PendingFileDecisionService(
             PendingFileDecisionRepository repository,
             StorageService storageService,
+            FileCommitCoordinator fileCommitCoordinator,
             TemporaryArtifactRegistry temporaryArtifactRegistry,
             List<PendingFileDecisionResolutionObserver> resolutionObservers
     ) {
         this.repository = repository;
         this.storageService = storageService;
+        this.fileCommitCoordinator = fileCommitCoordinator;
         this.temporaryArtifactRegistry = temporaryArtifactRegistry;
         this.resolutionObservers = List.copyOf(resolutionObservers);
     }
@@ -128,6 +135,10 @@ public class PendingFileDecisionService {
                 .findFirst();
     }
 
+    public synchronized Optional<PendingFileDecision> find(String id) throws IOException {
+        return repository.find(cleanId(id));
+    }
+
     public synchronized PendingFileDecisionResult resolve(
             String id,
             PendingFileDecisionAction action,
@@ -150,7 +161,12 @@ public class PendingFileDecisionService {
 
         String filename = decision.originalFilename();
         ConflictPolicy policy = switch (action) {
-            case KEEP_BOTH -> ConflictPolicy.RENAME;
+            case KEEP_BOTH -> {
+                filename = storageService.resolveAvailableVaultFilename(
+                        decision.destinationPath(), decision.originalFilename()
+                );
+                yield ConflictPolicy.RENAME;
+            }
             case SAVE_AS -> {
                 filename = cleanFilename(requestedFilename);
                 storageService.validateVaultEntryName(filename);
@@ -166,15 +182,34 @@ public class PendingFileDecisionService {
             case DISCARD -> throw new IllegalStateException("Discard is handled before file commit.");
         };
 
-        FileItem committed = storageService.moveTemporaryFileIntoVault(
-                stagedFile,
-                decision.destinationPath(),
-                filename,
-                policy
-        );
+        FileCommitCoordinator.StagedFileCommit commit;
+        try {
+            commit = fileCommitCoordinator.commitSingleFile(
+                    new FileCommitOwner(FileCommitOwnerType.PENDING_FILE_DECISION, decision.id()),
+                    stagedFile,
+                    decision.destinationPath(),
+                    filename,
+                    policy
+            );
+        } catch (FileCommitConflictException ex) {
+            fileCommitCoordinator.completeConflict(ex.operationId());
+            throw ex;
+        }
+        FileItem committed = storageService.describeVaultPath(commit.file().path());
         complete(decision.id());
+        fileCommitCoordinator.complete(commit.operationId());
         notifyResolved(decision, action, false, committed);
         return new PendingFileDecisionResult(decision, committed, false);
+    }
+
+    public synchronized void completeRecoveredCommit(
+            PendingFileDecision decision,
+            PendingFileDecisionAction action,
+            String committedPath
+    ) throws IOException {
+        FileItem committed = storageService.describeVaultPath(committedPath);
+        complete(decision.id());
+        notifyResolved(decision, action, false, committed);
     }
 
     public synchronized PendingFileDecision removeMissingData(String id) throws IOException {

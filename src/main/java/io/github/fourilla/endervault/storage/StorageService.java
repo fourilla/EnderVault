@@ -493,6 +493,13 @@ public class StorageService {
         );
     }
 
+    public String resolveAvailableVaultFilename(String directoryPath, String filename) throws IOException {
+        Path target = pathResolver.resolveChild(StorageScope.VAULT, directoryPath, filename, false);
+        StorageConflictResolver.StorageConflictTarget resolvedTarget =
+                conflictResolver.resolve(target, false, ConflictPolicy.RENAME);
+        return resolvedTarget.path().getFileName().toString();
+    }
+
     public CommittedVaultFile commitStagedRegularFileNoReplace(
             Path stagedFile,
             String directoryPath,
@@ -504,6 +511,34 @@ public class StorageService {
                 target.getFileName().toString(),
                 pathResolver.toRelativePath(root, target)
         );
+    }
+
+    public void createStagedRegularFileReplacementBackup(
+            String directoryPath,
+            String filename,
+            Path backupFile
+    ) throws IOException {
+        Path target = pathResolver.resolveChild(StorageScope.VAULT, directoryPath, filename, true);
+        Path canonicalBackup = resolveFileStagingFile(fileStagingFilename(backupFile));
+        treeOperations.createRegularFileReplacementBackup(target, canonicalBackup);
+    }
+
+    public CommittedVaultFile commitStagedRegularFileReplace(
+            Path stagedFile,
+            String directoryPath,
+            String filename
+    ) throws IOException {
+        Path target = pathResolver.resolveChild(StorageScope.VAULT, directoryPath, filename, true);
+        treeOperations.commitRegularFileReplace(stagedFile, target);
+        return new CommittedVaultFile(
+                target.getFileName().toString(),
+                pathResolver.toRelativePath(root, target)
+        );
+    }
+
+    public void deleteStagedRegularFileReplacementBackup(Path backupFile) throws IOException {
+        Path canonicalBackup = resolveFileStagingFile(fileStagingFilename(backupFile));
+        treeOperations.deleteRegularFileReplacementBackup(canonicalBackup);
     }
 
     public Path createArchiveExtractionWorkspace() throws IOException {

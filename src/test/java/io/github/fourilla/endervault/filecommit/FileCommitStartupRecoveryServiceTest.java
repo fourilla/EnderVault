@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.pending.PendingFileDecisionRepository;
+import io.github.fourilla.endervault.pending.PendingFileDecision;
+import io.github.fourilla.endervault.pending.PendingFileDecisionAction;
 import io.github.fourilla.endervault.pending.PendingFileDecisionService;
 import io.github.fourilla.endervault.pending.PendingFileDecisionSource;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
@@ -51,6 +53,7 @@ class FileCommitStartupRecoveryServiceTest {
         pendingFileDecisionService = new PendingFileDecisionService(
                 repository,
                 storageService,
+                coordinator,
                 temporaryArtifactRegistry,
                 List.of()
         );
@@ -143,6 +146,100 @@ class FileCommitStartupRecoveryServiceTest {
         assertThat(journalStore.load(journal.manifest().operationId()).state().phase())
                 .isEqualTo(FileCommitPhase.NEEDS_REVIEW);
         assertThat(pendingFileDecisionService.list()).isEmpty();
+    }
+
+    @Test
+    void finishesPendingReplacementAfterTheFileMoveCompletedBeforeMetadataRemoval() throws Exception {
+        Files.writeString(root.resolve("note.txt"), "existing");
+        Path staged = stagedFile("replacement");
+        PendingFileDecision decision = pendingFileDecisionService.create(
+                staged,
+                PendingFileDecisionSource.FILE_REQUEST,
+                "",
+                "note.txt",
+                Files.size(staged)
+        );
+        FileCommitCoordinator.StagedFileCommit commit = coordinator.commitSingleFile(
+                new FileCommitOwner(FileCommitOwnerType.PENDING_FILE_DECISION, decision.id()),
+                staged,
+                "",
+                "note.txt",
+                ConflictPolicy.OVERWRITE
+        );
+
+        assertThat(journalStore.load(commit.operationId()).state().phase())
+                .isEqualTo(FileCommitPhase.APPLYING_METADATA);
+        assertThat(pendingFileDecisionService.list()).extracting(PendingFileDecision::id)
+                .containsExactly(decision.id());
+
+        FileCommitStartupRecoveryService.RecoverySummary summary = recoveryService.recover();
+
+        assertThat(summary.recovered()).isEqualTo(1);
+        assertThat(root.resolve("note.txt")).hasContent("replacement");
+        assertThat(pendingFileDecisionService.list()).isEmpty();
+        assertThat(journalStore.list()).isEmpty();
+    }
+
+    @Test
+    void removesJournalWhenPendingMetadataWasRemovedBeforeJournalCompletion() throws Exception {
+        Path staged = stagedFile("saved content");
+        PendingFileDecision decision = pendingFileDecisionService.create(
+                staged,
+                PendingFileDecisionSource.FILE_REQUEST,
+                "",
+                "draft.txt",
+                Files.size(staged)
+        );
+        FileCommitCoordinator.StagedFileCommit commit = coordinator.commitSingleFile(
+                new FileCommitOwner(FileCommitOwnerType.PENDING_FILE_DECISION, decision.id()),
+                staged,
+                "",
+                "saved.txt",
+                ConflictPolicy.CANCEL
+        );
+        pendingFileDecisionService.completeRecoveredCommit(
+                decision,
+                PendingFileDecisionAction.SAVE_AS,
+                commit.file().path()
+        );
+
+        FileCommitStartupRecoveryService.RecoverySummary summary = recoveryService.recover();
+
+        assertThat(summary.recovered()).isEqualTo(1);
+        assertThat(root.resolve("saved.txt")).hasContent("saved content");
+        assertThat(pendingFileDecisionService.list()).isEmpty();
+        assertThat(journalStore.list()).isEmpty();
+    }
+
+    @Test
+    void clearsAbortedPendingCommitJournalAndLeavesDecisionAvailableForRetry() throws Exception {
+        Files.writeString(root.resolve("late.txt"), "late collision");
+        Path staged = stagedFile("pending content");
+        PendingFileDecision decision = pendingFileDecisionService.create(
+                staged,
+                PendingFileDecisionSource.FILE_REQUEST,
+                "",
+                "original.txt",
+                Files.size(staged)
+        );
+        org.assertj.core.api.Assertions.catchThrowableOfType(
+                () -> coordinator.commitSingleFile(
+                        new FileCommitOwner(FileCommitOwnerType.PENDING_FILE_DECISION, decision.id()),
+                        staged,
+                        "",
+                        "late.txt",
+                        ConflictPolicy.CANCEL
+                ),
+                FileCommitConflictException.class
+        );
+
+        FileCommitStartupRecoveryService.RecoverySummary summary = recoveryService.recover();
+
+        assertThat(summary.pending()).isEqualTo(1);
+        assertThat(pendingFileDecisionService.list()).extracting(PendingFileDecision::id)
+                .containsExactly(decision.id());
+        assertThat(staged).hasContent("pending content");
+        assertThat(journalStore.list()).isEmpty();
     }
 
     private Path stagedFile(String content) throws IOException {

@@ -94,6 +94,68 @@ final class StorageTreeOperations {
         forceDirectory(source.getParent());
     }
 
+    void createRegularFileReplacementBackup(Path target, Path backup) throws IOException {
+        rejectSymbolicLink(target);
+        if (!Files.isRegularFile(target, LinkOption.NOFOLLOW_LINKS)) {
+            throw new StorageAccessException("File replacement target is not a regular file.");
+        }
+        if (Files.exists(backup, LinkOption.NOFOLLOW_LINKS)) {
+            rejectSymbolicLink(backup);
+            if (!Files.isRegularFile(backup, LinkOption.NOFOLLOW_LINKS)) {
+                throw new StorageAccessException("File replacement backup is not a regular file.");
+            }
+            return;
+        }
+        FileStore targetStore = Files.getFileStore(target);
+        FileStore backupStore = Files.getFileStore(backup.getParent());
+        if (!targetStore.equals(backupStore)) {
+            throw new StorageAccessException("Crash-safe file replacement requires one filesystem.");
+        }
+        try {
+            Files.createLink(backup, target);
+        } catch (UnsupportedOperationException ex) {
+            throw new StorageAccessException(
+                    "The destination filesystem does not support crash-safe file replacement.",
+                    ex
+            );
+        }
+        forceDirectory(backup.getParent());
+    }
+
+    void commitRegularFileReplace(Path source, Path target) throws IOException {
+        rejectSymbolicLink(source);
+        rejectSymbolicLink(target);
+        if (!Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)
+                || !Files.isRegularFile(target, LinkOption.NOFOLLOW_LINKS)) {
+            throw new StorageAccessException("Crash-safe replacement requires regular files.");
+        }
+        Path targetParent = target.getParent();
+        FileStore sourceStore = Files.getFileStore(source);
+        FileStore targetStore = Files.getFileStore(targetParent);
+        if (!sourceStore.equals(targetStore)) {
+            throw new StorageAccessException("Crash-safe file replacement requires one filesystem.");
+        }
+        try {
+            Files.move(source, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        } catch (AtomicMoveNotSupportedException ex) {
+            throw new StorageAccessException("The destination filesystem does not support atomic file replacement.", ex);
+        }
+        forceDirectory(targetParent);
+        forceDirectory(source.getParent());
+    }
+
+    void deleteRegularFileReplacementBackup(Path backup) throws IOException {
+        if (!Files.exists(backup, LinkOption.NOFOLLOW_LINKS)) {
+            return;
+        }
+        rejectSymbolicLink(backup);
+        if (!Files.isRegularFile(backup, LinkOption.NOFOLLOW_LINKS)) {
+            throw new StorageAccessException("File replacement backup is not a regular file.");
+        }
+        Files.delete(backup);
+        forceDirectory(backup.getParent());
+    }
+
     private void forceDirectory(Path directory) throws IOException {
         try (FileChannel channel = FileChannel.open(directory, StandardOpenOption.READ)) {
             channel.force(true);

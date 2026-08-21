@@ -99,6 +99,7 @@ class RemoteDownloadServiceTest {
         pendingFileDecisionService = new PendingFileDecisionService(
                 pendingRepository,
                 storageService,
+                fileCommitCoordinator,
                 temporaryArtifactRegistry,
                 List.of(new RemoteDownloadPendingDecisionObserver(taskStore))
         );

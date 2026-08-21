@@ -2,6 +2,7 @@ package io.github.fourilla.endervault.filecommit;
 
 import io.github.fourilla.endervault.filecommit.FileCommitCoordinator.SingleFileCommitPlan;
 import io.github.fourilla.endervault.pending.PendingFileDecision;
+import io.github.fourilla.endervault.pending.PendingFileDecisionAction;
 import io.github.fourilla.endervault.pending.PendingFileDecisionService;
 import io.github.fourilla.endervault.pending.PendingFileDecisionSource;
 import java.io.IOException;
@@ -74,6 +75,9 @@ public class FileCommitStartupRecoveryService {
     private RecoveryOutcome recover(FileCommitJournalEntry entry) throws IOException {
         String operationId = entry.manifest().operationId();
         FileCommitOwner owner = entry.manifest().owner();
+        if (owner.type() == FileCommitOwnerType.PENDING_FILE_DECISION) {
+            return recoverPendingDecision(entry);
+        }
         PendingFileDecisionSource pendingSource = pendingSource(owner.type());
         Optional<PendingFileDecision> existingPending = pendingFileDecisionService.findBySourceReference(
                 pendingSource,
@@ -108,6 +112,62 @@ public class FileCommitStartupRecoveryService {
         }
     }
 
+    private RecoveryOutcome recoverPendingDecision(FileCommitJournalEntry entry) throws IOException {
+        String operationId = entry.manifest().operationId();
+        String decisionId = entry.manifest().owner().id();
+        Optional<PendingFileDecision> pending = pendingFileDecisionService.find(decisionId);
+        FileCommitPhase phase = entry.state().phase();
+
+        if (phase == FileCommitPhase.NEEDS_REVIEW) {
+            return RecoveryOutcome.DEFERRED;
+        }
+        if (phase == FileCommitPhase.ABORTED) {
+            if (pending.isPresent()) {
+                coordinator.completeConflict(operationId);
+                return RecoveryOutcome.PENDING;
+            }
+            return RecoveryOutcome.DEFERRED;
+        }
+        if (phase == FileCommitPhase.COMPLETED) {
+            if (pending.isPresent()) {
+                return RecoveryOutcome.DEFERRED;
+            }
+            coordinator.complete(operationId);
+            return RecoveryOutcome.RECOVERED;
+        }
+        if (pending.isEmpty()) {
+            if (phase == FileCommitPhase.FILES_MOVED || phase == FileCommitPhase.APPLYING_METADATA) {
+                FileCommitCoordinator.StagedFileCommit commit = coordinator.resumeSingleFile(operationId);
+                coordinator.complete(commit.operationId());
+                return RecoveryOutcome.RECOVERED;
+            }
+            return RecoveryOutcome.DEFERRED;
+        }
+
+        FileCommitCoordinator.StagedFileCommit commit;
+        try {
+            commit = coordinator.resumeSingleFile(operationId);
+        } catch (FileCommitConflictException ex) {
+            coordinator.completeConflict(ex.operationId());
+            return RecoveryOutcome.PENDING;
+        }
+        pendingFileDecisionService.completeRecoveredCommit(
+                pending.get(),
+                pendingAction(entry.manifest().conflictPolicy()),
+                commit.file().path()
+        );
+        coordinator.complete(commit.operationId());
+        return RecoveryOutcome.RECOVERED;
+    }
+
+    private PendingFileDecisionAction pendingAction(io.github.fourilla.endervault.storage.ConflictPolicy policy) {
+        return switch (policy) {
+            case RENAME -> PendingFileDecisionAction.KEEP_BOTH;
+            case CANCEL -> PendingFileDecisionAction.SAVE_AS;
+            case OVERWRITE -> PendingFileDecisionAction.REPLACE;
+        };
+    }
+
     private void handoffConflict(
             SingleFileCommitPlan plan,
             PendingFileDecisionSource pendingSource
@@ -126,7 +186,8 @@ public class FileCommitStartupRecoveryService {
 
     private boolean supports(FileCommitOwnerType ownerType) {
         return ownerType == FileCommitOwnerType.REMOTE_DOWNLOAD
-                || ownerType == FileCommitOwnerType.ARCHIVE_CREATE;
+                || ownerType == FileCommitOwnerType.ARCHIVE_CREATE
+                || ownerType == FileCommitOwnerType.PENDING_FILE_DECISION;
     }
 
     private PendingFileDecisionSource pendingSource(FileCommitOwnerType ownerType) {

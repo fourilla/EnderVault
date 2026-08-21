@@ -70,6 +70,7 @@ class ArchiveCreationTaskServiceTest {
         pendingFileDecisionService = new PendingFileDecisionService(
                 pendingRepository,
                 storageService,
+                fileCommitCoordinator,
                 temporaryArtifactRegistry,
                 List.of(new ArchiveOutputPendingDecisionObserver(taskManagerService))
         );
