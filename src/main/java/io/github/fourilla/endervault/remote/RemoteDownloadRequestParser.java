@@ -2,7 +2,6 @@ package io.github.fourilla.endervault.remote;
 
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.outbound.NetworkRoute;
-import io.github.fourilla.endervault.storage.ConflictPolicy;
 import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -55,7 +54,6 @@ public class RemoteDownloadRequestParser {
             String targetDirectory,
             NetworkRoute networkRoute,
             int connections,
-            ConflictPolicy conflictPolicy,
             boolean skipInspection,
             String customHeaders
     ) {
@@ -64,9 +62,6 @@ public class RemoteDownloadRequestParser {
         }
         if (skipInspection && connections != 1) {
             throw new StorageAccessException("Skipping inspection requires exactly 1 connection.");
-        }
-        if (conflictPolicy == null) {
-            throw new StorageAccessException("A conflict policy is required.");
         }
         String cleanUrl = clean(rawUrl);
         if (!StringUtils.hasText(cleanUrl)) {
@@ -81,7 +76,6 @@ public class RemoteDownloadRequestParser {
                 targetDirectory == null ? "" : targetDirectory.trim(),
                 networkRoute,
                 connections,
-                conflictPolicy,
                 skipInspection,
                 headers
         );

@@ -1,7 +1,6 @@
 package io.github.fourilla.endervault.remote;
 
 import io.github.fourilla.endervault.outbound.NetworkRoute;
-import io.github.fourilla.endervault.storage.ConflictPolicy;
 import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -12,7 +11,6 @@ public record RemoteDownloadRequestSpec(
         String targetDirectory,
         NetworkRoute networkRoute,
         int requestedConnections,
-        ConflictPolicy conflictPolicy,
         boolean inspectionSkipped,
         Map<String, String> headers
 ) {
@@ -28,14 +26,6 @@ public record RemoteDownloadRequestSpec(
 
     public boolean cookieIncluded() {
         return headers.keySet().stream().anyMatch("cookie"::equalsIgnoreCase);
-    }
-
-    public String conflictPolicyLabel() {
-        return switch (conflictPolicy) {
-            case CANCEL -> "Cancel";
-            case RENAME -> "Rename and continue";
-            case OVERWRITE -> "Overwrite";
-        };
     }
 
     public String sourceLabel() {

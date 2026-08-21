@@ -9,7 +9,9 @@ import io.github.fourilla.endervault.auth.ClientIpResolver;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.filetool.FileActionRegistry;
-import io.github.fourilla.endervault.storage.ConflictPolicy;
+import io.github.fourilla.endervault.pending.PendingFileDecisionAction;
+import io.github.fourilla.endervault.pending.PendingFileDecisionRepository;
+import io.github.fourilla.endervault.pending.PendingFileDecisionService;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.task.AppTask;
 import io.github.fourilla.endervault.task.TaskManagerService;
@@ -39,6 +41,7 @@ class ArchiveCreationTaskServiceTest {
     private TaskManagerService taskManagerService;
     private ArchiveCreationTaskService service;
     private TemporaryArtifactRegistry temporaryArtifactRegistry;
+    private PendingFileDecisionService pendingFileDecisionService;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -49,17 +52,25 @@ class ArchiveCreationTaskServiceTest {
         storageService = new StorageService(properties, new FileActionRegistry(), temporaryArtifactRegistry);
         storageService.initialize();
         taskManagerService = new TaskManagerService(properties);
-        ActivityLogService activityLogService = new ActivityLogService(
-                new ObjectMapper().findAndRegisterModules(),
-                properties
-        );
+        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        ActivityLogService activityLogService = new ActivityLogService(objectMapper, properties);
         activityLogService.initialize();
+        PendingFileDecisionRepository pendingRepository = new PendingFileDecisionRepository(objectMapper, properties);
+        pendingRepository.initialize();
+        pendingFileDecisionService = new PendingFileDecisionService(
+                pendingRepository,
+                storageService,
+                temporaryArtifactRegistry,
+                List.of(new ArchiveOutputPendingDecisionObserver(taskManagerService))
+        );
+        pendingFileDecisionService.restoreRegistrations();
         service = new ArchiveCreationTaskService(
                 storageService,
                 taskManagerService,
                 activityLogService,
                 new ClientIpResolver(properties),
-                temporaryArtifactRegistry
+                temporaryArtifactRegistry,
+                pendingFileDecisionService
         );
     }
 
@@ -78,7 +89,6 @@ class ArchiveCreationTaskServiceTest {
                 "",
                 List.of("docs", "note.txt"),
                 "bundle",
-                ConflictPolicy.CANCEL,
                 request()
         );
         waitUntilFinished(task);
@@ -95,7 +105,7 @@ class ArchiveCreationTaskServiceTest {
     }
 
     @Test
-    void renamePolicyPreservesExistingArchive() throws Exception {
+    void existingArchiveQueuesCompletedZipForReview() throws Exception {
         Files.writeString(root.resolve("report.txt"), "new report");
         Files.writeString(root.resolve("report.zip"), "existing archive");
 
@@ -103,33 +113,33 @@ class ArchiveCreationTaskServiceTest {
                 "",
                 List.of("report.txt"),
                 "",
-                ConflictPolicy.RENAME,
                 request()
         );
         waitUntilFinished(task);
 
-        assertThat(task.status()).isEqualTo(TaskStatus.COMPLETE);
+        assertThat(task.status()).isEqualTo(TaskStatus.PENDING);
         assertThat(root.resolve("report.zip")).hasContent("existing archive");
+        assertThat(pendingFileDecisionService.list()).hasSize(1);
+        pendingFileDecisionService.resolve(
+                pendingFileDecisionService.list().get(0).id(),
+                PendingFileDecisionAction.KEEP_BOTH,
+                null,
+                false
+        );
+        assertThat(task.status()).isEqualTo(TaskStatus.COMPLETE);
         assertThat(zipEntries(root.resolve("report - 1.zip"))).containsEntry("report.txt", "new report");
+        assertThat(pendingFileDecisionService.list()).isEmpty();
+        assertThat(temporaryArtifactRegistry.activeArtifacts()).isEmpty();
     }
 
     @Test
-    void rejectsOverwriteAndEmptySelectionsBeforeQueuing() throws Exception {
+    void rejectsEmptySelectionsBeforeQueuing() throws Exception {
         Files.writeString(root.resolve("note.txt"), "note");
 
         assertThatThrownBy(() -> service.queue(
                 "",
-                List.of("note.txt"),
-                "note.zip",
-                ConflictPolicy.OVERWRITE,
-                request()
-        )).isInstanceOf(StorageAccessException.class)
-                .hasMessageContaining("cancel or rename");
-        assertThatThrownBy(() -> service.queue(
-                "",
                 List.of(),
                 "empty.zip",
-                ConflictPolicy.CANCEL,
                 request()
         )).isInstanceOf(StorageAccessException.class)
                 .hasMessageContaining("Select at least one item");

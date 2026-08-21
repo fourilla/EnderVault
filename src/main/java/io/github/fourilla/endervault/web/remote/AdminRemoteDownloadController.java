@@ -61,7 +61,6 @@ public class AdminRemoteDownloadController {
             @RequestParam(value = "path", required = false) String path,
             @RequestParam(value = "networkRoute", defaultValue = "global") String networkRoute,
             @RequestParam(value = "connections", defaultValue = "1") int connections,
-            @RequestParam(value = "conflictPolicy", defaultValue = "default") String conflictPolicy,
             @RequestParam(value = "skipInspection", defaultValue = "false") boolean skipInspection,
             @RequestParam(value = "customHeaders", required = false) String customHeaders,
             HttpServletRequest request,
@@ -72,7 +71,6 @@ public class AdminRemoteDownloadController {
                 path,
                 resolveRoute(networkRoute),
                 connections,
-                conflictPolicy,
                 skipInspection,
                 customHeaders,
                 request

@@ -83,6 +83,30 @@ final class FileStagingService {
         }
     }
 
+    Path claimTemporaryFile(Path sourceFile, String prefix, String suffix) throws IOException {
+        Path source = sourceFile.toAbsolutePath().normalize();
+        if (!Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(source)) {
+            throw new StorageAccessException("Temporary source is not a regular file.");
+        }
+        Files.createDirectories(fileStagingRoot);
+        Path target = Files.createTempFile(fileStagingRoot, prefix, suffix);
+        try {
+            try {
+                return Files.move(
+                        source,
+                        target,
+                        StandardCopyOption.ATOMIC_MOVE,
+                        StandardCopyOption.REPLACE_EXISTING
+                );
+            } catch (java.nio.file.AtomicMoveNotSupportedException ex) {
+                return Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException | RuntimeException ex) {
+            Files.deleteIfExists(target);
+            throw ex;
+        }
+    }
+
     Path resumableStagingFile(String sessionId) {
         if (sessionId == null || !sessionId.matches("[0-9a-fA-F-]{36}")) {
             throw new StorageAccessException("Invalid resumable upload session id.");

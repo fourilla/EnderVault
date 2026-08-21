@@ -501,6 +501,11 @@ public class StorageService {
         return archiveStagingCommitter.createWorkspace("create-");
     }
 
+    public Path claimArchiveCreationOutput(Path archiveOutput) throws IOException {
+        Path safeOutput = archiveStagingCommitter.requireCreationOutput(archiveOutput);
+        return fileStagingService.claimTemporaryFile(safeOutput, "archive-output-", ".tmp");
+    }
+
     public FileItem commitTemporaryDirectoryIntoVault(
             Path temporaryDirectory,
             String directoryPath,

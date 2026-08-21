@@ -2,6 +2,10 @@ package io.github.fourilla.endervault.remote;
 
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.pending.PendingFileDecision;
+import io.github.fourilla.endervault.pending.PendingFileDecisionService;
+import io.github.fourilla.endervault.pending.PendingFileDecisionSource;
+import io.github.fourilla.endervault.storage.ConflictPolicy;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
 import io.github.fourilla.endervault.temporary.TemporaryArtifactType;
@@ -12,6 +16,7 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
@@ -36,6 +41,7 @@ public class RemoteDownloadTransferEngine {
     private final RemoteDownloadFileNameResolver fileNameResolver;
     private final RemoteDownloadRetryPolicy retryPolicy;
     private final TemporaryArtifactRegistry temporaryArtifactRegistry;
+    private final PendingFileDecisionService pendingFileDecisionService;
     private final ExecutorService segmentExecutor;
 
     public RemoteDownloadTransferEngine(
@@ -44,7 +50,8 @@ public class RemoteDownloadTransferEngine {
             RemoteDownloadHttpClient httpClient,
             RemoteDownloadFileNameResolver fileNameResolver,
             RemoteDownloadRetryPolicy retryPolicy,
-            TemporaryArtifactRegistry temporaryArtifactRegistry
+            TemporaryArtifactRegistry temporaryArtifactRegistry,
+            PendingFileDecisionService pendingFileDecisionService
     ) {
         this.nasProperties = nasProperties;
         this.storageService = storageService;
@@ -52,6 +59,7 @@ public class RemoteDownloadTransferEngine {
         this.fileNameResolver = fileNameResolver;
         this.retryPolicy = retryPolicy;
         this.temporaryArtifactRegistry = temporaryArtifactRegistry;
+        this.pendingFileDecisionService = pendingFileDecisionService;
         int segmentWorkers = nasProperties.getRemoteDownload().getWorkerThreads()
                 * RemoteDownloadRequestParser.MAX_CONNECTIONS;
         this.segmentExecutor = Executors.newFixedThreadPool(segmentWorkers);
@@ -68,28 +76,51 @@ public class RemoteDownloadTransferEngine {
                 task.id()
         );
         boolean committed = false;
+        boolean retainedForDecision = false;
         try {
             String fileName = requestSpec.requestedConnections() == 1
                     ? downloadSingle(task, requestSpec, temporaryFile)
                     : downloadParallel(task, requestSpec, temporaryFile);
             throwIfCanceled(task);
-            StorageService.CommittedVaultFile committedFile = storageService.commitTemporaryFileIntoVault(
-                    temporaryFile,
-                    requestSpec.targetDirectory(),
-                    fileName,
-                    requestSpec.conflictPolicy()
-            );
-            committed = true;
-            return new RemoteDownloadTransferResult(committedFile.name(), committedFile.path());
+            try {
+                StorageService.CommittedVaultFile committedFile = storageService.commitTemporaryFileIntoVault(
+                        temporaryFile,
+                        requestSpec.targetDirectory(),
+                        fileName,
+                        ConflictPolicy.CANCEL
+                );
+                committed = true;
+                return RemoteDownloadTransferResult.committed(committedFile.name(), committedFile.path());
+            } catch (FileAlreadyExistsException ex) {
+                registration.close();
+                registration = null;
+                PendingFileDecision decision = pendingFileDecisionService.create(
+                        temporaryFile,
+                        PendingFileDecisionSource.REMOTE_DOWNLOAD,
+                        requestSpec.targetDirectory(),
+                        fileName,
+                        Files.size(temporaryFile),
+                        task.id(),
+                        task.actor()
+                );
+                retainedForDecision = true;
+                return RemoteDownloadTransferResult.pending(
+                        fileName,
+                        fileNameResolver.targetPath(requestSpec.targetDirectory(), fileName),
+                        decision.id()
+                );
+            }
         } finally {
-            if (!committed) {
+            if (!committed && !retainedForDecision) {
                 try {
                     Files.deleteIfExists(temporaryFile);
                 } catch (IOException ignored) {
                     // Metadata Inspector can remove a staging file that could not be deleted here.
                 }
             }
-            registration.close();
+            if (registration != null) {
+                registration.close();
+            }
         }
     }
 

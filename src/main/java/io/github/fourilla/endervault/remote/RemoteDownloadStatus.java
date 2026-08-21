@@ -3,6 +3,7 @@ package io.github.fourilla.endervault.remote;
 public enum RemoteDownloadStatus {
     QUEUED("Queued"),
     RUNNING("Running"),
+    PENDING("Needs review"),
     COMPLETE("Complete"),
     FAILED("Failed"),
     CANCELED("Canceled");

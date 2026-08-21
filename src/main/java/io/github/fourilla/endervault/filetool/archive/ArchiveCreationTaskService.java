@@ -3,6 +3,9 @@ package io.github.fourilla.endervault.filetool.archive;
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.auth.ClientIpResolver;
 import io.github.fourilla.endervault.common.StorageAccessException;
+import io.github.fourilla.endervault.pending.PendingFileDecision;
+import io.github.fourilla.endervault.pending.PendingFileDecisionService;
+import io.github.fourilla.endervault.pending.PendingFileDecisionSource;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
 import io.github.fourilla.endervault.storage.FileItem;
 import io.github.fourilla.endervault.storage.StorageOperationSummary;
@@ -21,6 +24,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.security.Principal;
@@ -42,26 +46,28 @@ public class ArchiveCreationTaskService {
     private final ActivityLogService activityLogService;
     private final ClientIpResolver clientIpResolver;
     private final TemporaryArtifactRegistry temporaryArtifactRegistry;
+    private final PendingFileDecisionService pendingFileDecisionService;
 
     public ArchiveCreationTaskService(
             StorageService storageService,
             TaskManagerService taskManagerService,
             ActivityLogService activityLogService,
             ClientIpResolver clientIpResolver,
-            TemporaryArtifactRegistry temporaryArtifactRegistry
+            TemporaryArtifactRegistry temporaryArtifactRegistry,
+            PendingFileDecisionService pendingFileDecisionService
     ) {
         this.storageService = storageService;
         this.taskManagerService = taskManagerService;
         this.activityLogService = activityLogService;
         this.clientIpResolver = clientIpResolver;
         this.temporaryArtifactRegistry = temporaryArtifactRegistry;
+        this.pendingFileDecisionService = pendingFileDecisionService;
     }
 
     public AppTask queue(
             String directoryPath,
             List<String> itemNames,
             String outputName,
-            ConflictPolicy conflictPolicy,
             HttpServletRequest request
     ) throws IOException {
         List<String> selectedNames = normalizeSelectedNames(itemNames);
@@ -69,9 +75,7 @@ public class ArchiveCreationTaskService {
                 .map(name -> describe(directoryPath, name))
                 .toList();
         String archiveName = normalizeArchiveName(outputName, selectedItems);
-        ConflictPolicy safePolicy = requireCreationPolicy(conflictPolicy);
         storageService.validateVaultEntryName(archiveName);
-        storageService.preflightVaultFileCommit(directoryPath, archiveName, safePolicy);
 
         List<String> sourcePaths = selectedItems.stream().map(FileItem::path).toList();
         RequestSnapshot snapshot = RequestSnapshot.from(request, clientIpResolver);
@@ -85,8 +89,7 @@ public class ArchiveCreationTaskService {
                 true,
                 "Queued ZIP archive creation",
                 Map.of(
-                        "selectedItems", Integer.toString(selectedNames.size()),
-                        "conflictPolicy", safePolicy.value()
+                        "selectedItems", Integer.toString(selectedNames.size())
                 )
         );
 
@@ -101,7 +104,6 @@ public class ArchiveCreationTaskService {
                         selectedNames,
                         sourcePaths,
                         archiveName,
-                        safePolicy,
                         snapshot,
                         context
                 )
@@ -113,7 +115,6 @@ public class ArchiveCreationTaskService {
             List<String> selectedNames,
             List<String> sourcePaths,
             String archiveName,
-            ConflictPolicy conflictPolicy,
             RequestSnapshot request,
             TaskContext context
     ) throws IOException {
@@ -151,12 +152,39 @@ public class ArchiveCreationTaskService {
             context.checkCanceled();
             context.message("Saving ZIP archive.");
             long archiveBytes = Files.size(temporaryArchive);
-            StorageService.CommittedVaultFile committed = storageService.commitTemporaryFileIntoVault(
-                    temporaryArchive,
-                    directoryPath,
-                    archiveName,
-                    conflictPolicy
-            );
+            StorageService.CommittedVaultFile committed;
+            try {
+                committed = storageService.commitTemporaryFileIntoVault(
+                        temporaryArchive,
+                        directoryPath,
+                        archiveName,
+                        ConflictPolicy.CANCEL
+                );
+            } catch (FileAlreadyExistsException ex) {
+                Path stagedOutput = storageService.claimArchiveCreationOutput(temporaryArchive);
+                try {
+                    PendingFileDecision decision = pendingFileDecisionService.create(
+                            stagedOutput,
+                            PendingFileDecisionSource.ARCHIVE_OUTPUT,
+                            directoryPath,
+                            archiveName,
+                            archiveBytes,
+                            context.taskId(),
+                            request.actor()
+                    );
+                    context.targetPath(childPath(directoryPath, archiveName));
+                    return TaskOutcome.pending(
+                            "ZIP created. A file name conflict needs review (" + decision.id() + ")."
+                    );
+                } catch (IOException | RuntimeException pendingFailure) {
+                    try {
+                        storageService.deleteFileStagingFile(storageService.fileStagingFilename(stagedOutput));
+                    } catch (IOException | RuntimeException cleanupFailure) {
+                        pendingFailure.addSuppressed(cleanupFailure);
+                    }
+                    throw pendingFailure;
+                }
+            }
             context.targetPath(committed.path());
             activityLogService.record(
                     "ARCHIVE_CREATE_COMPLETE",
@@ -237,14 +265,6 @@ public class ArchiveCreationTaskService {
     private String removeFileExtension(String filename) {
         int extensionIndex = filename.lastIndexOf('.');
         return extensionIndex > 0 ? filename.substring(0, extensionIndex) : filename;
-    }
-
-    private ConflictPolicy requireCreationPolicy(ConflictPolicy policy) {
-        ConflictPolicy effective = policy == null ? ConflictPolicy.CANCEL : policy;
-        if (effective == ConflictPolicy.OVERWRITE) {
-            throw new StorageAccessException("ZIP creation supports cancel or rename only.");
-        }
-        return effective;
     }
 
     private StorageProgressListener progressListener(TaskContext context) {

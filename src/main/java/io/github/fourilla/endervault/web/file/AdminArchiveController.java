@@ -37,7 +37,6 @@ public class AdminArchiveController {
     public Object create(
             @RequestParam(value = "path", required = false) String path,
             @RequestParam(value = "outputName", required = false) String outputName,
-            @RequestParam(value = "conflictPolicy", defaultValue = "cancel") String conflictPolicy,
             HttpServletRequest request,
             RedirectAttributes redirectAttributes
     ) throws IOException {
@@ -45,7 +44,6 @@ public class AdminArchiveController {
                 path,
                 SelectedItems.from(request),
                 outputName,
-                ConflictPolicy.from(conflictPolicy),
                 request
         );
         FlashNotification notification = FlashNotification.info("ZIP creation queued.");

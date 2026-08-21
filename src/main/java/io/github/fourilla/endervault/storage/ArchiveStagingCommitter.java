@@ -61,6 +61,20 @@ final class ArchiveStagingCommitter {
         return Files.createTempDirectory(archiveTempRoot, prefix).toAbsolutePath().normalize();
     }
 
+    Path requireCreationOutput(Path outputFile) {
+        Path output = requireTemporaryPath(outputFile);
+        Path workspace = output.getParent();
+        if (workspace == null
+                || !java.util.Objects.equals(workspace.getParent(), archiveTempRoot)
+                || !workspace.getFileName().toString().startsWith("create-")
+                || !output.getFileName().toString().equals("archive.zip")
+                || !Files.isRegularFile(output, LinkOption.NOFOLLOW_LINKS)
+                || Files.isSymbolicLink(output)) {
+            throw new StorageAccessException("Archive creation output is not a managed regular file.");
+        }
+        return output;
+    }
+
     FileItem commitDirectory(
             Path temporaryDirectory,
             String directoryPath,

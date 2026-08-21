@@ -5,15 +5,11 @@ import io.github.fourilla.endervault.auth.ClientIpResolver;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.outbound.NetworkRoute;
-import io.github.fourilla.endervault.storage.ConflictPolicy;
 import io.github.fourilla.endervault.storage.StorageService;
 import jakarta.annotation.PreDestroy;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
-import java.nio.file.FileAlreadyExistsException;
-import java.nio.file.Path;
 import java.security.Principal;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,7 +33,7 @@ public class RemoteDownloadService {
     private final RemoteDownloadRequestTicketService ticketService;
     private final RemoteDownloadTransferEngine transferEngine;
     private final ExecutorService executorService;
-    private final Map<String, RemoteDownloadTask> tasks = new ConcurrentHashMap<>();
+    private final RemoteDownloadTaskStore taskStore;
     private final Map<String, Future<?>> taskFutures = new ConcurrentHashMap<>();
 
     public RemoteDownloadService(
@@ -48,7 +44,8 @@ public class RemoteDownloadService {
             RemoteDownloadRequestParser requestParser,
             RemoteDownloadInspectionService inspectionService,
             RemoteDownloadRequestTicketService ticketService,
-            RemoteDownloadTransferEngine transferEngine
+            RemoteDownloadTransferEngine transferEngine,
+            RemoteDownloadTaskStore taskStore
     ) {
         this.nasProperties = nasProperties;
         this.storageService = storageService;
@@ -58,6 +55,7 @@ public class RemoteDownloadService {
         this.inspectionService = inspectionService;
         this.ticketService = ticketService;
         this.transferEngine = transferEngine;
+        this.taskStore = taskStore;
         this.executorService = Executors.newFixedThreadPool(nasProperties.getRemoteDownload().getWorkerThreads());
     }
 
@@ -66,7 +64,6 @@ public class RemoteDownloadService {
             String targetDirectory,
             NetworkRoute networkRoute,
             int connections,
-            String conflictPolicy,
             boolean skipInspection,
             String customHeaders,
             HttpServletRequest request
@@ -77,7 +74,6 @@ public class RemoteDownloadService {
                 targetDirectory,
                 networkRoute,
                 connections,
-                resolveConflictPolicy(conflictPolicy),
                 skipInspection,
                 customHeaders
         );
@@ -113,11 +109,9 @@ public class RemoteDownloadService {
                 requestSpec.networkRoute(),
                 actor(request),
                 clientIpResolver.resolve(request),
-                requestSpec.requestedConnections(),
-                requestSpec.conflictPolicy()
+                requestSpec.requestedConnections()
         );
-        tasks.put(task.id(), task);
-        trimHistory();
+        taskStore.add(task);
         activityLogService.record(
                 "REMOTE_DOWNLOAD_QUEUED",
                 request,
@@ -129,7 +123,6 @@ public class RemoteDownloadService {
                         "taskId", task.id(),
                         "networkRoute", task.networkRoute().settingValue(),
                         "requestedConnections", Integer.toString(task.requestedConnections()),
-                        "conflictPolicy", task.conflictPolicy().value(),
                         "inspectionSkipped", Boolean.toString(requestSpec.inspectionSkipped()),
                         "customHeaderCount", Integer.toString(requestSpec.headerCount()),
                         "cookieIncluded", Boolean.toString(requestSpec.cookieIncluded())
@@ -145,9 +138,7 @@ public class RemoteDownloadService {
     }
 
     public List<RemoteDownloadTask> listTasks() {
-        return tasks.values().stream()
-                .sorted(Comparator.comparing(RemoteDownloadTask::createdAt).reversed())
-                .toList();
+        return taskStore.list();
     }
 
     public RemoteDownloadSummary summary(int recentLimit) {
@@ -184,7 +175,7 @@ public class RemoteDownloadService {
         if (task.active()) {
             throw new StorageAccessException("Running remote download tasks cannot be deleted.");
         }
-        tasks.remove(task.id());
+        taskStore.remove(task.id());
         taskFutures.remove(task.id());
     }
 
@@ -199,9 +190,12 @@ public class RemoteDownloadService {
             task.markRunning();
             throwIfCanceled(task);
             RemoteDownloadTransferResult result = transferEngine.transfer(task, requestSpec);
-            throwIfCanceled(task);
-            task.markComplete(result.fileName(), result.targetPath());
-            recordFinished(task, true, "Remote download completed.");
+            if (result.pending()) {
+                task.markPending(result.fileName(), result.targetPath(), result.pendingDecisionId());
+            } else {
+                task.markComplete(result.fileName(), result.targetPath());
+                recordFinished(task, true, "Remote download completed.");
+            }
         } catch (RemoteDownloadCanceledException ex) {
             markCanceledAndRecord(task, "Canceled.");
         } catch (InterruptedException ex) {
@@ -231,25 +225,8 @@ public class RemoteDownloadService {
         }
     }
 
-    private void trimHistory() {
-        int historyLimit = nasProperties.getRemoteDownload().getHistoryLimit();
-        List<RemoteDownloadTask> allTasks = listTasks();
-        if (allTasks.size() <= historyLimit) {
-            return;
-        }
-        allTasks.stream()
-                .skip(historyLimit)
-                .filter(task -> !task.active())
-                .map(RemoteDownloadTask::id)
-                .forEach(tasks::remove);
-    }
-
     private RemoteDownloadTask task(String taskId) {
-        RemoteDownloadTask task = tasks.get(taskId);
-        if (task == null) {
-            throw new StorageAccessException("Remote download task was not found.");
-        }
-        return task;
+        return taskStore.require(taskId);
     }
 
     private void throwIfCanceled(RemoteDownloadTask task) {
@@ -278,7 +255,6 @@ public class RemoteDownloadService {
         metadata.put("requestedConnections", Integer.toString(task.requestedConnections()));
         metadata.put("actualConnections", Integer.toString(task.actualConnections()));
         metadata.put("retryCount", Integer.toString(task.retryCount()));
-        metadata.put("conflictPolicy", task.conflictPolicy().value());
         if (StringUtils.hasText(task.fileName())) {
             metadata.put("fileName", task.fileName());
         }
@@ -299,35 +275,8 @@ public class RemoteDownloadService {
         return principal == null ? "anonymous" : principal.getName();
     }
 
-    private ConflictPolicy resolveConflictPolicy(String rawPolicy) {
-        try {
-            if (rawPolicy == null || rawPolicy.isBlank() || "default".equalsIgnoreCase(rawPolicy.trim())) {
-                return storageService.defaultConflictPolicy();
-            }
-            return ConflictPolicy.from(rawPolicy);
-        } catch (IllegalArgumentException ex) {
-            throw new StorageAccessException("Conflict policy is invalid.", ex);
-        }
-    }
-
     private String cleanMessage(Exception ex) {
-        if (ex instanceof FileAlreadyExistsException fileAlreadyExistsException) {
-            String filename = cleanConflictFilename(fileAlreadyExistsException.getFile());
-            return "A file named \"" + filename + "\" already exists in the target directory.";
-        }
         String message = ex.getMessage();
         return message == null || message.isBlank() ? "Remote download failed." : message;
-    }
-
-    private String cleanConflictFilename(String rawPath) {
-        if (!StringUtils.hasText(rawPath)) {
-            return "the requested file";
-        }
-        try {
-            Path filename = Path.of(rawPath).getFileName();
-            return filename == null ? "the requested file" : filename.toString();
-        } catch (RuntimeException ex) {
-            return "the requested file";
-        }
     }
 }
