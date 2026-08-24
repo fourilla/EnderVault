@@ -5,6 +5,7 @@ import io.github.fourilla.endervault.common.ByteSizeFormatter;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.filerequest.FileRequest;
 import io.github.fourilla.endervault.filerequest.FileRequestService;
+import io.github.fourilla.endervault.filerequest.FileRequestPublicAccessPolicy;
 import io.github.fourilla.endervault.filerequest.UploaderNamePolicy;
 import io.github.fourilla.endervault.publiclink.PublicLinkTokenService;
 import io.github.fourilla.endervault.upload.ResumableUploadAdmissionRequest;
@@ -31,6 +32,7 @@ public class PublicFileRequestController {
     private final ResumableUploadService resumableUploadService;
     private final PublicLinkTokenService publicLinkTokenService;
     private final ActivityLogService activityLogService;
+    private final FileRequestPublicAccessPolicy publicAccessPolicy;
     private final NasProperties.FileRequest properties;
 
     public PublicFileRequestController(
@@ -38,12 +40,14 @@ public class PublicFileRequestController {
             ResumableUploadService resumableUploadService,
             PublicLinkTokenService publicLinkTokenService,
             ActivityLogService activityLogService,
+            FileRequestPublicAccessPolicy publicAccessPolicy,
             NasProperties nasProperties
     ) {
         this.fileRequestService = fileRequestService;
         this.resumableUploadService = resumableUploadService;
         this.publicLinkTokenService = publicLinkTokenService;
         this.activityLogService = activityLogService;
+        this.publicAccessPolicy = publicAccessPolicy;
         this.properties = nasProperties.getFileRequest();
     }
 
@@ -57,14 +61,16 @@ public class PublicFileRequestController {
         ));
         model.addAttribute("token", token);
         model.addAttribute("uploadAdmissionUrl", "/r/" + token + "/upload-sessions");
-        activityLogService.record(
-                "FILE_REQUEST_ACCESS",
-                servletRequest,
-                null,
-                null,
-                "File request page accessed",
-                metadata(request.id(), token, null, null, null, null)
-        );
+        if (publicAccessPolicy.shouldRecordPageAccess(request.id(), servletRequest)) {
+            activityLogService.record(
+                    "FILE_REQUEST_ACCESS",
+                    servletRequest,
+                    null,
+                    null,
+                    "File request page accessed",
+                    metadata(request.id(), token, null, null, null, null)
+            );
+        }
         return "file-request-public";
     }
 
@@ -76,16 +82,19 @@ public class PublicFileRequestController {
     @ResponseBody
     public ResumableUploadAdmissionResponse createUploadSession(
             @PathVariable String token,
-            @RequestBody ResumableUploadAdmissionRequest request
+            @RequestBody ResumableUploadAdmissionRequest admissionRequest,
+            HttpServletRequest servletRequest
     ) throws IOException {
+        FileRequest request = fileRequestService.requireUsable(token);
         ResumableUploadSession session = resumableUploadService.admitFileRequest(
                 token,
-                request.filename(),
-                request.contentType(),
-                request.size(),
-                request.uploaderName(),
-                request.fingerprint(),
-                request.resumeSessionId()
+                admissionRequest.filename(),
+                admissionRequest.contentType(),
+                admissionRequest.size(),
+                admissionRequest.uploaderName(),
+                admissionRequest.fingerprint(),
+                admissionRequest.resumeSessionId(),
+                () -> publicAccessPolicy.requireNewUploadAdmission(request.id(), servletRequest)
         );
         return ResumableUploadAdmissionResponse.from(session, resumableUploadService);
     }
@@ -118,6 +127,7 @@ public class PublicFileRequestController {
 
     public record PublicFileRequestView(
             String title,
+            String description,
             UploaderNamePolicy uploaderNamePolicy,
             String maxFileSizeLabel,
             String remainingTotalLabel,
@@ -130,6 +140,7 @@ public class PublicFileRequestController {
         static PublicFileRequestView from(FileRequest request, int parallelUploads) {
             return new PublicFileRequestView(
                     request.title(),
+                    request.description(),
                     request.uploaderNamePolicy(),
                     ByteSizeFormatter.humanSize(request.maxFileSizeBytes()),
                     ByteSizeFormatter.humanSize(Math.max(0L, request.maxTotalBytes() - request.acceptedBytes())),

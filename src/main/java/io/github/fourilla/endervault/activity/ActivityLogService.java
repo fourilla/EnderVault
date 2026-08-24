@@ -189,6 +189,19 @@ public class ActivityLogService {
         return readEntries(ActivityLogStore.CURRENT_LOG_NAME, limit);
     }
 
+    public synchronized List<ActivityLogEntry> recentByMetadata(String key, String value, int limit)
+            throws IOException {
+        if (key == null || key.isBlank() || value == null || value.isBlank()) {
+            return List.of();
+        }
+        int safeLimit = Math.max(1, limit);
+        return readAllEntries(ActivityLogStore.CURRENT_LOG_NAME).stream()
+                .filter(entry -> value.equals(entry.metadataView().get(key)))
+                .sorted(Comparator.comparing(ActivityLogEntry::timestampForSort).reversed())
+                .limit(safeLimit)
+                .toList();
+    }
+
     public synchronized List<ActivityLogEntry> readEntries(String fileName, int limit) throws IOException {
         List<ActivityLogEntry> entries = readAllEntries(fileName);
         int safeLimit = Math.max(1, limit);

@@ -1470,6 +1470,20 @@ public class NasProperties {
         @Max(2)
         private int maxConcurrentUploadsPerRequest = 2;
 
+        private boolean rateLimitEnabled = true;
+
+        @Min(1)
+        @Max(100000)
+        private int rateLimitMaxAdmissions = 120;
+
+        @Min(1)
+        @Max(86400)
+        private int rateLimitWindowSeconds = 60;
+
+        @Min(0)
+        @Max(86400)
+        private int accessLogDedupSeconds = 600;
+
         public boolean isEnabled() {
             return enabled;
         }
@@ -1556,6 +1570,38 @@ public class NasProperties {
 
         public void setMaxConcurrentUploadsPerRequest(int maxConcurrentUploadsPerRequest) {
             this.maxConcurrentUploadsPerRequest = maxConcurrentUploadsPerRequest;
+        }
+
+        public boolean isRateLimitEnabled() {
+            return rateLimitEnabled;
+        }
+
+        public void setRateLimitEnabled(boolean rateLimitEnabled) {
+            this.rateLimitEnabled = rateLimitEnabled;
+        }
+
+        public int getRateLimitMaxAdmissions() {
+            return rateLimitMaxAdmissions;
+        }
+
+        public void setRateLimitMaxAdmissions(int rateLimitMaxAdmissions) {
+            this.rateLimitMaxAdmissions = rateLimitMaxAdmissions;
+        }
+
+        public int getRateLimitWindowSeconds() {
+            return rateLimitWindowSeconds;
+        }
+
+        public void setRateLimitWindowSeconds(int rateLimitWindowSeconds) {
+            this.rateLimitWindowSeconds = rateLimitWindowSeconds;
+        }
+
+        public int getAccessLogDedupSeconds() {
+            return accessLogDedupSeconds;
+        }
+
+        public void setAccessLogDedupSeconds(int accessLogDedupSeconds) {
+            this.accessLogDedupSeconds = accessLogDedupSeconds;
         }
     }
 

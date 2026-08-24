@@ -8,6 +8,7 @@
     <th:block th:replace="~{fragments/assets :: coreScripts}"></th:block>
     <th:block th:replace="~{fragments/assets :: adminActionsScript}"></th:block>
     <th:block th:replace="~{fragments/assets :: directoryPickerScript}"></th:block>
+    <th:block th:replace="~{fragments/assets :: fileRequestsScript}"></th:block>
 </head>
 <body>
 <div class="app-shell">
@@ -29,13 +30,21 @@
                   th:text="${fileRequestsEnabled} ? 'Enabled' : 'Disabled'">Enabled</span>
         </header>
 
-        <form class="file-request-form" method="post" th:action="@{/admin/file-requests/create}">
+        <form class="file-request-form" method="post" th:action="@{/api/v1/file-requests}"
+              data-file-request-form data-file-request-action="create">
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
             <fieldset th:disabled="${!fileRequestsEnabled}">
                 <div class="file-request-field-grid">
                     <label>
                         <span>Title</span>
-                        <input name="title" required maxlength="120" placeholder="Upload files">
+                        <input name="title" required maxlength="120" placeholder="Upload files"
+                               th:value="${draftTitle}">
+                    </label>
+                    <label class="file-request-description-field">
+                        <span>Description</span>
+                        <textarea name="description" maxlength="2000" rows="3"
+                                  placeholder="Optional instructions for the uploader"
+                                  th:text="${draftDescription}"></textarea>
                     </label>
                     <label>
                         <span>Destination</span>
@@ -90,14 +99,24 @@
                     </label>
                     <label>
                         <span>Allowed extensions</span>
-                        <input name="allowedExtensions" placeholder="jpg, png, pdf (blank = all)">
+                        <input name="allowedExtensions" placeholder="jpg, png, pdf (blank = all)"
+                               th:value="${defaultAllowedExtensions}">
                     </label>
                     <label class="file-request-token-field">
                         <span>Custom token</span>
-                        <input name="customToken" minlength="12" maxlength="64"
-                               pattern="[A-Za-z0-9_-]+" placeholder="Leave blank for a secure random token">
+                        <input name="customToken"
+                               th:minlength="${customTokenMinLength}"
+                               th:maxlength="${customTokenMaxLength}"
+                               th:disabled="${!customTokensEnabled}"
+                               pattern="[A-Za-z0-9_-]+"
+                               th:placeholder="${customTokensEnabled}
+                                    ? 'Leave blank for a secure random token'
+                                    : 'Custom tokens are disabled in Settings'">
                     </label>
                 </div>
+                <p class="file-request-duplicate-note" th:if="${duplicatingRequest != null}">
+                    Review this copy before creating it. A new token will be issued and the original request remains unchanged.
+                </p>
                 <div class="form-actions end">
                     <button class="icon-text-button" type="submit">
                         <i class="fas fa-inbox" aria-hidden="true"></i>
@@ -114,8 +133,10 @@
                 <h2>Issued Requests</h2>
                 <p>Revoke active links before deleting their records.</p>
             </div>
-            <form method="post" th:action="@{/admin/file-requests/delete-expired}"
-                  th:if="${!#lists.isEmpty(fileRequests)}">
+            <form method="post" th:action="@{/api/v1/file-requests/expired/delete}"
+                  th:if="${!#lists.isEmpty(fileRequests)}" data-file-request-form
+                  data-file-request-action="delete-expired" data-file-request-list-action
+                  data-confirm="Delete expired requests that have no active uploads or pending files?">
                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                 <button class="ghost" type="submit">Delete expired</button>
             </form>
@@ -135,10 +156,12 @@
                 </tr>
                 </thead>
                 <tbody>
-                <tr th:each="item : ${fileRequests}">
+                <tr th:each="item : ${fileRequests}" data-file-request-row data-file-request-scope
+                    th:attr="data-file-request-id=${item.request().id()}">
                     <td>
-                        <strong class="table-primary-text" th:title="${item.request().title()}"
-                                th:text="${item.request().title()}">Upload files</strong>
+                        <a class="table-primary-text" th:title="${item.request().title()}"
+                           th:href="@{/admin/file-requests/{id}(id=${item.request().id()})}"
+                           th:text="${item.request().title()}">Upload files</a>
                         <small th:text="${item.request().createdLabel()}">Created</small>
                     </td>
                     <td>
@@ -153,28 +176,37 @@
                     <td th:text="${item.request().expiresLabel()}">Never</td>
                     <td>
                         <span class="status-badge" th:classappend="${item.request().statusClass()}"
+                              data-file-request-status
                               th:text="${item.request().statusLabel()}">Active</span>
                     </td>
                     <td>
                         <div class="table-actions">
+                            <a class="ghost icon-button action-icon" title="Details" aria-label="Details"
+                               th:href="@{/admin/file-requests/{id}(id=${item.request().id()})}">
+                                <i class="fas fa-circle-info" aria-hidden="true"></i>
+                            </a>
                             <button class="ghost icon-button action-icon js-only" type="button"
                                     title="Copy request link" aria-label="Copy request link"
                                     th:attr="data-copy-value=${item.url()},data-copy-success='File request link copied.'">
                                 <i class="fas fa-link" aria-hidden="true"></i>
                             </button>
-                            <form class="row-form" method="post" th:action="@{/admin/file-requests/revoke}"
-                                  th:if="${item.active()}">
+                            <form class="row-form" method="post"
+                                  th:action="@{/api/v1/file-requests/{id}/revoke(id=${item.request().id()})}"
+                                  th:hidden="${!item.active()}" data-file-request-form
+                                  data-file-request-action="revoke"
+                                  data-confirm="Revoke this file request? Active uploads will stop on their next protocol request.">
                                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                                <input type="hidden" name="id" th:value="${item.request().id()}">
                                 <button class="danger icon-button action-icon" type="submit"
                                         title="Revoke" aria-label="Revoke">
                                     <i class="fas fa-link-slash" aria-hidden="true"></i>
                                 </button>
                             </form>
-                            <form class="row-form" method="post" th:action="@{/admin/file-requests/delete}"
-                                  th:unless="${item.active()}">
+                            <form class="row-form" method="post"
+                                  th:action="@{/api/v1/file-requests/{id}/delete(id=${item.request().id()})}"
+                                  th:hidden="${item.active()}" data-file-request-form
+                                  data-file-request-action="delete"
+                                  data-confirm="Delete this file request record? Pending files and active uploads must be resolved first.">
                                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                                <input type="hidden" name="id" th:value="${item.request().id()}">
                                 <button class="ghost icon-button action-icon" type="submit"
                                         title="Delete" aria-label="Delete">
                                     <i class="fas fa-trash-can" aria-hidden="true"></i>
@@ -183,7 +215,8 @@
                         </div>
                     </td>
                 </tr>
-                <tr class="empty-row" th:if="${#lists.isEmpty(fileRequests)}">
+                <tr class="empty-row" data-file-request-empty-row
+                    th:hidden="${!#lists.isEmpty(fileRequests)}">
                     <td colspan="7" class="empty">No file requests have been issued.</td>
                 </tr>
                 </tbody>

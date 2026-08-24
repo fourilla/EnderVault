@@ -143,8 +143,11 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("Create Request")))
                 .andExpect(content().string(Matchers.containsString("name=\"uploaderNamePolicy\"")))
+                .andExpect(content().string(Matchers.containsString("name=\"description\"")))
                 .andExpect(content().string(Matchers.containsString("name=\"maxFileSizeGb\"")))
-                .andExpect(content().string(Matchers.containsString("data-storage-directory-picker")));
+                .andExpect(content().string(Matchers.containsString("data-storage-directory-picker")))
+                .andExpect(content().string(Matchers.containsString("/js/file-requests.js")))
+                .andExpect(content().string(Matchers.containsString("/api/v1/file-requests")));
 
         mockMvc.perform(get("/admin/file-requests").param("destinationPath", destination))
                 .andExpect(status().isOk())
@@ -157,6 +160,68 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void fileRequestDetailRendersImmutablePolicyAndOperationalState() throws Exception {
+        String token = "detail_request_" + java.util.UUID.randomUUID().toString().replace("-", "_");
+        FileRequest request = fileRequestService.create(
+                "Review assets", "Upload final assets only.", "", UploaderNamePolicy.REQUIRED,
+                1024, 4096, 3, List.of("png"), 7, token
+        );
+
+        mockMvc.perform(get("/admin/file-requests/{id}", request.id()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("Request Policy")))
+                .andExpect(content().string(Matchers.containsString("<dt>Title</dt>")))
+                .andExpect(content().string(Matchers.containsString("<dt>Description</dt>")))
+                .andExpect(content().string(Matchers.containsString("Upload final assets only.")))
+                .andExpect(content().string(Matchers.containsString("Active Uploads")))
+                .andExpect(content().string(Matchers.containsString("Pending Files")))
+                .andExpect(content().string(Matchers.containsString(
+                        "/api/v1/file-requests/" + request.id() + "/revoke"
+                )))
+                .andExpect(content().string(Matchers.containsString("copyFrom=" + request.id())));
+    }
+
+    @Test
+    void fileRequestApiCreatesRevokesAndDeletesRequestWithCsrf() throws Exception {
+        String token = "api_request_" + java.util.UUID.randomUUID().toString().replace("-", "_");
+
+        mockMvc.perform(post("/api/v1/file-requests")
+                        .with(csrf())
+                        .param("title", "API request")
+                        .param("description", "Created through the versioned API.")
+                        .param("destinationPath", "")
+                        .param("uploaderNamePolicy", "OPTIONAL")
+                        .param("maxFileSizeGb", "1")
+                        .param("maxTotalGb", "2")
+                        .param("maxFiles", "2")
+                        .param("allowedExtensions", "txt")
+                        .param("expirationDays", "7")
+                        .param("customToken", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.redirectUrl", Matchers.startsWith("/admin/file-requests/")));
+
+        FileRequest request = fileRequestService.list().stream()
+                .filter(candidate -> candidate.token().equals(token))
+                .findFirst()
+                .orElseThrow();
+
+        mockMvc.perform(post("/api/v1/file-requests/{id}/revoke", request.id()).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.redirectUrl").value(Matchers.nullValue()));
+
+        assertThat(fileRequestService.require(request.id()).enabled()).isFalse();
+
+        mockMvc.perform(post("/api/v1/file-requests/{id}/delete", request.id()).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.redirectUrl").value(Matchers.nullValue()));
+
+        assertThat(fileRequestService.list()).noneMatch(candidate -> candidate.id().equals(request.id()));
+    }
+
+    @Test
     @WithAnonymousUser
     void publicFileRequestAdmitsAndReceivesResumableUpload() throws Exception {
         String suffix = java.util.UUID.randomUUID().toString();
@@ -164,6 +229,7 @@ class AdminNotificationFlowTest {
         String token = "public_request_" + suffix.replace("-", "_");
         FileRequest request = fileRequestService.create(
                 "Send project files",
+                "Upload the requested text file.",
                 "",
                 UploaderNamePolicy.OPTIONAL,
                 1024,
@@ -177,8 +243,10 @@ class AdminNotificationFlowTest {
         mockMvc.perform(get("/r/{token}", request.token()))
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("Send project files")))
+                .andExpect(content().string(Matchers.containsString("Upload the requested text file.")))
                 .andExpect(content().string(Matchers.containsString("/js/file-request-upload.js")))
                 .andExpect(content().string(Matchers.containsString("data-file-request-upload")))
+                .andExpect(content().string(Matchers.containsString("file-request-upload-actions")))
                 .andExpect(content().string(Matchers.containsString("accept=\".txt\"")))
                 .andExpect(content().string(Matchers.containsString(
                         "/r/" + request.token() + "/upload-sessions"
@@ -1033,13 +1101,33 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Passkeys")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Telegram alerts")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("General settings")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("File request settings")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("VPN egress")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/passkeys")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/telegram-alerts")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/general")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/file-requests")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/vpn")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("Metadata inspector"))));
+    }
+
+    @Test
+    void fileRequestSettingsPageRendersApiOnlySettingsForm() throws Exception {
+        mockMvc.perform(get("/admin/settings/file-requests"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("File Request Settings")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("New Request Defaults")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Request Tokens")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Upload Controls")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "action=\"/api/v1/settings/file-requests\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "data-ajax-action=\"file-request-settings-save\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "name=\"rateLimitMaxAdmissions\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "name=\"accessLogDedupSeconds\"")));
     }
 
     @Test
@@ -1062,7 +1150,51 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/directory-tree.js")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/directory-picker.js")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"general-settings-save\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/general")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "action=\"/api/v1/settings/general\"")));
+    }
+
+    @Test
+    void settingsMutationFormsUseTheVersionedApiNamespace() throws Exception {
+        mockMvc.perform(get("/admin/settings/account"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString(
+                        "action=\"/api/v1/settings/account\"")));
+        mockMvc.perform(get("/admin/settings/bookmarks"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString(
+                        "action=\"/api/v1/settings/bookmarks\"")));
+        mockMvc.perform(get("/admin/settings/sessions"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString(
+                        "action=\"/api/v1/settings/sessions\"")));
+    }
+
+    @Test
+    void legacySettingsMutationEndpointsAreUnavailable() throws Exception {
+        for (String endpoint : List.of(
+                "/admin/settings/account",
+                "/admin/settings/bookmarks",
+                "/admin/settings/general",
+                "/admin/settings/sessions",
+                "/admin/settings/vpn",
+                "/admin/settings/telegram-alerts"
+        )) {
+            mockMvc.perform(post(endpoint).with(csrf()))
+                    .andExpect(status().isMethodNotAllowed());
+        }
+
+        mockMvc.perform(post("/admin/settings/telegram-alerts/test").with(csrf()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/settings/passkeys/register/options").with(csrf()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/settings/passkeys/register/finish")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/settings/passkeys/legacy/delete").with(csrf()))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -1073,6 +1205,8 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Proxy Connection")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Tunnel Health")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"vpn-settings-save\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "action=\"/api/v1/settings/vpn\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("href=\"/admin/vpn\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("Current State")
@@ -1119,8 +1253,10 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Passkeys")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Register Device")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("settings-detail-panel")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/passkeys/register/options")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/passkeys/register/finish")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "/api/v1/settings/passkeys/register/options")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "/api/v1/settings/passkeys/register/finish")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Back to settings")));
     }
 
@@ -1141,8 +1277,10 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-password-toggle")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Show bot token")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/admin-actions.js")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/telegram-alerts")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/telegram-alerts/test")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "action=\"/api/v1/settings/telegram-alerts\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "formaction=\"/api/v1/settings/telegram-alerts/test\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"telegram-settings-save\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"telegram-settings-test\"")));
     }

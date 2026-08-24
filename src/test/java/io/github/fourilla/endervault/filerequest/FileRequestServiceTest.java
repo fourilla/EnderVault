@@ -53,6 +53,7 @@ class FileRequestServiceTest {
 
         FileRequest request = service.create(
                 "Project files",
+                "Only final assets, please.",
                 "incoming",
                 UploaderNamePolicy.REQUIRED,
                 1024,
@@ -64,6 +65,7 @@ class FileRequestServiceTest {
         );
 
         assertThat(request.token()).isEqualTo("request_token_123");
+        assertThat(request.description()).isEqualTo("Only final assets, please.");
         assertThat(request.allowedExtensions()).containsExactly("jpg", "png");
         assertThat(request.destinationPath()).isEqualTo("incoming");
         assertThat(request.uploaderNamePolicy()).isEqualTo(UploaderNamePolicy.REQUIRED);

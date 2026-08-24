@@ -98,6 +98,22 @@ public class ResumableUploadService {
             String fingerprint,
             String resumeSessionId
     ) throws IOException {
+        return admitFileRequest(
+                token, filename, contentType, size, uploaderName, fingerprint,
+                resumeSessionId, () -> { }
+        );
+    }
+
+    public synchronized ResumableUploadSession admitFileRequest(
+            String token,
+            String filename,
+            String contentType,
+            long size,
+            String uploaderName,
+            String fingerprint,
+            String resumeSessionId,
+            Runnable newSessionAdmissionGuard
+    ) throws IOException {
         FileRequest request = fileRequestService.requireUsable(token);
         String normalizedFilename = cleanFilename(filename);
         storageService.validateVaultEntryName(normalizedFilename);
@@ -118,6 +134,8 @@ public class ResumableUploadService {
         if (reusable.isPresent()) {
             return reusable.get();
         }
+
+        newSessionAdmissionGuard.run();
 
         validateOutstandingLimits(request.id());
         long reservedBytes = reservedBytes(request.id());

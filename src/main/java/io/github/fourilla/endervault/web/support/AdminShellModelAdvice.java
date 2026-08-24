@@ -26,6 +26,7 @@ import io.github.fourilla.endervault.web.pending.AdminPendingFileDecisionControl
 import io.github.fourilla.endervault.web.remote.AdminRemoteDownloadController;
 import io.github.fourilla.endervault.web.settings.AdminAccountSettingsController;
 import io.github.fourilla.endervault.web.settings.AdminBookmarkSettingsController;
+import io.github.fourilla.endervault.web.settings.AdminFileRequestSettingsController;
 import io.github.fourilla.endervault.web.settings.AdminGeneralSettingsController;
 import io.github.fourilla.endervault.web.settings.AdminSettingsController;
 import io.github.fourilla.endervault.web.settings.AdminSessionSettingsController;
@@ -60,6 +61,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
         AdminSettingsController.class,
         AdminAccountSettingsController.class,
         AdminBookmarkSettingsController.class,
+        AdminFileRequestSettingsController.class,
         AdminGeneralSettingsController.class,
         AdminSessionSettingsController.class,
         AdminVpnSettingsController.class,
