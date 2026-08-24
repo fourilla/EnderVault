@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>EnderVault Telegram Alerts</title>
     <th:block th:replace="~{fragments/assets :: styles(true)}"></th:block>
-    <th:block th:replace="~{fragments/assets :: jsOnlyNoscript}"></th:block>
     <th:block th:replace="~{fragments/assets :: coreScripts}"></th:block>
     <th:block th:replace="~{fragments/assets :: adminActionsScript}"></th:block>
 </head>
@@ -41,7 +40,7 @@
         <form id="telegramSettingsForm"
               class="telegram-settings-form"
               method="post"
-              th:action="@{/admin/settings/telegram-alerts}"
+              th:action="@{/api/v1/settings/telegram-alerts}"
               data-ajax-action="telegram-settings-save">
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
 
@@ -86,7 +85,7 @@
                     <div class="telegram-connection-actions">
                         <button class="ghost icon-text-button"
                                 type="submit"
-                                th:formaction="@{/admin/settings/telegram-alerts/test}"
+                                th:formaction="@{/api/v1/settings/telegram-alerts/test}"
                                 data-ajax-action="telegram-settings-test">
                             <i class="fas fa-paper-plane" aria-hidden="true"></i>
                             <span>Send Test Message</span>

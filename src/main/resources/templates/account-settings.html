@@ -28,7 +28,7 @@
 
         <form class="account-settings-form"
               method="post"
-              th:action="@{/admin/settings/account}"
+              th:action="@{/api/v1/settings/account}"
               data-ajax-action="account-settings-save">
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
 

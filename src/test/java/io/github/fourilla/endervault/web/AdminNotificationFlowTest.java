@@ -1107,7 +1107,51 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/directory-tree.js")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/directory-picker.js")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"general-settings-save\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/general")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "action=\"/api/v1/settings/general\"")));
+    }
+
+    @Test
+    void settingsMutationFormsUseTheVersionedApiNamespace() throws Exception {
+        mockMvc.perform(get("/admin/settings/account"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString(
+                        "action=\"/api/v1/settings/account\"")));
+        mockMvc.perform(get("/admin/settings/bookmarks"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString(
+                        "action=\"/api/v1/settings/bookmarks\"")));
+        mockMvc.perform(get("/admin/settings/sessions"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString(
+                        "action=\"/api/v1/settings/sessions\"")));
+    }
+
+    @Test
+    void legacySettingsMutationEndpointsAreUnavailable() throws Exception {
+        for (String endpoint : List.of(
+                "/admin/settings/account",
+                "/admin/settings/bookmarks",
+                "/admin/settings/general",
+                "/admin/settings/sessions",
+                "/admin/settings/vpn",
+                "/admin/settings/telegram-alerts"
+        )) {
+            mockMvc.perform(post(endpoint).with(csrf()))
+                    .andExpect(status().isMethodNotAllowed());
+        }
+
+        mockMvc.perform(post("/admin/settings/telegram-alerts/test").with(csrf()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/settings/passkeys/register/options").with(csrf()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/settings/passkeys/register/finish")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/settings/passkeys/legacy/delete").with(csrf()))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -1118,6 +1162,8 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Proxy Connection")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Tunnel Health")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"vpn-settings-save\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "action=\"/api/v1/settings/vpn\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("href=\"/admin/vpn\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("Current State")
@@ -1164,8 +1210,10 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Passkeys")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Register Device")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("settings-detail-panel")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/passkeys/register/options")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/passkeys/register/finish")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "/api/v1/settings/passkeys/register/options")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "/api/v1/settings/passkeys/register/finish")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Back to settings")));
     }
 
@@ -1186,8 +1234,10 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-password-toggle")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Show bot token")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/admin-actions.js")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/telegram-alerts")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/telegram-alerts/test")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "action=\"/api/v1/settings/telegram-alerts\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "formaction=\"/api/v1/settings/telegram-alerts/test\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"telegram-settings-save\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"telegram-settings-test\"")));
     }
