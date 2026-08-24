@@ -170,6 +170,8 @@ class AdminNotificationFlowTest {
         mockMvc.perform(get("/admin/file-requests/{id}", request.id()))
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("Request Policy")))
+                .andExpect(content().string(Matchers.containsString("<dt>Title</dt>")))
+                .andExpect(content().string(Matchers.containsString("<dt>Description</dt>")))
                 .andExpect(content().string(Matchers.containsString("Upload final assets only.")))
                 .andExpect(content().string(Matchers.containsString("Active Uploads")))
                 .andExpect(content().string(Matchers.containsString("Pending Files")))
@@ -180,7 +182,7 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void fileRequestApiCreatesAndRevokesRequestWithCsrf() throws Exception {
+    void fileRequestApiCreatesRevokesAndDeletesRequestWithCsrf() throws Exception {
         String token = "api_request_" + java.util.UUID.randomUUID().toString().replace("-", "_");
 
         mockMvc.perform(post("/api/v1/file-requests")
@@ -207,10 +209,16 @@ class AdminNotificationFlowTest {
         mockMvc.perform(post("/api/v1/file-requests/{id}/revoke", request.id()).with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true))
-                .andExpect(jsonPath("$.redirectUrl").value("/admin/file-requests/" + request.id()));
+                .andExpect(jsonPath("$.redirectUrl").value(Matchers.nullValue()));
 
         assertThat(fileRequestService.require(request.id()).enabled()).isFalse();
-        fileRequestService.delete(request.id());
+
+        mockMvc.perform(post("/api/v1/file-requests/{id}/delete", request.id()).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.redirectUrl").value(Matchers.nullValue()));
+
+        assertThat(fileRequestService.list()).noneMatch(candidate -> candidate.id().equals(request.id()));
     }
 
     @Test
@@ -238,6 +246,7 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(Matchers.containsString("Upload the requested text file.")))
                 .andExpect(content().string(Matchers.containsString("/js/file-request-upload.js")))
                 .andExpect(content().string(Matchers.containsString("data-file-request-upload")))
+                .andExpect(content().string(Matchers.containsString("file-request-upload-actions")))
                 .andExpect(content().string(Matchers.containsString("accept=\".txt\"")))
                 .andExpect(content().string(Matchers.containsString(
                         "/r/" + request.token() + "/upload-sessions"

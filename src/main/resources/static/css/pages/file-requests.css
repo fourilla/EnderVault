@@ -40,8 +40,7 @@
     resize: vertical;
 }
 
-.file-request-duplicate-note,
-.file-request-description {
+.file-request-duplicate-note {
     margin: 0;
     color: var(--muted);
     white-space: pre-wrap;
@@ -69,6 +68,10 @@
 .file-request-policy-grid dd {
     margin: 0;
     overflow-wrap: anywhere;
+}
+
+.file-request-policy-description {
+    white-space: pre-wrap;
 }
 
 .file-request-policy-wide {

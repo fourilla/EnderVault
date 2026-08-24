@@ -104,10 +104,7 @@ public class FileRequestApiController {
                 "FILE_REQUEST_REVOKE", servletRequest, request.destinationPath(), null,
                 "File request revoked", metadata(request)
         );
-        return ActionResponse.redirect(
-                FlashNotification.success("File request revoked."),
-                "/admin/file-requests/" + request.id()
-        );
+        return ActionResponse.ok(FlashNotification.success("File request revoked."));
     }
 
     @PostMapping("/{id}/delete")
@@ -117,10 +114,7 @@ public class FileRequestApiController {
                 "FILE_REQUEST_DELETE", servletRequest, request.destinationPath(), null,
                 "File request deleted", metadata(request)
         );
-        return ActionResponse.redirect(
-                FlashNotification.success("File request deleted."),
-                "/admin/file-requests"
-        );
+        return ActionResponse.ok(FlashNotification.success("File request deleted."));
     }
 
     @PostMapping("/{id}/active-uploads/cancel")

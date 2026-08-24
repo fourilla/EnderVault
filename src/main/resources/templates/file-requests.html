@@ -31,7 +31,7 @@
         </header>
 
         <form class="file-request-form" method="post" th:action="@{/api/v1/file-requests}"
-              data-file-request-form>
+              data-file-request-form data-file-request-action="create">
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
             <fieldset th:disabled="${!fileRequestsEnabled}">
                 <div class="file-request-field-grid">
@@ -135,6 +135,7 @@
             </div>
             <form method="post" th:action="@{/api/v1/file-requests/expired/delete}"
                   th:if="${!#lists.isEmpty(fileRequests)}" data-file-request-form
+                  data-file-request-action="delete-expired" data-file-request-list-action
                   data-confirm="Delete expired requests that have no active uploads or pending files?">
                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                 <button class="ghost" type="submit">Delete expired</button>
@@ -155,7 +156,8 @@
                 </tr>
                 </thead>
                 <tbody>
-                <tr th:each="item : ${fileRequests}">
+                <tr th:each="item : ${fileRequests}" data-file-request-row data-file-request-scope
+                    th:attr="data-file-request-id=${item.request().id()}">
                     <td>
                         <a class="table-primary-text" th:title="${item.request().title()}"
                            th:href="@{/admin/file-requests/{id}(id=${item.request().id()})}"
@@ -174,6 +176,7 @@
                     <td th:text="${item.request().expiresLabel()}">Never</td>
                     <td>
                         <span class="status-badge" th:classappend="${item.request().statusClass()}"
+                              data-file-request-status
                               th:text="${item.request().statusLabel()}">Active</span>
                     </td>
                     <td>
@@ -189,7 +192,8 @@
                             </button>
                             <form class="row-form" method="post"
                                   th:action="@{/api/v1/file-requests/{id}/revoke(id=${item.request().id()})}"
-                                  th:if="${item.active()}" data-file-request-form
+                                  th:hidden="${!item.active()}" data-file-request-form
+                                  data-file-request-action="revoke"
                                   data-confirm="Revoke this file request? Active uploads will stop on their next protocol request.">
                                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                                 <button class="danger icon-button action-icon" type="submit"
@@ -199,7 +203,8 @@
                             </form>
                             <form class="row-form" method="post"
                                   th:action="@{/api/v1/file-requests/{id}/delete(id=${item.request().id()})}"
-                                  th:unless="${item.active()}" data-file-request-form
+                                  th:hidden="${item.active()}" data-file-request-form
+                                  data-file-request-action="delete"
                                   data-confirm="Delete this file request record? Pending files and active uploads must be resolved first.">
                                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                                 <button class="ghost icon-button action-icon" type="submit"
@@ -210,7 +215,8 @@
                         </div>
                     </td>
                 </tr>
-                <tr class="empty-row" th:if="${#lists.isEmpty(fileRequests)}">
+                <tr class="empty-row" data-file-request-empty-row
+                    th:hidden="${!#lists.isEmpty(fileRequests)}">
                     <td colspan="7" class="empty">No file requests have been issued.</td>
                 </tr>
                 </tbody>

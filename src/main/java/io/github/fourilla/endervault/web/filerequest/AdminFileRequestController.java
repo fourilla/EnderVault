@@ -96,7 +96,7 @@ public class AdminFileRequestController {
         model.addAttribute("activeUploads", snapshot.activeUploads().stream().map(UploadView::from).toList());
         model.addAttribute("pendingDecisions", snapshot.pendingDecisions().stream().map(PendingView::from).toList());
         model.addAttribute("activityHistory", snapshot.activityHistory());
-        model.addAttribute("canDelete", !request.usable(Instant.now()) && !snapshot.hasDependencies());
+        model.addAttribute("canDelete", !snapshot.hasDependencies());
         return "file-request-detail";
     }
 
