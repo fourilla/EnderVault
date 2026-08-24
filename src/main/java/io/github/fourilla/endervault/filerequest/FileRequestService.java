@@ -27,6 +27,7 @@ public class FileRequestService {
     public static final int HARD_MAX_FILES = 1_000;
     public static final int HARD_MAX_EXPIRATION_DAYS = 365;
     private static final int MAX_TITLE_LENGTH = 120;
+    private static final int MAX_DESCRIPTION_LENGTH = 2_000;
     private static final int MAX_EXTENSION_COUNT = 50;
     private static final int MAX_EXTENSION_LENGTH = 24;
 
@@ -58,8 +59,27 @@ public class FileRequestService {
             int expirationDays,
             String customToken
     ) throws IOException {
+        return create(
+                title, "", destinationPath, uploaderNamePolicy, maxFileSizeBytes,
+                maxTotalBytes, maxFiles, allowedExtensions, expirationDays, customToken
+        );
+    }
+
+    public synchronized FileRequest create(
+            String title,
+            String description,
+            String destinationPath,
+            UploaderNamePolicy uploaderNamePolicy,
+            long maxFileSizeBytes,
+            long maxTotalBytes,
+            int maxFiles,
+            List<String> allowedExtensions,
+            int expirationDays,
+            String customToken
+    ) throws IOException {
         ensureEnabled();
         String normalizedTitle = cleanTitle(title);
+        String normalizedDescription = cleanDescription(description);
         String normalizedDestination;
         try {
             normalizedDestination = storageService.normalizeVaultDirectory(destinationPath);
@@ -80,6 +100,7 @@ public class FileRequestService {
                 UUID.randomUUID().toString(),
                 token,
                 normalizedTitle,
+                normalizedDescription,
                 normalizedDestination,
                 uploaderNamePolicy == null ? UploaderNamePolicy.OPTIONAL : uploaderNamePolicy,
                 maxFileSizeBytes,
@@ -305,6 +326,14 @@ public class FileRequestService {
         String normalized = title.trim();
         if (normalized.length() > MAX_TITLE_LENGTH) {
             throw new StorageAccessException("File request title must be 120 characters or fewer.");
+        }
+        return normalized;
+    }
+
+    private String cleanDescription(String description) {
+        String normalized = description == null ? "" : description.trim();
+        if (normalized.length() > MAX_DESCRIPTION_LENGTH) {
+            throw new StorageAccessException("File request description must be 2000 characters or fewer.");
         }
         return normalized;
     }

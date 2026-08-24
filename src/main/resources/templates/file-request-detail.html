@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="|${item.request().title()} - EnderVault File Request|">EnderVault File Request</title>
+    <th:block th:replace="~{fragments/assets :: styles(true)}"></th:block>
+    <th:block th:replace="~{fragments/assets :: coreScripts}"></th:block>
+    <th:block th:replace="~{fragments/assets :: adminActionsScript}"></th:block>
+    <th:block th:replace="~{fragments/assets :: fileRequestsScript}"></th:block>
+</head>
+<body>
+<div class="app-shell">
+<aside th:replace="~{fragments/admin-shell :: sidebar('dashboard')}"></aside>
+<div class="app-main">
+<header th:replace="~{fragments/admin-shell :: topbar}"></header>
+<div th:replace="~{fragments/notifications :: toasts}"></div>
+
+<main class="workspace dashboard-workspace file-request-detail-workspace">
+    <section th:replace="~{fragments/admin-shell :: pathbar(${item.request().title()}, @{/admin/file-requests}, 'Back to file requests')}"></section>
+
+    <section class="dashboard-panel">
+        <header class="section-heading">
+            <div>
+                <h2>Request Policy</h2>
+                <p>Request definitions are immutable. Duplicate this request to issue a revised policy and token.</p>
+            </div>
+            <span class="status-badge" th:classappend="${item.request().statusClass()}"
+                  th:text="${item.request().statusLabel()}">Active</span>
+        </header>
+
+        <p class="file-request-description" th:if="${!#strings.isEmpty(item.request().description())}"
+           th:text="${item.request().description()}">Instructions</p>
+
+        <dl class="file-request-policy-grid">
+            <div><dt>Destination</dt><dd th:text="${item.destinationLabel()}">/</dd></div>
+            <div><dt>Uploader name</dt><dd th:text="${item.request().uploaderNamePolicy().label()}">Optional</dd></div>
+            <div><dt>Per-file limit</dt><dd th:text="${item.fileLimitLabel()}">10 GB</dd></div>
+            <div><dt>Total quota</dt><dd th:text="${item.totalLimitLabel()}">20 GB</dd></div>
+            <div><dt>Maximum files</dt><dd th:text="${item.request().maxFiles()}">100</dd></div>
+            <div><dt>Extensions</dt><dd th:text="${item.extensionsLabel()}">All extensions</dd></div>
+            <div><dt>Created</dt><dd th:text="${item.request().createdLabel()}">Created</dd></div>
+            <div><dt>Expires</dt><dd th:text="${item.request().expiresLabel()}">Never</dd></div>
+            <div class="file-request-policy-wide"><dt>Usage</dt><dd th:text="${item.usageLabel()}">0 files</dd></div>
+        </dl>
+
+        <div class="file-request-detail-actions">
+            <button class="ghost icon-text-button" type="button"
+                    th:attr="data-copy-value=${item.url()},data-copy-success='File request link copied.'">
+                <i class="fas fa-link" aria-hidden="true"></i><span>Copy link</span>
+            </button>
+            <a class="button-link ghost icon-text-button"
+               th:href="@{/admin/file-requests(copyFrom=${item.request().id()})}">
+                <i class="fas fa-copy" aria-hidden="true"></i><span>Duplicate</span>
+            </a>
+            <form method="post" th:action="@{/api/v1/file-requests/{id}/revoke(id=${item.request().id()})}"
+                  th:if="${item.active()}" data-file-request-form
+                  data-confirm="Revoke this file request? Active uploads will stop on their next protocol request.">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <button class="danger icon-text-button" type="submit">
+                    <i class="fas fa-link-slash" aria-hidden="true"></i><span>Revoke</span>
+                </button>
+            </form>
+        </div>
+    </section>
+
+    <section class="dashboard-panel">
+        <header class="section-heading">
+            <div><h2>Active Uploads</h2><p>Uploads that still hold a resumable session for this request.</p></div>
+            <span class="status-badge" th:classappend="${#lists.isEmpty(activeUploads)} ? ' active' : ' warning'"
+                  th:text="|${#lists.size(activeUploads)} active|">0 active</span>
+        </header>
+        <div class="table-wrap compact-table">
+            <table>
+                <thead><tr><th>File</th><th>Uploader</th><th>Size</th><th>Status</th><th>Started</th><th>Expires</th></tr></thead>
+                <tbody>
+                <tr th:each="upload : ${activeUploads}">
+                    <td class="table-primary-text" th:title="${upload.session().originalFilename()}"
+                        th:text="${upload.session().originalFilename()}">file.bin</td>
+                    <td th:text="${upload.session().submittedBy() == null ? '-' : upload.session().submittedBy()}">-</td>
+                    <td th:text="${upload.sizeLabel()}">1 MB</td>
+                    <td th:text="${upload.session().status()}">UPLOADING</td>
+                    <td th:text="${upload.createdLabel()}">Started</td>
+                    <td th:text="${upload.expiresLabel()}">Expires</td>
+                </tr>
+                <tr class="empty-row" th:if="${#lists.isEmpty(activeUploads)}"><td colspan="6" class="empty">No active uploads.</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="form-actions end" th:if="${!#lists.isEmpty(activeUploads)}">
+            <form method="post" th:action="@{/api/v1/file-requests/{id}/active-uploads/cancel(id=${item.request().id()})}"
+                  data-file-request-form data-confirm="Cancel every active upload for this request? Uploaded chunks will be discarded.">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <button class="danger icon-text-button" type="submit"><span>Cancel active uploads</span></button>
+            </form>
+        </div>
+    </section>
+
+    <section class="dashboard-panel">
+        <header class="section-heading">
+            <div><h2>Pending Files</h2><p>Staged files waiting for an administrator's conflict decision.</p></div>
+            <a class="button-link ghost" th:href="@{/admin/pending-decisions}" th:if="${!#lists.isEmpty(pendingDecisions)}">Review all</a>
+        </header>
+        <div class="table-wrap compact-table">
+            <table>
+                <thead><tr><th>File</th><th>Uploader</th><th>Size</th><th>Received</th></tr></thead>
+                <tbody>
+                <tr th:each="pending : ${pendingDecisions}">
+                    <td class="table-primary-text" th:title="${pending.decision().originalFilename()}"
+                        th:text="${pending.decision().originalFilename()}">file.bin</td>
+                    <td th:text="${pending.decision().submittedBy() == null ? '-' : pending.decision().submittedBy()}">-</td>
+                    <td th:text="${pending.sizeLabel()}">1 MB</td>
+                    <td th:text="${pending.createdLabel()}">Received</td>
+                </tr>
+                <tr class="empty-row" th:if="${#lists.isEmpty(pendingDecisions)}"><td colspan="4" class="empty">No pending files.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="dashboard-panel">
+        <header class="section-heading">
+            <div><h2>Recent Activity</h2><p>The latest activity entries carrying this request ID.</p></div>
+            <a class="button-link ghost" th:href="@{/admin/logs(q=${item.request().id()})}">Open logs</a>
+        </header>
+        <div class="table-wrap compact-table">
+            <table>
+                <thead><tr><th>Time</th><th>Type</th><th>IP</th><th>Message</th></tr></thead>
+                <tbody>
+                <tr th:each="entry : ${activityHistory}">
+                    <td th:text="${entry.timestampLabel()}">Time</td>
+                    <td th:text="${entry.typeLabel()}">Type</td>
+                    <td th:text="${entry.ipLabel()}">IP</td>
+                    <td class="table-primary-text" th:title="${entry.messageLabel()}" th:text="${entry.messageLabel()}">Message</td>
+                </tr>
+                <tr class="empty-row" th:if="${#lists.isEmpty(activityHistory)}"><td colspan="4" class="empty">No matching activity entries.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="dashboard-panel file-request-delete-panel" th:unless="${item.active()}">
+        <header class="section-heading"><div><h2>Delete Request</h2><p>Deletion is available only after active uploads and pending files are cleared.</p></div></header>
+        <form method="post" th:action="@{/api/v1/file-requests/{id}/delete(id=${item.request().id()})}"
+              data-file-request-form data-confirm="Permanently delete this file request record?">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <button class="danger icon-text-button" type="submit" th:disabled="${!canDelete}">
+                <i class="fas fa-trash-can" aria-hidden="true"></i><span>Delete request</span>
+            </button>
+        </form>
+    </section>
+</main>
+</div>
+</div>
+</body>
+</html>

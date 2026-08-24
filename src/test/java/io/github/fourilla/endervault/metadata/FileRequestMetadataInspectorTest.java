@@ -50,6 +50,7 @@ class FileRequestMetadataInspectorTest {
                 id,
                 token,
                 id,
+                "",
                 "missing",
                 UploaderNamePolicy.OPTIONAL,
                 1024,

@@ -25,6 +25,11 @@
     color: var(--muted);
 }
 
+.file-request-public-description {
+    color: var(--text) !important;
+    white-space: pre-wrap;
+}
+
 .file-request-limit-list {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

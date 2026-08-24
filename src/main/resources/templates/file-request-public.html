@@ -20,6 +20,8 @@
         <header class="file-request-public-heading">
             <p class="eyebrow">File request</p>
             <h1 th:text="${fileRequest.title()}">Upload files</h1>
+            <p class="file-request-public-description" th:if="${!#strings.isEmpty(fileRequest.description())}"
+               th:text="${fileRequest.description()}">Upload instructions</p>
             <p>Files are sent directly to this EnderVault. The destination and existing contents are private.</p>
         </header>
 

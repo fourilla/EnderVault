@@ -57,6 +57,10 @@ class NasPropertiesTest {
                 .withProperty("nas.file-request.default-expiration-days", "14")
                 .withProperty("nas.file-request.default-max-files", "75")
                 .withProperty("nas.file-request.max-concurrent-uploads-per-request", "2")
+                .withProperty("nas.file-request.rate-limit-enabled", "false")
+                .withProperty("nas.file-request.rate-limit-max-admissions", "45")
+                .withProperty("nas.file-request.rate-limit-window-seconds", "90")
+                .withProperty("nas.file-request.access-log-dedup-seconds", "300")
                 .withProperty("nas.pending-file-decisions.warning-days", "45")
                 .withProperty("nas.upload.resumable-chunk-size-bytes", "16777216")
                 .withProperty("nas.upload.max-concurrent-chunks", "5")
@@ -97,6 +101,10 @@ class NasPropertiesTest {
         assertThat(properties.getFileRequest().getDefaultExpirationDays()).isEqualTo(14);
         assertThat(properties.getFileRequest().getDefaultMaxFiles()).isEqualTo(75);
         assertThat(properties.getFileRequest().getMaxConcurrentUploadsPerRequest()).isEqualTo(2);
+        assertThat(properties.getFileRequest().isRateLimitEnabled()).isFalse();
+        assertThat(properties.getFileRequest().getRateLimitMaxAdmissions()).isEqualTo(45);
+        assertThat(properties.getFileRequest().getRateLimitWindowSeconds()).isEqualTo(90);
+        assertThat(properties.getFileRequest().getAccessLogDedupSeconds()).isEqualTo(300);
         assertThat(properties.getPendingFileDecisions().getWarningDays()).isEqualTo(45);
         assertThat(properties.getUpload().getResumableChunkSizeBytes()).isEqualTo(16777216L);
         assertThat(properties.getUpload().getMaxConcurrentChunks()).isEqualTo(5);

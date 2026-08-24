@@ -24,8 +24,63 @@
     font-weight: 700;
 }
 
-.file-request-token-field {
+.file-request-token-field,
+.file-request-description-field {
     grid-column: 1 / -1;
+}
+
+.file-request-description-field textarea {
+    resize: vertical;
+}
+
+.file-request-duplicate-note,
+.file-request-description {
+    margin: 0;
+    color: var(--muted);
+    white-space: pre-wrap;
+}
+
+.file-request-policy-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-lg) var(--space-3xl);
+    margin: 0;
+}
+
+.file-request-policy-grid > div {
+    display: grid;
+    grid-template-columns: 130px minmax(0, 1fr);
+    gap: var(--space-lg);
+}
+
+.file-request-policy-grid dt {
+    color: var(--muted);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+}
+
+.file-request-policy-grid dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.file-request-policy-wide {
+    grid-column: 1 / -1;
+}
+
+.file-request-detail-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-md);
+}
+
+.file-request-detail-actions form {
+    margin: 0;
+}
+
+.file-request-delete-panel form {
+    display: flex;
+    justify-content: flex-end;
 }
 
 .field-with-suffix {
@@ -55,7 +110,13 @@
         grid-template-columns: 1fr;
     }
 
-    .file-request-token-field {
+    .file-request-token-field,
+    .file-request-description-field,
+    .file-request-policy-wide {
         grid-column: auto;
+    }
+
+    .file-request-policy-grid {
+        grid-template-columns: 1fr;
     }
 }

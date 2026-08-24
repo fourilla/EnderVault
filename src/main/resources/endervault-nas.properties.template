@@ -97,6 +97,15 @@ nas.file-request.custom-token-max-length=64
 nas.file-request.random-token-bytes=24
 # Per-request share of the global resumable chunk concurrency.
 nas.file-request.max-concurrent-uploads-per-request=2
+# Limits new upload-session admissions per request and resolved client IP.
+# Resumable protocol chunks do not consume this limit. Retry-After is computed
+# from the window and remaining token-bucket capacity.
+nas.file-request.rate-limit-enabled=true
+nas.file-request.rate-limit-max-admissions=120
+nas.file-request.rate-limit-window-seconds=60
+# Suppress repeated page-access log entries from the same request and IP.
+# Set to 0 to record every access.
+nas.file-request.access-log-dedup-seconds=600
 
 # ---------------------------------------------------------------------------
 # Pending file decisions

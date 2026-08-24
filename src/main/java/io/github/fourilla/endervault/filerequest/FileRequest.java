@@ -9,6 +9,7 @@ public record FileRequest(
         String id,
         String token,
         String title,
+        String description,
         String destinationPath,
         UploaderNamePolicy uploaderNamePolicy,
         long maxFileSizeBytes,
@@ -27,6 +28,7 @@ public record FileRequest(
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
     public FileRequest {
+        description = description == null ? "" : description;
         allowedExtensions = allowedExtensions == null ? List.of() : List.copyOf(allowedExtensions);
         acceptedUploadIds = acceptedUploadIds == null ? List.of() : List.copyOf(acceptedUploadIds);
     }
@@ -75,7 +77,7 @@ public record FileRequest(
 
     public FileRequest revoke() {
         return new FileRequest(
-                id, token, title, destinationPath, uploaderNamePolicy,
+                id, token, title, description, destinationPath, uploaderNamePolicy,
                 maxFileSizeBytes, maxTotalBytes, maxFiles, allowedExtensions,
                 acceptedBytes, acceptedFiles, acceptedUploadIds, createdAt, expiresAt, false
         );
@@ -83,7 +85,7 @@ public record FileRequest(
 
     public FileRequest withDestinationPath(String path) {
         return new FileRequest(
-                id, token, title, path, uploaderNamePolicy,
+                id, token, title, description, path, uploaderNamePolicy,
                 maxFileSizeBytes, maxTotalBytes, maxFiles, allowedExtensions,
                 acceptedBytes, acceptedFiles, acceptedUploadIds, createdAt, expiresAt, enabled
         );
@@ -96,7 +98,7 @@ public record FileRequest(
         List<String> nextUploadIds = new java.util.ArrayList<>(acceptedUploadIds);
         nextUploadIds.add(uploadId);
         return new FileRequest(
-                id, token, title, destinationPath, uploaderNamePolicy,
+                id, token, title, description, destinationPath, uploaderNamePolicy,
                 maxFileSizeBytes, maxTotalBytes, maxFiles, allowedExtensions,
                 Math.addExact(acceptedBytes, size), Math.addExact(acceptedFiles, 1),
                 nextUploadIds, createdAt, expiresAt, enabled
@@ -110,7 +112,7 @@ public record FileRequest(
         List<String> nextUploadIds = new java.util.ArrayList<>(acceptedUploadIds);
         nextUploadIds.remove(uploadId);
         return new FileRequest(
-                id, token, title, destinationPath, uploaderNamePolicy,
+                id, token, title, description, destinationPath, uploaderNamePolicy,
                 maxFileSizeBytes, maxTotalBytes, maxFiles, allowedExtensions,
                 Math.max(0L, acceptedBytes - Math.max(0L, size)),
                 Math.max(0, acceptedFiles - 1),

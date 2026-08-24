@@ -143,8 +143,11 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("Create Request")))
                 .andExpect(content().string(Matchers.containsString("name=\"uploaderNamePolicy\"")))
+                .andExpect(content().string(Matchers.containsString("name=\"description\"")))
                 .andExpect(content().string(Matchers.containsString("name=\"maxFileSizeGb\"")))
-                .andExpect(content().string(Matchers.containsString("data-storage-directory-picker")));
+                .andExpect(content().string(Matchers.containsString("data-storage-directory-picker")))
+                .andExpect(content().string(Matchers.containsString("/js/file-requests.js")))
+                .andExpect(content().string(Matchers.containsString("/api/v1/file-requests")));
 
         mockMvc.perform(get("/admin/file-requests").param("destinationPath", destination))
                 .andExpect(status().isOk())
@@ -157,6 +160,26 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void fileRequestDetailRendersImmutablePolicyAndOperationalState() throws Exception {
+        String token = "detail_request_" + java.util.UUID.randomUUID().toString().replace("-", "_");
+        FileRequest request = fileRequestService.create(
+                "Review assets", "Upload final assets only.", "", UploaderNamePolicy.REQUIRED,
+                1024, 4096, 3, List.of("png"), 7, token
+        );
+
+        mockMvc.perform(get("/admin/file-requests/{id}", request.id()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("Request Policy")))
+                .andExpect(content().string(Matchers.containsString("Upload final assets only.")))
+                .andExpect(content().string(Matchers.containsString("Active Uploads")))
+                .andExpect(content().string(Matchers.containsString("Pending Files")))
+                .andExpect(content().string(Matchers.containsString(
+                        "/api/v1/file-requests/" + request.id() + "/revoke"
+                )))
+                .andExpect(content().string(Matchers.containsString("copyFrom=" + request.id())));
+    }
+
+    @Test
     @WithAnonymousUser
     void publicFileRequestAdmitsAndReceivesResumableUpload() throws Exception {
         String suffix = java.util.UUID.randomUUID().toString();
@@ -164,6 +187,7 @@ class AdminNotificationFlowTest {
         String token = "public_request_" + suffix.replace("-", "_");
         FileRequest request = fileRequestService.create(
                 "Send project files",
+                "Upload the requested text file.",
                 "",
                 UploaderNamePolicy.OPTIONAL,
                 1024,
@@ -177,6 +201,7 @@ class AdminNotificationFlowTest {
         mockMvc.perform(get("/r/{token}", request.token()))
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("Send project files")))
+                .andExpect(content().string(Matchers.containsString("Upload the requested text file.")))
                 .andExpect(content().string(Matchers.containsString("/js/file-request-upload.js")))
                 .andExpect(content().string(Matchers.containsString("data-file-request-upload")))
                 .andExpect(content().string(Matchers.containsString("accept=\".txt\"")))
