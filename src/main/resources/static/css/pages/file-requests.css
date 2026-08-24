@@ -30,6 +30,13 @@
 }
 
 .file-request-description-field textarea {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-control);
+    background: var(--panel-elevated);
+    color: var(--text);
+    padding: var(--field-padding);
+    font: inherit;
     resize: vertical;
 }
 
@@ -71,7 +78,9 @@
 .file-request-detail-actions {
     display: flex;
     flex-wrap: wrap;
+    justify-content: flex-end;
     gap: var(--space-md);
+    margin-top: var(--space-2xl);
 }
 
 .file-request-detail-actions form {

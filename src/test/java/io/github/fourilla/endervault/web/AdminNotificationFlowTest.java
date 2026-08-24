@@ -180,6 +180,40 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void fileRequestApiCreatesAndRevokesRequestWithCsrf() throws Exception {
+        String token = "api_request_" + java.util.UUID.randomUUID().toString().replace("-", "_");
+
+        mockMvc.perform(post("/api/v1/file-requests")
+                        .with(csrf())
+                        .param("title", "API request")
+                        .param("description", "Created through the versioned API.")
+                        .param("destinationPath", "")
+                        .param("uploaderNamePolicy", "OPTIONAL")
+                        .param("maxFileSizeGb", "1")
+                        .param("maxTotalGb", "2")
+                        .param("maxFiles", "2")
+                        .param("allowedExtensions", "txt")
+                        .param("expirationDays", "7")
+                        .param("customToken", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.redirectUrl", Matchers.startsWith("/admin/file-requests/")));
+
+        FileRequest request = fileRequestService.list().stream()
+                .filter(candidate -> candidate.token().equals(token))
+                .findFirst()
+                .orElseThrow();
+
+        mockMvc.perform(post("/api/v1/file-requests/{id}/revoke", request.id()).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.redirectUrl").value("/admin/file-requests/" + request.id()));
+
+        assertThat(fileRequestService.require(request.id()).enabled()).isFalse();
+        fileRequestService.delete(request.id());
+    }
+
+    @Test
     @WithAnonymousUser
     void publicFileRequestAdmitsAndReceivesResumableUpload() throws Exception {
         String suffix = java.util.UUID.randomUUID().toString();

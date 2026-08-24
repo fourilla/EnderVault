@@ -8,9 +8,10 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     const submit = async (form) => {
+        const formData = new FormData(form);
         setBusy(form, true);
         try {
-            const payload = await submitJsonForm(form);
+            const payload = await submitJsonForm(form, formData);
             if (payload.redirectUrl) {
                 rememberNotification(payload.notification);
                 window.location.assign(payload.redirectUrl);
