@@ -3,10 +3,13 @@ package io.github.fourilla.endervault.filetool.archive;
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.auth.ClientIpResolver;
 import io.github.fourilla.endervault.common.StorageAccessException;
+import io.github.fourilla.endervault.filecommit.FileCommitConflictException;
+import io.github.fourilla.endervault.filecommit.FileCommitCoordinator;
+import io.github.fourilla.endervault.filecommit.FileCommitOwner;
+import io.github.fourilla.endervault.filecommit.FileCommitOwnerType;
 import io.github.fourilla.endervault.pending.PendingFileDecision;
 import io.github.fourilla.endervault.pending.PendingFileDecisionService;
 import io.github.fourilla.endervault.pending.PendingFileDecisionSource;
-import io.github.fourilla.endervault.storage.ConflictPolicy;
 import io.github.fourilla.endervault.storage.FileItem;
 import io.github.fourilla.endervault.storage.StorageOperationSummary;
 import io.github.fourilla.endervault.storage.StorageProgressListener;
@@ -24,7 +27,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
-import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.security.Principal;
@@ -47,6 +49,7 @@ public class ArchiveCreationTaskService {
     private final ClientIpResolver clientIpResolver;
     private final TemporaryArtifactRegistry temporaryArtifactRegistry;
     private final PendingFileDecisionService pendingFileDecisionService;
+    private final FileCommitCoordinator fileCommitCoordinator;
 
     public ArchiveCreationTaskService(
             StorageService storageService,
@@ -54,7 +57,8 @@ public class ArchiveCreationTaskService {
             ActivityLogService activityLogService,
             ClientIpResolver clientIpResolver,
             TemporaryArtifactRegistry temporaryArtifactRegistry,
-            PendingFileDecisionService pendingFileDecisionService
+            PendingFileDecisionService pendingFileDecisionService,
+            FileCommitCoordinator fileCommitCoordinator
     ) {
         this.storageService = storageService;
         this.taskManagerService = taskManagerService;
@@ -62,6 +66,7 @@ public class ArchiveCreationTaskService {
         this.clientIpResolver = clientIpResolver;
         this.temporaryArtifactRegistry = temporaryArtifactRegistry;
         this.pendingFileDecisionService = pendingFileDecisionService;
+        this.fileCommitCoordinator = fileCommitCoordinator;
     }
 
     public AppTask queue(
@@ -120,6 +125,11 @@ public class ArchiveCreationTaskService {
     ) throws IOException {
         Path workspace = null;
         TemporaryArtifactRegistry.Registration registration = null;
+        Path stagedOutput = null;
+        TemporaryArtifactRegistry.Registration stagedRegistration = null;
+        boolean committed = false;
+        boolean retainedForDecision = false;
+        FileCommitOwner commitOwner = new FileCommitOwner(FileCommitOwnerType.ARCHIVE_CREATE, context.taskId());
         try {
             context.message("Scanning selected items.");
             StorageOperationSummary summary = storageService.summarizeVaultPaths(sourcePaths);
@@ -152,46 +162,49 @@ public class ArchiveCreationTaskService {
             context.checkCanceled();
             context.message("Saving ZIP archive.");
             long archiveBytes = Files.size(temporaryArchive);
-            StorageService.CommittedVaultFile committed;
+            stagedOutput = storageService.claimArchiveCreationOutput(temporaryArchive);
+            stagedRegistration = temporaryArtifactRegistry.register(
+                    stagedOutput,
+                    TemporaryArtifactType.ARCHIVE_CREATION,
+                    context.taskId()
+            );
+            StorageService.CommittedVaultFile committedFile;
             try {
-                committed = storageService.commitTemporaryFileIntoVault(
-                        temporaryArchive,
+                FileCommitCoordinator.StagedFileCommit stagedCommit = fileCommitCoordinator.commitSingleFile(
+                        commitOwner,
+                        stagedOutput,
+                        directoryPath,
+                        archiveName
+                );
+                fileCommitCoordinator.complete(stagedCommit.operationId());
+                committed = true;
+                committedFile = stagedCommit.file();
+            } catch (FileCommitConflictException ex) {
+                close(stagedRegistration);
+                stagedRegistration = null;
+                PendingFileDecision decision = pendingFileDecisionService.create(
+                        stagedOutput,
+                        PendingFileDecisionSource.ARCHIVE_OUTPUT,
                         directoryPath,
                         archiveName,
-                        ConflictPolicy.CANCEL
+                        archiveBytes,
+                        context.taskId(),
+                        request.actor()
                 );
-            } catch (FileAlreadyExistsException ex) {
-                Path stagedOutput = storageService.claimArchiveCreationOutput(temporaryArchive);
-                try {
-                    PendingFileDecision decision = pendingFileDecisionService.create(
-                            stagedOutput,
-                            PendingFileDecisionSource.ARCHIVE_OUTPUT,
-                            directoryPath,
-                            archiveName,
-                            archiveBytes,
-                            context.taskId(),
-                            request.actor()
-                    );
-                    context.targetPath(childPath(directoryPath, archiveName));
-                    return TaskOutcome.pending(
-                            "ZIP created. A file name conflict needs review (" + decision.id() + ")."
-                    );
-                } catch (IOException | RuntimeException pendingFailure) {
-                    try {
-                        storageService.deleteFileStagingFile(storageService.fileStagingFilename(stagedOutput));
-                    } catch (IOException | RuntimeException cleanupFailure) {
-                        pendingFailure.addSuppressed(cleanupFailure);
-                    }
-                    throw pendingFailure;
-                }
+                retainedForDecision = true;
+                fileCommitCoordinator.completeConflict(ex.operationId());
+                context.targetPath(childPath(directoryPath, archiveName));
+                return TaskOutcome.pending(
+                        "ZIP created. A file name conflict needs review (" + decision.id() + ")."
+                );
             }
-            context.targetPath(committed.path());
+            context.targetPath(committedFile.path());
             activityLogService.record(
                     "ARCHIVE_CREATE_COMPLETE",
                     request.actor(),
                     request.ip(),
                     directoryPath,
-                    committed.path(),
+                    committedFile.path(),
                     true,
                     "ZIP archive creation complete",
                     Map.of(
@@ -200,7 +213,7 @@ public class ArchiveCreationTaskService {
                             "archiveBytes", Long.toString(archiveBytes)
                     )
             );
-            return TaskOutcome.complete("Created /" + committed.path() + ".");
+            return TaskOutcome.complete("Created /" + committedFile.path() + ".");
         } catch (TaskCanceledException ex) {
             recordFailure("ARCHIVE_CREATE_CANCELED", directoryPath, archiveName, request, ex);
             throw ex;
@@ -213,8 +226,28 @@ public class ArchiveCreationTaskService {
             recordFailure("ARCHIVE_CREATE_FAILED", directoryPath, archiveName, request, ex);
             throw ex;
         } finally {
+            if (stagedOutput != null
+                    && !committed
+                    && !retainedForDecision
+                    && !journalProtects(commitOwner)) {
+                try {
+                    storageService.deleteFileStagingFile(storageService.fileStagingFilename(stagedOutput));
+                } catch (IOException | RuntimeException cleanupFailure) {
+                    logger.warn("Failed to remove staged ZIP output {}.", stagedOutput.getFileName());
+                }
+            }
+            close(stagedRegistration);
             cleanup(workspace);
             close(registration);
+        }
+    }
+
+    private boolean journalProtects(FileCommitOwner owner) {
+        try {
+            return fileCommitCoordinator.hasActiveJournal(owner);
+        } catch (IOException ex) {
+            logger.warn("Could not verify the file commit journal for ZIP creation {}.", owner.id());
+            return true;
         }
     }
 

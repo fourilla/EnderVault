@@ -47,7 +47,9 @@
                 </span>
             </div>
             <div class="metadata-area-list">
-                <label class="metadata-area-row" th:each="area : ${areas}">
+                <label class="metadata-area-row"
+                       th:each="area : ${areas}"
+                       th:id="|metadata-scan-area-${area.name()}|">
                     <input type="checkbox"
                            name="areas"
                            th:value="${area.name()}"
@@ -104,7 +106,9 @@
                 <span><strong th:text="${#lists.size(latestReport.selectedAreas())}">0</strong> scanned areas</span>
             </div>
 
-            <article class="metadata-area-result" th:each="areaReport : ${latestReport.scanReport().areaReports()}">
+            <article class="metadata-area-result"
+                     th:each="areaReport : ${latestReport.scanReport().areaReports()}"
+                     th:id="|metadata-report-area-${areaReport.area().name()}|">
                 <header class="settings-subsection-heading">
                     <div>
                         <h3>

@@ -6,10 +6,13 @@ import io.github.fourilla.endervault.filerequest.FileRequest;
 import io.github.fourilla.endervault.filerequest.FileRequestPendingDecisionObserver.FileRequestUploadReference;
 import io.github.fourilla.endervault.filerequest.FileRequestService;
 import io.github.fourilla.endervault.filerequest.UploaderNamePolicy;
+import io.github.fourilla.endervault.filecommit.FileCommitCoordinator;
+import io.github.fourilla.endervault.filecommit.FileCommitConflictException;
+import io.github.fourilla.endervault.filecommit.FileCommitOwner;
+import io.github.fourilla.endervault.filecommit.FileCommitOwnerType;
 import io.github.fourilla.endervault.pending.PendingFileDecision;
 import io.github.fourilla.endervault.pending.PendingFileDecisionService;
 import io.github.fourilla.endervault.pending.PendingFileDecisionSource;
-import io.github.fourilla.endervault.storage.ConflictPolicy;
 import io.github.fourilla.endervault.storage.FileItem;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.storage.StorageUsage;
@@ -45,6 +48,7 @@ public class ResumableUploadService {
     private final FileRequestService fileRequestService;
     private final StorageService storageService;
     private final PendingFileDecisionService pendingFileDecisionService;
+    private final FileCommitCoordinator fileCommitCoordinator;
     private final NasProperties.Upload uploadProperties;
 
     public ResumableUploadService(
@@ -52,12 +56,14 @@ public class ResumableUploadService {
             FileRequestService fileRequestService,
             StorageService storageService,
             PendingFileDecisionService pendingFileDecisionService,
+            FileCommitCoordinator fileCommitCoordinator,
             NasProperties nasProperties
     ) {
         this.repository = repository;
         this.fileRequestService = fileRequestService;
         this.storageService = storageService;
         this.pendingFileDecisionService = pendingFileDecisionService;
+        this.fileCommitCoordinator = fileCommitCoordinator;
         this.uploadProperties = nasProperties.getUpload();
     }
 
@@ -204,8 +210,11 @@ public class ResumableUploadService {
 
     public synchronized FinalizationResult finalizeStaged(String id) throws IOException {
         ResumableUploadSession session = require(id);
-        if (session.status() == ResumableUploadStatus.COMPLETED
-                || session.status() == ResumableUploadStatus.PENDING) {
+        if (session.status() == ResumableUploadStatus.COMPLETED) {
+            fileCommitCoordinator.completeForOwnerIfPresent(commitOwner(session));
+            return FinalizationResult.from(session);
+        }
+        if (session.status() == ResumableUploadStatus.PENDING) {
             return FinalizationResult.from(session);
         }
         if (session.status() != ResumableUploadStatus.STAGED
@@ -218,6 +227,7 @@ public class ResumableUploadService {
                 pendingSource(session), sourceReference
         );
         if (existingPending.isPresent()) {
+            fileCommitCoordinator.completeConflictForOwnerIfPresent(commitOwner(session));
             recordAcceptedQuota(session);
             ResumableUploadSession pending = session.pending(existingPending.get().id());
             repository.save(pending);
@@ -229,28 +239,46 @@ public class ResumableUploadService {
             if (committed.directory() || committed.size() != session.size()) {
                 throw new StorageAccessException("Committed upload target no longer matches the upload session.");
             }
+            fileCommitCoordinator.completeForOwnerIfPresent(commitOwner(session));
             recordAcceptedQuota(session);
             ResumableUploadSession completed = session.completed(session.committedPath());
             repository.save(completed);
             return FinalizationResult.from(completed);
         }
 
-        Path stagedFile = stagedFile(session);
+        Path stagedFile = stagedFilePath(session);
         ResumableUploadSession finalizing = session.finalizing();
         repository.save(finalizing);
         try {
-            StorageService.CommittedVaultFile committed = storageService.commitTemporaryFileIntoVault(
+            FileCommitCoordinator.StagedFileCommit commit = fileCommitCoordinator.commitSingleFile(
+                    commitOwner(session),
                     stagedFile,
                     session.destinationPath(),
-                    session.originalFilename(),
-                    ConflictPolicy.CANCEL
+                    session.originalFilename()
             );
+            StorageService.CommittedVaultFile committed = commit.file();
             ResumableUploadSession committedSession = finalizing.withCommittedTarget(committed.path());
             repository.save(committedSession);
+            fileCommitCoordinator.complete(commit.operationId());
             recordAcceptedQuota(committedSession);
             ResumableUploadSession completed = committedSession.completed(committed.path());
             repository.save(completed);
             return FinalizationResult.from(completed);
+        } catch (FileCommitConflictException ex) {
+            PendingFileDecision pendingDecision = pendingFileDecisionService.create(
+                    stagedFile,
+                    pendingSource(session),
+                    session.destinationPath(),
+                    session.originalFilename(),
+                    session.size(),
+                    sourceReference,
+                    session.submittedBy()
+            );
+            fileCommitCoordinator.completeConflict(ex.operationId());
+            recordAcceptedQuota(session);
+            ResumableUploadSession pending = finalizing.pending(pendingDecision.id());
+            repository.save(pending);
+            return FinalizationResult.from(pending);
         } catch (FileAlreadyExistsException ex) {
             PendingFileDecision pendingDecision = pendingFileDecisionService.create(
                     stagedFile,
@@ -273,6 +301,7 @@ public class ResumableUploadService {
         if (session.status().terminal()) {
             return session;
         }
+        requireNoActiveCommit(session);
         deleteStagingIfPresent(session);
         ResumableUploadSession canceled = session.canceled();
         repository.remove(session.id());
@@ -301,15 +330,26 @@ public class ResumableUploadService {
 
     public synchronized Set<String> activeStagingFilenames() throws IOException {
         Instant now = Instant.now();
-        return repository.list().stream()
-                .filter(session -> !session.expired(now))
-                .filter(session -> !session.status().terminal())
-                .map(this::expectedStagingFilename)
-                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        java.util.HashSet<String> active = new java.util.HashSet<>();
+        for (ResumableUploadSession session : repository.list()) {
+            if (session.status().terminal()) {
+                continue;
+            }
+            if (!session.expired(now) || fileCommitCoordinator.hasActiveJournal(commitOwner(session))) {
+                active.add(expectedStagingFilename(session));
+            }
+        }
+        return Set.copyOf(active);
+    }
+
+    public synchronized boolean hasActiveFileCommitJournal(String sessionId) throws IOException {
+        ResumableUploadSession session = require(sessionId);
+        return fileCommitCoordinator.hasActiveJournal(commitOwner(session));
     }
 
     public synchronized void remove(String id) throws IOException {
         ResumableUploadSession session = require(id);
+        requireNoActiveCommit(session);
         if (session.status() != ResumableUploadStatus.COMPLETED
                 && session.status() != ResumableUploadStatus.PENDING) {
             deleteStagingIfPresent(session);
@@ -516,14 +556,14 @@ public class ResumableUploadService {
                 : session.id();
     }
 
-    private Path stagedFile(ResumableUploadSession session) throws IOException {
+    private Path stagedFilePath(ResumableUploadSession session) throws IOException {
         Path stagedFile = session.stagingFilename() == null
                 ? storageService.resumableUploadStagingFile(session.id())
                 : storageService.resolveFileStagingFile(session.stagingFilename());
-        if (!Files.isRegularFile(stagedFile, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(stagedFile)) {
-            throw new NoSuchFileException("Resumable upload staging data is unavailable.");
-        }
-        if (Files.size(stagedFile) != session.size()) {
+        if (Files.exists(stagedFile, LinkOption.NOFOLLOW_LINKS)
+                && (!Files.isRegularFile(stagedFile, LinkOption.NOFOLLOW_LINKS)
+                || Files.isSymbolicLink(stagedFile)
+                || Files.size(stagedFile) != session.size())) {
             throw new StorageAccessException("Resumable upload staging size is invalid.");
         }
         return stagedFile;
@@ -540,6 +580,16 @@ public class ResumableUploadService {
                 ? storageService.resumableUploadStagingFile(session.id())
                 : storageService.resolveFileStagingFile(session.stagingFilename());
         Files.deleteIfExists(stagedFile);
+    }
+
+    private void requireNoActiveCommit(ResumableUploadSession session) throws IOException {
+        if (fileCommitCoordinator.hasActiveJournal(commitOwner(session))) {
+            throw new StorageAccessException("Upload finalization is still being recovered.");
+        }
+    }
+
+    private FileCommitOwner commitOwner(ResumableUploadSession session) {
+        return new FileCommitOwner(FileCommitOwnerType.RESUMABLE_UPLOAD, session.id());
     }
 
     private String cleanFilename(String filename) {

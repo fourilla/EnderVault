@@ -4,11 +4,9 @@ import io.github.fourilla.endervault.common.ByteSizeFormatter;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
 import java.io.IOException;
-import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -20,7 +18,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -34,7 +31,6 @@ final class ArchiveStagingCommitter {
     private final StoragePathResolver pathResolver;
     private final StorageConflictResolver conflictResolver;
     private final StorageTreeOperations treeOperations;
-    private final StorageListingService listingService;
     private final TemporaryArtifactRegistry temporaryArtifactRegistry;
     private final Object commitMonitor = new Object();
 
@@ -44,7 +40,6 @@ final class ArchiveStagingCommitter {
             StoragePathResolver pathResolver,
             StorageConflictResolver conflictResolver,
             StorageTreeOperations treeOperations,
-            StorageListingService listingService,
             TemporaryArtifactRegistry temporaryArtifactRegistry
     ) {
         this.root = root;
@@ -52,7 +47,6 @@ final class ArchiveStagingCommitter {
         this.pathResolver = pathResolver;
         this.conflictResolver = conflictResolver;
         this.treeOperations = treeOperations;
-        this.listingService = listingService;
         this.temporaryArtifactRegistry = temporaryArtifactRegistry;
     }
 
@@ -75,22 +69,6 @@ final class ArchiveStagingCommitter {
         return output;
     }
 
-    FileItem commitDirectory(
-            Path temporaryDirectory,
-            String directoryPath,
-            String directoryName,
-            ConflictPolicy conflictPolicy
-    ) throws IOException {
-        Path source = requireTemporaryDirectory(temporaryDirectory);
-        synchronized (commitMonitor) {
-            Path target = pathResolver.resolveChild(StorageScope.VAULT, directoryPath, directoryName, false);
-            StorageConflictResolver.StorageConflictTarget resolvedTarget =
-                    conflictResolver.resolve(target, true, conflictPolicy);
-            treeOperations.move(source, resolvedTarget.path(), false);
-            return listingService.describeVaultPath(pathResolver.toRelativePath(root, resolvedTarget.path()));
-        }
-    }
-
     void preflight(
             String directoryPath,
             boolean createContainingDirectory,
@@ -109,18 +87,34 @@ final class ArchiveStagingCommitter {
         }
     }
 
-    StorageBatchCommitResult commitContents(
+    ArchiveCommitPlan planCommit(
             Path temporaryDirectory,
             String directoryPath,
+            boolean createContainingDirectory,
+            String directoryName,
             List<StorageBatchEntry> topLevelEntries,
-            ConflictPolicy conflictPolicy,
-            StorageProgressListener progressListener
+            ConflictPolicy conflictPolicy
     ) throws IOException {
         Path sourceRoot = requireTemporaryDirectory(temporaryDirectory);
-        StorageProgressListener progress = progressListener == null
-                ? StorageProgressListener.NOOP
-                : progressListener;
+        Path workspace = requireExtractionWorkspace(sourceRoot);
         synchronized (commitMonitor) {
+            if (createContainingDirectory) {
+                pathResolver.validateSingleName(directoryName);
+                Path target = pathResolver.resolveChild(
+                        StorageScope.VAULT, directoryPath, directoryName, false
+                );
+                StorageConflictResolver.StorageConflictTarget resolved =
+                        conflictResolver.resolve(target, true, conflictPolicy);
+                return new ArchiveCommitPlan(
+                        workspace,
+                        List.of(new ArchiveCommitPlanItem(
+                                sourceRoot,
+                                pathResolver.toRelativePath(root, resolved.path()),
+                                true
+                        ))
+                );
+            }
+
             List<PlannedBatchEntry> planned = planBatchTargets(
                     directoryPath,
                     topLevelEntries,
@@ -128,27 +122,36 @@ final class ArchiveStagingCommitter {
                     sourceRoot
             );
             verifyStagingTopLevelEntries(sourceRoot, planned);
-            List<MovedBatchEntry> moved = new ArrayList<>();
-            try {
-                for (PlannedBatchEntry entry : planned) {
-                    progress.checkCanceled();
-                    TreeFingerprint fingerprint = planned.size() > 1
-                            ? fingerprint(entry.source(), progress)
-                            : null;
-                    treeOperations.move(entry.source(), entry.target(), false);
-                    moved.add(new MovedBatchEntry(entry.source(), entry.target(), fingerprint));
-                }
-            } catch (IOException | RuntimeException failure) {
-                List<String> unresolved = rollbackBatchMoves(moved);
-                if (!unresolved.isEmpty()) {
-                    throw new PartialStorageCommitException(unresolved, failure);
-                }
-                throw failure;
-            }
-            return new StorageBatchCommitResult(planned.stream()
-                    .map(entry -> pathResolver.toRelativePath(root, entry.target()))
-                    .toList());
+            return new ArchiveCommitPlan(
+                    workspace,
+                    planned.stream()
+                            .map(entry -> new ArchiveCommitPlanItem(
+                                    entry.source(),
+                                    pathResolver.toRelativePath(root, entry.target()),
+                                    entry.directory()
+                            ))
+                            .toList()
+            );
         }
+    }
+
+    String storageRelativeCommitPath(Path path) throws IOException {
+        Path safePath = requireArchiveCommitPath(path, true);
+        return pathResolver.toRelativePath(root, safePath);
+    }
+
+    Path resolveCommitPath(String storageRelativePath) throws IOException {
+        if (storageRelativePath == null || storageRelativePath.isBlank()) {
+            throw new StorageAccessException("Archive staging commit path is required.");
+        }
+        Path candidate = root.resolve(storageRelativePath.replace('\\', '/')).normalize();
+        return requireArchiveCommitPath(candidate, false);
+    }
+
+    Path workspaceForCommitPath(Path path) throws IOException {
+        Path safePath = requireArchiveCommitPath(path, false);
+        Path relative = archiveTempRoot.relativize(safePath);
+        return archiveTempRoot.resolve(relative.getName(0)).normalize();
     }
 
     void deleteWorkspace(Path workspace) throws IOException {
@@ -311,69 +314,53 @@ final class ArchiveStagingCommitter {
         }
     }
 
-    private List<String> rollbackBatchMoves(List<MovedBatchEntry> moved) {
-        List<String> unresolved = new ArrayList<>();
-        for (int index = moved.size() - 1; index >= 0; index--) {
-            MovedBatchEntry entry = moved.get(index);
-            try {
-                if (Files.exists(entry.source(), LinkOption.NOFOLLOW_LINKS)
-                        || !Files.exists(entry.target(), LinkOption.NOFOLLOW_LINKS)
-                        || entry.fingerprint() == null
-                        || !entry.fingerprint().equals(fingerprint(entry.target(), StorageProgressListener.NOOP))) {
-                    unresolved.add(pathResolver.toRelativePath(root, entry.target()));
-                    continue;
-                }
-                treeOperations.move(entry.target(), entry.source(), false);
-            } catch (IOException | RuntimeException rollbackFailure) {
-                unresolved.add(pathResolver.toRelativePath(root, entry.target()));
-            }
-        }
-        return List.copyOf(unresolved);
-    }
-
-    private TreeFingerprint fingerprint(Path treeRoot, StorageProgressListener progressListener) throws IOException {
-        StorageProgressListener progress = progressListener == null
-                ? StorageProgressListener.NOOP
-                : progressListener;
-        Map<String, TreeEntryIdentity> entries = new TreeMap<>();
-        Files.walkFileTree(treeRoot, new SimpleFileVisitor<>() {
-            @Override
-            public FileVisitResult preVisitDirectory(Path directory, BasicFileAttributes attributes)
-                    throws IOException {
-                add(directory, attributes);
-                return FileVisitResult.CONTINUE;
-            }
-
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) throws IOException {
-                add(file, attributes);
-                return FileVisitResult.CONTINUE;
-            }
-
-            private void add(Path path, BasicFileAttributes attributes) throws IOException {
-                progress.checkCanceled();
-                if (attributes.isSymbolicLink() || Files.isSymbolicLink(path)) {
-                    throw new StorageAccessException("Symbolic links cannot be committed from archive staging.");
-                }
-                String relative = treeRoot.relativize(path).toString().replace('\\', '/');
-                entries.put(relative, new TreeEntryIdentity(
-                        attributes.isDirectory(),
-                        attributes.isRegularFile(),
-                        attributes.size(),
-                        attributes.lastModifiedTime().toMillis(),
-                        attributes.fileKey()
-                ));
-            }
-        });
-        return new TreeFingerprint(entries);
-    }
-
     private Path requireTemporaryDirectory(Path path) throws IOException {
         Path safePath = requireTemporaryPath(path);
         if (!Files.isDirectory(safePath, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(safePath)) {
             throw new StorageAccessException("Archive staging source is not a regular directory.");
         }
         return safePath;
+    }
+
+    private Path requireExtractionWorkspace(Path sourceRoot) {
+        Path workspace = sourceRoot.getParent();
+        if (workspace == null
+                || !workspace.getParent().equals(archiveTempRoot)
+                || !workspace.getFileName().toString().startsWith("extract-")
+                || !sourceRoot.getFileName().toString().equals("content")) {
+            throw new StorageAccessException("Archive extraction source is outside a managed workspace.");
+        }
+        return workspace;
+    }
+
+    private Path requireArchiveCommitPath(Path path, boolean mustExist) throws IOException {
+        Path candidate = path.toAbsolutePath().normalize();
+        if (!candidate.startsWith(archiveTempRoot) || candidate.equals(archiveTempRoot)) {
+            throw new StorageAccessException("Archive commit path is outside archive staging.");
+        }
+        Path relative = archiveTempRoot.relativize(candidate);
+        if (relative.getNameCount() < 2
+                || relative.getNameCount() > 3
+                || !relative.getName(0).toString().startsWith("extract-")
+                || !relative.getName(1).toString().equals("content")) {
+            throw new StorageAccessException("Archive commit path is not a top-level extraction item.");
+        }
+        Path workspace = archiveTempRoot.resolve(relative.getName(0)).normalize();
+        if (!Files.isDirectory(workspace, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(workspace)) {
+            throw new StorageAccessException("Archive extraction workspace is unavailable or unsafe.");
+        }
+        Path content = workspace.resolve("content");
+        if (Files.exists(content, LinkOption.NOFOLLOW_LINKS)
+                && (!Files.isDirectory(content, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(content))) {
+            throw new StorageAccessException("Archive extraction content directory is unsafe.");
+        }
+        if (mustExist && !Files.exists(candidate, LinkOption.NOFOLLOW_LINKS)) {
+            throw new java.nio.file.NoSuchFileException(candidate.toString());
+        }
+        if (Files.isSymbolicLink(candidate)) {
+            throw new StorageAccessException("Archive commit path cannot be a symbolic link.");
+        }
+        return candidate;
     }
 
     private Path requireTemporaryPath(Path path) {
@@ -390,21 +377,4 @@ final class ArchiveStagingCommitter {
     private record PlannedBatchEntry(String name, boolean directory, Path source, Path target) {
     }
 
-    private record MovedBatchEntry(Path source, Path target, TreeFingerprint fingerprint) {
-    }
-
-    private record TreeFingerprint(Map<String, TreeEntryIdentity> entries) {
-        private TreeFingerprint {
-            entries = Map.copyOf(entries);
-        }
-    }
-
-    private record TreeEntryIdentity(
-            boolean directory,
-            boolean regularFile,
-            long size,
-            long lastModifiedMillis,
-            Object fileKey
-    ) {
-    }
 }

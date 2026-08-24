@@ -77,7 +77,6 @@ public class StorageService {
                 pathResolver,
                 conflictResolver,
                 treeOperations,
-                listingService,
                 temporaryArtifactRegistry
         );
         this.shareProperties = nasProperties.getShare();
@@ -493,6 +492,54 @@ public class StorageService {
         );
     }
 
+    public String resolveAvailableVaultFilename(String directoryPath, String filename) throws IOException {
+        Path target = pathResolver.resolveChild(StorageScope.VAULT, directoryPath, filename, false);
+        StorageConflictResolver.StorageConflictTarget resolvedTarget =
+                conflictResolver.resolve(target, false, ConflictPolicy.RENAME);
+        return resolvedTarget.path().getFileName().toString();
+    }
+
+    public CommittedVaultFile commitStagedRegularFileNoReplace(
+            Path stagedFile,
+            String directoryPath,
+            String filename
+    ) throws IOException {
+        Path target = pathResolver.resolveChild(StorageScope.VAULT, directoryPath, filename, false);
+        treeOperations.commitRegularFileNoReplace(stagedFile, target);
+        return new CommittedVaultFile(
+                target.getFileName().toString(),
+                pathResolver.toRelativePath(root, target)
+        );
+    }
+
+    public void createStagedRegularFileReplacementBackup(
+            String directoryPath,
+            String filename,
+            Path backupFile
+    ) throws IOException {
+        Path target = pathResolver.resolveChild(StorageScope.VAULT, directoryPath, filename, true);
+        Path canonicalBackup = resolveFileStagingFile(fileStagingFilename(backupFile));
+        treeOperations.createRegularFileReplacementBackup(target, canonicalBackup);
+    }
+
+    public CommittedVaultFile commitStagedRegularFileReplace(
+            Path stagedFile,
+            String directoryPath,
+            String filename
+    ) throws IOException {
+        Path target = pathResolver.resolveChild(StorageScope.VAULT, directoryPath, filename, true);
+        treeOperations.commitRegularFileReplace(stagedFile, target);
+        return new CommittedVaultFile(
+                target.getFileName().toString(),
+                pathResolver.toRelativePath(root, target)
+        );
+    }
+
+    public void deleteStagedRegularFileReplacementBackup(Path backupFile) throws IOException {
+        Path canonicalBackup = resolveFileStagingFile(fileStagingFilename(backupFile));
+        treeOperations.deleteRegularFileReplacementBackup(canonicalBackup);
+    }
+
     public Path createArchiveExtractionWorkspace() throws IOException {
         return archiveStagingCommitter.createWorkspace("extract-");
     }
@@ -504,20 +551,6 @@ public class StorageService {
     public Path claimArchiveCreationOutput(Path archiveOutput) throws IOException {
         Path safeOutput = archiveStagingCommitter.requireCreationOutput(archiveOutput);
         return fileStagingService.claimTemporaryFile(safeOutput, "archive-output-", ".tmp");
-    }
-
-    public FileItem commitTemporaryDirectoryIntoVault(
-            Path temporaryDirectory,
-            String directoryPath,
-            String directoryName,
-            ConflictPolicy conflictPolicy
-    ) throws IOException {
-        return archiveStagingCommitter.commitDirectory(
-                temporaryDirectory,
-                directoryPath,
-                directoryName,
-                conflictPolicy
-        );
     }
 
     public void preflightArchiveExtraction(
@@ -536,20 +569,44 @@ public class StorageService {
         );
     }
 
-    public StorageBatchCommitResult commitArchiveContentsIntoVault(
+    public ArchiveCommitPlan planArchiveCommit(
             Path temporaryDirectory,
             String directoryPath,
+            boolean createContainingDirectory,
+            String directoryName,
             List<StorageBatchEntry> topLevelEntries,
-            ConflictPolicy conflictPolicy,
-            StorageProgressListener progressListener
+            ConflictPolicy conflictPolicy
     ) throws IOException {
-        return archiveStagingCommitter.commitContents(
+        return archiveStagingCommitter.planCommit(
                 temporaryDirectory,
                 directoryPath,
+                createContainingDirectory,
+                directoryName,
                 topLevelEntries,
-                conflictPolicy,
-                progressListener
+                conflictPolicy
         );
+    }
+
+    public String archiveStagingCommitPath(Path path) throws IOException {
+        return archiveStagingCommitter.storageRelativeCommitPath(path);
+    }
+
+    public Path resolveArchiveStagingCommitPath(String storageRelativePath) throws IOException {
+        return archiveStagingCommitter.resolveCommitPath(storageRelativePath);
+    }
+
+    public Path archiveStagingWorkspaceFor(Path commitPath) throws IOException {
+        return archiveStagingCommitter.workspaceForCommitPath(commitPath);
+    }
+
+    public Path resolveVaultCommitTarget(String vaultPath) throws IOException {
+        return pathResolver.resolveRestoreTargetPath(vaultPath);
+    }
+
+    public void commitArchiveStagedEntryNoReplace(Path stagedPath, String targetPath) throws IOException {
+        Path source = resolveArchiveStagingCommitPath(archiveStagingCommitPath(stagedPath));
+        Path target = resolveVaultCommitTarget(targetPath);
+        treeOperations.commitEntryNoReplace(source, target);
     }
 
     public void deleteArchiveExtractionWorkspace(Path workspace) throws IOException {

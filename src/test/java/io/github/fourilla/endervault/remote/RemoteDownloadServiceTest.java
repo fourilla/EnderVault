@@ -10,6 +10,8 @@ import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.auth.ClientIpResolver;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.filetool.FileActionRegistry;
+import io.github.fourilla.endervault.filecommit.FileCommitCoordinator;
+import io.github.fourilla.endervault.filecommit.FileCommitJournalStore;
 import io.github.fourilla.endervault.outbound.NetworkRoute;
 import io.github.fourilla.endervault.outbound.OutboundHttpClientRegistry;
 import io.github.fourilla.endervault.outbound.OutboundRouteStateService;
@@ -54,6 +56,7 @@ class RemoteDownloadServiceTest {
     private OutboundRouteStateService outboundRouteStateService;
     private TemporaryArtifactRegistry temporaryArtifactRegistry;
     private PendingFileDecisionService pendingFileDecisionService;
+    private FileCommitJournalStore fileCommitJournalStore;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -74,6 +77,13 @@ class RemoteDownloadServiceTest {
         );
         storageService.initialize();
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        fileCommitJournalStore = new FileCommitJournalStore(objectMapper, properties);
+        fileCommitJournalStore.initialize();
+        FileCommitCoordinator fileCommitCoordinator = new FileCommitCoordinator(
+                fileCommitJournalStore,
+                storageService,
+                properties
+        );
         ActivityLogService activityLogService = new ActivityLogService(objectMapper, properties);
         activityLogService.initialize();
         RemoteDownloadValidator validator = new RemoteDownloadValidator(properties);
@@ -89,6 +99,7 @@ class RemoteDownloadServiceTest {
         pendingFileDecisionService = new PendingFileDecisionService(
                 pendingRepository,
                 storageService,
+                fileCommitCoordinator,
                 temporaryArtifactRegistry,
                 List.of(new RemoteDownloadPendingDecisionObserver(taskStore))
         );
@@ -106,7 +117,8 @@ class RemoteDownloadServiceTest {
                 fileNameResolver,
                 retryPolicy,
                 temporaryArtifactRegistry,
-                pendingFileDecisionService
+                pendingFileDecisionService,
+                fileCommitCoordinator
         );
         ticketService = new RemoteDownloadRequestTicketService();
         remoteDownloadService = new RemoteDownloadService(
@@ -161,6 +173,7 @@ class RemoteDownloadServiceTest {
         assertThat(task.targetPath()).isEqualTo("incoming/downloaded.mp4");
         assertThat(root.resolve("incoming/downloaded.mp4")).hasBinaryContent(body);
         assertThat(temporaryArtifactRegistry.activeArtifacts()).isEmpty();
+        assertThat(fileCommitJournalStore.list()).isEmpty();
         assertThatThrownBy(() -> remoteDownloadService.start(inspection.requestId(), request))
                 .hasMessageContaining("not found or expired");
     }
@@ -432,6 +445,7 @@ class RemoteDownloadServiceTest {
         assertThat(root.resolve("note - 1.txt")).hasBinaryContent(remote);
         assertThat(pendingFileDecisionService.list()).isEmpty();
         assertThat(temporaryArtifactRegistry.activeArtifacts()).isEmpty();
+        assertThat(fileCommitJournalStore.list()).isEmpty();
     }
 
     @Test

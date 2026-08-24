@@ -9,6 +9,8 @@ import io.github.fourilla.endervault.auth.ClientIpResolver;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.filetool.FileActionRegistry;
+import io.github.fourilla.endervault.filecommit.FileCommitCoordinator;
+import io.github.fourilla.endervault.filecommit.FileCommitJournalStore;
 import io.github.fourilla.endervault.pending.PendingFileDecisionAction;
 import io.github.fourilla.endervault.pending.PendingFileDecisionRepository;
 import io.github.fourilla.endervault.pending.PendingFileDecisionService;
@@ -42,6 +44,7 @@ class ArchiveCreationTaskServiceTest {
     private ArchiveCreationTaskService service;
     private TemporaryArtifactRegistry temporaryArtifactRegistry;
     private PendingFileDecisionService pendingFileDecisionService;
+    private FileCommitJournalStore fileCommitJournalStore;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -53,6 +56,13 @@ class ArchiveCreationTaskServiceTest {
         storageService.initialize();
         taskManagerService = new TaskManagerService(properties);
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        fileCommitJournalStore = new FileCommitJournalStore(objectMapper, properties);
+        fileCommitJournalStore.initialize();
+        FileCommitCoordinator fileCommitCoordinator = new FileCommitCoordinator(
+                fileCommitJournalStore,
+                storageService,
+                properties
+        );
         ActivityLogService activityLogService = new ActivityLogService(objectMapper, properties);
         activityLogService.initialize();
         PendingFileDecisionRepository pendingRepository = new PendingFileDecisionRepository(objectMapper, properties);
@@ -60,6 +70,7 @@ class ArchiveCreationTaskServiceTest {
         pendingFileDecisionService = new PendingFileDecisionService(
                 pendingRepository,
                 storageService,
+                fileCommitCoordinator,
                 temporaryArtifactRegistry,
                 List.of(new ArchiveOutputPendingDecisionObserver(taskManagerService))
         );
@@ -70,7 +81,8 @@ class ArchiveCreationTaskServiceTest {
                 activityLogService,
                 new ClientIpResolver(properties),
                 temporaryArtifactRegistry,
-                pendingFileDecisionService
+                pendingFileDecisionService,
+                fileCommitCoordinator
         );
     }
 
@@ -102,6 +114,7 @@ class ArchiveCreationTaskServiceTest {
                 .containsKeys("docs/", "docs/empty/");
         assertThat(root.resolve(".endervault/archive-staging")).isEmptyDirectory();
         assertThat(temporaryArtifactRegistry.activeArtifacts()).isEmpty();
+        assertThat(fileCommitJournalStore.list()).isEmpty();
     }
 
     @Test
@@ -130,6 +143,7 @@ class ArchiveCreationTaskServiceTest {
         assertThat(zipEntries(root.resolve("report - 1.zip"))).containsEntry("report.txt", "new report");
         assertThat(pendingFileDecisionService.list()).isEmpty();
         assertThat(temporaryArtifactRegistry.activeArtifacts()).isEmpty();
+        assertThat(fileCommitJournalStore.list()).isEmpty();
     }
 
     @Test

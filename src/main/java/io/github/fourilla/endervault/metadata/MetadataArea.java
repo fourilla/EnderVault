@@ -17,7 +17,12 @@ public enum MetadataArea {
     BOOKMARKS("Bookmarks", "Saved web links and bookmark directories", "fas fa-bookmark"),
     STICKY_NOTES("Sticky notes", "Page and item notes whose targets may have moved or disappeared", "fas fa-note-sticky"),
     FILE_REQUESTS("File requests", "Public upload request records and destination directories", "fas fa-inbox"),
-    PENDING_FILE_DECISIONS("Pending decisions", "Fully received files waiting for an administrator decision", "fas fa-bell");
+    PENDING_FILE_DECISIONS("Pending decisions", "Fully received files waiting for an administrator decision", "fas fa-bell"),
+    FILE_COMMIT_JOURNALS(
+            "File commit journals",
+            "Durable file commit operations that could not be recovered automatically",
+            "fas fa-book-journal-whills"
+    );
 
     private final String label;
     private final String description;

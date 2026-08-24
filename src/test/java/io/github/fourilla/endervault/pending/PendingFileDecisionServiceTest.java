@@ -7,6 +7,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.filetool.FileActionRegistry;
+import io.github.fourilla.endervault.filecommit.FileCommitCoordinator;
+import io.github.fourilla.endervault.filecommit.FileCommitJournalStore;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
 import io.github.fourilla.endervault.temporary.TemporaryArtifactType;
@@ -24,6 +26,8 @@ class PendingFileDecisionServiceTest {
     private NasProperties properties;
     private StorageService storageService;
     private ObjectMapper objectMapper;
+    private FileCommitCoordinator fileCommitCoordinator;
+    private FileCommitJournalStore fileCommitJournalStore;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -32,6 +36,9 @@ class PendingFileDecisionServiceTest {
         objectMapper = new ObjectMapper().findAndRegisterModules();
         storageService = new StorageService(properties, new FileActionRegistry(), new TemporaryArtifactRegistry());
         storageService.initialize();
+        fileCommitJournalStore = new FileCommitJournalStore(objectMapper, properties);
+        fileCommitJournalStore.initialize();
+        fileCommitCoordinator = new FileCommitCoordinator(fileCommitJournalStore, storageService, properties);
     }
 
     @Test
@@ -71,6 +78,7 @@ class PendingFileDecisionServiceTest {
         assertThat(Files.readString(root.resolve(result.committedFile().name()))).isEqualTo("pending");
         assertThat(restarted.list()).isEmpty();
         assertThat(restartedArtifacts.isActive(staged)).isFalse();
+        assertThat(fileCommitJournalStore.list()).isEmpty();
     }
 
     @Test
@@ -123,6 +131,7 @@ class PendingFileDecisionServiceTest {
         assertThat(result.committedFile().name()).isEqualTo("renamed.txt");
         assertThat(Files.readString(root.resolve("renamed.txt"))).isEqualTo("pending");
         assertThat(service.list()).isEmpty();
+        assertThat(fileCommitJournalStore.list()).isEmpty();
     }
 
     @Test
@@ -150,6 +159,7 @@ class PendingFileDecisionServiceTest {
         assertThat(result.committedFile().name()).isEqualTo("note.txt");
         assertThat(Files.readString(target)).isEqualTo("pending");
         assertThat(service.list()).isEmpty();
+        assertThat(fileCommitJournalStore.list()).isEmpty();
     }
 
     @Test
@@ -209,6 +219,7 @@ class PendingFileDecisionServiceTest {
         PendingFileDecisionService service = new PendingFileDecisionService(
                 repository,
                 storageService,
+                fileCommitCoordinator,
                 artifacts,
                 java.util.List.of()
         );

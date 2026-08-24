@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.metadata;
 
 import io.github.fourilla.endervault.common.StorageAccessException;
+import io.github.fourilla.endervault.filecommit.FileCommitCoordinator;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.storage.StorageService.FileStagingInfo;
 import io.github.fourilla.endervault.task.TaskContext;
@@ -19,15 +20,18 @@ public class FileStagingMetadataInspector implements MetadataInspector {
     private final StorageService storageService;
     private final TemporaryArtifactRetentionPolicy retentionPolicy;
     private final ResumableUploadService resumableUploadService;
+    private final FileCommitCoordinator fileCommitCoordinator;
 
     public FileStagingMetadataInspector(
             StorageService storageService,
             TemporaryArtifactRetentionPolicy retentionPolicy,
-            ResumableUploadService resumableUploadService
+            ResumableUploadService resumableUploadService,
+            FileCommitCoordinator fileCommitCoordinator
     ) {
         this.storageService = storageService;
         this.retentionPolicy = retentionPolicy;
         this.resumableUploadService = resumableUploadService;
+        this.fileCommitCoordinator = fileCommitCoordinator;
     }
 
     @Override
@@ -45,14 +49,18 @@ public class FileStagingMetadataInspector implements MetadataInspector {
         Instant now = Instant.now();
         List<MetadataIssue> issues = new ArrayList<>();
         Set<String> resumableStagingFiles = resumableUploadService.activeStagingFilenames();
+        Set<String> journalStagingFiles = fileCommitCoordinator.activeStagingFilenames();
         for (FileStagingInfo file : storageService.listFileStagingFiles()) {
             if (context != null) {
                 context.checkCanceled();
             }
             boolean stale = retentionPolicy.isStale(file.modifiedAt(), now);
             boolean resumableActive = resumableStagingFiles.contains(file.name());
-            boolean active = file.active() || resumableActive;
-            String activeOperation = resumableActive ? "Resumable upload" : file.activeOperation();
+            boolean journalActive = journalStagingFiles.contains(file.name());
+            boolean active = file.active() || resumableActive || journalActive;
+            String activeOperation = journalActive
+                    ? "File commit recovery"
+                    : resumableActive ? "Resumable upload" : file.activeOperation();
             issues.add(new MetadataIssue(
                     area(),
                     stale && !active ? MetadataIssueSeverity.WARNING : MetadataIssueSeverity.INFO,
@@ -81,6 +89,9 @@ public class FileStagingMetadataInspector implements MetadataInspector {
         }
         if (resumableUploadService.referencesStagingFile(subject)) {
             throw new StorageAccessException("File staging artifact is still in use by a resumable upload.");
+        }
+        if (fileCommitCoordinator.referencesStagingFile(subject)) {
+            throw new StorageAccessException("File staging artifact is still protected by a file commit journal.");
         }
         storageService.deleteFileStagingFile(subject);
         return "Deleted file staging artifact: " + subject;
