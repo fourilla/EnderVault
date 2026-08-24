@@ -38,6 +38,8 @@ public class StickyNotePageCatalog {
         register(values, "passkeys", "Passkeys", "/admin/settings/passkeys");
         register(values, "vpn-status", "VPN Status", "/admin/vpn");
         register(values, "remote-download", "Remote Download", "/admin/utils/remote-download");
+        register(values, "file-requests", "File Requests", "/admin/file-requests");
+        register(values, "pending-decisions", "Pending File Decisions", "/admin/pending-decisions");
         register(values, "recent", "Recent", "/files/recent");
         register(values, "favorites", "Favorites", "/files/favorites");
         register(values, "bookmarks", "Bookmarks", "/files/bookmarks");

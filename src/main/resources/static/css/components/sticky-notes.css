@@ -15,6 +15,10 @@
     pointer-events: none;
 }
 
+.sticky-note-layer.is-interacting {
+    pointer-events: auto;
+}
+
 .sticky-note-layer[hidden] {
     display: none;
 }
@@ -28,7 +32,6 @@
     max-width: min(600px, calc(100vw - 16px));
     max-height: min(700px, calc(100vh - 16px));
     overflow: hidden;
-    resize: both;
     pointer-events: auto;
     border: 1px solid var(--sticky-note-border);
     border-radius: var(--radius-control);
@@ -44,7 +47,6 @@
 .sticky-note-card.is-collapsed {
     min-height: 0;
     height: 42px !important;
-    resize: none;
 }
 
 .sticky-note-header {
@@ -92,6 +94,38 @@
     background: color-mix(in srgb, var(--sticky-note-text) 9%, transparent);
 }
 
+.sticky-note-resize-handle {
+    position: absolute;
+    right: 2px;
+    bottom: 2px;
+    display: grid;
+    width: 24px;
+    height: 24px;
+    min-height: 24px;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: color-mix(in srgb, var(--sticky-note-text) 62%, transparent);
+    cursor: nwse-resize;
+    touch-action: none;
+}
+
+.sticky-note-resize-handle i {
+    transform: rotate(-45deg);
+    pointer-events: none;
+}
+
+.sticky-note-resize-handle:hover,
+.sticky-note-resize-handle:focus-visible {
+    background: color-mix(in srgb, var(--sticky-note-text) 9%, transparent);
+    color: var(--sticky-note-text);
+}
+
+.sticky-note-card.is-collapsed .sticky-note-resize-handle {
+    display: none;
+}
+
 .sticky-note-body {
     display: flex;
     min-height: 0;
@@ -128,7 +162,7 @@
 
 .sticky-note-status {
     min-height: 22px;
-    padding: 2px var(--space-xl) var(--space-xs);
+    padding: 2px calc(var(--space-xl) + 24px) var(--space-xs) var(--space-xl);
     color: color-mix(in srgb, var(--sticky-note-text) 66%, transparent);
     font-size: var(--font-size-xs);
     text-align: right;

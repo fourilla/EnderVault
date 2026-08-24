@@ -50,4 +50,21 @@ class StickyNoteContextResolverTest {
 
         assertThat(resolver.resolve(request).available()).isFalse();
     }
+
+    @Test
+    void resolvesNewerAdminManagementPagesFromThePageCatalog() {
+        MockHttpServletRequest fileRequests = new MockHttpServletRequest("GET", "/admin/file-requests");
+        MockHttpServletRequest pendingDecisions = new MockHttpServletRequest("GET", "/admin/pending-decisions");
+
+        assertThat(resolver.resolve(fileRequests)).extracting(
+                StickyNotePageContext::targetType,
+                StickyNotePageContext::targetKey,
+                StickyNotePageContext::surface
+        ).containsExactly("PAGE", "file-requests", "PAGE");
+        assertThat(resolver.resolve(pendingDecisions)).extracting(
+                StickyNotePageContext::targetType,
+                StickyNotePageContext::targetKey,
+                StickyNotePageContext::surface
+        ).containsExactly("PAGE", "pending-decisions", "PAGE");
+    }
 }
