@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicInteger;
 import me.desair.tus.server.exception.TusException;
 import me.desair.tus.server.upload.UploadInfo;
 import org.slf4j.Logger;
@@ -39,8 +40,8 @@ public class ResumableUploadCoordinator {
     private final ResumableUploadProtocolService protocolService;
     private final ActivityLogService activityLogService;
     private final Semaphore globalChunkPermits;
-    private final int fileRequestChunkLimit;
-    private final Map<String, Semaphore> fileRequestChunkPermits = new ConcurrentHashMap<>();
+    private final NasProperties.FileRequest fileRequestProperties;
+    private final Map<String, AtomicInteger> activeFileRequestChunks = new ConcurrentHashMap<>();
 
     public ResumableUploadCoordinator(
             ResumableUploadService uploadService,
@@ -52,7 +53,7 @@ public class ResumableUploadCoordinator {
         this.protocolService = protocolService;
         this.activityLogService = activityLogService;
         this.globalChunkPermits = new Semaphore(nasProperties.getUpload().getMaxConcurrentChunks(), true);
-        this.fileRequestChunkLimit = nasProperties.getFileRequest().getMaxConcurrentUploadsPerRequest();
+        this.fileRequestProperties = nasProperties.getFileRequest();
     }
 
     public void process(
@@ -283,19 +284,31 @@ public class ResumableUploadCoordinator {
                     HttpStatus.TOO_MANY_REQUESTS, "Upload capacity is busy. Retry shortly.", 2
             );
         }
-        Semaphore sourcePermit = null;
+        Runnable sourceRelease = null;
         if (session.source() == ResumableUploadSource.FILE_REQUEST) {
-            sourcePermit = fileRequestChunkPermits.computeIfAbsent(
-                    session.sourceReference(), ignored -> new Semaphore(fileRequestChunkLimit, true)
-            );
-            if (!sourcePermit.tryAcquire()) {
+            sourceRelease = acquireFileRequestChunk(session.sourceReference());
+            if (sourceRelease == null) {
                 globalChunkPermits.release();
                 throw new ResumableUploadRejectedException(
                         HttpStatus.TOO_MANY_REQUESTS, "Upload capacity is busy. Retry shortly.", 2
                 );
             }
         }
-        return new ChunkPermit(globalChunkPermits, sourcePermit);
+        return new ChunkPermit(globalChunkPermits, sourceRelease);
+    }
+
+    private Runnable acquireFileRequestChunk(String requestId) {
+        AtomicInteger active = activeFileRequestChunks.computeIfAbsent(requestId, ignored -> new AtomicInteger());
+        while (true) {
+            int current = active.get();
+            int limit = fileRequestProperties.getMaxConcurrentUploadsPerRequest();
+            if (current >= limit) {
+                return null;
+            }
+            if (active.compareAndSet(current, current + 1)) {
+                return () -> active.updateAndGet(value -> Math.max(0, value - 1));
+            }
+        }
     }
 
     private void pruneFileRequestPermits() throws IOException {
@@ -306,7 +319,8 @@ public class ResumableUploadCoordinator {
                 .filter(session -> !session.status().terminal())
                 .map(ResumableUploadSession::sourceReference)
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
-        fileRequestChunkPermits.keySet().removeIf(id -> !activeRequestIds.contains(id));
+        activeFileRequestChunks.entrySet().removeIf(entry ->
+                !activeRequestIds.contains(entry.getKey()) && entry.getValue().get() == 0);
     }
 
     private void recordCompletion(
@@ -368,17 +382,17 @@ public class ResumableUploadCoordinator {
 
         private static final ChunkPermit NONE = new ChunkPermit(null, null);
         private final Semaphore global;
-        private final Semaphore source;
+        private final Runnable sourceRelease;
 
-        private ChunkPermit(Semaphore global, Semaphore source) {
+        private ChunkPermit(Semaphore global, Runnable sourceRelease) {
             this.global = global;
-            this.source = source;
+            this.sourceRelease = sourceRelease;
         }
 
         @Override
         public void close() {
-            if (source != null) {
-                source.release();
+            if (sourceRelease != null) {
+                sourceRelease.run();
             }
             if (global != null) {
                 global.release();

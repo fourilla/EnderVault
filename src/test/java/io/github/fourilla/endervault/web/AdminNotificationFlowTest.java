@@ -1058,13 +1058,33 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Passkeys")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Telegram alerts")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("General settings")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("File request settings")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("VPN egress")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/passkeys")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/telegram-alerts")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/general")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/file-requests")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/vpn")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("Metadata inspector"))));
+    }
+
+    @Test
+    void fileRequestSettingsPageRendersApiOnlySettingsForm() throws Exception {
+        mockMvc.perform(get("/admin/settings/file-requests"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("File Request Settings")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("New Request Defaults")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Request Tokens")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Upload Controls")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "action=\"/api/v1/settings/file-requests\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "data-ajax-action=\"file-request-settings-save\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "name=\"rateLimitMaxAdmissions\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "name=\"accessLogDedupSeconds\"")));
     }
 
     @Test

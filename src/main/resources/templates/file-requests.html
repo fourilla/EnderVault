@@ -104,8 +104,14 @@
                     </label>
                     <label class="file-request-token-field">
                         <span>Custom token</span>
-                        <input name="customToken" minlength="12" maxlength="64"
-                               pattern="[A-Za-z0-9_-]+" placeholder="Leave blank for a secure random token">
+                        <input name="customToken"
+                               th:minlength="${customTokenMinLength}"
+                               th:maxlength="${customTokenMaxLength}"
+                               th:disabled="${!customTokensEnabled}"
+                               pattern="[A-Za-z0-9_-]+"
+                               th:placeholder="${customTokensEnabled}
+                                    ? 'Leave blank for a secure random token'
+                                    : 'Custom tokens are disabled in Settings'">
                     </label>
                 </div>
                 <p class="file-request-duplicate-note" th:if="${duplicatingRequest != null}">

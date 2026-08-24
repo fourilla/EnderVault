@@ -60,6 +60,9 @@ public class AdminFileRequestController {
 
         model.addAttribute("fileRequests", requests);
         model.addAttribute("fileRequestsEnabled", properties.isEnabled());
+        model.addAttribute("customTokensEnabled", properties.isCustomTokenEnabled());
+        model.addAttribute("customTokenMinLength", properties.getCustomTokenMinLength());
+        model.addAttribute("customTokenMaxLength", properties.getCustomTokenMaxLength());
         model.addAttribute("uploaderNamePolicies", UploaderNamePolicy.values());
         model.addAttribute("draftTitle", duplicate == null ? "" : duplicate.title());
         model.addAttribute("draftDescription", duplicate == null ? "" : duplicate.description());
