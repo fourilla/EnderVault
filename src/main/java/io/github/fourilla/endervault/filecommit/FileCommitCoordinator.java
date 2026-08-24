@@ -79,8 +79,8 @@ public class FileCommitCoordinator {
         return journalStore.findByOwner(owner).isPresent();
     }
 
-    public synchronized List<FileCommitJournalEntry> listJournals() throws IOException {
-        return journalStore.list();
+    public synchronized List<FileCommitJournalInspection> inspectJournals() throws IOException {
+        return journalStore.inspectJournals();
     }
 
     public synchronized SingleFileCommitPlan singleFilePlan(String operationId) throws IOException {

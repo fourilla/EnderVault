@@ -43,14 +43,35 @@ class NotificationCenterServiceTest {
 
     @Test
     void keepsSharedReviewPageWhenAllProvidersUseTheSameDestination() throws Exception {
+        ActionRequiredItem first = new ActionRequiredItem(
+                "first", "TYPE", "First", "detail", Instant.parse("2026-08-20T00:00:00Z"), "/admin/review"
+        );
+        ActionRequiredItem second = new ActionRequiredItem(
+                "second", "TYPE", "Second", "detail", Instant.parse("2026-08-21T00:00:00Z"), "/admin/review"
+        );
         NotificationCenterService service = new NotificationCenterService(List.of(
-                provider("/admin/review"),
-                provider("/admin/review")
+                provider("/admin/review", first),
+                provider("/admin/review", second)
         ));
 
         NotificationCenterService.NotificationCenterSnapshot snapshot = service.snapshot(5);
 
         assertThat(snapshot.reviewAllHref()).isEqualTo("/admin/review");
+    }
+
+    @Test
+    void ignoresReviewDestinationsFromProvidersWithoutItems() throws Exception {
+        ActionRequiredItem pending = new ActionRequiredItem(
+                "pending", "TYPE", "Pending", "detail", Instant.now(), "/admin/pending"
+        );
+        NotificationCenterService service = new NotificationCenterService(List.of(
+                provider("/admin/pending", pending),
+                provider("/admin/metadata")
+        ));
+
+        NotificationCenterService.NotificationCenterSnapshot snapshot = service.snapshot(5);
+
+        assertThat(snapshot.reviewAllHref()).isEqualTo("/admin/pending");
     }
 
     private ActionRequiredProvider provider(String reviewAllHref, ActionRequiredItem... items) {

@@ -99,6 +99,39 @@ public class FileCommitJournalStore {
         return List.copyOf(entries);
     }
 
+    public synchronized List<FileCommitJournalInspection> inspectJournals() throws IOException {
+        if (!Files.exists(journalRoot, LinkOption.NOFOLLOW_LINKS)) {
+            return List.of();
+        }
+        requireSafeDirectory(journalRoot);
+        List<FileCommitJournalInspection> inspections = new ArrayList<>();
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(journalRoot)) {
+            for (Path operationDirectory : stream) {
+                String operationId = operationDirectory.getFileName().toString();
+                if (operationId.startsWith(DELETING_PREFIX)) {
+                    continue;
+                }
+                Instant observedAt = lastModifiedOrEpoch(operationDirectory);
+                if (!Files.isDirectory(operationDirectory, LinkOption.NOFOLLOW_LINKS)
+                        || Files.isSymbolicLink(operationDirectory)) {
+                    inspections.add(FileCommitJournalInspection.unreadable(
+                            operationId,
+                            observedAt,
+                            new IOException("Unsafe file commit journal entry.")
+                    ));
+                    continue;
+                }
+                try {
+                    inspections.add(FileCommitJournalInspection.readable(load(operationId)));
+                } catch (IOException | RuntimeException ex) {
+                    inspections.add(FileCommitJournalInspection.unreadable(operationId, observedAt, ex));
+                }
+            }
+        }
+        inspections.sort(Comparator.comparing(FileCommitJournalInspection::observedAt));
+        return List.copyOf(inspections);
+    }
+
     public synchronized Optional<FileCommitJournalEntry> findByOwner(FileCommitOwner owner) throws IOException {
         List<FileCommitJournalEntry> matches = list().stream()
                 .filter(entry -> entry.manifest().owner().equals(owner))
@@ -238,6 +271,14 @@ public class FileCommitJournalStore {
     private void requireSafeDirectory(Path directory) throws IOException {
         if (!Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(directory)) {
             throw new IOException("File commit journal path is not a safe directory: " + directory);
+        }
+    }
+
+    private Instant lastModifiedOrEpoch(Path path) {
+        try {
+            return Files.getLastModifiedTime(path, LinkOption.NOFOLLOW_LINKS).toInstant();
+        } catch (IOException | RuntimeException ex) {
+            return Instant.EPOCH;
         }
     }
 

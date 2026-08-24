@@ -5,6 +5,8 @@ import io.github.fourilla.endervault.pending.PendingFileDecision;
 import io.github.fourilla.endervault.pending.PendingFileDecisionAction;
 import io.github.fourilla.endervault.pending.PendingFileDecisionService;
 import io.github.fourilla.endervault.pending.PendingFileDecisionSource;
+import io.github.fourilla.endervault.storage.ConflictPolicy;
+import io.github.fourilla.endervault.storage.StorageService;
 import java.io.IOException;
 import java.util.Optional;
 import org.slf4j.Logger;
@@ -21,18 +23,21 @@ public class FileCommitStartupRecoveryService {
     private final FileCommitCoordinator coordinator;
     private final FileCommitBatchCoordinator batchCoordinator;
     private final PendingFileDecisionService pendingFileDecisionService;
-    private final io.github.fourilla.endervault.storage.StorageService storageService;
+    private final StorageService storageService;
+    private final FileCommitRecoveryIncidentRegistry incidentRegistry;
 
     public FileCommitStartupRecoveryService(
             FileCommitCoordinator coordinator,
             FileCommitBatchCoordinator batchCoordinator,
             PendingFileDecisionService pendingFileDecisionService,
-            io.github.fourilla.endervault.storage.StorageService storageService
+            StorageService storageService,
+            FileCommitRecoveryIncidentRegistry incidentRegistry
     ) {
         this.coordinator = coordinator;
         this.batchCoordinator = batchCoordinator;
         this.pendingFileDecisionService = pendingFileDecisionService;
         this.storageService = storageService;
+        this.incidentRegistry = incidentRegistry;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -57,7 +62,18 @@ public class FileCommitStartupRecoveryService {
         int recovered = 0;
         int pending = 0;
         int deferred = 0;
-        for (FileCommitJournalEntry entry : coordinator.listJournals()) {
+        for (FileCommitJournalInspection inspection : coordinator.inspectJournals()) {
+            if (!inspection.readable()) {
+                deferred++;
+                incidentRegistry.record(inspection.operationId(), inspection.failureType());
+                logger.warn(
+                        "Deferred unreadable file commit journal {} after {}.",
+                        inspection.operationId(),
+                        inspection.failureType()
+                );
+                continue;
+            }
+            FileCommitJournalEntry entry = inspection.entry();
             if (!supports(entry.manifest().owner().type())) {
                 continue;
             }
@@ -66,8 +82,14 @@ public class FileCommitStartupRecoveryService {
                 recovered += outcome == RecoveryOutcome.RECOVERED ? 1 : 0;
                 pending += outcome == RecoveryOutcome.PENDING ? 1 : 0;
                 deferred += outcome == RecoveryOutcome.DEFERRED ? 1 : 0;
+                if (outcome == RecoveryOutcome.DEFERRED && !requiresDurableReview(entry.state().phase())) {
+                    incidentRegistry.record(entry.manifest().operationId(), "DeferredRecovery");
+                } else {
+                    incidentRegistry.clear(entry.manifest().operationId());
+                }
             } catch (IOException | RuntimeException ex) {
                 deferred++;
+                incidentRegistry.record(entry.manifest().operationId(), ex.getClass().getSimpleName());
                 logger.warn(
                         "Deferred file commit recovery for operation {} after {}.",
                         entry.manifest().operationId(),
@@ -195,7 +217,7 @@ public class FileCommitStartupRecoveryService {
         return RecoveryOutcome.RECOVERED;
     }
 
-    private PendingFileDecisionAction pendingAction(io.github.fourilla.endervault.storage.ConflictPolicy policy) {
+    private PendingFileDecisionAction pendingAction(ConflictPolicy policy) {
         return switch (policy) {
             case RENAME -> PendingFileDecisionAction.KEEP_BOTH;
             case CANCEL -> PendingFileDecisionAction.SAVE_AS;
@@ -232,6 +254,10 @@ public class FileCommitStartupRecoveryService {
             case ARCHIVE_CREATE -> PendingFileDecisionSource.ARCHIVE_OUTPUT;
             default -> throw new IllegalArgumentException("Unsupported startup recovery owner: " + ownerType);
         };
+    }
+
+    private boolean requiresDurableReview(FileCommitPhase phase) {
+        return phase == FileCommitPhase.NEEDS_REVIEW || phase == FileCommitPhase.ABORTED;
     }
 
     private enum RecoveryOutcome {

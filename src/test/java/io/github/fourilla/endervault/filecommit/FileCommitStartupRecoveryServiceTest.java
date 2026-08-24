@@ -35,6 +35,7 @@ class FileCommitStartupRecoveryServiceTest {
     private FileCommitCoordinator coordinator;
     private FileCommitBatchCoordinator batchCoordinator;
     private PendingFileDecisionService pendingFileDecisionService;
+    private FileCommitRecoveryIncidentRegistry incidentRegistry;
     private FileCommitStartupRecoveryService recoveryService;
 
     @BeforeEach
@@ -62,11 +63,13 @@ class FileCommitStartupRecoveryServiceTest {
                 temporaryArtifactRegistry,
                 List.of()
         );
+        incidentRegistry = new FileCommitRecoveryIncidentRegistry();
         recoveryService = new FileCommitStartupRecoveryService(
                 coordinator,
                 batchCoordinator,
                 pendingFileDecisionService,
-                storageService
+                storageService,
+                incidentRegistry
         );
     }
 
@@ -87,6 +90,40 @@ class FileCommitStartupRecoveryServiceTest {
         assertThat(root.resolve("incoming/video.mp4")).hasContent("remote payload");
         assertThat(staged).doesNotExist();
         assertThat(journalStore.list()).isEmpty();
+    }
+
+    @Test
+    void recoversReadableJournalEvenWhenAnotherJournalIsCorrupt() throws Exception {
+        Path staged = stagedFile("recoverable payload");
+        FileCommitJournalEntry readable = createPreparedJournal(
+                new FileCommitOwner(FileCommitOwnerType.REMOTE_DOWNLOAD, "remote-task-readable"),
+                staged,
+                "recovered.txt"
+        );
+        FileCommitJournalEntry corrupt = createPreparedJournal(
+                new FileCommitOwner(FileCommitOwnerType.REMOTE_DOWNLOAD, "remote-task-corrupt"),
+                stagedFile("corrupt payload"),
+                "corrupt.txt"
+        );
+        Files.writeString(
+                root.resolve(".endervault/commit-journal")
+                        .resolve(corrupt.manifest().operationId())
+                        .resolve("state.json"),
+                "{broken"
+        );
+
+        FileCommitStartupRecoveryService.RecoverySummary summary = recoveryService.recover();
+
+        assertThat(summary.recovered()).isEqualTo(1);
+        assertThat(summary.deferred()).isEqualTo(1);
+        assertThat(root.resolve("recovered.txt")).hasContent("recoverable payload");
+        assertThat(root.resolve(".endervault/commit-journal")
+                .resolve(readable.manifest().operationId())).doesNotExist();
+        assertThat(root.resolve(".endervault/commit-journal")
+                .resolve(corrupt.manifest().operationId())).exists();
+        assertThat(incidentRegistry.list())
+                .extracting(FileCommitRecoveryIncident::operationId)
+                .containsExactly(corrupt.manifest().operationId());
     }
 
     @Test

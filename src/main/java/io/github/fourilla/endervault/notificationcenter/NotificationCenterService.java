@@ -23,7 +23,9 @@ public class NotificationCenterService {
         for (ActionRequiredProvider provider : providers) {
             List<ActionRequiredItem> providerItems = provider.items();
             allItems.addAll(providerItems);
-            reviewAllHrefs.add(provider.reviewAllHref());
+            if (!providerItems.isEmpty()) {
+                reviewAllHrefs.add(provider.reviewAllHref());
+            }
         }
         allItems.sort(Comparator.comparing(ActionRequiredItem::createdAt).reversed());
         String reviewAllHref = reviewAllHrefs.size() == 1

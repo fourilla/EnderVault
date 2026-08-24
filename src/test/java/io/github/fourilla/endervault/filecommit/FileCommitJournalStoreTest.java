@@ -150,6 +150,31 @@ class FileCommitJournalStoreTest {
     }
 
     @Test
+    void inspectsReadableAndCorruptJournalsIndependently() throws IOException {
+        FileCommitManifest readable = manifest();
+        FileCommitManifest corrupt = manifest();
+        store.create(readable);
+        store.create(corrupt);
+        Path corruptState = journalRoot.resolve(corrupt.operationId()).resolve("state.json");
+        Files.writeString(corruptState, "{broken");
+
+        List<FileCommitJournalInspection> inspections = store.inspectJournals();
+
+        assertThat(inspections).hasSize(2);
+        assertThat(inspections).anySatisfy(inspection -> {
+            assertThat(inspection.operationId()).isEqualTo(readable.operationId());
+            assertThat(inspection.readable()).isTrue();
+            assertThat(inspection.entry().manifest()).isEqualTo(readable);
+        });
+        assertThat(inspections).anySatisfy(inspection -> {
+            assertThat(inspection.operationId()).isEqualTo(corrupt.operationId());
+            assertThat(inspection.readable()).isFalse();
+            assertThat(inspection.failureType()).isNotBlank();
+        });
+        assertThat(Files.readString(corruptState)).isEqualTo("{broken");
+    }
+
+    @Test
     void finishesDeletingATombstonedJournalAfterRestart() throws IOException {
         FileCommitManifest manifest = manifest();
         store.create(manifest);
