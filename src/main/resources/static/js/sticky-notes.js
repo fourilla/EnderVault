@@ -16,8 +16,13 @@
     const controls = document.querySelector("[data-sticky-note-controls]");
     const appMain = document.querySelector(".app-main") || document.body;
     const states = new Map();
+    const minimumWidth = 220;
+    const minimumHeight = 140;
+    const maximumWidth = 600;
+    const maximumHeight = 700;
     let topLayer = 1;
     let layer;
+    let activePointerInteractions = 0;
 
     const csrfHeaders = () => {
         const csrf = window.EnderVault?.csrfPair();
@@ -150,6 +155,20 @@
         state.card.style.top = `${state.y}px`;
     };
 
+    const beginPointerInteraction = (state) => {
+        state.card.classList.add("is-pointer-interacting");
+        activePointerInteractions += 1;
+        layer.classList.add("is-interacting");
+    };
+
+    const endPointerInteraction = (state) => {
+        state.card.classList.remove("is-pointer-interacting");
+        activePointerInteractions = Math.max(0, activePointerInteractions - 1);
+        if (activePointerInteractions === 0) {
+            layer.classList.remove("is-interacting");
+        }
+    };
+
     const bringToFront = (state, persist = true) => {
         if (state.layer === topLayer) {
             return;
@@ -218,14 +237,22 @@
             if (event.button !== 0 || event.target.closest("button")) {
                 return;
             }
-            event.preventDefault();
             bringToFront(state, false);
             const cardRect = state.card.getBoundingClientRect();
             const offsetX = event.clientX - cardRect.left;
             const offsetY = event.clientY - cardRect.top;
+            const startX = event.clientX;
+            const startY = event.clientY;
+            let moved = false;
             handle.setPointerCapture(event.pointerId);
+            beginPointerInteraction(state);
 
             const onMove = (moveEvent) => {
+                if (!moved && Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) < 3) {
+                    return;
+                }
+                moved = true;
+                moveEvent.preventDefault();
                 state.x = moveEvent.clientX - appMainLeft() - offsetX;
                 state.y = moveEvent.clientY - offsetY;
                 applyPosition(state);
@@ -234,7 +261,57 @@
                 handle.removeEventListener("pointermove", onMove);
                 handle.removeEventListener("pointerup", onEnd);
                 handle.removeEventListener("pointercancel", onEnd);
-                scheduleSave(state);
+                endPointerInteraction(state);
+                if (moved) {
+                    scheduleSave(state);
+                }
+            };
+            handle.addEventListener("pointermove", onMove);
+            handle.addEventListener("pointerup", onEnd);
+            handle.addEventListener("pointercancel", onEnd);
+        });
+    };
+
+    const enableResizing = (state, handle) => {
+        handle.addEventListener("pointerdown", (event) => {
+            if (event.button !== 0 || state.collapsed) {
+                return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            bringToFront(state, false);
+            const cardRect = state.card.getBoundingClientRect();
+            const startX = event.clientX;
+            const startY = event.clientY;
+            const startWidth = cardRect.width;
+            const startHeight = cardRect.height;
+            const maxWidth = Math.max(minimumWidth, Math.min(maximumWidth, window.innerWidth - cardRect.left - 8));
+            const maxHeight = Math.max(minimumHeight, Math.min(maximumHeight, window.innerHeight - cardRect.top - 8));
+            let resized = false;
+            state.resizing = true;
+            handle.setPointerCapture(event.pointerId);
+            beginPointerInteraction(state);
+
+            const onMove = (moveEvent) => {
+                moveEvent.preventDefault();
+                const width = clamp(startWidth + moveEvent.clientX - startX, minimumWidth, maxWidth);
+                const height = clamp(startHeight + moveEvent.clientY - startY, minimumHeight, maxHeight);
+                resized = resized || Math.round(width) !== Math.round(startWidth)
+                        || Math.round(height) !== Math.round(startHeight);
+                state.card.style.width = `${Math.round(width)}px`;
+                state.card.style.height = `${Math.round(height)}px`;
+                state.expandedHeight = Math.round(height);
+                applyPosition(state);
+            };
+            const onEnd = () => {
+                handle.removeEventListener("pointermove", onMove);
+                handle.removeEventListener("pointerup", onEnd);
+                handle.removeEventListener("pointercancel", onEnd);
+                state.resizing = false;
+                endPointerInteraction(state);
+                if (resized) {
+                    scheduleSave(state);
+                }
             };
             handle.addEventListener("pointermove", onMove);
             handle.addEventListener("pointerup", onEnd);
@@ -289,7 +366,11 @@
         status.className = "sticky-note-status";
         status.textContent = "Saved";
         body.append(editor, status);
-        card.append(header, body);
+        const resizeHandle = iconButton("fas fa-grip-lines", "Resize sticky note").button;
+        resizeHandle.className = "sticky-note-resize-handle";
+        resizeHandle.tabIndex = -1;
+        resizeHandle.setAttribute("aria-hidden", "true");
+        card.append(header, body, resizeHandle);
         layer.append(card);
 
         const state = {
@@ -311,6 +392,7 @@
             debounceTimer: null,
             maxTimer: null,
             errorShown: false,
+            resizing: false,
             resizeObserver: null,
             lastWidth: note.width,
             lastHeight: note.height
@@ -328,7 +410,15 @@
         card.addEventListener("pointerdown", () => bringToFront(state));
         collapse.button.addEventListener("click", () => setCollapsed(state, !state.collapsed));
         remove.button.addEventListener("click", () => void deleteNote(state));
+        header.addEventListener("dblclick", (event) => {
+            if (event.button !== 0 || event.target.closest("button")) {
+                return;
+            }
+            event.preventDefault();
+            setCollapsed(state, !state.collapsed);
+        });
         enableDragging(state, header);
+        enableResizing(state, resizeHandle);
 
         if (window.ResizeObserver) {
             state.resizeObserver = new ResizeObserver(() => {
@@ -344,7 +434,9 @@
                 state.lastHeight = height;
                 state.expandedHeight = height;
                 applyPosition(state);
-                scheduleSave(state);
+                if (!state.resizing) {
+                    scheduleSave(state);
+                }
             });
             state.resizeObserver.observe(card);
         }

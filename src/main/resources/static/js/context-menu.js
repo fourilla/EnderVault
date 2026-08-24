@@ -1,5 +1,6 @@
 (function () {
     const globalActions = [];
+    let pageScopeOwner = "";
 
     const actionValue = (action, context, property) =>
         typeof action[property] === "function" ? action[property](context) : action[property];
@@ -17,6 +18,18 @@
             return;
         }
         globalActions.push(action);
+    };
+
+    const claimPageScope = (owner) => {
+        const candidate = typeof owner === "string" ? owner.trim() : "";
+        if (!candidate) {
+            return false;
+        }
+        if (pageScopeOwner && pageScopeOwner !== candidate) {
+            return false;
+        }
+        pageScopeOwner = candidate;
+        return true;
     };
 
     const globalActionsFor = (context) => visibleActions(globalActions, context).map((action) => ({
@@ -184,6 +197,8 @@
     window.EnderVaultContextMenus = {
         createActionMenu,
         registerGlobalAction,
-        globalActionsFor
+        globalActionsFor,
+        claimPageScope,
+        pageScopeOwner: () => pageScopeOwner
     };
 })();

@@ -10,6 +10,10 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
     }
 
+    if (!window.EnderVaultContextMenus?.claimPageScope("files")) {
+        return;
+    }
+
     const {
         requestJson,
         requestJsonResolvingConflicts,

@@ -10,6 +10,10 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
     }
 
+    if (!window.EnderVaultContextMenus?.claimPageScope("bookmarks")) {
+        return;
+    }
+
     const {
         copyText,
         csrfPair,
