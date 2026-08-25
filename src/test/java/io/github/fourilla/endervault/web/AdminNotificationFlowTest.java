@@ -1724,7 +1724,7 @@ class AdminNotificationFlowTest {
         String filename = "ajax-share-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "share");
 
-        mockMvc.perform(post("/files/detail/share")
+        mockMvc.perform(post("/api/v1/shares")
                         .with(csrf())
                         .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                         .param("path", filename)
@@ -1737,6 +1737,18 @@ class AdminNotificationFlowTest {
                 .andExpect(jsonPath("$.shareLink.url").exists())
                 .andExpect(jsonPath("$.shareLink.directDownloadUrl").value(
                         Matchers.containsString("/download/" + filename)));
+    }
+
+    @Test
+    void legacyFileShareMutationRoutesAreRemoved() throws Exception {
+        mockMvc.perform(post("/files/share").with(csrf()).param("item", "legacy.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/detail/share").with(csrf()).param("path", "legacy.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/detail/shares/revoke").with(csrf()).param("token", "legacy"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/detail/shares/delete").with(csrf()).param("token", "legacy"))
+                .andExpect(status().isNotFound());
     }
 
     @Test

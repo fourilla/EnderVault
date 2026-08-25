@@ -98,14 +98,14 @@ document.addEventListener("DOMContentLoaded", () => {
                             data-direct-download-copy data-copy-value="" data-copy-success="Direct download link copied.">
                         <i class="fas fa-file-arrow-down" aria-hidden="true"></i>
                     </button>
-                    <form class="row-form" method="post" action="/files/detail/shares/revoke" data-ajax-action="share-revoke">
+                    <form class="row-form" method="post" action="/api/v1/shares/revoke" data-ajax-action="share-revoke">
                         <input type="hidden" name="path" value="">
                         <input type="hidden" name="token" value="">
                         <button class="danger icon-button action-icon" type="submit" title="Revoke" aria-label="Revoke">
                             <i class="fas fa-link-slash" aria-hidden="true"></i>
                         </button>
                     </form>
-                    <form class="row-form" method="post" action="/files/detail/shares/delete" data-ajax-action="share-delete">
+                    <form class="row-form" method="post" action="/api/v1/shares/delete" data-ajax-action="share-delete">
                         <input type="hidden" name="path" value="">
                         <input type="hidden" name="token" value="">
                         <button class="ghost icon-button action-icon" type="submit" title="Delete" aria-label="Delete">

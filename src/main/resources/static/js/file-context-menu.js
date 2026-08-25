@@ -202,7 +202,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const shareAndCopy = async (item) => {
         const formData = formDataForSingle(item);
-        const body = await requestJson("/files/share", {
+        const body = await requestJson("/api/v1/shares", {
             method: "POST",
             body: formData
         });
