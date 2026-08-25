@@ -215,7 +215,7 @@
         </form>
     </dialog>
 
-    <th:block th:replace="~{fragments/transfer-buffer :: panel(${transferBuffer}, ${path}, true, null)}"></th:block>
+    <th:block th:replace="~{fragments/transfer-buffer :: panel(${transferBuffer}, ${path}, true)}"></th:block>
 
     <section class="browser-section" th:if="${not #lists.isEmpty(listing.directories())}" aria-label="Directories">
         <header class="section-heading">

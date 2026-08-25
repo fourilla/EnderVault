@@ -1,7 +1,6 @@
 package io.github.fourilla.endervault.web.support;
 
 import io.github.fourilla.endervault.storage.ConflictPolicy;
-import jakarta.servlet.http.HttpServletRequest;
 
 public final class FileConflictPolicies {
 
@@ -10,10 +9,6 @@ public final class FileConflictPolicies {
 
     public static boolean asks(String conflictPolicy) {
         return "ask".equalsIgnoreCase(clean(conflictPolicy));
-    }
-
-    public static boolean asksForJson(String conflictPolicy, HttpServletRequest request) {
-        return asks(conflictPolicy) && ActionResponseSupport.wantsJson(request);
     }
 
     public static boolean cancels(String conflictPolicy, ConflictPolicy defaultPolicy) {

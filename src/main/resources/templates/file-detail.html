@@ -208,8 +208,7 @@
     <th:block th:replace="~{fragments/transfer-buffer :: panel(
             ${transferBuffer},
             ${detail.directory() ? detail.path() : detail.parentPath()},
-            ${detail.directory()},
-            @{/files/detail(path=${detail.path()})}
+            ${detail.directory()}
     )}"></th:block>
 
     <section class="detail-panel">

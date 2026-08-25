@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <body>
-<th:block th:fragment="panel(buffer, currentPath, pasteEnabled, returnTo)">
+<th:block th:fragment="panel(buffer, currentPath, pasteEnabled)">
     <div data-transfer-buffer-region
          th:data-current-path="${currentPath}"
          th:data-transfer-paste-enabled="${pasteEnabled}">
