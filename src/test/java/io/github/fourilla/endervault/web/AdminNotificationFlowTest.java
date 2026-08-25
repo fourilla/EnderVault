@@ -111,6 +111,11 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"_csrf\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"_csrf_header\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("action=\"/api/v1/files\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("action=\"/api/v1/files/directories\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("formaction=\"/api/v1/files/trash\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("file-new-noscript-form"))))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"toastRegion\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-notification-center")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/notification-center.js")))
@@ -1627,10 +1632,11 @@ class AdminNotificationFlowTest {
     void logsPageRendersActivityEntries() throws Exception {
         String directory = "log-dir-" + System.nanoTime();
 
-        mockMvc.perform(post("/files/directories")
+        mockMvc.perform(post("/api/v1/files/directories")
                         .with(csrf())
                         .param("name", directory))
-                .andExpect(status().is3xxRedirection());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true));
 
         mockMvc.perform(get("/admin/logs")
                         .param("type", "CREATE_DIRECTORY")
@@ -1644,24 +1650,34 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void expectedPostFailuresRedirectBackWithErrorToast() throws Exception {
+    void fileMutationFailuresStayJson() throws Exception {
         Files.createDirectories(ROOT.resolve("existing"));
 
-        MvcResult result = mockMvc.perform(post("/files/directories")
+        mockMvc.perform(post("/api/v1/files/directories")
                         .with(csrf())
-                        .header("Referer", "http://localhost/files")
                         .param("name", "existing"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/files"))
-                .andExpect(flash().attributeExists(FlashNotifications.ATTRIBUTE_NAME))
-                .andReturn();
+                .andExpect(status().isConflict())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.ok").value(false))
+                .andExpect(jsonPath("$.notification.type").value("error"));
+    }
 
-        @SuppressWarnings("unchecked")
-        List<FlashNotification> notifications =
-                (List<FlashNotification>) result.getFlashMap().get(FlashNotifications.ATTRIBUTE_NAME);
-        assertThat(notifications)
-                .extracting(FlashNotification::type)
-                .containsExactly("error");
+    @Test
+    void legacyFileMutationRoutesAreRemoved() throws Exception {
+        mockMvc.perform(post("/files/directories").with(csrf()).param("name", "legacy"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/files").with(csrf()).param("name", "legacy.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/rename").with(csrf())
+                        .param("item", "legacy.txt")
+                        .param("newName", "renamed.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/move").with(csrf())
+                        .param("item", "legacy.txt")
+                        .param("targetPath", "target"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/detail/delete").with(csrf()).param("path", "legacy.txt"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -2007,7 +2023,7 @@ class AdminNotificationFlowTest {
         String filename = "ajax-delete-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "delete");
 
-        mockMvc.perform(post("/files/delete")
+        mockMvc.perform(post("/api/v1/files/trash")
                         .with(csrf())
                         .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                         .param("items", filename))
@@ -2025,7 +2041,7 @@ class AdminNotificationFlowTest {
         String renamed = "ajax-renamed-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "rename");
 
-        mockMvc.perform(post("/files/detail/rename")
+        mockMvc.perform(post("/api/v1/files/detail/rename")
                         .with(csrf())
                         .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                         .param("path", filename)

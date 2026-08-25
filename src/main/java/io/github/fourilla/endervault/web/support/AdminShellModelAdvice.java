@@ -16,7 +16,6 @@ import io.github.fourilla.endervault.web.bookmark.AdminBookmarkController;
 import io.github.fourilla.endervault.web.file.AdminFavoriteController;
 import io.github.fourilla.endervault.web.file.AdminFileController;
 import io.github.fourilla.endervault.web.file.AdminFileDetailController;
-import io.github.fourilla.endervault.web.file.AdminFileMutationController;
 import io.github.fourilla.endervault.web.file.AdminFileShareController;
 import io.github.fourilla.endervault.web.file.AdminFileTransferController;
 import io.github.fourilla.endervault.web.file.AdminRecentController;
@@ -47,7 +46,6 @@ import org.springframework.web.bind.annotation.ModelAttribute;
         AdminBookmarkController.class,
         AdminFileController.class,
         AdminFileDetailController.class,
-        AdminFileMutationController.class,
         AdminFileShareController.class,
         AdminFileTransferController.class,
         AdminFavoriteController.class,

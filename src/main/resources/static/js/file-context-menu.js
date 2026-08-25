@@ -177,7 +177,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const formData = formDataForSingle(item);
         formData.set("newName", trimmedName);
         formData.set("conflictPolicy", "ask");
-        const body = await requestJsonResolvingConflicts("/files/rename", {
+        const body = await requestJsonResolvingConflicts("/api/v1/files/rename", {
             method: "POST",
             body: formData
         });
@@ -186,7 +186,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     const moveItemsToTrash = async (items) => {
-        const body = await requestJson("/files/delete", {
+        const body = await requestJson("/api/v1/files/trash", {
             method: "POST",
             body: formDataForItems(items.map((item) => item.name))
         });
