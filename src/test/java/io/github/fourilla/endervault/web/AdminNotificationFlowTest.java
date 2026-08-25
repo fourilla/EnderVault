@@ -107,6 +107,8 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString(
                         "data-file-requests-enabled=\"true\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-outbound-route-form")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "action=\"/api/v1/outbound-route\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/page-jump.js")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Open read-only mode")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Recent")))
@@ -117,6 +119,20 @@ class AdminNotificationFlowTest {
                         org.hamcrest.Matchers.containsString("Shared links"))))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("Remote download"))));
+    }
+
+    @Test
+    void outboundRouteUsesVersionedApiAndLegacyEndpointIsRemoved() throws Exception {
+        mockMvc.perform(post("/api/v1/outbound-route")
+                        .with(csrf())
+                        .param("route", "unknown"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.ok").value(false));
+
+        mockMvc.perform(post("/admin/outbound/route")
+                        .with(csrf())
+                        .param("route", "direct"))
+                .andExpect(status().isNotFound());
     }
 
     @Test

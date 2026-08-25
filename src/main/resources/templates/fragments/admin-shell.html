@@ -123,7 +123,7 @@
         </div>
         <form class="topbar-control topbar-route-form"
               method="post"
-              th:action="@{/admin/outbound/route}"
+              th:action="@{/api/v1/outbound-route}"
               data-outbound-route-form>
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
             <input type="hidden" name="route" th:value="${outboundRoute.nextRoute()}" data-outbound-route-input>

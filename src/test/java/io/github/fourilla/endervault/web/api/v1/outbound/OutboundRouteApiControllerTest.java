@@ -1,4 +1,4 @@
-package io.github.fourilla.endervault.web.dashboard;
+package io.github.fourilla.endervault.web.api.v1.outbound;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -11,16 +11,13 @@ import io.github.fourilla.endervault.outbound.OutboundRouteStateService;
 import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealth;
 import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthService;
 import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthState;
-import io.github.fourilla.endervault.web.support.OutboundRouteResponse;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
-class AdminOutboundRouteControllerTest {
+class OutboundRouteApiControllerTest {
 
     @Test
     void changesGlobalRouteAndReturnsUpdatedJsonState() {
@@ -35,26 +32,40 @@ class AdminOutboundRouteControllerTest {
                 1L,
                 "healthy"
         ));
-        AdminOutboundRouteController controller = new AdminOutboundRouteController(
+        OutboundRouteApiController controller = new OutboundRouteApiController(
                 routeState,
                 healthService,
                 mock(ActivityLogService.class)
         );
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE);
 
-        Object result = controller.changeRoute(
+        ResponseEntity<OutboundRouteResponse> response = controller.changeRoute(
                 "vpn-required",
-                request,
-                new RedirectAttributesModelMap()
+                new MockHttpServletRequest()
         );
 
         assertThat(routeState.currentRoute()).isEqualTo(NetworkRoute.VPN_REQUIRED);
-        assertThat(result).isInstanceOf(ResponseEntity.class);
-        Object body = ((ResponseEntity<?>) result).getBody();
-        assertThat(body).isInstanceOf(OutboundRouteResponse.class);
-        OutboundRouteResponse response = (OutboundRouteResponse) body;
-        assertThat(response.route().vpnReady()).isTrue();
-        assertThat(response.route().nextRoute()).isEqualTo("direct");
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().route().vpnReady()).isTrue();
+        assertThat(response.getBody().route().nextRoute()).isEqualTo("direct");
+    }
+
+    @Test
+    void rejectsUnknownRouteWithJsonError() {
+        OutboundRouteApiController controller = new OutboundRouteApiController(
+                new OutboundRouteStateService(new NasProperties()),
+                mock(VpnProxyHealthService.class),
+                mock(ActivityLogService.class)
+        );
+
+        ResponseEntity<OutboundRouteResponse> response = controller.changeRoute(
+                "unknown",
+                new MockHttpServletRequest()
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().ok()).isFalse();
+        assertThat(response.getBody().route()).isNull();
     }
 }
