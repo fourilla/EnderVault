@@ -135,6 +135,26 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void taskPollingUsesVersionedApiAndLegacyEndpointsAreRemoved() throws Exception {
+        mockMvc.perform(get("/api/v1/tasks"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON));
+
+        mockMvc.perform(post("/api/v1/tasks/cancel")
+                        .with(csrf())
+                        .param("id", "missing-task"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.ok").value(false));
+
+        mockMvc.perform(get("/admin/tasks"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/tasks/cancel").with(csrf()).param("id", "missing-task"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/tasks/delete").with(csrf()).param("id", "missing-task"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void fileRequestManagementPageRendersCreationPolicy() throws Exception {
         String destination = "request-destination-" + System.nanoTime();
         Files.createDirectories(ROOT.resolve(destination));
