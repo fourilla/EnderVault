@@ -136,6 +136,15 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void pagesWithCommonAjaxActionsLoadTheirFormBinder() throws Exception {
+        for (String path : List.of("/files", "/files/read-only", "/files/recent", "/admin/trash", "/admin/logs")) {
+            mockMvc.perform(get(path))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(Matchers.containsString("/js/admin-actions.js")));
+        }
+    }
+
+    @Test
     void outboundRouteUsesVersionedApiAndLegacyEndpointIsRemoved() throws Exception {
         mockMvc.perform(post("/api/v1/outbound-route")
                         .with(csrf())
