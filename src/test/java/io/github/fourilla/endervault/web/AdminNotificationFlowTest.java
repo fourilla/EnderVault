@@ -825,7 +825,10 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("name=\"networkRoute\"")))
                 .andExpect(content().string(Matchers.containsString("Use global (Direct)")))
-                .andExpect(content().string(Matchers.containsString("data-discard-url=\"/admin/utils/remote-download/inspect/discard\"")))
+                .andExpect(content().string(Matchers.containsString("action=\"/api/v1/remote-downloads/inspect\"")))
+                .andExpect(content().string(Matchers.containsString("data-start-url=\"/api/v1/remote-downloads\"")))
+                .andExpect(content().string(Matchers.containsString("data-discard-url=\"/api/v1/remote-downloads/inspect/discard\"")))
+                .andExpect(content().string(Matchers.containsString("data-tasks-url=\"/api/v1/remote-downloads/tasks\"")))
                 .andExpect(content().string(Matchers.containsString("id=\"remoteCurlDialog\"")))
                 .andExpect(content().string(Matchers.containsString("data-storage-directory-picker")))
                 .andExpect(content().string(Matchers.containsString("/js/directory-tree.js")))
@@ -833,7 +836,35 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(Matchers.containsString("data-remote-remember-destination")))
                 .andExpect(content().string(Matchers.containsString("remote-custom-headers")))
                 .andExpect(content().string(Matchers.containsString("id=\"remoteCustomHeaders\"")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/admin/utils/remote-download/inspect"))))
                 .andExpect(content().string(Matchers.containsString("<th>Route</th>")));
+    }
+
+    @Test
+    void remoteDownloadActionsUseVersionedApi() throws Exception {
+        mockMvc.perform(get("/api/v1/remote-downloads/tasks"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON));
+
+        mockMvc.perform(post("/api/v1/remote-downloads/inspect/discard")
+                        .with(csrf())
+                        .param("requestId", "missing-inspection"))
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.ok").value(false))
+                .andExpect(jsonPath("$.notification.message")
+                        .value("Remote download request identifier is invalid."));
+
+        mockMvc.perform(post("/admin/utils/remote-download/inspect/discard")
+                        .with(csrf())
+                        .param("requestId", "missing-inspection"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/utils/remote-download/cancel")
+                        .with(csrf())
+                        .param("id", "missing-task"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/admin/utils/remote-download/tasks"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
