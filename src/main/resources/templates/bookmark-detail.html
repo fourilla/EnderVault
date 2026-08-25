@@ -38,7 +38,7 @@
             </div>
 
             <div class="detail-actions">
-                <form class="row-form" method="post" th:action="@{/files/favorites/toggle-bookmark}"
+                <form class="row-form" method="post" th:action="@{/api/v1/favorites/toggle-bookmark}"
                       data-favorite-action="toggle" th:attr="data-favorite-path=|bookmark:${bookmark.id()}|">
                     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                     <input type="hidden" name="id" th:value="${bookmark.id()}">

@@ -1409,7 +1409,23 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString(filename)))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Accessed")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remove selected from recent")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remove selected from recent")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/api/v1/recent/remove")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/api/v1/recent/clear")));
+
+        mockMvc.perform(post("/api/v1/recent/remove")
+                        .with(csrf())
+                        .param("paths", filename)
+                        .param("q", "recent-ui"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.redirectUrl").value("/files/recent?q=recent-ui"));
+        mockMvc.perform(post("/files/recent/remove")
+                        .with(csrf())
+                        .param("paths", filename))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/recent/clear").with(csrf()))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -1417,19 +1433,20 @@ class AdminNotificationFlowTest {
         String filename = "favorite-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "favorite");
 
-        mockMvc.perform(post("/files/favorites/toggle")
+        mockMvc.perform(post("/api/v1/favorites/toggle")
                         .with(csrf())
-                        .header("Referer", "http://localhost/files")
                         .param("path", filename))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/files"))
-                .andExpect(flash().attributeExists(FlashNotifications.ATTRIBUTE_NAME));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.active").value(true));
 
         mockMvc.perform(get("/files/favorites"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString(filename)))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Move up")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remove")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remove")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/api/v1/favorites/move")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/api/v1/favorites/remove")));
 
         mockMvc.perform(get("/files"))
                 .andExpect(status().isOk())
@@ -1442,15 +1459,28 @@ class AdminNotificationFlowTest {
         String filename = "favorite-json-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "favorite");
 
-        mockMvc.perform(post("/files/favorites/toggle")
+        mockMvc.perform(post("/api/v1/favorites/toggle")
                         .with(csrf())
-                        .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                         .param("path", filename))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true))
                 .andExpect(jsonPath("$.active").value(true))
                 .andExpect(jsonPath("$.favorite.path").value(filename))
                 .andExpect(jsonPath("$.notification.type").value("success"));
+
+        mockMvc.perform(post("/files/favorites/toggle")
+                        .with(csrf())
+                        .param("path", filename))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/favorites/remove")
+                        .with(csrf())
+                        .param("path", filename))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/favorites/move")
+                        .with(csrf())
+                        .param("path", filename)
+                        .param("direction", "up"))
+                .andExpect(status().isNotFound());
     }
 
     @Test

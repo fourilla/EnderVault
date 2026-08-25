@@ -139,6 +139,55 @@ document.addEventListener("DOMContentLoaded", () => {
         tableBody.append(emptyRow);
     };
 
+    const moveElement = (element, direction, candidates) => {
+        const index = candidates.indexOf(element);
+        const sibling = direction === "up" ? candidates[index - 1] : candidates[index + 1];
+        if (!element || index < 0 || !sibling) {
+            return;
+        }
+        if (direction === "up") {
+            sibling.before(element);
+        } else {
+            sibling.after(element);
+        }
+    };
+
+    const reorderSidebarFavorite = (path, direction) => {
+        const link = favoriteElement(document, "data-favorite-sidebar-path", path);
+        moveElement(link, direction, sidebarFavoriteLinks());
+    };
+
+    const managementRows = () =>
+        Array.from(document.querySelectorAll("[data-favorite-row-path]"));
+
+    const syncManagementMoveButtons = () => {
+        const rows = managementRows();
+        rows.forEach((row, index) => {
+            row.querySelectorAll('form[data-favorite-action="move"]').forEach((form) => {
+                const direction = form.querySelector('input[name="direction"]')?.value;
+                const button = form.querySelector("button");
+                if (button) {
+                    button.disabled = direction === "up" ? index === 0 : index === rows.length - 1;
+                }
+            });
+        });
+    };
+
+    const reorderManagementFavorite = (path, direction) => {
+        const row = favoriteElement(document, "data-favorite-row-path", path);
+        moveElement(row, direction, managementRows());
+        syncManagementMoveButtons();
+    };
+
+    const handleMoveResponse = (form, body) => {
+        const formData = new FormData(form);
+        const path = form.dataset.favoritePath || formData.get("path") || "";
+        const direction = formData.get("direction") || "";
+        reorderSidebarFavorite(path, direction);
+        reorderManagementFavorite(path, direction);
+        showNotification(body.notification);
+    };
+
     const handleFavoriteResponse = (form, body) => {
         const path = body.path || form.dataset.favoritePath || new FormData(form).get("path");
         showNotification(body.notification);
@@ -158,7 +207,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const togglePath = async (path) => {
         const formData = formDataWithCsrf();
         formData.append("path", path);
-        const body = await requestJson("/files/favorites/toggle", {
+        const body = await requestJson("/api/v1/favorites/toggle", {
             method: "POST",
             body: formData
         });
@@ -175,7 +224,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const path = `bookmark:${id}`;
         const formData = formDataWithCsrf();
         formData.append("id", id);
-        const body = await requestJson("/files/favorites/toggle-bookmark", {
+        const body = await requestJson("/api/v1/favorites/toggle-bookmark", {
             method: "POST",
             body: formData
         });
@@ -248,16 +297,13 @@ document.addEventListener("DOMContentLoaded", () => {
         const formData = formDataWithCsrf();
         formData.append("path", link.dataset.favoriteSidebarPath || "");
         formData.append("direction", direction);
-        const body = await requestJson("/files/favorites/move", {
+        const body = await requestJson("/api/v1/favorites/move", {
             method: "POST",
             body: formData
         });
 
-        if (direction === "up") {
-            sibling.before(link);
-        } else {
-            sibling.after(link);
-        }
+        reorderSidebarFavorite(link.dataset.favoriteSidebarPath || "", direction);
+        reorderManagementFavorite(link.dataset.favoriteSidebarPath || "", direction);
         showNotification(body.notification);
     };
 
@@ -265,7 +311,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const path = link.dataset.favoriteSidebarPath || "";
         const formData = formDataWithCsrf();
         formData.append("path", path);
-        const body = await requestJson("/files/favorites/remove", {
+        const body = await requestJson("/api/v1/favorites/remove", {
             method: "POST",
             body: formData
         });
@@ -410,7 +456,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 button.disabled = true;
                 try {
                     const body = await submitJsonForm(form);
-                    handleFavoriteResponse(form, body);
+                    if (form.dataset.favoriteAction === "move") {
+                        handleMoveResponse(form, body);
+                    } else {
+                        handleFavoriteResponse(form, body);
+                    }
                 } catch (error) {
                     showToast("error", error.message || "Favorite update failed.");
                 } finally {
@@ -421,6 +471,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     bindFavoriteForms();
+    syncManagementMoveButtons();
     bindSidebarFavoriteContextMenu();
     document.addEventListener("endervault:listing-refreshed", () => bindFavoriteForms());
 

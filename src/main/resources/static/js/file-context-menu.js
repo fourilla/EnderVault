@@ -233,7 +233,7 @@ document.addEventListener("DOMContentLoaded", () => {
             appendHidden(formData, csrf.name, csrf.value);
         }
         appendHidden(formData, "path", item.path);
-        const body = await requestJson("/files/favorites/toggle", {
+        const body = await requestJson("/api/v1/favorites/toggle", {
             method: "POST",
             body: formData
         });

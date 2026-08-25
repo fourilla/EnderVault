@@ -331,7 +331,15 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     const handleSuccess = (form, body, action = ajaxAction(form)) => {
-        if (["detail-rename", "detail-move", "detail-hidden", "detail-delete", "session-revoke", "activity-log-delete"].includes(action)
+        if ([
+            "detail-rename",
+            "detail-move",
+            "detail-hidden",
+            "detail-delete",
+            "session-revoke",
+            "activity-log-delete",
+            "recent-clear"
+        ].includes(action)
                 && navigateWithNotification(body)) {
             return;
         }

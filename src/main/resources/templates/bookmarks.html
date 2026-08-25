@@ -205,7 +205,7 @@
                     <td th:text="${directory.updatedLabel()}">updated</td>
                     <td>
                         <div class="table-actions">
-                            <form class="row-form" method="post" th:action="@{/files/favorites/toggle-bookmark}"
+                            <form class="row-form" method="post" th:action="@{/api/v1/favorites/toggle-bookmark}"
                                   data-favorite-action="toggle" th:attr="data-favorite-path=|bookmark:${directory.id()}|">
                                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                                 <input type="hidden" name="id" th:value="${directory.id()}">
@@ -285,7 +285,7 @@
                     <td th:text="${link.updatedLabel()}">updated</td>
                     <td>
                         <div class="table-actions">
-                            <form class="row-form" method="post" th:action="@{/files/favorites/toggle-bookmark}"
+                            <form class="row-form" method="post" th:action="@{/api/v1/favorites/toggle-bookmark}"
                                   data-favorite-action="toggle" th:attr="data-favorite-path=|bookmark:${link.id()}|">
                                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                                 <input type="hidden" name="id" th:value="${link.id()}">
