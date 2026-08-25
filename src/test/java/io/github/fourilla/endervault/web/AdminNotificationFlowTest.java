@@ -932,7 +932,7 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("id=\"compressSelectedButton\"")))
                 .andExpect(content().string(Matchers.containsString("id=\"archiveCreationDialog\"")))
-                .andExpect(content().string(Matchers.containsString("action=\"/files/archive/create\"")))
+                .andExpect(content().string(Matchers.containsString("action=\"/api/v1/files/archives\"")))
                 .andExpect(content().string(Matchers.containsString("/js/archive-create.js")));
     }
 
@@ -942,7 +942,7 @@ class AdminNotificationFlowTest {
         Path source = Files.createDirectories(ROOT.resolve(directory));
         Files.writeString(source.resolve("note.txt"), "archive me", StandardCharsets.UTF_8);
 
-        mockMvc.perform(post("/files/archive/create")
+        mockMvc.perform(post("/api/v1/files/archives")
                         .with(csrf())
                         .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                         .header("X-Requested-With", "fetch")
@@ -960,6 +960,14 @@ class AdminNotificationFlowTest {
             Thread.sleep(20L);
         }
         assertThat(archive).exists().isNotEmptyFile();
+    }
+
+    @Test
+    void legacyArchiveMutationRoutesAreRemoved() throws Exception {
+        mockMvc.perform(post("/files/archive/create").with(csrf()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/detail/archive/extract").with(csrf()).param("path", "legacy.zip"))
+                .andExpect(status().isNotFound());
     }
 
     @Test

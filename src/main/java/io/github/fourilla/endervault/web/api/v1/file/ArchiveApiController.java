@@ -1,31 +1,30 @@
-package io.github.fourilla.endervault.web.file;
+package io.github.fourilla.endervault.web.api.v1.file;
+
+import static io.github.fourilla.endervault.web.file.FileRedirects.filesUrl;
 
 import io.github.fourilla.endervault.filetool.archive.ArchiveCreationTaskService;
 import io.github.fourilla.endervault.filetool.archive.ArchiveExtractionTaskService;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
 import io.github.fourilla.endervault.task.AppTask;
-import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.FlashNotification;
 import io.github.fourilla.endervault.web.support.SelectedItems;
 import io.github.fourilla.endervault.web.task.TaskActionResponse;
 import io.github.fourilla.endervault.web.task.TaskPayload;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import org.springframework.web.util.UriUtils;
-import org.springframework.web.util.UriComponentsBuilder;
+import org.springframework.web.bind.annotation.RestController;
 
-@Controller
-public class AdminArchiveController {
+@RestController
+@RequestMapping("/api/v1/files/archives")
+public class ArchiveApiController {
 
     private final ArchiveCreationTaskService archiveCreationTaskService;
     private final ArchiveExtractionTaskService archiveExtractionTaskService;
 
-    public AdminArchiveController(
+    public ArchiveApiController(
             ArchiveCreationTaskService archiveCreationTaskService,
             ArchiveExtractionTaskService archiveExtractionTaskService
     ) {
@@ -33,12 +32,11 @@ public class AdminArchiveController {
         this.archiveExtractionTaskService = archiveExtractionTaskService;
     }
 
-    @PostMapping("/files/archive/create")
-    public Object create(
+    @PostMapping
+    public ArchiveCreationActionResponse create(
             @RequestParam(value = "path", required = false) String path,
             @RequestParam(value = "outputName", required = false) String outputName,
-            HttpServletRequest request,
-            RedirectAttributes redirectAttributes
+            HttpServletRequest request
     ) throws IOException {
         AppTask task = archiveCreationTaskService.queue(
                 path,
@@ -47,31 +45,23 @@ public class AdminArchiveController {
                 request
         );
         FlashNotification notification = FlashNotification.info("ZIP creation queued.");
-        String redirect = redirectToFiles(path);
-        return ActionResponseSupport.ok(
-                request,
-                redirectAttributes,
+        return new ArchiveCreationActionResponse(
+                true,
                 notification,
-                redirect,
-                new ArchiveCreationActionResponse(
-                        true,
-                        notification,
-                        TaskPayload.from(task),
-                        ActionResponseSupport.redirectUrl(redirect)
-                )
+                TaskPayload.from(task),
+                filesUrl(path)
         );
     }
 
-    @PostMapping("/files/detail/archive/extract")
-    public Object extract(
+    @PostMapping("/extract")
+    public TaskActionResponse extract(
             @RequestParam("path") String path,
             @RequestParam(value = "destinationPath", required = false) String destinationPath,
             @RequestParam(value = "outputName", required = false) String outputName,
             @RequestParam(value = "createContainingDirectory", defaultValue = "false")
             boolean createContainingDirectory,
             @RequestParam(value = "conflictPolicy", defaultValue = "cancel") String conflictPolicy,
-            HttpServletRequest request,
-            RedirectAttributes redirectAttributes
+            HttpServletRequest request
     ) throws IOException {
         AppTask task = archiveExtractionTaskService.queue(
                 path,
@@ -82,25 +72,7 @@ public class AdminArchiveController {
                 request
         );
         FlashNotification notification = FlashNotification.info("Archive extraction queued.");
-        return ActionResponseSupport.ok(
-                request,
-                redirectAttributes,
-                notification,
-                redirectToDetail(path),
-                TaskActionResponse.ok(notification, TaskPayload.from(task))
-        );
-    }
-
-    private String redirectToDetail(String path) {
-        return "redirect:/files/detail?path=" + UriUtils.encodeQueryParam(path, StandardCharsets.UTF_8);
-    }
-
-    private String redirectToFiles(String path) {
-        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/files");
-        if (path != null && !path.isBlank()) {
-            builder.queryParam("path", path);
-        }
-        return "redirect:" + builder.build().encode().toUriString();
+        return TaskActionResponse.ok(notification, TaskPayload.from(task));
     }
 
     private record ArchiveCreationActionResponse(
