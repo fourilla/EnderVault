@@ -31,9 +31,11 @@ class VpnSettingsServiceTest {
         parameters.set("proxyHost", "vpn");
         parameters.set("proxyPort", "8899");
         parameters.set("tunnelHealthUrl", "http://vpn:9999/");
-        parameters.set("healthCheckIntervalMs", "45000");
+        parameters.set("healthCheckIntervalSeconds", "45");
 
-        var health = service.save(service.updateFrom(parameters));
+        VpnSettingsService.VpnSettingsUpdate update = service.updateFrom(parameters);
+        assertThat(service.requiresRestart(update)).isTrue();
+        var health = service.save(update);
 
         String saved = Files.readString(configFile, StandardCharsets.UTF_8);
         assertThat(saved)
@@ -82,10 +84,10 @@ class VpnSettingsServiceTest {
         MultiValueMap<String, String> parameters = new LinkedMultiValueMap<>();
         parameters.add("proxyHost", "");
         parameters.add("proxyPort", "8888");
-        parameters.add("healthConnectTimeoutMs", "1500");
+        parameters.add("healthConnectTimeoutSeconds", "1.5");
         parameters.add("tunnelHealthUrl", "");
-        parameters.add("healthRequestTimeoutMs", "3000");
-        parameters.add("healthCheckIntervalMs", "30000");
+        parameters.add("healthRequestTimeoutSeconds", "3");
+        parameters.add("healthCheckIntervalSeconds", "30");
         return parameters;
     }
 }

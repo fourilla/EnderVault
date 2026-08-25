@@ -69,12 +69,16 @@
                         <small>HTTP proxy port available inside the private network.</small>
                     </label>
                     <label>
-                        <span>Proxy health connect timeout (ms)</span>
-                        <input type="number"
-                               name="healthConnectTimeoutMs"
-                               min="100"
-                               max="60000"
-                               th:value="${settings.healthConnectTimeoutMs()}">
+                        <span>Proxy health connect timeout</span>
+                        <div class="settings-unit-field">
+                            <input type="number"
+                                   name="healthConnectTimeoutSeconds"
+                                   min="0.1"
+                                   max="60"
+                                   step="0.1"
+                                   th:value="${settings.healthConnectTimeoutSeconds()}">
+                            <span>seconds</span>
+                        </div>
                         <small>Maximum time allowed to establish the proxy TCP connection.</small>
                     </label>
                 </div>
@@ -97,20 +101,31 @@
                         <small>Leave empty for generic proxy TCP-only health.</small>
                     </label>
                     <label>
-                        <span>Tunnel health request timeout (ms)</span>
-                        <input type="number"
-                               name="healthRequestTimeoutMs"
-                               min="100"
-                               max="60000"
-                               th:value="${settings.healthRequestTimeoutMs()}">
+                        <span>Tunnel health request timeout</span>
+                        <div class="settings-unit-field">
+                            <input type="number"
+                                   name="healthRequestTimeoutSeconds"
+                                   min="0.1"
+                                   max="60"
+                                   step="0.1"
+                                   th:value="${settings.healthRequestTimeoutSeconds()}">
+                            <span>seconds</span>
+                        </div>
                         <small>Maximum time allowed for one tunnel health request.</small>
                     </label>
                     <label>
-                        <span>Health check interval (ms)</span>
-                        <input type="number"
-                               name="healthCheckIntervalMs"
-                               min="1000"
-                               th:value="${settings.healthCheckIntervalMs()}">
+                        <span class="settings-field-label">
+                            <span>Health check interval</span>
+                            <em class="settings-restart-note">Restart required</em>
+                        </span>
+                        <div class="settings-unit-field">
+                            <input type="number"
+                                   name="healthCheckIntervalSeconds"
+                                   min="1"
+                                   step="0.1"
+                                   th:value="${settings.healthCheckIntervalSeconds()}">
+                            <span>seconds</span>
+                        </div>
                         <small>Restart required before a new scheduler interval takes effect.</small>
                     </label>
                 </div>

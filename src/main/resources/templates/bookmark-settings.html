@@ -97,12 +97,20 @@
                         <input type="number" name="maxRedirects" min="0" max="50" th:value="${settings.metadata().maxRedirects()}">
                     </label>
                     <label>
-                        <span>HTML max bytes</span>
-                        <input type="number" name="htmlMaxBytes" min="1024" th:value="${settings.metadata().htmlMaxBytes()}">
+                        <span>HTML response limit</span>
+                        <div class="settings-unit-field">
+                            <input type="number" name="htmlMaxKib" min="1" step="any"
+                                   th:value="${settings.metadata().htmlMaxKib()}">
+                            <span>KiB</span>
+                        </div>
                     </label>
                     <label>
-                        <span>Favicon max bytes</span>
-                        <input type="number" name="faviconMaxBytes" min="1024" th:value="${settings.metadata().faviconMaxBytes()}">
+                        <span>Favicon response limit</span>
+                        <div class="settings-unit-field">
+                            <input type="number" name="faviconMaxKib" min="1" step="any"
+                                   th:value="${settings.metadata().faviconMaxKib()}">
+                            <span>KiB</span>
+                        </div>
                     </label>
                 </div>
             </section>

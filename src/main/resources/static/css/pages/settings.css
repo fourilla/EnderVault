@@ -1,6 +1,7 @@
 .telegram-settings-workspace,
 .general-settings-workspace,
 .account-settings-workspace,
+.advanced-settings-workspace,
 .passkey-workspace {
     max-width: var(--settings-workspace-max-width);
 }
@@ -151,6 +152,105 @@
 .settings-save-bar.is-dirty .settings-save-indicator {
     background: var(--accent-strong);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.settings-section-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    border-bottom: 1px solid var(--line);
+    padding-bottom: var(--space-xl);
+}
+
+.settings-section-nav a {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-control);
+    color: var(--muted);
+    padding: var(--space-sm) var(--space-md);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+}
+
+.settings-section-nav a:hover {
+    border-color: var(--accent);
+    color: var(--text);
+    text-decoration: none;
+}
+
+.advanced-settings-form .settings-detail-section {
+    scroll-margin-top: calc(var(--topbar-height) + 84px);
+}
+
+.advanced-settings-grid > label:not(.settings-inline-toggle) {
+    grid-template-rows: auto var(--control-height) minmax(2.8em, auto);
+    align-content: start;
+}
+
+.settings-field-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+}
+
+.settings-restart-note {
+    color: var(--warning);
+    font-size: var(--font-size-2xs);
+    font-style: normal;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.settings-unit-field {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-md);
+}
+
+.settings-unit-field > span {
+    min-width: 3.5rem;
+    color: var(--muted);
+    font-size: var(--font-size-xs);
+}
+
+.settings-readonly-list {
+    display: grid;
+    margin: 0;
+}
+
+.settings-readonly-list > div {
+    display: grid;
+    grid-template-columns: minmax(160px, 0.35fr) minmax(0, 1fr);
+    gap: var(--space-xl);
+    border-top: 1px solid var(--line);
+    padding: var(--space-lg) 0;
+}
+
+.settings-readonly-list > div:first-child {
+    border-top: 0;
+}
+
+.settings-readonly-list dt {
+    color: var(--muted);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+}
+
+.settings-readonly-list dd {
+    display: grid;
+    gap: var(--space-xs);
+    min-width: 0;
+    margin: 0;
+}
+
+.settings-readonly-list code {
+    overflow-wrap: anywhere;
+}
+
+.settings-readonly-list small {
+    color: var(--muted);
+    font-size: var(--font-size-2xs);
 }
 
 .settings-actions-top {

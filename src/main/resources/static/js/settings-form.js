@@ -4,7 +4,9 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
     }
 
-    const controlState = (form) => Array.from(form.elements)
+    const controlState = (form, selector = null) => Array.from(
+        selector ? form.querySelectorAll(selector) : form.elements
+    )
         .filter((control) => control.name && control.name !== "_csrf")
         .filter((control) => !["button", "submit", "reset"].includes(control.type))
         .map((control) => {
@@ -17,7 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return [control.name, control.type, control.value];
         });
 
-    const snapshot = (form) => JSON.stringify(controlState(form));
+    const snapshot = (form, selector = null) => JSON.stringify(controlState(form, selector));
     const dirtyForms = new Set();
 
     const syncForm = (form) => {
@@ -57,15 +59,46 @@ document.addEventListener("DOMContentLoaded", () => {
 
     forms.forEach((form) => {
         form.dataset.settingsBaseline = snapshot(form);
+        form.dataset.settingsSensitiveBaseline = snapshot(form, "[data-settings-sensitive]");
         syncForm(form);
+
+        let sensitiveConfirmationApproved = false;
+        form.addEventListener("submit", async (event) => {
+            if (sensitiveConfirmationApproved) {
+                sensitiveConfirmationApproved = false;
+                return;
+            }
+            const sensitiveChanged = snapshot(form, "[data-settings-sensitive]")
+                !== form.dataset.settingsSensitiveBaseline;
+            if (!sensitiveChanged) {
+                return;
+            }
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            const approved = await window.EnderVault.askConfirmation({
+                title: "Confirm security settings",
+                message: "Trusted proxy or passkey identity changes can affect client IP validation and sign-in. Save these changes?",
+                confirmLabel: "Save settings",
+                danger: true
+            });
+            if (approved) {
+                sensitiveConfirmationApproved = true;
+                form.requestSubmit(event.submitter || form.querySelector("[data-settings-save]"));
+            }
+        }, true);
 
         form.addEventListener("input", () => syncForm(form));
         form.addEventListener("change", () => syncForm(form));
-        form.addEventListener("endervault:ajax-success", () => {
+        form.addEventListener("endervault:ajax-success", (event) => {
+            if (!event.detail?.action?.endsWith("settings-save")) {
+                syncForm(form);
+                return;
+            }
             form.querySelectorAll("[data-clear-after-save]").forEach((control) => {
                 control.value = "";
             });
             form.dataset.settingsBaseline = snapshot(form);
+            form.dataset.settingsSensitiveBaseline = snapshot(form, "[data-settings-sensitive]");
             syncForm(form);
         });
 

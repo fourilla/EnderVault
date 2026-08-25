@@ -1339,8 +1339,26 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/directory-tree.js")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/directory-picker.js")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"general-settings-save\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-settings-form")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/settings-form.js")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString(
                         "action=\"/api/v1/settings/general\"")));
+    }
+
+    @Test
+    void advancedSettingsPageRendersCatalogAndDeploymentValues() throws Exception {
+        mockMvc.perform(get("/admin/settings/advanced"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("Advanced Settings")))
+                .andExpect(content().string(Matchers.containsString("Share Links")))
+                .andExpect(content().string(Matchers.containsString("Archive Safety")))
+                .andExpect(content().string(Matchers.containsString("Restart required")))
+                .andExpect(content().string(Matchers.containsString("Deployment")))
+                .andExpect(content().string(Matchers.containsString("name=\"uploadChunkSizeMib\"")))
+                .andExpect(content().string(Matchers.containsString("name=\"publicBaseUrl\"")))
+                .andExpect(content().string(Matchers.containsString("data-settings-form")))
+                .andExpect(content().string(Matchers.containsString(
+                        "action=\"/api/v1/settings/advanced\"")));
     }
 
     @Test
@@ -1364,6 +1382,7 @@ class AdminNotificationFlowTest {
         for (String endpoint : List.of(
                 "/admin/settings/account",
                 "/admin/settings/bookmarks",
+                "/admin/settings/advanced",
                 "/admin/settings/general",
                 "/admin/settings/sessions",
                 "/admin/settings/vpn",
@@ -1480,7 +1499,7 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Bot token")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Chat ID")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("LOGIN_SUCCESS")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Save and Apply")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Save settings")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Send Test Message")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-password-toggle")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Show bot token")))

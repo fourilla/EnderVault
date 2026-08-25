@@ -22,7 +22,12 @@ public class GeneralSettingsApiController {
 
     @PostMapping
     public ActionResponse save(@RequestParam MultiValueMap<String, String> parameters) throws IOException {
-        generalSettingsService.save(generalSettingsService.updateFrom(parameters));
-        return ActionResponse.ok(FlashNotification.success("General settings saved and applied."));
+        GeneralSettingsService.GeneralSettingsUpdate update = generalSettingsService.updateFrom(parameters);
+        boolean restartRequired = generalSettingsService.requiresRestart(update);
+        generalSettingsService.save(update);
+        String message = restartRequired
+                ? "General settings saved. Restart EnderVault to apply fields marked Restart required."
+                : "General settings saved and applied.";
+        return ActionResponse.ok(FlashNotification.success(message));
     }
 }

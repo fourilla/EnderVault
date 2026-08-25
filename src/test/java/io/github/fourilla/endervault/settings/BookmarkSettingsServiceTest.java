@@ -27,12 +27,17 @@ class BookmarkSettingsServiceTest {
 
         MultiValueMap<String, String> parameters = validParameters();
         parameters.remove("blockPrivateNetworks");
-        service.save(service.updateFrom(parameters));
+        BookmarkSettingsService.BookmarkSettingsUpdate update = service.updateFrom(parameters);
+        assertThat(service.requiresRestart(update)).isFalse();
+        service.save(update);
 
         assertThat(Files.readString(configFile, StandardCharsets.UTF_8))
                 .contains("nas.bookmarks.block-private-networks=false")
                 .doesNotContain("nas.bookmarks.metadata-network-route");
         assertThat(properties.getBookmarks().isBlockPrivateNetworks()).isFalse();
+
+        parameters.set("faviconCacheDirectory", "bookmark-icons");
+        assertThat(service.requiresRestart(service.updateFrom(parameters))).isTrue();
     }
 
     private MultiValueMap<String, String> validParameters() {
@@ -44,8 +49,8 @@ class BookmarkSettingsServiceTest {
         parameters.add("connectTimeoutSeconds", "5");
         parameters.add("responseTimeoutSeconds", "8");
         parameters.add("maxRedirects", "3");
-        parameters.add("htmlMaxBytes", "524288");
-        parameters.add("faviconMaxBytes", "262144");
+        parameters.add("htmlMaxKib", "512");
+        parameters.add("faviconMaxKib", "256");
         parameters.add("faviconCacheDirectory", "bookmark-favicons");
         return parameters;
     }

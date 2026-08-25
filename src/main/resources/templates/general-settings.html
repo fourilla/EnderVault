@@ -187,7 +187,6 @@
                         <p>Retention applies to newly trashed items; scheduler timing may require restart.</p>
                     </div>
                     <div class="settings-heading-actions">
-                        <span class="status-badge">Partial restart</span>
                         <label class="settings-heading-switch">
                             <span>Cleanup on startup</span>
                             <input class="settings-switch-input" type="checkbox" name="trashCleanupOnStartup" th:checked="${settings.trash().cleanupOnStartup()}">
@@ -200,8 +199,15 @@
                         <input type="number" name="trashRetentionDays" min="1" th:value="${settings.trash().retentionDays()}">
                     </label>
                     <label>
-                        <span>Cleanup interval ms</span>
-                        <input type="number" name="trashCleanupIntervalMs" min="60000" th:value="${settings.trash().cleanupIntervalMs()}">
+                        <span class="settings-field-label">
+                            <span>Cleanup interval</span>
+                            <em class="settings-restart-note">Restart required</em>
+                        </span>
+                        <div class="settings-unit-field">
+                            <input type="number" name="trashCleanupIntervalMinutes" min="1" step="any"
+                                   th:value="${settings.trash().cleanupIntervalMinutes()}">
+                            <span>minutes</span>
+                        </div>
                     </label>
                 </div>
             </section>
@@ -215,20 +221,32 @@
                 </header>
                 <div class="settings-field-grid">
                     <label>
-                        <span>Text auto-load max bytes</span>
-                        <input type="number" name="textAutoLoadMaxBytes" min="1024" th:value="${settings.fileTools().textAutoLoadMaxBytes()}">
+                        <span>Text auto-load limit</span>
+                        <div class="settings-unit-field">
+                            <input type="number" name="textAutoLoadMaxMib" min="0.001" step="any"
+                                   th:value="${settings.fileTools().textAutoLoadMaxMib()}">
+                            <span>MiB</span>
+                        </div>
                     </label>
                     <label>
-                        <span>Text manual-load max bytes</span>
-                        <input type="number" name="textManualLoadMaxBytes" min="1024" th:value="${settings.fileTools().textManualLoadMaxBytes()}">
+                        <span>Text manual-load limit</span>
+                        <div class="settings-unit-field">
+                            <input type="number" name="textManualLoadMaxMib" min="0.001" step="any"
+                                   th:value="${settings.fileTools().textManualLoadMaxMib()}">
+                            <span>MiB</span>
+                        </div>
                     </label>
                     <label>
                         <span>Text draft retention hours</span>
                         <input type="number" name="textDraftRetentionHours" min="1" th:value="${settings.fileTools().textDraftRetentionHours()}">
                     </label>
                     <label>
-                        <span>Text draft cleanup interval ms</span>
-                        <input type="number" name="textDraftCleanupIntervalMs" min="60000" th:value="${settings.fileTools().textDraftCleanupIntervalMs()}">
+                        <span>Text draft cleanup interval</span>
+                        <div class="settings-unit-field">
+                            <input type="number" name="textDraftCleanupIntervalMinutes" min="1" step="any"
+                                   th:value="${settings.fileTools().textDraftCleanupIntervalMinutes()}">
+                            <span>minutes</span>
+                        </div>
                     </label>
                     <label>
                         <span>Text editor lease seconds</span>
@@ -239,12 +257,20 @@
                         <input type="number" name="comicMaxPages" min="1" max="50000" th:value="${settings.fileTools().comicMaxPages()}">
                     </label>
                     <label>
-                        <span>Comic page max bytes</span>
-                        <input type="number" name="comicPageMaxBytes" min="1024" th:value="${settings.fileTools().comicPageMaxBytes()}">
+                        <span>Comic page limit</span>
+                        <div class="settings-unit-field">
+                            <input type="number" name="comicPageMaxMib" min="0.001" step="any"
+                                   th:value="${settings.fileTools().comicPageMaxMib()}">
+                            <span>MiB</span>
+                        </div>
                     </label>
                     <label>
-                        <span>Comic info max bytes</span>
-                        <input type="number" name="comicInfoMaxBytes" min="1024" th:value="${settings.fileTools().comicInfoMaxBytes()}">
+                        <span>Comic info limit</span>
+                        <div class="settings-unit-field">
+                            <input type="number" name="comicInfoMaxKib" min="1" step="any"
+                                   th:value="${settings.fileTools().comicInfoMaxKib()}">
+                            <span>KiB</span>
+                        </div>
                     </label>
                 </div>
             </section>
@@ -296,11 +322,19 @@
                         <input type="number" name="remoteMaxRedirects" min="0" max="50" th:value="${settings.remoteDownload().maxRedirects()}">
                     </label>
                     <label class="remote-direct-dependent">
-                        <span>Max file size bytes</span>
-                        <input type="number" name="remoteMaxFileSizeBytes" min="0" th:value="${settings.remoteDownload().maxFileSizeBytes()}">
+                        <span>Maximum file size</span>
+                        <div class="settings-unit-field">
+                            <input type="number" name="remoteMaxFileSizeGib" min="0" step="any"
+                                   th:value="${settings.remoteDownload().maxFileSizeGib()}">
+                            <span>GiB</span>
+                        </div>
+                        <small>Use 0 for no application-level size limit.</small>
                     </label>
                     <label>
-                        <span>History limit</span>
+                        <span class="settings-field-label">
+                            <span>History limit</span>
+                            <em class="settings-restart-note">Restart required</em>
+                        </span>
                         <input type="number" name="remoteHistoryLimit" min="1" max="1000" th:value="${settings.remoteDownload().historyLimit()}">
                     </label>
                     <label>

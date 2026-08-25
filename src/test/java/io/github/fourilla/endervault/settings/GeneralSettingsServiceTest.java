@@ -75,25 +75,27 @@ class GeneralSettingsServiceTest {
         parameters.set("recentMaxItems", "55");
         parameters.remove("recordDirectories");
         parameters.set("trashRetentionDays", "14");
-        parameters.set("trashCleanupIntervalMs", "120000");
-        parameters.set("textAutoLoadMaxBytes", "4096");
-        parameters.set("textManualLoadMaxBytes", "8192");
+        parameters.set("trashCleanupIntervalMinutes", "2");
+        parameters.set("textAutoLoadMaxMib", "4");
+        parameters.set("textManualLoadMaxMib", "8");
         parameters.set("textDraftRetentionHours", "72");
-        parameters.set("textDraftCleanupIntervalMs", "180000");
+        parameters.set("textDraftCleanupIntervalMinutes", "3");
         parameters.set("textDraftLeaseSeconds", "180");
         parameters.set("comicMaxPages", "300");
-        parameters.set("comicPageMaxBytes", "204800");
-        parameters.set("comicInfoMaxBytes", "4096");
+        parameters.set("comicPageMaxMib", "0.25");
+        parameters.set("comicInfoMaxKib", "4");
         parameters.set("remoteAllowedPorts", "80,443,8080");
         parameters.set("remoteResponseTimeoutSeconds", "45");
         parameters.set("remoteMaxRedirects", "7");
-        parameters.set("remoteMaxFileSizeBytes", "123456");
+        parameters.set("remoteMaxFileSizeGib", "1.5");
         parameters.set("remoteHistoryLimit", "25");
         parameters.set("remoteMaxRetries", "3");
         parameters.set("remoteDefaultTargetDirectory", "incoming");
         parameters.set("remoteSkipInspectByDefault", "on");
 
-        service.save(service.updateFrom(parameters));
+        GeneralSettingsService.GeneralSettingsUpdate update = service.updateFrom(parameters);
+        assertThat(service.requiresRestart(update)).isTrue();
+        service.save(update);
 
         String savedConfig = Files.readString(configFile, StandardCharsets.UTF_8);
         assertThat(savedConfig)
@@ -109,14 +111,14 @@ class GeneralSettingsServiceTest {
                 .contains("nas.recent.record-directories=false")
                 .contains("nas.trash.retention-days=14")
                 .contains("nas.trash.cleanup-interval-ms=120000")
-                .contains("nas.file-tools.text-auto-load-max-bytes=4096")
-                .contains("nas.file-tools.text-manual-load-max-bytes=8192")
+                .contains("nas.file-tools.text-auto-load-max-bytes=4194304")
+                .contains("nas.file-tools.text-manual-load-max-bytes=8388608")
                 .contains("nas.file-tools.text-draft-retention-hours=72")
                 .contains("nas.file-tools.text-draft-cleanup-interval-ms=180000")
                 .contains("nas.file-tools.text-draft-lease-seconds=180")
                 .contains("nas.file-tools.comic-max-pages=300")
                 .contains("nas.remote-download.allowed-ports=80,443,8080")
-                .contains("nas.remote-download.max-file-size-bytes=123456")
+                .contains("nas.remote-download.max-file-size-bytes=1610612736")
                 .contains("nas.remote-download.max-retries=3")
                 .contains("nas.remote-download.default-target-directory=incoming")
                 .contains("nas.remote-download.skip-inspect-by-default=true");
@@ -132,12 +134,12 @@ class GeneralSettingsServiceTest {
         assertThat(properties.getRecent().getMaxItems()).isEqualTo(55);
         assertThat(properties.getRecent().isRecordDirectories()).isFalse();
         assertThat(properties.getTrash().getRetentionDays()).isEqualTo(14);
-        assertThat(properties.getFileTools().getTextManualLoadMaxBytes()).isEqualTo(8192);
+        assertThat(properties.getFileTools().getTextManualLoadMaxBytes()).isEqualTo(8388608);
         assertThat(properties.getFileTools().getTextDraftRetentionHours()).isEqualTo(72);
         assertThat(properties.getFileTools().getTextDraftCleanupIntervalMs()).isEqualTo(180000);
         assertThat(properties.getFileTools().getTextDraftLeaseSeconds()).isEqualTo(180);
         assertThat(properties.getRemoteDownload().getAllowedPorts()).isEqualTo(List.of(80, 443, 8080));
-        assertThat(properties.getRemoteDownload().getMaxFileSizeBytes()).isEqualTo(123456);
+        assertThat(properties.getRemoteDownload().getMaxFileSizeBytes()).isEqualTo(1610612736L);
         assertThat(properties.getRemoteDownload().getMaxRetries()).isEqualTo(3);
         assertThat(properties.getRemoteDownload().getDefaultTargetDirectory()).isEqualTo("incoming");
         assertThat(properties.getRemoteDownload().isSkipInspectByDefault()).isTrue();
@@ -147,8 +149,8 @@ class GeneralSettingsServiceTest {
     void rejectsManualTextLimitBelowAutoLoadLimit() throws Exception {
         GeneralSettingsService service = service(new NasProperties(), tempDir.resolve("missing.properties"));
         MultiValueMap<String, String> parameters = validParameters();
-        parameters.set("textAutoLoadMaxBytes", "8192");
-        parameters.set("textManualLoadMaxBytes", "4096");
+        parameters.set("textAutoLoadMaxMib", "8");
+        parameters.set("textManualLoadMaxMib", "4");
 
         assertThatThrownBy(() -> service.updateFrom(parameters))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -180,22 +182,22 @@ class GeneralSettingsServiceTest {
         parameters.add("recordDirectories", "on");
         parameters.add("trashRetentionDays", "30");
         parameters.add("trashCleanupOnStartup", "on");
-        parameters.add("trashCleanupIntervalMs", "3600000");
-        parameters.add("textAutoLoadMaxBytes", "1048576");
-        parameters.add("textManualLoadMaxBytes", "20971520");
+        parameters.add("trashCleanupIntervalMinutes", "60");
+        parameters.add("textAutoLoadMaxMib", "1");
+        parameters.add("textManualLoadMaxMib", "20");
         parameters.add("textDraftRetentionHours", "168");
-        parameters.add("textDraftCleanupIntervalMs", "3600000");
+        parameters.add("textDraftCleanupIntervalMinutes", "60");
         parameters.add("textDraftLeaseSeconds", "300");
         parameters.add("comicMaxPages", "5000");
-        parameters.add("comicPageMaxBytes", "104857600");
-        parameters.add("comicInfoMaxBytes", "65536");
+        parameters.add("comicPageMaxMib", "100");
+        parameters.add("comicInfoMaxKib", "64");
         parameters.add("remoteEnabled", "on");
         parameters.add("remoteDirectEnabled", "on");
         parameters.add("remoteBlockPrivateNetworks", "on");
         parameters.add("remoteAllowedPorts", "80,443");
         parameters.add("remoteResponseTimeoutSeconds", "30");
         parameters.add("remoteMaxRedirects", "5");
-        parameters.add("remoteMaxFileSizeBytes", "0");
+        parameters.add("remoteMaxFileSizeGib", "0");
         parameters.add("remoteHistoryLimit", "100");
         parameters.add("remoteMaxRetries", "2");
         parameters.add("remoteDefaultTargetDirectory", "");
