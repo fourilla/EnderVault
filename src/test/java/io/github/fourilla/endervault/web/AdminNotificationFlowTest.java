@@ -44,7 +44,6 @@ import io.github.fourilla.endervault.upload.ResumableUploadSession;
 import io.github.fourilla.endervault.upload.ResumableUploadSource;
 import io.github.fourilla.endervault.upload.ResumableUploadStatus;
 import io.github.fourilla.endervault.web.support.FlashNotification;
-import io.github.fourilla.endervault.web.support.FlashNotifications;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -1958,15 +1957,17 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("File Tools")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Text Editor")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"content\"")))
+                .andExpect(content().string(Matchers.containsString("action=\"/api/v1/files/text/save\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("before")));
 
-        mockMvc.perform(post("/files/detail/text")
+        mockMvc.perform(post("/api/v1/files/text/save")
                         .with(csrf())
                         .param("path", filename)
+                        .param("editorToken", "editor-" + System.nanoTime())
                         .param("content", "after"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/files/detail?path=" + filename))
-                .andExpect(flash().attributeExists(FlashNotifications.ATTRIBUTE_NAME));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.notification.type").value("success"));
 
         assertThat(Files.readString(ROOT.resolve(filename), StandardCharsets.UTF_8)).isEqualTo("after");
     }
@@ -1983,7 +1984,7 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(Matchers.containsString("Download original")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("name=\"content\""))));
 
-        mockMvc.perform(get("/files/detail/text/load")
+        mockMvc.perform(get("/api/v1/files/text/load")
                         .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                         .param("path", filename))
                 .andExpect(status().isOk())
@@ -1993,20 +1994,21 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void textSaveCanReturnJsonForEnhancedEditor() throws Exception {
-        String filename = "text-editor-json-" + System.nanoTime() + ".txt";
-        Files.writeString(ROOT.resolve(filename), "before", StandardCharsets.UTF_8);
-
-        mockMvc.perform(post("/files/detail/text")
-                        .with(csrf())
-                        .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
-                        .param("path", filename)
-                        .param("content", "after json"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.ok").value(true))
-                .andExpect(jsonPath("$.notification.type").value("success"));
-
-        assertThat(Files.readString(ROOT.resolve(filename), StandardCharsets.UTF_8)).isEqualTo("after json");
+    void legacyTextEditorRoutesAreRemoved() throws Exception {
+        mockMvc.perform(post("/files/detail/text").with(csrf()).param("path", "legacy.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/files/detail/text/load").param("path", "legacy.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/files/detail/text/draft").param("path", "legacy.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/detail/text/draft").with(csrf()).param("path", "legacy.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/detail/text/draft/save-as").with(csrf()).param("path", "legacy.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/detail/text/draft/restore").with(csrf()).param("path", "legacy.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/detail/text/draft/discard").with(csrf()).param("path", "legacy.txt"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
