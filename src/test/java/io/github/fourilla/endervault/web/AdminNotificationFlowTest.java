@@ -1455,10 +1455,43 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("Copy link")))
                 .andExpect(content().string(Matchers.containsString("Copy direct download link")))
+                .andExpect(content().string(Matchers.containsString("/api/v1/shares/revoke")))
+                .andExpect(content().string(Matchers.containsString("/api/v1/shares/delete")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/admin/shares/revoke"))))
                 .andExpect(content().string(Matchers.containsString(
                         "/s/" + fileShare.token() + "/download/" + filename)))
                 .andExpect(content().string(Matchers.not(Matchers.containsString(
-                        "/s/" + directoryShare.token() + "/download/" + directory))));
+                         "/s/" + directoryShare.token() + "/download/" + directory))));
+    }
+
+    @Test
+    void sharedLinkMutationsUseVersionedApiOnly() throws Exception {
+        String filename = "share-api-" + System.nanoTime() + ".txt";
+        Files.writeString(ROOT.resolve(filename), "share");
+        ShareLink shareLink = shareLinkService.create("", filename, null);
+
+        mockMvc.perform(post("/api/v1/shares/revoke")
+                        .with(csrf())
+                        .param("token", shareLink.token()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.redirectUrl").value(Matchers.nullValue()));
+
+        assertThat(shareLinkService.list())
+                .filteredOn(candidate -> candidate.token().equals(shareLink.token()))
+                .singleElement()
+                .extracting(ShareLink::enabled)
+                .isEqualTo(false);
+
+        mockMvc.perform(post("/api/v1/shares/delete")
+                        .with(csrf())
+                        .param("token", shareLink.token()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true));
+
+        assertThat(shareLinkService.list()).noneMatch(candidate -> candidate.token().equals(shareLink.token()));
+        mockMvc.perform(post("/admin/shares/revoke").with(csrf()).param("token", shareLink.token()))
+                .andExpect(status().isNotFound());
     }
 
     @Test
