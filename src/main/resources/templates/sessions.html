@@ -99,7 +99,7 @@
                             </button>
                             <form class="row-form"
                                   method="post"
-                                  th:action="@{/admin/sessions/revoke}"
+                                  th:action="@{/api/v1/sessions/revoke}"
                                   data-ajax-action="session-revoke"
                                   th:attr="data-current-session=${managedSession.current()}">
                                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">

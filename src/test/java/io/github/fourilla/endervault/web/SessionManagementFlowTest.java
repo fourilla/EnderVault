@@ -72,6 +72,8 @@ class SessionManagementFlowTest {
 
         mockMvc.perform(get("/admin/sessions").session(second))
                 .andExpect(status().isOk())
+                .andExpect(content().string(containsString("/api/v1/sessions/revoke")))
+                .andExpect(content().string(not(containsString("/admin/sessions/revoke"))))
                 .andExpect(content().string(not(containsString("<th>Last active</th>"))))
                 .andExpect(content().string(containsString("session-detail-open")))
                 .andExpect(content().string(containsString("data-session-user-agent=\"Second Browser\"")))
@@ -86,7 +88,7 @@ class SessionManagementFlowTest {
         MockHttpSession session = login("Session To Revoke");
         SessionView current = sessionManagementService.listActive(session.getId()).getFirst();
 
-        mockMvc.perform(post("/admin/sessions/revoke")
+        mockMvc.perform(post("/api/v1/sessions/revoke")
                         .session(session)
                         .with(csrf())
                         .accept(MediaType.APPLICATION_JSON)
@@ -95,6 +97,18 @@ class SessionManagementFlowTest {
                 .andExpect(jsonPath("$.redirectUrl").value("/login?session-revoked"));
 
         assertThat(sessionManagementService.activeCount()).isZero();
+    }
+
+    @Test
+    void removedSessionMutationEndpointIsNotAvailable() throws Exception {
+        MockHttpSession session = login("Legacy Session Endpoint");
+        SessionView current = sessionManagementService.listActive(session.getId()).getFirst();
+
+        mockMvc.perform(post("/admin/sessions/revoke")
+                        .session(session)
+                        .with(csrf())
+                        .param("managementId", current.managementId()))
+                .andExpect(status().isNotFound());
     }
 
     private MockHttpSession login(String userAgent) throws Exception {
