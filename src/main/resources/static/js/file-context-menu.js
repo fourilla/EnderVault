@@ -177,7 +177,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const formData = formDataForSingle(item);
         formData.set("newName", trimmedName);
         formData.set("conflictPolicy", "ask");
-        const body = await requestJsonResolvingConflicts("/files/rename", {
+        const body = await requestJsonResolvingConflicts("/api/v1/files/rename", {
             method: "POST",
             body: formData
         });
@@ -186,7 +186,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     const moveItemsToTrash = async (items) => {
-        const body = await requestJson("/files/delete", {
+        const body = await requestJson("/api/v1/files/trash", {
             method: "POST",
             body: formDataForItems(items.map((item) => item.name))
         });
@@ -202,7 +202,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const shareAndCopy = async (item) => {
         const formData = formDataForSingle(item);
-        const body = await requestJson("/files/share", {
+        const body = await requestJson("/api/v1/shares", {
             method: "POST",
             body: formData
         });
@@ -233,7 +233,7 @@ document.addEventListener("DOMContentLoaded", () => {
             appendHidden(formData, csrf.name, csrf.value);
         }
         appendHidden(formData, "path", item.path);
-        const body = await requestJson("/files/favorites/toggle", {
+        const body = await requestJson("/api/v1/favorites/toggle", {
             method: "POST",
             body: formData
         });
@@ -249,7 +249,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        const body = await requestJson("/files/transfer/buffer", {
+        const body = await requestJson("/api/v1/files/transfer-buffer", {
             method: "POST",
             body: formDataForItems(items.map((item) => item.name))
         });

@@ -186,7 +186,7 @@ document.addEventListener("DOMContentLoaded", () => {
         upload.status = "resolving";
         renderUploadPanel();
         try {
-            const body = await window.EnderVault.requestJson("/files/upload/conflicts/resolve", {
+            const body = await window.EnderVault.requestJson("/api/v1/files/upload-conflicts/resolve", {
                 method: "POST",
                 body: conflictFormData(upload.conflict, policy)
             });

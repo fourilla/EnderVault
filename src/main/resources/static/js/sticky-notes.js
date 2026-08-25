@@ -11,7 +11,7 @@
         return;
     }
 
-    const apiRoot = "/admin/sticky-notes/items";
+    const apiRoot = "/api/v1/sticky-notes";
     const hiddenPreferenceKey = "endervault.stickyNotes.hidden";
     const controls = document.querySelector("[data-sticky-note-controls]");
     const appMain = document.querySelector(".app-main") || document.body;
@@ -38,6 +38,11 @@
     const localBackupKey = (id) => `endervault.stickyNote.unsaved:${id}`;
 
     const showToast = (type, message) => window.EnderVault?.showToast(type, message);
+
+    const requestDelete = (id) => window.EnderVault.requestJson(`${apiRoot}/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        headers: csrfHeaders()
+    });
 
     const snapshot = (state) => ({
         content: state.editor.value,
@@ -213,15 +218,7 @@
             return;
         }
         try {
-            const formData = new FormData();
-            const csrf = window.EnderVault.csrfPair();
-            if (csrf) {
-                formData.append(csrf.name, csrf.value);
-            }
-            const body = await window.EnderVault.requestJson(`${apiRoot}/${encodeURIComponent(state.id)}/delete`, {
-                method: "POST",
-                body: formData
-            });
+            const body = await requestDelete(state.id);
             clearLocalBackup(state);
             state.resizeObserver?.disconnect();
             state.card.remove();
@@ -524,6 +521,37 @@
 
         controls.querySelector("[data-sticky-note-add]")?.addEventListener("click", () => void createNote());
         controls.querySelector("[data-sticky-note-visibility]")?.addEventListener("click", () => setAllHidden(!layer.hidden));
+        document.querySelectorAll("[data-sticky-note-manager-delete]").forEach((button) => {
+            button.addEventListener("click", async () => {
+                const confirmed = await window.EnderVault.askConfirmation({
+                    title: "Delete sticky note",
+                    message: "Delete this sticky note? This cannot be undone.",
+                    confirmLabel: "Delete",
+                    danger: true
+                });
+                if (!confirmed) {
+                    return;
+                }
+                button.disabled = true;
+                try {
+                    const body = await requestDelete(button.dataset.stickyNoteManagerDelete);
+                    button.closest("tr")?.remove();
+                    const remaining = document.querySelectorAll("[data-sticky-note-manager-delete]").length;
+                    const count = document.querySelector("[data-sticky-note-manager-count]");
+                    if (count) {
+                        count.textContent = `${remaining} note(s)`;
+                    }
+                    const empty = document.querySelector("[data-sticky-note-manager-empty]");
+                    if (empty) {
+                        empty.hidden = remaining > 0;
+                    }
+                    window.EnderVault.showNotification(body.notification);
+                } catch (error) {
+                    button.disabled = false;
+                    showToast("error", error.message || "Sticky note could not be deleted.");
+                }
+            });
+        });
         window.EnderVaultContextMenus?.registerGlobalAction({
             id: "new-sticky-note",
             group: "sticky-note",

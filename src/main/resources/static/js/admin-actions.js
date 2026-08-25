@@ -98,14 +98,14 @@ document.addEventListener("DOMContentLoaded", () => {
                             data-direct-download-copy data-copy-value="" data-copy-success="Direct download link copied.">
                         <i class="fas fa-file-arrow-down" aria-hidden="true"></i>
                     </button>
-                    <form class="row-form" method="post" action="/files/detail/shares/revoke" data-ajax-action="share-revoke">
+                    <form class="row-form" method="post" action="/api/v1/shares/revoke" data-ajax-action="share-revoke">
                         <input type="hidden" name="path" value="">
                         <input type="hidden" name="token" value="">
                         <button class="danger icon-button action-icon" type="submit" title="Revoke" aria-label="Revoke">
                             <i class="fas fa-link-slash" aria-hidden="true"></i>
                         </button>
                     </form>
-                    <form class="row-form" method="post" action="/files/detail/shares/delete" data-ajax-action="share-delete">
+                    <form class="row-form" method="post" action="/api/v1/shares/delete" data-ajax-action="share-delete">
                         <input type="hidden" name="path" value="">
                         <input type="hidden" name="token" value="">
                         <button class="ghost icon-button action-icon" type="submit" title="Delete" aria-label="Delete">
@@ -178,6 +178,32 @@ document.addEventListener("DOMContentLoaded", () => {
         row.className = "empty-row";
         row.innerHTML = '<td colspan="6" class="empty">No active sessions.</td>';
         tbody.append(row);
+    };
+
+    const syncTrashState = () => {
+        const rows = Array.from(document.querySelectorAll("[data-trash-item]"));
+        const count = document.querySelector("[data-trash-count]");
+        const section = document.querySelector("[data-trash-section]");
+        const empty = document.querySelector("[data-trash-empty]");
+        const emptyAction = document.querySelector("[data-trash-empty-action]");
+        if (count) {
+            count.textContent = String(rows.length);
+        }
+        if (rows.length === 0) {
+            section?.setAttribute("hidden", "");
+            empty?.removeAttribute("hidden");
+            emptyAction?.remove();
+        }
+    };
+
+    const removeTrashRow = (form) => {
+        form.closest("[data-trash-item]")?.remove();
+        syncTrashState();
+    };
+
+    const emptyTrashRows = () => {
+        document.querySelectorAll("[data-trash-item]").forEach((row) => row.remove());
+        syncTrashState();
     };
 
     const bindSessionDetailDialog = () => {
@@ -305,7 +331,17 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     const handleSuccess = (form, body, action = ajaxAction(form)) => {
-        if (["detail-rename", "detail-move", "detail-hidden", "detail-delete", "session-revoke"].includes(action)
+        if ([
+            "detail-rename",
+            "detail-move",
+            "detail-hidden",
+            "detail-delete",
+            "session-revoke",
+            "activity-log-delete",
+            "recent-clear",
+            "bookmark-detail-mutation",
+            "view-preferences-reset"
+        ].includes(action)
                 && navigateWithNotification(body)) {
             return;
         }
@@ -328,6 +364,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 break;
             case "session-revoke":
                 removeRevokedSessionRow(form);
+                break;
+            case "trash-restore":
+            case "trash-delete":
+                removeTrashRow(form);
+                break;
+            case "trash-empty":
+                emptyTrashRows();
                 break;
             case "metadata-scan":
                 window.EnderVaultServerTasks?.track(body.task);

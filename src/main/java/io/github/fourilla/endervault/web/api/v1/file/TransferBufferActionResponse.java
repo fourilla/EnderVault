@@ -1,4 +1,4 @@
-package io.github.fourilla.endervault.web.file;
+package io.github.fourilla.endervault.web.api.v1.file;
 
 import io.github.fourilla.endervault.transfer.TransferBuffer;
 import io.github.fourilla.endervault.transfer.TransferBufferItem;
@@ -6,17 +6,17 @@ import io.github.fourilla.endervault.web.support.FlashNotification;
 import io.github.fourilla.endervault.web.task.TaskPayload;
 import java.util.List;
 
-record TransferBufferActionResponse(
+public record TransferBufferActionResponse(
         boolean ok,
         FlashNotification notification,
         TransferBufferPayload transferBuffer,
         TaskPayload task
 ) {
-    static TransferBufferActionResponse ok(FlashNotification notification, TransferBuffer transferBuffer) {
+    public static TransferBufferActionResponse ok(FlashNotification notification, TransferBuffer transferBuffer) {
         return ok(notification, transferBuffer, null);
     }
 
-    static TransferBufferActionResponse ok(
+    public static TransferBufferActionResponse ok(
             FlashNotification notification,
             TransferBuffer transferBuffer,
             TaskPayload task
@@ -29,7 +29,7 @@ record TransferBufferActionResponse(
         );
     }
 
-    private record TransferBufferPayload(
+    public record TransferBufferPayload(
             boolean active,
             int count,
             List<TransferBufferItemPayload> items
@@ -45,11 +45,7 @@ record TransferBufferActionResponse(
         }
     }
 
-    private record TransferBufferItemPayload(
-            String path,
-            String name,
-            String iconClass
-    ) {
+    public record TransferBufferItemPayload(String path, String name, String iconClass) {
         static TransferBufferItemPayload from(TransferBufferItem item) {
             return new TransferBufferItemPayload(item.path(), item.name(), item.iconClass());
         }

@@ -1,4 +1,4 @@
-package io.github.fourilla.endervault.web.vpn;
+package io.github.fourilla.endervault.web.api.v1.vpn;
 
 import io.github.fourilla.endervault.web.support.FlashNotification;
 import io.github.fourilla.endervault.web.support.VpnRuntimeStatusView;
@@ -14,5 +14,9 @@ public record VpnControlActionResponse(
             VpnRuntimeStatusView vpn
     ) {
         return new VpnControlActionResponse(true, notification, vpn);
+    }
+
+    public static VpnControlActionResponse error(FlashNotification notification) {
+        return new VpnControlActionResponse(false, notification, null);
     }
 }

@@ -84,7 +84,7 @@ public class WebExceptionHandler {
             String message
     ) {
         String cleanMessage = cleanMessage(message, title);
-        if (isApiRequest(request) || ActionResponseSupport.wantsJson(request)) {
+        if (isApiRequest(request) || JsonRequestSupport.wantsJson(request)) {
             return ResponseEntity.status(status).body(ActionResponse.error(cleanMessage));
         }
 

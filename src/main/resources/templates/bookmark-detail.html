@@ -7,6 +7,7 @@
     <th:block th:replace="~{fragments/assets :: styles(true)}"></th:block>
     <th:block th:replace="~{fragments/assets :: jsOnlyNoscript}"></th:block>
     <th:block th:replace="~{fragments/assets :: coreScripts}"></th:block>
+    <th:block th:replace="~{fragments/assets :: adminActionsScript}"></th:block>
 </head>
 <body>
 <div class="app-shell">
@@ -38,7 +39,7 @@
             </div>
 
             <div class="detail-actions">
-                <form class="row-form" method="post" th:action="@{/files/favorites/toggle-bookmark}"
+                <form class="row-form" method="post" th:action="@{/api/v1/favorites/toggle-bookmark}"
                       data-favorite-action="toggle" th:attr="data-favorite-path=|bookmark:${bookmark.id()}|">
                     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                     <input type="hidden" name="id" th:value="${bookmark.id()}">
@@ -122,7 +123,8 @@
             <h2>Manage</h2>
             <div class="manage-stack">
                 <form th:if="${bookmark.directory()}" class="stack manage-form" method="post"
-                      th:action="@{/files/bookmarks/directories/update}">
+                      th:action="@{/api/v1/bookmarks/directories/update}"
+                      data-ajax-action="bookmark-detail-mutation">
                     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                     <input type="hidden" name="id" th:value="${bookmark.id()}">
                     <input type="hidden" name="parentId" th:value="${currentBookmarkDirectoryId}">
@@ -138,7 +140,8 @@
                 </form>
 
                 <form th:if="${bookmark.link()}" class="stack manage-form" method="post"
-                      th:action="@{/files/bookmarks/links/update}">
+                      th:action="@{/api/v1/bookmarks/links/update}"
+                      data-ajax-action="bookmark-detail-mutation">
                     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                     <input type="hidden" name="id" th:value="${bookmark.id()}">
                     <input type="hidden" name="parentId" th:value="${currentBookmarkDirectoryId}">
@@ -164,7 +167,8 @@
 
                 <form th:if="${bookmarkMetadataFetchEnabled and bookmark.link() and bookmark.externalLink()}"
                       class="stack manage-form" method="post"
-                      th:action="@{/files/bookmarks/metadata}">
+                      th:action="@{/api/v1/bookmarks/metadata}"
+                      data-ajax-action="bookmark-detail-mutation">
                     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                     <input type="hidden" name="id" th:value="${bookmark.id()}">
                     <input type="hidden" name="parentId" th:value="${currentBookmarkDirectoryId}">
@@ -176,7 +180,8 @@
                 </form>
 
                 <div class="manage-delete">
-                    <form class="row-form" method="post" th:action="@{/files/bookmarks/delete}"
+                    <form class="row-form" method="post" th:action="@{/api/v1/bookmarks/delete}"
+                          data-ajax-action="bookmark-detail-mutation"
                           onsubmit="return confirm('Delete this bookmark item?');">
                         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                         <input type="hidden" name="id" th:value="${bookmark.id()}">

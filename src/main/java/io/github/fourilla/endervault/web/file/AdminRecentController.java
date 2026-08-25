@@ -8,10 +8,8 @@ import io.github.fourilla.endervault.recent.RecentService;
 import io.github.fourilla.endervault.recent.RecentSort;
 import io.github.fourilla.endervault.storage.SortDirection;
 import io.github.fourilla.endervault.storage.StorageService;
-import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.BrowserPreferenceCookies;
 import io.github.fourilla.endervault.web.support.FileResponseService;
-import io.github.fourilla.endervault.web.support.FlashNotification;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -26,11 +24,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import org.springframework.web.util.UriComponentsBuilder;
 
 @Controller
 public class AdminRecentController {
@@ -102,45 +97,6 @@ public class AdminRecentController {
         model.addAttribute("favoritePaths", favoriteService.favoritePaths());
         model.addAttribute("recentTotalItems", items.size());
         return "recent";
-    }
-
-    @PostMapping("/files/recent/remove")
-    public Object removeSelected(
-            @RequestParam(value = "paths", required = false) List<String> paths,
-            @RequestParam(value = "q", required = false) String query,
-            @RequestParam(value = "view", required = false) String view,
-            @RequestParam(value = "sort", required = false) String sort,
-            @RequestParam(value = "dir", required = false) String direction,
-            @RequestParam(value = "page", required = false) Integer page,
-            @RequestParam(value = "size", required = false) Integer size,
-            HttpServletRequest request,
-            RedirectAttributes redirectAttributes
-    ) throws IOException {
-        List<String> selectedPaths = safePaths(paths);
-        if (selectedPaths.isEmpty()) {
-            return ActionResponseSupport.badRequest(
-                    request,
-                    redirectAttributes,
-                    FlashNotification.warning("Select at least one recent item."),
-                    redirectToRecent(query, view, sort, direction, page, size)
-            );
-        }
-
-        recentService.removeAll(selectedPaths);
-        FlashNotification notification = FlashNotification.success("Selected recent items removed.");
-        String redirect = redirectToRecent(query, view, sort, direction, page, size);
-        return ActionResponseSupport.redirect(request, redirectAttributes, notification, redirect);
-    }
-
-    @PostMapping("/files/recent/clear")
-    public Object clear(
-            HttpServletRequest request,
-            RedirectAttributes redirectAttributes
-    ) throws IOException {
-        recentService.clear();
-        FlashNotification notification = FlashNotification.success("Recent history cleared.");
-        activityLogService.record("RECENT_CLEAR", request, null, null, "Cleared recent history");
-        return ActionResponseSupport.redirect(request, redirectAttributes, notification, "redirect:/files/recent");
     }
 
     @GetMapping("/files/recent/download.zip")
@@ -319,18 +275,6 @@ public class AdminRecentController {
         List<RecentListItem> items = totalItems == 0 ? List.of() : files.subList(startIndex, endIndex);
         int startItem = totalItems == 0 ? 0 : startIndex + 1;
         return new RecentPage(items, page, pageSize, totalItems, totalPages, startItem, endIndex);
-    }
-
-    private String redirectToRecent(String query, String view, String sort, String direction, Integer page, Integer size) {
-        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/files/recent");
-        if (query != null && !query.isBlank()) {
-            builder.queryParam("q", query);
-        }
-        int pageNumber = page == null ? 1 : Math.max(1, page);
-        if (pageNumber > 1) {
-            builder.queryParam("page", pageNumber);
-        }
-        return "redirect:" + builder.build().encode().toUriString();
     }
 
     private String nextView(String view) {

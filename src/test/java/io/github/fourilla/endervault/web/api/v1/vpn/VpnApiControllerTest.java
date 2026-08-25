@@ -1,4 +1,4 @@
-package io.github.fourilla.endervault.web.vpn;
+package io.github.fourilla.endervault.web.api.v1.vpn;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -19,24 +19,22 @@ import io.github.fourilla.endervault.outbound.vpn.control.VpnControlStatus;
 import io.github.fourilla.endervault.remote.RemoteDownloadService;
 import io.github.fourilla.endervault.remote.RemoteDownloadTask;
 import io.github.fourilla.endervault.web.support.VpnRuntimeStatusView;
+import io.github.fourilla.endervault.web.vpn.VpnRuntimeViewService;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
-class AdminVpnControllerTest {
+class VpnApiControllerTest {
 
     private VpnControlService controlService;
     private VpnProxyHealthService healthService;
     private OutboundRouteStateService routeStateService;
     private RemoteDownloadService remoteDownloadService;
-    private AdminVpnController controller;
+    private VpnApiController controller;
 
     @BeforeEach
     void setUp() {
@@ -53,7 +51,7 @@ class AdminVpnControllerTest {
                 remoteDownloadService,
                 properties
         );
-        controller = new AdminVpnController(
+        controller = new VpnApiController(
                 controlService,
                 healthService,
                 runtimeViewService,
@@ -84,14 +82,15 @@ class AdminVpnControllerTest {
     void disconnectRequiresExplicitConfirmationWhileVpnTaskIsActive() throws Exception {
         when(remoteDownloadService.listTasks()).thenReturn(List.of(activeVpnTask()));
 
-        Object result = controller.disconnect(
+        ResponseEntity<VpnControlActionResponse> response = controller.disconnect(
                 false,
-                jsonRequest(),
-                new RedirectAttributesModelMap()
+                new MockHttpServletRequest()
         );
 
-        assertThat(result).isInstanceOf(ResponseEntity.class);
-        assertThat(((ResponseEntity<?>) result).getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().ok()).isFalse();
+        assertThat(response.getBody().vpn()).isNull();
         verify(controlService, never()).disconnect();
     }
 
@@ -100,24 +99,15 @@ class AdminVpnControllerTest {
         when(remoteDownloadService.listTasks()).thenReturn(List.of(activeVpnTask()));
         when(controlService.disconnect()).thenReturn(stoppedControl());
 
-        Object result = controller.disconnect(
+        ResponseEntity<VpnControlActionResponse> response = controller.disconnect(
                 true,
-                jsonRequest(),
-                new RedirectAttributesModelMap()
+                new MockHttpServletRequest()
         );
 
-        assertThat(result).isInstanceOf(ResponseEntity.class);
-        ResponseEntity<?> response = (ResponseEntity<?>) result;
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isInstanceOf(VpnControlActionResponse.class);
-        assertThat(((VpnControlActionResponse) response.getBody()).vpn().running()).isFalse();
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().vpn().running()).isFalse();
         verify(controlService).disconnect();
-    }
-
-    private MockHttpServletRequest jsonRequest() {
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE);
-        return request;
     }
 
     private RemoteDownloadTask activeVpnTask() {

@@ -2,12 +2,12 @@
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <body>
 <th:block th:fragment="tool" th:if="${fileTool.text()}">
-    <form class="text-editor" method="post" th:action="@{/files/detail/text}"
-          th:attr="data-text-load-url=@{/files/detail/text/load(path=${detail.path()})},
-                   data-text-draft-url=@{/files/detail/text/draft},
-                   data-text-draft-restore-url=@{/files/detail/text/draft/restore},
-                   data-text-draft-discard-url=@{/files/detail/text/draft/discard},
-                   data-text-draft-save-as-url=@{/files/detail/text/draft/save-as}"
+    <form class="text-editor" method="post" th:action="@{/api/v1/files/text/save}"
+          th:attr="data-text-load-url=@{/api/v1/files/text/load(path=${detail.path()})},
+                   data-text-draft-url=@{/api/v1/files/text/draft},
+                   data-text-draft-restore-url=@{/api/v1/files/text/draft/restore},
+                   data-text-draft-discard-url=@{/api/v1/files/text/draft/discard},
+                   data-text-draft-save-as-url=@{/api/v1/files/text/draft/save-as}"
           th:data-text-extension="${detail.extension()}"
           th:data-text-name="${detail.name()}"
           data-text-editor>

@@ -33,7 +33,7 @@
 
         <form class="metadata-scan-form"
               method="post"
-              th:action="@{/admin/metadata/scan}"
+              th:action="@{/api/v1/metadata/scan}"
               data-ajax-action="metadata-scan">
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
             <div class="metadata-running-note" th:if="${activeInspectionTask != null}">
@@ -96,7 +96,7 @@
                   th:text="|${latestReport.scanReport().issueCount()} issues|">0 issues</span>
         </header>
 
-        <form class="metadata-repair-form" method="post" th:action="@{/admin/metadata/repair}"
+        <form class="metadata-repair-form" method="post" th:action="@{/api/v1/metadata/repair}"
               data-ajax-action="metadata-repair">
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
 

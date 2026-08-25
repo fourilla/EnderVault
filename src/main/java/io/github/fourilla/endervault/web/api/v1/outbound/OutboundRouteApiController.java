@@ -1,30 +1,28 @@
-package io.github.fourilla.endervault.web.dashboard;
+package io.github.fourilla.endervault.web.api.v1.outbound;
 
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.outbound.NetworkRoute;
 import io.github.fourilla.endervault.outbound.OutboundRouteStateService;
 import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthService;
-import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.FlashNotification;
-import io.github.fourilla.endervault.web.support.OutboundRouteResponse;
 import io.github.fourilla.endervault.web.support.OutboundRouteView;
 import jakarta.servlet.http.HttpServletRequest;
-import java.net.URI;
 import java.util.Map;
-import org.springframework.http.HttpHeaders;
-import org.springframework.stereotype.Controller;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import org.springframework.web.bind.annotation.RestController;
 
-@Controller
-public class AdminOutboundRouteController {
+@RestController
+@RequestMapping("/api/v1/outbound-route")
+public class OutboundRouteApiController {
 
     private final OutboundRouteStateService outboundRouteStateService;
     private final VpnProxyHealthService vpnProxyHealthService;
     private final ActivityLogService activityLogService;
 
-    public AdminOutboundRouteController(
+    public OutboundRouteApiController(
             OutboundRouteStateService outboundRouteStateService,
             VpnProxyHealthService vpnProxyHealthService,
             ActivityLogService activityLogService
@@ -34,27 +32,20 @@ public class AdminOutboundRouteController {
         this.activityLogService = activityLogService;
     }
 
-    @PostMapping("/admin/outbound/route")
-    public Object changeRoute(
+    @PostMapping
+    public ResponseEntity<OutboundRouteResponse> changeRoute(
             @RequestParam String route,
-            HttpServletRequest request,
-            RedirectAttributes redirectAttributes
+            HttpServletRequest request
     ) {
         NetworkRoute requestedRoute;
         try {
             requestedRoute = NetworkRoute.fromSetting(route);
         } catch (IllegalArgumentException ex) {
-            return ActionResponseSupport.badRequest(
-                    request,
-                    redirectAttributes,
-                    FlashNotification.error(ex.getMessage()),
-                    redirectBack(request)
-            );
+            return ResponseEntity.badRequest().body(OutboundRouteResponse.error(ex.getMessage()));
         }
 
         NetworkRoute previousRoute = outboundRouteStateService.changeRoute(requestedRoute);
-        OutboundRouteView routeView =
-                OutboundRouteView.from(requestedRoute, vpnProxyHealthService.current());
+        OutboundRouteView routeView = OutboundRouteView.from(requestedRoute, vpnProxyHealthService.current());
         FlashNotification notification = routeNotification(routeView);
         if (previousRoute != requestedRoute) {
             activityLogService.record(
@@ -70,13 +61,7 @@ public class AdminOutboundRouteController {
                     )
             );
         }
-        return ActionResponseSupport.ok(
-                request,
-                redirectAttributes,
-                notification,
-                redirectBack(request),
-                OutboundRouteResponse.ok(notification, routeView)
-        );
+        return ResponseEntity.ok(OutboundRouteResponse.ok(notification, routeView));
     }
 
     private FlashNotification routeNotification(OutboundRouteView route) {
@@ -89,31 +74,5 @@ public class AdminOutboundRouteController {
         return FlashNotification.warning(
                 "VPN route selected, but it is unavailable. Managed outbound requests will fail closed."
         );
-    }
-
-    private String redirectBack(HttpServletRequest request) {
-        String referer = request.getHeader(HttpHeaders.REFERER);
-        if (referer == null || referer.isBlank()) {
-            return "redirect:/files";
-        }
-        try {
-            URI uri = URI.create(referer);
-            String path = uri.getRawPath();
-            if (!safeAdminPath(path)) {
-                return "redirect:/files";
-            }
-            String query = uri.getRawQuery();
-            return "redirect:" + path + (query == null ? "" : "?" + query);
-        } catch (IllegalArgumentException ex) {
-            return "redirect:/files";
-        }
-    }
-
-    private boolean safeAdminPath(String path) {
-        return path != null
-                && (path.equals("/files")
-                || path.startsWith("/files/")
-                || path.equals("/admin")
-                || path.startsWith("/admin/"));
     }
 }

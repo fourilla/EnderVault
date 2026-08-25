@@ -16,16 +16,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const {
         copyText,
-        csrfPair,
         showToast
     } = window.EnderVault;
 
     const itemSelector = "[data-bookmark-context-item='true']";
     const checkboxSelector = 'input[name="bookmarkIds"][form="bulkActionForm"]';
     const actions = [];
-
-    const currentParentId = () => bulkForm.querySelector('input[name="parentId"]')?.value || "";
-    const currentQuery = () => bulkForm.querySelector('input[name="q"]')?.value || "";
 
     const checkboxForItem = (item) => item?.querySelector(checkboxSelector) || null;
 
@@ -52,8 +48,8 @@ document.addEventListener("DOMContentLoaded", () => {
         metadataEnabled: item.dataset.bookmarkMetadataEnabled === "true",
         openUrl: item.dataset.bookmarkOpenUrl || "",
         detailUrl: item.dataset.bookmarkDetailUrl || "",
-        metadataUrl: item.dataset.bookmarkMetadataUrl || "/files/bookmarks/metadata",
-        deleteUrl: item.dataset.bookmarkDeleteUrl || "/files/bookmarks/delete",
+        metadataUrl: item.dataset.bookmarkMetadataUrl || "/api/v1/bookmarks/metadata",
+        deleteUrl: item.dataset.bookmarkDeleteUrl || "/api/v1/bookmarks/delete",
         get directory() {
             return this.type === "directory";
         },
@@ -80,27 +76,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const isNativeContextTarget = (target) =>
         Boolean(target.closest("input, textarea, select, button, label, summary, [contenteditable='true']"));
 
-    const appendHidden = (form, name, value) => {
-        const input = document.createElement("input");
-        input.type = "hidden";
-        input.name = name;
-        input.value = value == null ? "" : value;
-        form.append(input);
-    };
-
-    const submitPost = (action, fields = {}) => {
-        const form = document.createElement("form");
-        form.method = "post";
-        form.action = action;
-        const csrf = csrfPair(bulkForm);
-        if (csrf) {
-            appendHidden(form, csrf.name, csrf.value);
-        }
-        Object.entries(fields).forEach(([name, value]) => appendHidden(form, name, value));
-        document.body.append(form);
-        form.submit();
-    };
-
     const navigateTo = (url, newTab = false) => {
         if (!url) {
             return;
@@ -112,31 +87,11 @@ document.addEventListener("DOMContentLoaded", () => {
         window.location.href = url;
     };
 
-    const deleteSingle = (item) => {
-        if (!window.confirm(`Delete "${item.title}"?`)) {
-            return;
-        }
-        submitPost(item.deleteUrl, {
-            id: item.id,
-            parentId: currentParentId(),
-            q: currentQuery()
-        });
-    };
+    const deleteSingle = (item) => window.EnderVaultBookmarks?.deleteItem(item);
 
-    const deleteSelected = (items) => {
-        if (!window.confirm(`Delete ${items.length} selected bookmark items?`)) {
-            return;
-        }
-        bulkForm.action = bulkForm.dataset.bookmarkDeleteSelectedUrl || "/files/bookmarks/delete-selected";
-        bulkForm.method = "post";
-        bulkForm.submit();
-    };
+    const deleteSelected = (items) => window.EnderVaultBookmarks?.deleteSelected(items.length);
 
-    const refreshMetadata = (item) => submitPost(item.metadataUrl, {
-        id: item.id,
-        parentId: currentParentId(),
-        q: currentQuery()
-    });
+    const refreshMetadata = (item) => window.EnderVaultBookmarks?.refreshMetadata(item);
 
     const copyBookmarkUrl = async (item) => {
         const copied = await copyText(item.url);

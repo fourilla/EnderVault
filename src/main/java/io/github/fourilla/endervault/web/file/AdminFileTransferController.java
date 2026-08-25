@@ -11,7 +11,6 @@ import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.thumbnail.ThumbnailFile;
 import io.github.fourilla.endervault.thumbnail.ThumbnailService;
 import io.github.fourilla.endervault.recent.RecentService;
-import io.github.fourilla.endervault.web.support.ActionResponseSupport;
 import io.github.fourilla.endervault.web.support.FilePreviewSupport;
 import io.github.fourilla.endervault.web.support.FileResponseService;
 import io.github.fourilla.endervault.web.support.FlashNotifications;
@@ -38,7 +37,6 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import org.springframework.web.util.UriComponentsBuilder;
 
 @Controller
 public class AdminFileTransferController {
@@ -125,7 +123,7 @@ public class AdminFileTransferController {
         List<String> items = SelectedItems.from(request);
         if (items.isEmpty()) {
             FlashNotifications.warning(redirectAttributes, "Select at least one item.");
-            response.sendRedirect(ActionResponseSupport.redirectUrl(redirectToFiles(path, view, sort, direction, page, size)));
+            response.sendRedirect(FileRedirects.filesUrl(path, view, sort, direction, page, size));
             return;
         }
 
@@ -218,26 +216,6 @@ public class AdminFileTransferController {
             throw new NoSuchFileException("");
         }
         return storageService.detail(StorageScope.VAULT, path);
-    }
-
-    private String redirectToFiles(
-            String path,
-            String view,
-            String sort,
-            String direction,
-            Integer page,
-            Integer size
-    ) {
-        int pageNumber = page == null ? 1 : Math.max(1, page);
-
-        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/files");
-        if (path != null && !path.isBlank()) {
-            builder.queryParam("path", path);
-        }
-        if (pageNumber > 1) {
-            builder.queryParam("page", pageNumber);
-        }
-        return "redirect:" + builder.build().encode().toUriString();
     }
 
     private String zipContentDisposition(List<String> items) {

@@ -1,11 +1,10 @@
 <!doctype html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <body>
-<th:block th:fragment="panel(buffer, currentPath, pasteEnabled, returnTo)">
+<th:block th:fragment="panel(buffer, currentPath, pasteEnabled)">
     <div data-transfer-buffer-region
          th:data-current-path="${currentPath}"
-         th:data-transfer-paste-enabled="${pasteEnabled}"
-         th:data-return-to="${returnTo}">
+         th:data-transfer-paste-enabled="${pasteEnabled}">
         <section class="transfer-buffer-panel" th:if="${buffer.active()}" aria-label="Transfer buffer">
             <div class="transfer-buffer-header">
                 <div class="transfer-buffer-summary">
@@ -18,11 +17,9 @@
                     </div>
                 </div>
                 <div class="transfer-buffer-header-controls">
-                    <form class="row-form" method="post" th:action="@{/files/transfer/clear}"
+                    <form class="row-form" method="post" th:action="@{/api/v1/files/transfer-buffer/clear}"
                           data-transfer-action="transfer-clear">
                         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                        <input type="hidden" name="path" th:value="${currentPath}">
-                        <input type="hidden" name="returnTo" th:if="${returnTo != null}" th:value="${returnTo}">
                         <button class="ghost transfer-buffer-clear" type="submit">
                             Clear buffer
                         </button>
@@ -38,12 +35,10 @@
                 <li th:each="item : ${buffer.items()}">
                     <i th:class="${item.iconClass()}" aria-hidden="true"></i>
                     <span th:title="${item.path()}" th:text="${item.name()}">item</span>
-                    <form class="row-form" method="post" th:action="@{/files/transfer/remove}"
+                    <form class="row-form" method="post" th:action="@{/api/v1/files/transfer-buffer/remove}"
                           data-transfer-action="transfer-remove">
                         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                        <input type="hidden" name="path" th:value="${currentPath}">
                         <input type="hidden" name="itemPath" th:value="${item.path()}">
-                        <input type="hidden" name="returnTo" th:if="${returnTo != null}" th:value="${returnTo}">
                         <button class="transfer-buffer-remove" type="submit"
                                 th:title="|Remove ${item.name()} from transfer buffer|"
                                 th:attr="aria-label=|Remove ${item.name()} from transfer buffer|">
@@ -53,7 +48,7 @@
                 </li>
             </ul>
             <div class="transfer-buffer-actions" th:if="${pasteEnabled}">
-                <form class="row-form" method="post" th:action="@{/files/transfer/paste}"
+                <form class="row-form" method="post" th:action="@{/api/v1/files/transfer-buffer/paste}"
                       data-transfer-action="transfer-paste">
                     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                     <input type="hidden" name="path" th:value="${currentPath}">
@@ -63,7 +58,7 @@
                         Move here
                     </button>
                 </form>
-                <form class="row-form" method="post" th:action="@{/files/transfer/paste}"
+                <form class="row-form" method="post" th:action="@{/api/v1/files/transfer-buffer/paste}"
                       data-transfer-action="transfer-paste">
                     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                     <input type="hidden" name="path" th:value="${currentPath}">

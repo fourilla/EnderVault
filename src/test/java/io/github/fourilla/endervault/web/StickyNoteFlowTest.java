@@ -3,6 +3,7 @@ package io.github.fourilla.endervault.web;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -81,7 +82,7 @@ class StickyNoteFlowTest {
                 "x", 12,
                 "y", 24
         ));
-        MvcResult created = mockMvc.perform(post("/admin/sticky-notes/items")
+        MvcResult created = mockMvc.perform(post("/api/v1/sticky-notes")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .accept(MediaType.APPLICATION_JSON)
@@ -104,7 +105,7 @@ class StickyNoteFlowTest {
                 "collapsed", false,
                 "layer", 2
         ));
-        MvcResult updated = mockMvc.perform(put("/admin/sticky-notes/items/{id}", id)
+        MvcResult updated = mockMvc.perform(put("/api/v1/sticky-notes/{id}", id)
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .accept(MediaType.APPLICATION_JSON)
@@ -119,7 +120,7 @@ class StickyNoteFlowTest {
                         .asText()
         ));
 
-        mockMvc.perform(get("/admin/sticky-notes/items")
+        mockMvc.perform(get("/api/v1/sticky-notes")
                         .param("targetType", "STORAGE")
                         .param("targetKey", "")
                         .param("surface", "BROWSER")
@@ -132,14 +133,29 @@ class StickyNoteFlowTest {
                 .andExpect(content().string(containsString("MockMvc sticky note")))
                 .andExpect(content().string(containsString("class=\"search-form\"")))
                 .andExpect(content().string(containsString("class=\"button-link ghost icon-button action-icon\"")))
+                .andExpect(content().string(containsString("data-sticky-note-manager-delete=\"" + id + "\"")))
                 .andExpect(content().string(containsString(updatedLabel)));
 
-        mockMvc.perform(post("/admin/sticky-notes/items/{id}/delete", id)
+        mockMvc.perform(delete("/api/v1/sticky-notes/{id}", id)
                         .with(csrf())
-                        .accept(MediaType.APPLICATION_JSON)
-                        .header("X-Requested-With", "fetch"))
+                        .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.deletedId").value(id));
+    }
+
+    @Test
+    void removedStickyNoteItemEndpointsAreNotAvailable() throws Exception {
+        mockMvc.perform(get("/admin/sticky-notes/items")
+                        .param("targetType", "PAGE")
+                        .param("surface", "PAGE"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/sticky-notes/items")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/sticky-notes/items/legacy/delete").with(csrf()))
+                .andExpect(status().isNotFound());
     }
 
     private static Path createTempRoot() {

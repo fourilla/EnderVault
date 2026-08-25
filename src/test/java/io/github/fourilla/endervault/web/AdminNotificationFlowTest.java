@@ -27,6 +27,8 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.fourilla.endervault.bookmark.BookmarkItem;
+import io.github.fourilla.endervault.bookmark.BookmarkService;
 import io.github.fourilla.endervault.favorite.FavoriteService;
 import io.github.fourilla.endervault.filerequest.FileRequest;
 import io.github.fourilla.endervault.filerequest.FileRequestService;
@@ -34,13 +36,14 @@ import io.github.fourilla.endervault.filerequest.UploaderNamePolicy;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.storage.StorageService;
+import io.github.fourilla.endervault.trash.TrashRecord;
+import io.github.fourilla.endervault.trash.TrashService;
 import io.github.fourilla.endervault.upload.ResumableUploadService;
 import io.github.fourilla.endervault.upload.ResumableUploadRepository;
 import io.github.fourilla.endervault.upload.ResumableUploadSession;
 import io.github.fourilla.endervault.upload.ResumableUploadSource;
 import io.github.fourilla.endervault.upload.ResumableUploadStatus;
 import io.github.fourilla.endervault.web.support.FlashNotification;
-import io.github.fourilla.endervault.web.support.FlashNotifications;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -73,6 +76,9 @@ class AdminNotificationFlowTest {
     FavoriteService favoriteService;
 
     @Autowired
+    BookmarkService bookmarkService;
+
+    @Autowired
     FileRequestService fileRequestService;
 
     @Autowired
@@ -83,6 +89,9 @@ class AdminNotificationFlowTest {
 
     @Autowired
     StorageService storageService;
+
+    @Autowired
+    TrashService trashService;
 
     @Autowired
     ObjectMapper objectMapper;
@@ -101,12 +110,19 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"_csrf\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"_csrf_header\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("action=\"/api/v1/files\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("action=\"/api/v1/files/directories\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("formaction=\"/api/v1/files/trash\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("file-new-noscript-form"))))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"toastRegion\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-notification-center")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/notification-center.js")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString(
                         "data-file-requests-enabled=\"true\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-outbound-route-form")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "action=\"/api/v1/outbound-route\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/page-jump.js")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Open read-only mode")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Recent")))
@@ -117,6 +133,29 @@ class AdminNotificationFlowTest {
                         org.hamcrest.Matchers.containsString("Shared links"))))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("Remote download"))));
+    }
+
+    @Test
+    void pagesWithCommonAjaxActionsLoadTheirFormBinder() throws Exception {
+        for (String path : List.of("/files", "/files/read-only", "/files/recent", "/admin/trash", "/admin/logs")) {
+            mockMvc.perform(get(path))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(Matchers.containsString("/js/admin-actions.js")));
+        }
+    }
+
+    @Test
+    void outboundRouteUsesVersionedApiAndLegacyEndpointIsRemoved() throws Exception {
+        mockMvc.perform(post("/api/v1/outbound-route")
+                        .with(csrf())
+                        .param("route", "unknown"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.ok").value(false));
+
+        mockMvc.perform(post("/admin/outbound/route")
+                        .with(csrf())
+                        .param("route", "direct"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -132,6 +171,26 @@ class AdminNotificationFlowTest {
                 .andExpect(jsonPath("$.ok").value(true))
                 .andExpect(jsonPath("$.actionableCount").isNumber())
                 .andExpect(jsonPath("$.reviewAllHref").value("/admin/pending-decisions"));
+    }
+
+    @Test
+    void taskPollingUsesVersionedApiAndLegacyEndpointsAreRemoved() throws Exception {
+        mockMvc.perform(get("/api/v1/tasks"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON));
+
+        mockMvc.perform(post("/api/v1/tasks/cancel")
+                        .with(csrf())
+                        .param("id", "missing-task"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.ok").value(false));
+
+        mockMvc.perform(get("/admin/tasks"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/tasks/cancel").with(csrf()).param("id", "missing-task"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/tasks/delete").with(csrf()).param("id", "missing-task"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -779,7 +838,10 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("name=\"networkRoute\"")))
                 .andExpect(content().string(Matchers.containsString("Use global (Direct)")))
-                .andExpect(content().string(Matchers.containsString("data-discard-url=\"/admin/utils/remote-download/inspect/discard\"")))
+                .andExpect(content().string(Matchers.containsString("action=\"/api/v1/remote-downloads/inspect\"")))
+                .andExpect(content().string(Matchers.containsString("data-start-url=\"/api/v1/remote-downloads\"")))
+                .andExpect(content().string(Matchers.containsString("data-discard-url=\"/api/v1/remote-downloads/inspect/discard\"")))
+                .andExpect(content().string(Matchers.containsString("data-tasks-url=\"/api/v1/remote-downloads/tasks\"")))
                 .andExpect(content().string(Matchers.containsString("id=\"remoteCurlDialog\"")))
                 .andExpect(content().string(Matchers.containsString("data-storage-directory-picker")))
                 .andExpect(content().string(Matchers.containsString("/js/directory-tree.js")))
@@ -787,7 +849,35 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(Matchers.containsString("data-remote-remember-destination")))
                 .andExpect(content().string(Matchers.containsString("remote-custom-headers")))
                 .andExpect(content().string(Matchers.containsString("id=\"remoteCustomHeaders\"")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/admin/utils/remote-download/inspect"))))
                 .andExpect(content().string(Matchers.containsString("<th>Route</th>")));
+    }
+
+    @Test
+    void remoteDownloadActionsUseVersionedApi() throws Exception {
+        mockMvc.perform(get("/api/v1/remote-downloads/tasks"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON));
+
+        mockMvc.perform(post("/api/v1/remote-downloads/inspect/discard")
+                        .with(csrf())
+                        .param("requestId", "missing-inspection"))
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.ok").value(false))
+                .andExpect(jsonPath("$.notification.message")
+                        .value("Remote download request identifier is invalid."));
+
+        mockMvc.perform(post("/admin/utils/remote-download/inspect/discard")
+                        .with(csrf())
+                        .param("requestId", "missing-inspection"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/utils/remote-download/cancel")
+                        .with(csrf())
+                        .param("id", "missing-task"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/admin/utils/remote-download/tasks"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -825,7 +915,41 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"addToTransferBufferButton\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-transfer-action=\"transfer-buffer-add\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "formaction=\"/api/v1/files/transfer-buffer\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-selection-required")));
+    }
+
+    @Test
+    void browserPreferenceResetUsesVersionedApiOnly() throws Exception {
+        mockMvc.perform(get("/files"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString(
+                        "action=\"/api/v1/browser-preferences/reset\"")));
+
+        mockMvc.perform(post("/api/v1/browser-preferences/reset")
+                        .with(csrf())
+                        .param("target", "files"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.redirectUrl").value("/files"));
+
+        mockMvc.perform(post("/files/preferences/reset").with(csrf()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void legacyTransferBufferRoutesAreRemoved() throws Exception {
+        mockMvc.perform(post("/files/transfer/buffer").with(csrf()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/detail/transfer/buffer").with(csrf()).param("path", "legacy.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/transfer/paste").with(csrf()).param("operation", "copy"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/transfer/clear").with(csrf()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/transfer/remove").with(csrf()).param("itemPath", "legacy.txt"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -834,7 +958,7 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("id=\"compressSelectedButton\"")))
                 .andExpect(content().string(Matchers.containsString("id=\"archiveCreationDialog\"")))
-                .andExpect(content().string(Matchers.containsString("action=\"/files/archive/create\"")))
+                .andExpect(content().string(Matchers.containsString("action=\"/api/v1/files/archives\"")))
                 .andExpect(content().string(Matchers.containsString("/js/archive-create.js")));
     }
 
@@ -844,7 +968,7 @@ class AdminNotificationFlowTest {
         Path source = Files.createDirectories(ROOT.resolve(directory));
         Files.writeString(source.resolve("note.txt"), "archive me", StandardCharsets.UTF_8);
 
-        mockMvc.perform(post("/files/archive/create")
+        mockMvc.perform(post("/api/v1/files/archives")
                         .with(csrf())
                         .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                         .header("X-Requested-With", "fetch")
@@ -865,6 +989,14 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void legacyArchiveMutationRoutesAreRemoved() throws Exception {
+        mockMvc.perform(post("/files/archive/create").with(csrf()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/detail/archive/extract").with(csrf()).param("path", "legacy.zip"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void selectedItemsCanBeMovedThroughTransferBuffer() throws Exception {
         String source = "transfer-source-" + System.nanoTime();
         String target = "transfer-target-" + System.nanoTime();
@@ -873,28 +1005,34 @@ class AdminNotificationFlowTest {
         Files.writeString(ROOT.resolve(source).resolve("note.txt"), "move me");
         MockHttpSession session = new MockHttpSession();
 
-        mockMvc.perform(post("/files/transfer/buffer")
+        mockMvc.perform(post("/api/v1/files/transfer-buffer")
                         .session(session)
                         .with(csrf())
                         .param("path", source)
                         .param("items", "note.txt"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/files?path=" + source));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.transferBuffer.active").value(true));
 
-        mockMvc.perform(post("/files/transfer/paste")
+        mockMvc.perform(post("/api/v1/files/transfer-buffer/paste")
                         .session(session)
                         .with(csrf())
                         .param("path", target)
-                        .param("operation", "move"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/files?path=" + target));
+                        .param("operation", "move")
+                        .param("conflictPolicy", "ask"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.task.type").value("FILE_MOVE"))
+                .andExpect(jsonPath("$.transferBuffer.active").value(false));
 
+        long deadline = System.currentTimeMillis() + 5_000L;
+        while (!Files.exists(ROOT.resolve(target).resolve("note.txt")) && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20L);
+        }
         assertThat(ROOT.resolve(source).resolve("note.txt")).doesNotExist();
         assertThat(Files.readString(ROOT.resolve(target).resolve("note.txt"))).isEqualTo("move me");
     }
 
     @Test
-    void transferPasteProcessesValidItemsAndKeepsFailedItemsInBuffer() throws Exception {
+    void transferPasteQueuesSnapshotAndClearsBuffer() throws Exception {
         String source = "transfer-partial-source-" + System.nanoTime();
         String target = "transfer-partial-target-" + System.nanoTime();
         Files.createDirectories(ROOT.resolve(source));
@@ -903,25 +1041,30 @@ class AdminNotificationFlowTest {
         Files.writeString(ROOT.resolve(source).resolve("stale.txt"), "gone");
         MockHttpSession session = new MockHttpSession();
 
-        mockMvc.perform(post("/files/transfer/buffer")
+        mockMvc.perform(post("/api/v1/files/transfer-buffer")
                         .session(session)
                         .with(csrf())
                         .param("path", source)
                         .param("items", "ok.txt")
                         .param("items", "stale.txt"))
-                .andExpect(status().is3xxRedirection());
+                .andExpect(status().isOk());
 
         Files.delete(ROOT.resolve(source).resolve("stale.txt"));
 
-        mockMvc.perform(post("/files/transfer/paste")
+        mockMvc.perform(post("/api/v1/files/transfer-buffer/paste")
                         .session(session)
                         .with(csrf())
                         .param("path", target)
-                        .param("operation", "move"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/files?path=" + target))
-                .andExpect(flash().attributeExists(FlashNotifications.ATTRIBUTE_NAME));
+                        .param("operation", "move")
+                        .param("conflictPolicy", "ask"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.task.type").value("FILE_MOVE"))
+                .andExpect(jsonPath("$.transferBuffer.active").value(false));
 
+        long deadline = System.currentTimeMillis() + 5_000L;
+        while (!Files.exists(ROOT.resolve(target).resolve("ok.txt")) && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20L);
+        }
         assertThat(ROOT.resolve(source).resolve("ok.txt")).doesNotExist();
         assertThat(Files.readString(ROOT.resolve(target).resolve("ok.txt"))).isEqualTo("move me");
 
@@ -929,8 +1072,8 @@ class AdminNotificationFlowTest {
                         .session(session)
                         .param("path", target))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Transfer buffer")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("stale.txt")));
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("1 item(s) ready"))));
     }
 
     @Test
@@ -940,7 +1083,7 @@ class AdminNotificationFlowTest {
         Files.writeString(ROOT.resolve(source).resolve("note.txt"), "ajax");
         MockHttpSession session = new MockHttpSession();
 
-        mockMvc.perform(post("/files/transfer/buffer")
+        mockMvc.perform(post("/api/v1/files/transfer-buffer")
                         .session(session)
                         .with(csrf())
                         .header("X-Requested-With", "fetch")
@@ -953,18 +1096,17 @@ class AdminNotificationFlowTest {
                 .andExpect(jsonPath("$.transferBuffer.count").value(1))
                 .andExpect(jsonPath("$.transferBuffer.items[0].name").value("note.txt"));
 
-        mockMvc.perform(post("/files/transfer/remove")
+        mockMvc.perform(post("/api/v1/files/transfer-buffer/remove")
                         .session(session)
                         .with(csrf())
                         .header("X-Requested-With", "fetch")
                         .accept(MediaType.APPLICATION_JSON)
-                        .param("path", source)
                         .param("itemPath", source + "/note.txt"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true))
                 .andExpect(jsonPath("$.transferBuffer.active").value(false));
 
-        mockMvc.perform(post("/files/transfer/buffer")
+        mockMvc.perform(post("/api/v1/files/transfer-buffer")
                         .session(session)
                         .with(csrf())
                         .header("X-Requested-With", "fetch")
@@ -974,12 +1116,11 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.transferBuffer.active").value(true));
 
-        mockMvc.perform(post("/files/transfer/clear")
+        mockMvc.perform(post("/api/v1/files/transfer-buffer/clear")
                         .session(session)
                         .with(csrf())
                         .header("X-Requested-With", "fetch")
-                        .accept(MediaType.APPLICATION_JSON)
-                        .param("path", source))
+                        .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true))
                 .andExpect(jsonPath("$.transferBuffer.active").value(false));
@@ -994,20 +1135,26 @@ class AdminNotificationFlowTest {
         Files.writeString(ROOT.resolve(source).resolve("note.txt"), "copy me");
         MockHttpSession session = new MockHttpSession();
 
-        mockMvc.perform(post("/files/transfer/buffer")
+        mockMvc.perform(post("/api/v1/files/transfer-buffer")
                         .session(session)
                         .with(csrf())
                         .param("path", source)
                         .param("items", "note.txt"))
-                .andExpect(status().is3xxRedirection());
+                .andExpect(status().isOk());
 
-        mockMvc.perform(post("/files/transfer/paste")
+        mockMvc.perform(post("/api/v1/files/transfer-buffer/paste")
                         .session(session)
                         .with(csrf())
                         .param("path", target)
-                        .param("operation", "copy"))
-                .andExpect(status().is3xxRedirection());
+                        .param("operation", "copy")
+                        .param("conflictPolicy", "ask"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.task.type").value("FILE_COPY"));
 
+        long deadline = System.currentTimeMillis() + 5_000L;
+        while (!Files.exists(ROOT.resolve(target).resolve("note.txt")) && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20L);
+        }
         assertThat(Files.readString(ROOT.resolve(source).resolve("note.txt"))).isEqualTo("copy me");
         assertThat(Files.readString(ROOT.resolve(target).resolve("note.txt"))).isEqualTo("copy me");
     }
@@ -1085,6 +1232,48 @@ class AdminNotificationFlowTest {
         mockMvc.perform(post("/files/trash/empty").with(csrf()))
                 .andExpect(status().isNotFound());
         mockMvc.perform(post("/files/remote-download").with(csrf()).param("url", "https://example.com/file.bin"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void trashAndActivityLogMutationsUseVersionedApis() throws Exception {
+        String fileName = "api-trash-" + java.util.UUID.randomUUID() + ".txt";
+        Files.writeString(ROOT.resolve(fileName), "trash api test");
+        TrashRecord record = trashService.moveToTrash("", List.of(fileName)).getFirst();
+
+        mockMvc.perform(get("/admin/trash"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("/api/v1/trash/empty")))
+                .andExpect(content().string(Matchers.containsString("/api/v1/trash/restore")))
+                .andExpect(content().string(Matchers.containsString("/api/v1/trash/delete")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/admin/trash/empty"))));
+
+        mockMvc.perform(post("/api/v1/trash/delete")
+                        .with(csrf())
+                        .param("id", record.id()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true));
+        mockMvc.perform(post("/admin/trash/restore")
+                        .with(csrf())
+                        .param("id", "missing-trash-record"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/trash/delete")
+                        .with(csrf())
+                        .param("id", "missing-trash-record"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/trash/empty").with(csrf()))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/admin/logs"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/activity-logs/delete")
+                        .with(csrf())
+                        .param("file", "activity-log.jsonl"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.ok").value(false));
+        mockMvc.perform(post("/admin/logs/delete")
+                        .with(csrf())
+                        .param("file", "activity-log.jsonl"))
                 .andExpect(status().isNotFound());
     }
 
@@ -1220,6 +1409,11 @@ class AdminNotificationFlowTest {
     void vpnStatusPageRendersRuntimeDetailsInPanel() throws Exception {
         mockMvc.perform(get("/admin/vpn"))
                 .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("data-status-url=\"/api/v1/vpn/status\"")))
+                .andExpect(content().string(Matchers.containsString("action=\"/api/v1/vpn/refresh\"")))
+                .andExpect(content().string(Matchers.containsString("action=\"/api/v1/vpn/connect\"")))
+                .andExpect(content().string(Matchers.containsString("action=\"/api/v1/vpn/reconnect\"")))
+                .andExpect(content().string(Matchers.containsString("action=\"/api/v1/vpn/disconnect\"")))
                 .andExpect(content().string(Matchers.containsString("Connection Details")))
                 .andExpect(content().string(Matchers.containsString("VPN public IP")))
                 .andExpect(content().string(Matchers.containsString("Outbound route")))
@@ -1227,6 +1421,20 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(Matchers.containsString("data-vpn-runtime=\"controlBadge\"")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("<dt>Profile</dt>"))))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("vpn-status-metrics"))));
+    }
+
+    @Test
+    void removedVpnRuntimeEndpointsAreNotAvailable() throws Exception {
+        mockMvc.perform(get("/admin/vpn/status"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/vpn/refresh").with(csrf()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/vpn/connect").with(csrf()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/vpn/reconnect").with(csrf()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/vpn/disconnect").with(csrf()))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -1296,6 +1504,55 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void bookmarkMutationsUseVersionedApi() throws Exception {
+        String title = "API bookmark directory " + java.util.UUID.randomUUID();
+
+        mockMvc.perform(post("/api/v1/bookmarks/directories")
+                        .with(csrf())
+                        .param("title", title))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.redirectUrl").value("/files/bookmarks"));
+
+        BookmarkItem created = bookmarkService.list(null, title).stream()
+                .filter(item -> title.equals(item.title()))
+                .findFirst()
+                .orElseThrow();
+
+        mockMvc.perform(get("/files/bookmarks"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("/api/v1/bookmarks/directories")))
+                .andExpect(content().string(Matchers.containsString("/api/v1/bookmarks/links")))
+                .andExpect(content().string(Matchers.containsString("/api/v1/bookmarks/bulk")))
+                .andExpect(content().string(Matchers.containsString("/api/v1/bookmarks/delete-selected")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString(
+                        "action=\"/files/bookmarks/directories\""))));
+
+        mockMvc.perform(post("/api/v1/bookmarks/delete")
+                        .with(csrf())
+                        .param("id", created.id()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.redirectUrl").value("/files/bookmarks"));
+
+        mockMvc.perform(post("/api/v1/bookmarks/delete-selected").with(csrf()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.ok").value(false));
+        mockMvc.perform(post("/files/bookmarks/directories")
+                        .with(csrf())
+                        .param("title", title))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/bookmarks/delete")
+                        .with(csrf())
+                        .param("id", created.id()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/bookmarks/metadata")
+                        .with(csrf())
+                        .param("id", created.id()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void recentPageRecordsDetailAccessAndSearchesRecentItems() throws Exception {
         String filename = "recent-ui-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "recent");
@@ -1307,7 +1564,23 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString(filename)))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Accessed")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remove selected from recent")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remove selected from recent")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/api/v1/recent/remove")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/api/v1/recent/clear")));
+
+        mockMvc.perform(post("/api/v1/recent/remove")
+                        .with(csrf())
+                        .param("paths", filename)
+                        .param("q", "recent-ui"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.redirectUrl").value("/files/recent?q=recent-ui"));
+        mockMvc.perform(post("/files/recent/remove")
+                        .with(csrf())
+                        .param("paths", filename))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/recent/clear").with(csrf()))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -1315,19 +1588,20 @@ class AdminNotificationFlowTest {
         String filename = "favorite-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "favorite");
 
-        mockMvc.perform(post("/files/favorites/toggle")
+        mockMvc.perform(post("/api/v1/favorites/toggle")
                         .with(csrf())
-                        .header("Referer", "http://localhost/files")
                         .param("path", filename))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/files"))
-                .andExpect(flash().attributeExists(FlashNotifications.ATTRIBUTE_NAME));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.active").value(true));
 
         mockMvc.perform(get("/files/favorites"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString(filename)))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Move up")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remove")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remove")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/api/v1/favorites/move")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/api/v1/favorites/remove")));
 
         mockMvc.perform(get("/files"))
                 .andExpect(status().isOk())
@@ -1340,15 +1614,28 @@ class AdminNotificationFlowTest {
         String filename = "favorite-json-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "favorite");
 
-        mockMvc.perform(post("/files/favorites/toggle")
+        mockMvc.perform(post("/api/v1/favorites/toggle")
                         .with(csrf())
-                        .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                         .param("path", filename))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true))
                 .andExpect(jsonPath("$.active").value(true))
                 .andExpect(jsonPath("$.favorite.path").value(filename))
                 .andExpect(jsonPath("$.notification.type").value("success"));
+
+        mockMvc.perform(post("/files/favorites/toggle")
+                        .with(csrf())
+                        .param("path", filename))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/favorites/remove")
+                        .with(csrf())
+                        .param("path", filename))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/favorites/move")
+                        .with(csrf())
+                        .param("path", filename)
+                        .param("direction", "up"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -1373,6 +1660,11 @@ class AdminNotificationFlowTest {
         mockMvc.perform(get("/admin/metadata"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Metadata Inspector")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/api/v1/metadata/scan")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("/admin/metadata/scan"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("/admin/metadata/repair"))))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("metadata-area-list")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("metadata-area-row")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("File requests")))
@@ -1382,13 +1674,34 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void metadataRepairUsesVersionedJsonApi() throws Exception {
+        mockMvc.perform(post("/api/v1/metadata/repair")
+                        .with(csrf())
+                        .accept(MediaType.APPLICATION_JSON)
+                        .param("repairAll", "true"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.notification.type").value("info"));
+    }
+
+    @Test
+    void removedMetadataMutationEndpointsAreNotAvailable() throws Exception {
+        mockMvc.perform(post("/admin/metadata/scan").with(csrf()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/metadata/repair").with(csrf()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void logsPageRendersActivityEntries() throws Exception {
         String directory = "log-dir-" + System.nanoTime();
 
-        mockMvc.perform(post("/files/directories")
+        mockMvc.perform(post("/api/v1/files/directories")
                         .with(csrf())
                         .param("name", directory))
-                .andExpect(status().is3xxRedirection());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true));
 
         mockMvc.perform(get("/admin/logs")
                         .param("type", "CREATE_DIRECTORY")
@@ -1402,24 +1715,34 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void expectedPostFailuresRedirectBackWithErrorToast() throws Exception {
+    void fileMutationFailuresStayJson() throws Exception {
         Files.createDirectories(ROOT.resolve("existing"));
 
-        MvcResult result = mockMvc.perform(post("/files/directories")
+        mockMvc.perform(post("/api/v1/files/directories")
                         .with(csrf())
-                        .header("Referer", "http://localhost/files")
                         .param("name", "existing"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/files"))
-                .andExpect(flash().attributeExists(FlashNotifications.ATTRIBUTE_NAME))
-                .andReturn();
+                .andExpect(status().isConflict())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.ok").value(false))
+                .andExpect(jsonPath("$.notification.type").value("error"));
+    }
 
-        @SuppressWarnings("unchecked")
-        List<FlashNotification> notifications =
-                (List<FlashNotification>) result.getFlashMap().get(FlashNotifications.ATTRIBUTE_NAME);
-        assertThat(notifications)
-                .extracting(FlashNotification::type)
-                .containsExactly("error");
+    @Test
+    void legacyFileMutationRoutesAreRemoved() throws Exception {
+        mockMvc.perform(post("/files/directories").with(csrf()).param("name", "legacy"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/files").with(csrf()).param("name", "legacy.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/rename").with(csrf())
+                        .param("item", "legacy.txt")
+                        .param("newName", "renamed.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/move").with(csrf())
+                        .param("item", "legacy.txt")
+                        .param("targetPath", "target"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/detail/delete").with(csrf()).param("path", "legacy.txt"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -1427,7 +1750,7 @@ class AdminNotificationFlowTest {
         String filename = "ajax-share-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "share");
 
-        mockMvc.perform(post("/files/detail/share")
+        mockMvc.perform(post("/api/v1/shares")
                         .with(csrf())
                         .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                         .param("path", filename)
@@ -1443,6 +1766,18 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void legacyFileShareMutationRoutesAreRemoved() throws Exception {
+        mockMvc.perform(post("/files/share").with(csrf()).param("item", "legacy.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/detail/share").with(csrf()).param("path", "legacy.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/detail/shares/revoke").with(csrf()).param("token", "legacy"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/detail/shares/delete").with(csrf()).param("token", "legacy"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void sharedLinksPageOffersCopyActionsForFileSharesOnly() throws Exception {
         String filename = "copy-link-" + System.nanoTime() + ".txt";
         String directory = "copy-link-dir-" + System.nanoTime();
@@ -1455,10 +1790,43 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("Copy link")))
                 .andExpect(content().string(Matchers.containsString("Copy direct download link")))
+                .andExpect(content().string(Matchers.containsString("/api/v1/shares/revoke")))
+                .andExpect(content().string(Matchers.containsString("/api/v1/shares/delete")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/admin/shares/revoke"))))
                 .andExpect(content().string(Matchers.containsString(
                         "/s/" + fileShare.token() + "/download/" + filename)))
                 .andExpect(content().string(Matchers.not(Matchers.containsString(
-                        "/s/" + directoryShare.token() + "/download/" + directory))));
+                         "/s/" + directoryShare.token() + "/download/" + directory))));
+    }
+
+    @Test
+    void sharedLinkMutationsUseVersionedApiOnly() throws Exception {
+        String filename = "share-api-" + System.nanoTime() + ".txt";
+        Files.writeString(ROOT.resolve(filename), "share");
+        ShareLink shareLink = shareLinkService.create("", filename, null);
+
+        mockMvc.perform(post("/api/v1/shares/revoke")
+                        .with(csrf())
+                        .param("token", shareLink.token()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.redirectUrl").value(Matchers.nullValue()));
+
+        assertThat(shareLinkService.list())
+                .filteredOn(candidate -> candidate.token().equals(shareLink.token()))
+                .singleElement()
+                .extracting(ShareLink::enabled)
+                .isEqualTo(false);
+
+        mockMvc.perform(post("/api/v1/shares/delete")
+                        .with(csrf())
+                        .param("token", shareLink.token()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true));
+
+        assertThat(shareLinkService.list()).noneMatch(candidate -> candidate.token().equals(shareLink.token()));
+        mockMvc.perform(post("/admin/shares/revoke").with(csrf()).param("token", shareLink.token()))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -1616,15 +1984,17 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("File Tools")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Text Editor")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"content\"")))
+                .andExpect(content().string(Matchers.containsString("action=\"/api/v1/files/text/save\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("before")));
 
-        mockMvc.perform(post("/files/detail/text")
+        mockMvc.perform(post("/api/v1/files/text/save")
                         .with(csrf())
                         .param("path", filename)
+                        .param("editorToken", "editor-" + System.nanoTime())
                         .param("content", "after"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/files/detail?path=" + filename))
-                .andExpect(flash().attributeExists(FlashNotifications.ATTRIBUTE_NAME));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.notification.type").value("success"));
 
         assertThat(Files.readString(ROOT.resolve(filename), StandardCharsets.UTF_8)).isEqualTo("after");
     }
@@ -1641,7 +2011,7 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(Matchers.containsString("Download original")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("name=\"content\""))));
 
-        mockMvc.perform(get("/files/detail/text/load")
+        mockMvc.perform(get("/api/v1/files/text/load")
                         .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                         .param("path", filename))
                 .andExpect(status().isOk())
@@ -1651,20 +2021,21 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void textSaveCanReturnJsonForEnhancedEditor() throws Exception {
-        String filename = "text-editor-json-" + System.nanoTime() + ".txt";
-        Files.writeString(ROOT.resolve(filename), "before", StandardCharsets.UTF_8);
-
-        mockMvc.perform(post("/files/detail/text")
-                        .with(csrf())
-                        .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
-                        .param("path", filename)
-                        .param("content", "after json"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.ok").value(true))
-                .andExpect(jsonPath("$.notification.type").value("success"));
-
-        assertThat(Files.readString(ROOT.resolve(filename), StandardCharsets.UTF_8)).isEqualTo("after json");
+    void legacyTextEditorRoutesAreRemoved() throws Exception {
+        mockMvc.perform(post("/files/detail/text").with(csrf()).param("path", "legacy.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/files/detail/text/load").param("path", "legacy.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/files/detail/text/draft").param("path", "legacy.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/detail/text/draft").with(csrf()).param("path", "legacy.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/detail/text/draft/save-as").with(csrf()).param("path", "legacy.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/detail/text/draft/restore").with(csrf()).param("path", "legacy.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/detail/text/draft/discard").with(csrf()).param("path", "legacy.txt"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -1695,6 +2066,12 @@ class AdminNotificationFlowTest {
 
         assertThat(result.get("status").asText()).isEqualTo("COMPLETED");
         assertThat(Files.readAllBytes(ROOT.resolve(filename))).isEqualTo(content);
+    }
+
+    @Test
+    void legacyUploadConflictRouteIsRemoved() throws Exception {
+        mockMvc.perform(post("/files/upload/conflicts/resolve").with(csrf()).param("id", "legacy"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -1732,7 +2109,7 @@ class AdminNotificationFlowTest {
         String filename = "ajax-delete-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "delete");
 
-        mockMvc.perform(post("/files/delete")
+        mockMvc.perform(post("/api/v1/files/trash")
                         .with(csrf())
                         .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                         .param("items", filename))
@@ -1750,7 +2127,7 @@ class AdminNotificationFlowTest {
         String renamed = "ajax-renamed-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "rename");
 
-        mockMvc.perform(post("/files/detail/rename")
+        mockMvc.perform(post("/api/v1/files/detail/rename")
                         .with(csrf())
                         .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                         .param("path", filename)
@@ -1774,6 +2151,8 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Add to transfer buffer")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Move to trash")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/file-transfer-buffer.js")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "/api/v1/files/transfer-buffer/detail")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("Danger zone"))))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
@@ -1788,13 +2167,12 @@ class AdminNotificationFlowTest {
         Files.createDirectories(ROOT.resolve(target));
         MockHttpSession session = new MockHttpSession();
 
-        mockMvc.perform(post("/files/detail/transfer/buffer")
+        mockMvc.perform(post("/api/v1/files/transfer-buffer/detail")
                         .session(session)
                         .with(csrf())
                         .param("path", filename))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/files/detail?path=" + filename))
-                .andExpect(flash().attributeExists(FlashNotifications.ATTRIBUTE_NAME));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.transferBuffer.active").value(true));
 
         mockMvc.perform(get("/files/detail")
                         .session(session)
@@ -1805,14 +2183,18 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("Move here"))));
 
-        mockMvc.perform(post("/files/transfer/paste")
+        mockMvc.perform(post("/api/v1/files/transfer-buffer/paste")
                         .session(session)
                         .with(csrf())
                         .param("path", target)
-                        .param("operation", "copy"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/files?path=" + target));
+                        .param("operation", "copy")
+                        .param("conflictPolicy", "ask"))
+                .andExpect(status().isAccepted());
 
+        long deadline = System.currentTimeMillis() + 5_000L;
+        while (!Files.exists(ROOT.resolve(target).resolve(filename)) && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20L);
+        }
         assertThat(Files.readString(ROOT.resolve(target).resolve(filename))).isEqualTo("buffer");
     }
 
@@ -1824,11 +2206,11 @@ class AdminNotificationFlowTest {
         Files.createDirectories(ROOT.resolve(target));
         MockHttpSession session = new MockHttpSession();
 
-        mockMvc.perform(post("/files/detail/transfer/buffer")
+        mockMvc.perform(post("/api/v1/files/transfer-buffer/detail")
                         .session(session)
                         .with(csrf())
                         .param("path", filename))
-                .andExpect(status().is3xxRedirection());
+                .andExpect(status().isOk());
 
         mockMvc.perform(get("/files/detail")
                         .session(session)
