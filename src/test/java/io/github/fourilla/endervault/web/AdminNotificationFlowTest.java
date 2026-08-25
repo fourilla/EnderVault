@@ -1220,6 +1220,11 @@ class AdminNotificationFlowTest {
     void vpnStatusPageRendersRuntimeDetailsInPanel() throws Exception {
         mockMvc.perform(get("/admin/vpn"))
                 .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("data-status-url=\"/api/v1/vpn/status\"")))
+                .andExpect(content().string(Matchers.containsString("action=\"/api/v1/vpn/refresh\"")))
+                .andExpect(content().string(Matchers.containsString("action=\"/api/v1/vpn/connect\"")))
+                .andExpect(content().string(Matchers.containsString("action=\"/api/v1/vpn/reconnect\"")))
+                .andExpect(content().string(Matchers.containsString("action=\"/api/v1/vpn/disconnect\"")))
                 .andExpect(content().string(Matchers.containsString("Connection Details")))
                 .andExpect(content().string(Matchers.containsString("VPN public IP")))
                 .andExpect(content().string(Matchers.containsString("Outbound route")))
@@ -1227,6 +1232,20 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(Matchers.containsString("data-vpn-runtime=\"controlBadge\"")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("<dt>Profile</dt>"))))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("vpn-status-metrics"))));
+    }
+
+    @Test
+    void removedVpnRuntimeEndpointsAreNotAvailable() throws Exception {
+        mockMvc.perform(get("/admin/vpn/status"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/vpn/refresh").with(csrf()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/vpn/connect").with(csrf()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/vpn/reconnect").with(csrf()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/vpn/disconnect").with(csrf()))
+                .andExpect(status().isNotFound());
     }
 
     @Test
