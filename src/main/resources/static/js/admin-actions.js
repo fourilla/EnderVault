@@ -180,6 +180,32 @@ document.addEventListener("DOMContentLoaded", () => {
         tbody.append(row);
     };
 
+    const syncTrashState = () => {
+        const rows = Array.from(document.querySelectorAll("[data-trash-item]"));
+        const count = document.querySelector("[data-trash-count]");
+        const section = document.querySelector("[data-trash-section]");
+        const empty = document.querySelector("[data-trash-empty]");
+        const emptyAction = document.querySelector("[data-trash-empty-action]");
+        if (count) {
+            count.textContent = String(rows.length);
+        }
+        if (rows.length === 0) {
+            section?.setAttribute("hidden", "");
+            empty?.removeAttribute("hidden");
+            emptyAction?.remove();
+        }
+    };
+
+    const removeTrashRow = (form) => {
+        form.closest("[data-trash-item]")?.remove();
+        syncTrashState();
+    };
+
+    const emptyTrashRows = () => {
+        document.querySelectorAll("[data-trash-item]").forEach((row) => row.remove());
+        syncTrashState();
+    };
+
     const bindSessionDetailDialog = () => {
         const dialog = document.getElementById("sessionDetailModal");
         const buttons = Array.from(document.querySelectorAll(".session-detail-open"));
@@ -305,7 +331,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     const handleSuccess = (form, body, action = ajaxAction(form)) => {
-        if (["detail-rename", "detail-move", "detail-hidden", "detail-delete", "session-revoke"].includes(action)
+        if (["detail-rename", "detail-move", "detail-hidden", "detail-delete", "session-revoke", "activity-log-delete"].includes(action)
                 && navigateWithNotification(body)) {
             return;
         }
@@ -328,6 +354,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 break;
             case "session-revoke":
                 removeRevokedSessionRow(form);
+                break;
+            case "trash-restore":
+            case "trash-delete":
+                removeTrashRow(form);
+                break;
+            case "trash-empty":
+                emptyTrashRows();
                 break;
             case "metadata-scan":
                 window.EnderVaultServerTasks?.track(body.task);

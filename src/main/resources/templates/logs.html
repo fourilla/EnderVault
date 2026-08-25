@@ -48,7 +48,8 @@
                             <i class="fas fa-folder-open" aria-hidden="true"></i>
                         </button>
                     </form>
-                    <form method="post" th:action="@{/admin/logs/delete}"
+                    <form method="post" th:action="@{/api/v1/activity-logs/delete}"
+                          data-ajax-action="activity-log-delete"
                           th:if="${selectedLogFile != null and selectedLogFile.deletable()}">
                         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                         <input type="hidden" name="file" th:value="${selectedFile}">

@@ -5,15 +5,12 @@ import io.github.fourilla.endervault.activity.ActivityLogFile;
 import io.github.fourilla.endervault.activity.ActivityLogSearchResult;
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.config.NasProperties;
-import io.github.fourilla.endervault.web.support.FlashNotifications;
 import java.io.IOException;
 import java.util.List;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @Controller
 public class AdminLogController {
@@ -68,16 +65,6 @@ public class AdminLogController {
         model.addAttribute("pageSizeOptions", pageSizeOptions());
         model.addAttribute("logQuery", query);
         return "logs";
-    }
-
-    @PostMapping("/admin/logs/delete")
-    public String deleteArchive(
-            @RequestParam("file") String fileName,
-            RedirectAttributes redirectAttributes
-    ) throws IOException {
-        activityLogService.deleteArchive(fileName);
-        FlashNotifications.success(redirectAttributes, "Activity log deleted.");
-        return "redirect:/admin/logs";
     }
 
     private List<Integer> pageSizeOptions() {

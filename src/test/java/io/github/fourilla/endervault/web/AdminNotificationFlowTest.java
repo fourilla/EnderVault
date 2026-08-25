@@ -34,6 +34,8 @@ import io.github.fourilla.endervault.filerequest.UploaderNamePolicy;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.storage.StorageService;
+import io.github.fourilla.endervault.trash.TrashRecord;
+import io.github.fourilla.endervault.trash.TrashService;
 import io.github.fourilla.endervault.upload.ResumableUploadService;
 import io.github.fourilla.endervault.upload.ResumableUploadRepository;
 import io.github.fourilla.endervault.upload.ResumableUploadSession;
@@ -83,6 +85,9 @@ class AdminNotificationFlowTest {
 
     @Autowired
     StorageService storageService;
+
+    @Autowired
+    TrashService trashService;
 
     @Autowired
     ObjectMapper objectMapper;
@@ -1121,6 +1126,48 @@ class AdminNotificationFlowTest {
         mockMvc.perform(post("/files/trash/empty").with(csrf()))
                 .andExpect(status().isNotFound());
         mockMvc.perform(post("/files/remote-download").with(csrf()).param("url", "https://example.com/file.bin"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void trashAndActivityLogMutationsUseVersionedApis() throws Exception {
+        String fileName = "api-trash-" + java.util.UUID.randomUUID() + ".txt";
+        Files.writeString(ROOT.resolve(fileName), "trash api test");
+        TrashRecord record = trashService.moveToTrash("", List.of(fileName)).getFirst();
+
+        mockMvc.perform(get("/admin/trash"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("/api/v1/trash/empty")))
+                .andExpect(content().string(Matchers.containsString("/api/v1/trash/restore")))
+                .andExpect(content().string(Matchers.containsString("/api/v1/trash/delete")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/admin/trash/empty"))));
+
+        mockMvc.perform(post("/api/v1/trash/delete")
+                        .with(csrf())
+                        .param("id", record.id()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true));
+        mockMvc.perform(post("/admin/trash/restore")
+                        .with(csrf())
+                        .param("id", "missing-trash-record"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/trash/delete")
+                        .with(csrf())
+                        .param("id", "missing-trash-record"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/trash/empty").with(csrf()))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/admin/logs"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/activity-logs/delete")
+                        .with(csrf())
+                        .param("file", "activity-log.jsonl"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.ok").value(false));
+        mockMvc.perform(post("/admin/logs/delete")
+                        .with(csrf())
+                        .param("file", "activity-log.jsonl"))
                 .andExpect(status().isNotFound());
     }
 
