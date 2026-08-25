@@ -1373,12 +1373,37 @@ class AdminNotificationFlowTest {
         mockMvc.perform(get("/admin/metadata"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Metadata Inspector")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/api/v1/metadata/scan")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("/admin/metadata/scan"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("/admin/metadata/repair"))))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("metadata-area-list")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("metadata-area-row")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("File requests")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Pending decisions")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("metadata-area-grid"))));
+    }
+
+    @Test
+    void metadataRepairUsesVersionedJsonApi() throws Exception {
+        mockMvc.perform(post("/api/v1/metadata/repair")
+                        .with(csrf())
+                        .accept(MediaType.APPLICATION_JSON)
+                        .param("repairAll", "true"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.notification.type").value("info"));
+    }
+
+    @Test
+    void removedMetadataMutationEndpointsAreNotAvailable() throws Exception {
+        mockMvc.perform(post("/admin/metadata/scan").with(csrf()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/metadata/repair").with(csrf()))
+                .andExpect(status().isNotFound());
     }
 
     @Test
