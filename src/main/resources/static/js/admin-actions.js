@@ -338,7 +338,8 @@ document.addEventListener("DOMContentLoaded", () => {
             "detail-delete",
             "session-revoke",
             "activity-log-delete",
-            "recent-clear"
+            "recent-clear",
+            "bookmark-detail-mutation"
         ].includes(action)
                 && navigateWithNotification(body)) {
             return;

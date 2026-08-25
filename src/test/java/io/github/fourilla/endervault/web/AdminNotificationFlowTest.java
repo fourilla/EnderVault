@@ -27,6 +27,8 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.fourilla.endervault.bookmark.BookmarkItem;
+import io.github.fourilla.endervault.bookmark.BookmarkService;
 import io.github.fourilla.endervault.favorite.FavoriteService;
 import io.github.fourilla.endervault.filerequest.FileRequest;
 import io.github.fourilla.endervault.filerequest.FileRequestService;
@@ -73,6 +75,9 @@ class AdminNotificationFlowTest {
 
     @Autowired
     FavoriteService favoriteService;
+
+    @Autowired
+    BookmarkService bookmarkService;
 
     @Autowired
     FileRequestService fileRequestService;
@@ -1395,6 +1400,55 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Virtual location")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Search in recent")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("No recent items matched your search.")));
+    }
+
+    @Test
+    void bookmarkMutationsUseVersionedApi() throws Exception {
+        String title = "API bookmark directory " + java.util.UUID.randomUUID();
+
+        mockMvc.perform(post("/api/v1/bookmarks/directories")
+                        .with(csrf())
+                        .param("title", title))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.redirectUrl").value("/files/bookmarks"));
+
+        BookmarkItem created = bookmarkService.list(null, title).stream()
+                .filter(item -> title.equals(item.title()))
+                .findFirst()
+                .orElseThrow();
+
+        mockMvc.perform(get("/files/bookmarks"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("/api/v1/bookmarks/directories")))
+                .andExpect(content().string(Matchers.containsString("/api/v1/bookmarks/links")))
+                .andExpect(content().string(Matchers.containsString("/api/v1/bookmarks/bulk")))
+                .andExpect(content().string(Matchers.containsString("/api/v1/bookmarks/delete-selected")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString(
+                        "action=\"/files/bookmarks/directories\""))));
+
+        mockMvc.perform(post("/api/v1/bookmarks/delete")
+                        .with(csrf())
+                        .param("id", created.id()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.redirectUrl").value("/files/bookmarks"));
+
+        mockMvc.perform(post("/api/v1/bookmarks/delete-selected").with(csrf()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.ok").value(false));
+        mockMvc.perform(post("/files/bookmarks/directories")
+                        .with(csrf())
+                        .param("title", title))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/bookmarks/delete")
+                        .with(csrf())
+                        .param("id", created.id()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/bookmarks/metadata")
+                        .with(csrf())
+                        .param("id", created.id()))
+                .andExpect(status().isNotFound());
     }
 
     @Test

@@ -12,6 +12,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const bulkButton = document.getElementById("bulkAddBookmarksButton");
     const bulkDialog = document.getElementById("bookmarkBulkAddDialog");
     const bulkForm = document.getElementById("bookmarkBulkAddForm");
+    const selectionForm = document.getElementById("bulkActionForm");
+    const deleteSelectedButton = document.getElementById("deleteSelectedButton");
 
     const showResult = async (body) => {
         window.EnderVault.showNotification(body.notification);
@@ -21,6 +23,70 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     const submitForm = async (form) => window.EnderVault.submitJsonForm(form);
+
+    const submitAction = async (url, fields = {}) => {
+        const formData = new FormData();
+        const csrf = window.EnderVault.csrfPair(selectionForm || document);
+        if (csrf) {
+            formData.append(csrf.name, csrf.value);
+        }
+        Object.entries(fields).forEach(([name, value]) => formData.append(name, value == null ? "" : value));
+        return window.EnderVault.requestJson(url, {
+            method: "POST",
+            body: formData
+        });
+    };
+
+    const refreshFromResponse = async (body) => {
+        window.EnderVault.showNotification(body.notification);
+        if (window.EnderVaultFileBrowser?.refreshListing) {
+            await window.EnderVaultFileBrowser.refreshListing(body.redirectUrl || window.location.href);
+        }
+    };
+
+    const deleteItem = async (item) => {
+        if (!window.confirm(`Delete "${item.title}"?`)) {
+            return;
+        }
+        const body = await submitAction(item.deleteUrl || "/api/v1/bookmarks/delete", {
+            id: item.id,
+            parentId: selectionForm?.querySelector('input[name="parentId"]')?.value || "",
+            q: selectionForm?.querySelector('input[name="q"]')?.value || ""
+        });
+        await refreshFromResponse(body);
+    };
+
+    const deleteSelected = async (expectedCount = null) => {
+        if (!selectionForm) {
+            return;
+        }
+        const selectedCount = Array.from(document.querySelectorAll(
+                'input[name="bookmarkIds"][form="bulkActionForm"]:checked'
+        )).length;
+        const count = expectedCount == null ? selectedCount : expectedCount;
+        if (count === 0 || !window.confirm(`Delete ${count} selected bookmark items?`)) {
+            return;
+        }
+
+        const body = await window.EnderVault.requestJson(
+                selectionForm.dataset.bookmarkDeleteSelectedUrl || "/api/v1/bookmarks/delete-selected",
+                {
+                    method: "POST",
+                    body: new FormData(selectionForm)
+                }
+        );
+        await refreshFromResponse(body);
+        window.EnderVaultFileSelection?.clear();
+    };
+
+    const refreshMetadata = async (item) => {
+        const body = await submitAction(item.metadataUrl || "/api/v1/bookmarks/metadata", {
+            id: item.id,
+            parentId: selectionForm?.querySelector('input[name="parentId"]')?.value || "",
+            q: selectionForm?.querySelector('input[name="q"]')?.value || ""
+        });
+        await refreshFromResponse(body);
+    };
 
     const setBusy = (form, busy) => {
         if (busy) {
@@ -132,4 +198,23 @@ document.addEventListener("DOMContentLoaded", () => {
         },
         failureMessage: "Bookmark bulk add failed."
     });
+
+    deleteSelectedButton?.addEventListener("click", async (event) => {
+        event.preventDefault();
+        deleteSelectedButton.disabled = true;
+        try {
+            await deleteSelected();
+        } catch (error) {
+            window.EnderVault.showToast("error", error.message || "Bookmark delete failed.");
+        } finally {
+            deleteSelectedButton.disabled = false;
+            window.EnderVaultFileSelection?.update();
+        }
+    });
+
+    window.EnderVaultBookmarks = {
+        deleteItem,
+        deleteSelected,
+        refreshMetadata
+    };
 });

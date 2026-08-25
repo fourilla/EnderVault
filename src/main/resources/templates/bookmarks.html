@@ -23,7 +23,7 @@
 
     <section class="toolbar" aria-label="Bookmark tools">
         <form class="bulk-action-anchor" id="bulkActionForm" method="post"
-              th:attr="data-bookmark-delete-selected-url=@{/files/bookmarks/delete-selected}">
+              th:attr="data-bookmark-delete-selected-url=@{/api/v1/bookmarks/delete-selected}">
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
             <input type="hidden" name="parentId" th:value="${currentBookmarkDirectoryId}">
             <input type="hidden" name="q" th:value="${query}">
@@ -43,7 +43,7 @@
 
         <div class="toolbar-cluster" aria-label="Bookmark controls">
             <div class="toolbar-actions file-actions bookmark-actions" aria-label="Bookmark actions">
-                <form hidden id="createBookmarkDirectoryForm" method="post" th:action="@{/files/bookmarks/directories}">
+                <form hidden id="createBookmarkDirectoryForm" method="post" th:action="@{/api/v1/bookmarks/directories}">
                     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                     <input type="hidden" name="parentId" th:value="${currentBookmarkDirectoryId}">
                     <input id="newBookmarkDirectoryNameInput" type="hidden" name="title" disabled>
@@ -62,41 +62,8 @@
                     <i class="fas fa-list-ul" aria-hidden="true"></i>
                 </button>
 
-                <noscript>
-                    <details class="settings-menu bookmark-tool-menu">
-                        <summary class="icon-button menu-summary" title="Create bookmark items" aria-label="Create bookmark items">
-                            <i class="fas fa-plus" aria-hidden="true"></i>
-                        </summary>
-                        <div class="settings-panel bookmark-form-panel bookmark-noscript-panel">
-                            <form class="settings-form bookmark-create-form" method="post" th:action="@{/files/bookmarks/directories}">
-                                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                                <input type="hidden" name="parentId" th:value="${currentBookmarkDirectoryId}">
-                                <label>Directory name<input type="text" name="title" maxlength="200" required></label>
-                                <button type="submit">Create directory</button>
-                            </form>
-                            <form class="settings-form bookmark-create-form" method="post" th:action="@{/files/bookmarks/links}">
-                                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                                <input type="hidden" name="parentId" th:value="${currentBookmarkDirectoryId}">
-                                <label>Title<input type="text" name="title" maxlength="200" placeholder="Leave blank to auto-name"></label>
-                                <label>URL<input type="text" name="url" maxlength="4096" placeholder="https://example.com or /files" required></label>
-                                <button type="submit">Add link</button>
-                            </form>
-                            <form class="settings-form bookmark-create-form" method="post" th:action="@{/files/bookmarks/bulk}">
-                                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                                <input type="hidden" name="parentId" th:value="${currentBookmarkDirectoryId}">
-                                <label>
-                                    URLs or title / URL pairs
-                                    <textarea name="bulkText" rows="12"
-                                              placeholder="https://example.com/auto-name&#10;Title one&#10;https://example.com/one"
-                                              required></textarea>
-                                </label>
-                                <button type="submit">Add links</button>
-                            </form>
-                        </div>
-                    </details>
-                </noscript>
                 <button class="icon-button danger" id="deleteSelectedButton" form="bulkActionForm" type="submit"
-                        th:formaction="@{/files/bookmarks/delete-selected}" formmethod="post"
+                        th:formaction="@{/api/v1/bookmarks/delete-selected}" formmethod="post"
                         title="Delete selected" aria-label="Delete selected">
                     <i class="fas fa-trash-can" aria-hidden="true"></i>
                 </button>
@@ -106,7 +73,7 @@
 
     <dialog class="text-input-dialog bookmark-form-dialog" id="bookmarkLinkDialog">
         <form class="text-input-card bookmark-dialog-card" id="createBookmarkLinkForm"
-              method="post" th:action="@{/files/bookmarks/links}">
+              method="post" th:action="@{/api/v1/bookmarks/links}">
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
             <input type="hidden" name="parentId" th:value="${currentBookmarkDirectoryId}">
             <header class="text-input-header">
@@ -138,7 +105,7 @@
 
     <dialog class="text-input-dialog bookmark-form-dialog bookmark-bulk-dialog" id="bookmarkBulkAddDialog">
         <form class="text-input-card bookmark-dialog-card" id="bookmarkBulkAddForm"
-              method="post" th:action="@{/files/bookmarks/bulk}">
+              method="post" th:action="@{/api/v1/bookmarks/bulk}">
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
             <input type="hidden" name="parentId" th:value="${currentBookmarkDirectoryId}">
             <header class="text-input-header">
@@ -189,7 +156,7 @@
                              data-bookmark-favorite=${favoriteBookmarkIds.contains(directory.id())},
                              data-bookmark-open-url=@{/files/bookmarks(directory=${directory.id()})},
                              data-bookmark-detail-url=@{/files/bookmarks/detail(id=${directory.id()})},
-                             data-bookmark-delete-url=@{/files/bookmarks/delete}">
+                             data-bookmark-delete-url=@{/api/v1/bookmarks/delete}">
                     <td class="select-cell">
                         <input form="bulkActionForm" type="checkbox" name="bookmarkIds" th:value="${directory.id()}">
                     </td>
@@ -261,8 +228,8 @@
                              data-bookmark-metadata-enabled=${bookmarkMetadataFetchEnabled},
                              data-bookmark-open-url=@{/files/bookmarks/open(id=${link.id()})},
                              data-bookmark-detail-url=@{/files/bookmarks/detail(id=${link.id()})},
-                             data-bookmark-metadata-url=@{/files/bookmarks/metadata},
-                             data-bookmark-delete-url=@{/files/bookmarks/delete}">
+                             data-bookmark-metadata-url=@{/api/v1/bookmarks/metadata},
+                             data-bookmark-delete-url=@{/api/v1/bookmarks/delete}">
                     <td class="select-cell">
                         <input form="bulkActionForm" type="checkbox" name="bookmarkIds" th:value="${link.id()}">
                     </td>
@@ -309,7 +276,7 @@
                             <form class="row-form"
                                   method="post"
                                   th:if="${bookmarkMetadataFetchEnabled and link.externalLink()}"
-                                  th:action="@{/files/bookmarks/metadata}">
+                                  th:action="@{/api/v1/bookmarks/metadata}">
                                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                                 <input type="hidden" name="id" th:value="${link.id()}">
                                 <input type="hidden" name="parentId" th:value="${currentBookmarkDirectoryId}">
