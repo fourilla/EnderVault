@@ -1494,7 +1494,8 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Telegram Alerts")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Enable Telegram alerts")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("settings-switch-input")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("form=\"telegramSettingsForm\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("form=\"telegramSettingsForm\""))))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-toggle-target=\".telegram-settings-dependent\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Bot token")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Chat ID")))
