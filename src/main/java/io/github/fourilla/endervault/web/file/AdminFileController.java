@@ -11,7 +11,6 @@ import io.github.fourilla.endervault.storage.StorageScope;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.transfer.TransferBufferService;
 import io.github.fourilla.endervault.web.support.BrowserPreferenceCookies;
-import io.github.fourilla.endervault.web.support.FlashNotifications;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -20,10 +19,7 @@ import java.util.List;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import org.springframework.web.util.UriComponentsBuilder;
 
 @Controller
 public class AdminFileController {
@@ -156,55 +152,6 @@ public class AdminFileController {
         model.addAttribute("pageSizes", pageSizeOptions());
         model.addAttribute("filePage", filePage);
         return "read-only";
-    }
-
-    @PostMapping("/files/preferences/reset")
-    public String resetBrowserPreferences(
-            @RequestParam(value = "target", required = false) String target,
-            @RequestParam(value = "path", required = false) String path,
-            @RequestParam(value = "q", required = false) String query,
-            HttpServletResponse response,
-            RedirectAttributes redirectAttributes
-    ) {
-        if ("read-only".equalsIgnoreCase(target)) {
-            BrowserPreferenceCookies.clear(response, BrowserPreferenceCookies.READ_ONLY);
-            FlashNotifications.success(redirectAttributes, "Read-only preferences reset.");
-            return redirectToReadOnly(path);
-        }
-
-        if ("recent".equalsIgnoreCase(target)) {
-            BrowserPreferenceCookies.clear(response, BrowserPreferenceCookies.RECENT);
-            FlashNotifications.success(redirectAttributes, "Recent preferences reset.");
-            return redirectToRecent(query);
-        }
-
-        BrowserPreferenceCookies.clear(response, BrowserPreferenceCookies.FILES);
-        FlashNotifications.success(redirectAttributes, "File browser preferences reset.");
-        return redirectToFiles(path);
-    }
-
-    private String redirectToFiles(String path) {
-        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/files");
-        if (path != null && !path.isBlank()) {
-            builder.queryParam("path", path);
-        }
-        return "redirect:" + builder.build().encode().toUriString();
-    }
-
-    private String redirectToRecent(String query) {
-        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/files/recent");
-        if (query != null && !query.isBlank()) {
-            builder.queryParam("q", query);
-        }
-        return "redirect:" + builder.build().encode().toUriString();
-    }
-
-    private String redirectToReadOnly(String path) {
-        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/files/read-only");
-        if (path != null && !path.isBlank()) {
-            builder.queryParam("path", path);
-        }
-        return "redirect:" + builder.build().encode().toUriString();
     }
 
     private String normalizeView(String view) {

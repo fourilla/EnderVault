@@ -912,6 +912,24 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void browserPreferenceResetUsesVersionedApiOnly() throws Exception {
+        mockMvc.perform(get("/files"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString(
+                        "action=\"/api/v1/browser-preferences/reset\"")));
+
+        mockMvc.perform(post("/api/v1/browser-preferences/reset")
+                        .with(csrf())
+                        .param("target", "files"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.redirectUrl").value("/files"));
+
+        mockMvc.perform(post("/files/preferences/reset").with(csrf()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void legacyTransferBufferRoutesAreRemoved() throws Exception {
         mockMvc.perform(post("/files/transfer/buffer").with(csrf()))
                 .andExpect(status().isNotFound());
@@ -2039,6 +2057,12 @@ class AdminNotificationFlowTest {
 
         assertThat(result.get("status").asText()).isEqualTo("COMPLETED");
         assertThat(Files.readAllBytes(ROOT.resolve(filename))).isEqualTo(content);
+    }
+
+    @Test
+    void legacyUploadConflictRouteIsRemoved() throws Exception {
+        mockMvc.perform(post("/files/upload/conflicts/resolve").with(csrf()).param("id", "legacy"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
