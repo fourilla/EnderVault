@@ -6,7 +6,6 @@ document.addEventListener("DOMContentLoaded", () => {
         requestJsonResolvingConflicts,
         showNotification,
         showToast,
-        navigateWithNotification,
         csrfPair
     } = window.EnderVault;
     const region = document.querySelector("[data-transfer-buffer-region]");
@@ -21,7 +20,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const minimizedStorageKey = "endervault.transferBuffer.minimized";
 
     const currentPath = () => region.dataset.currentPath || bulkForm?.querySelector('input[name="path"]')?.value || "";
-    const returnTo = () => region.dataset.returnTo || "";
     const pasteEnabled = () => region.dataset.transferPasteEnabled === "true";
 
     const isMinimized = () => {
@@ -60,13 +58,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
 
-    const appendReturnTo = (form) => {
-        const value = returnTo();
-        if (value) {
-            appendHidden(form, "returnTo", value);
-        }
-    };
-
     const icon = (className) => {
         const element = document.createElement("i");
         element.className = className;
@@ -89,7 +80,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const form = document.createElement("form");
         form.className = "row-form";
         form.method = "post";
-        form.action = "/files/transfer/paste";
+        form.action = "/api/v1/files/transfer-buffer/paste";
         form.dataset.transferAction = "transfer-paste";
         appendCsrf(form);
         appendHidden(form, "path", currentPath());
@@ -102,11 +93,9 @@ document.addEventListener("DOMContentLoaded", () => {
         const form = document.createElement("form");
         form.className = "row-form";
         form.method = "post";
-        form.action = "/files/transfer/clear";
+        form.action = "/api/v1/files/transfer-buffer/clear";
         form.dataset.transferAction = "transfer-clear";
         appendCsrf(form);
-        appendHidden(form, "path", currentPath());
-        appendReturnTo(form);
         form.append(button("ghost transfer-buffer-clear", null, "Clear buffer"));
         return form;
     };
@@ -126,12 +115,10 @@ document.addEventListener("DOMContentLoaded", () => {
         const form = document.createElement("form");
         form.className = "row-form";
         form.method = "post";
-        form.action = "/files/transfer/remove";
+        form.action = "/api/v1/files/transfer-buffer/remove";
         form.dataset.transferAction = "transfer-remove";
         appendCsrf(form);
-        appendHidden(form, "path", currentPath());
         appendHidden(form, "itemPath", item.path);
-        appendReturnTo(form);
 
         const removeButton = document.createElement("button");
         removeButton.className = "transfer-buffer-remove";
@@ -224,9 +211,6 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     const handleTransferBody = (action, body, { clearSelection = action === "transfer-buffer-add" } = {}) => {
-        if (body.redirectUrl && navigateWithNotification(body)) {
-            return true;
-        }
         showNotification(body.notification);
         if (Object.prototype.hasOwnProperty.call(body, "transferBuffer")) {
             renderBuffer(body.transferBuffer);
@@ -253,7 +237,7 @@ document.addEventListener("DOMContentLoaded", () => {
         appendCsrf(formData);
         appendHidden(formData, "path", currentPath());
         names.forEach((name) => appendHidden(formData, "items", name));
-        const body = await requestJson("/files/transfer/buffer", {
+        const body = await requestJson("/api/v1/files/transfer-buffer", {
             method: "POST",
             body: formData
         });
@@ -271,7 +255,7 @@ document.addEventListener("DOMContentLoaded", () => {
         appendHidden(formData, "path", currentPath());
         appendHidden(formData, "operation", operation);
         formData.set("conflictPolicy", "ask");
-        const body = await requestJsonResolvingConflicts("/files/transfer/paste", {
+        const body = await requestJsonResolvingConflicts("/api/v1/files/transfer-buffer/paste", {
             method: "POST",
             body: formData
         });

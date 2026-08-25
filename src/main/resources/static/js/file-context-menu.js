@@ -249,7 +249,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        const body = await requestJson("/files/transfer/buffer", {
+        const body = await requestJson("/api/v1/files/transfer-buffer", {
             method: "POST",
             body: formDataForItems(items.map((item) => item.name))
         });
