@@ -7,6 +7,7 @@
     <th:block th:replace="~{fragments/assets :: styles(true)}"></th:block>
     <th:block th:replace="~{fragments/assets :: coreScripts}"></th:block>
     <th:block th:replace="~{fragments/assets :: adminActionsScript}"></th:block>
+    <th:block th:replace="~{fragments/assets :: settingsFormScript}"></th:block>
 </head>
 <body>
 <div class="app-shell">
@@ -29,12 +30,11 @@
         <form class="account-settings-form"
               method="post"
               th:action="@{/api/v1/settings/account}"
-              data-ajax-action="account-settings-save">
+              data-ajax-action="account-settings-save"
+              data-settings-form>
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
 
-            <div class="settings-actions-top">
-                <button th:replace="~{fragments/settings :: saveButton}"></button>
-            </div>
+            <div th:replace="~{fragments/settings :: saveBar}"></div>
 
             <section class="settings-detail-section" aria-label="Admin credentials">
                 <header class="settings-subsection-heading">
@@ -58,6 +58,7 @@
                             <input type="password"
                                    name="currentPassword"
                                    autocomplete="current-password"
+                                   data-clear-after-save
                                    data-password-toggle-input>
                             <button class="ghost icon-button password-toggle"
                                     type="button"
@@ -77,6 +78,7 @@
                                    name="newPassword"
                                    minlength="4"
                                    autocomplete="new-password"
+                                   data-clear-after-save
                                    data-password-toggle-input>
                             <button class="ghost icon-button password-toggle"
                                     type="button"
@@ -96,6 +98,7 @@
                                    name="confirmPassword"
                                    minlength="4"
                                    autocomplete="new-password"
+                                   data-clear-after-save
                                    data-password-toggle-input>
                             <button class="ghost icon-button password-toggle"
                                     type="button"

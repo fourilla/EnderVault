@@ -81,7 +81,6 @@ public class GeneralSettingsService {
                 new RemoteDownloadSettings(
                         remoteDownload.isEnabled(),
                         remoteDownload.isDirectEnabled(),
-                        remoteDownload.isExtractorEnabled(),
                         remoteDownload.isBlockPrivateNetworks(),
                         join(remoteDownload.getAllowedPorts()),
                         remoteDownload.getResponseTimeoutSeconds(),
@@ -148,7 +147,6 @@ public class GeneralSettingsService {
 
         boolean remoteEnabled = parameters.containsKey("remoteEnabled");
         boolean remoteDirectEnabled = parameters.containsKey("remoteDirectEnabled");
-        boolean remoteExtractorEnabled = parameters.containsKey("remoteExtractorEnabled");
         boolean remoteBlockPrivateNetworks = parameters.containsKey("remoteBlockPrivateNetworks");
         List<Integer> allowedPorts = allowedPorts(first(parameters, "remoteAllowedPorts"));
         int responseTimeoutSeconds = intRange(first(parameters, "remoteResponseTimeoutSeconds"), 1, 3600, "Remote response timeout");
@@ -183,7 +181,6 @@ public class GeneralSettingsService {
                 new RemoteDownloadSettings(
                         remoteEnabled,
                         remoteDirectEnabled,
-                        remoteExtractorEnabled,
                         remoteBlockPrivateNetworks,
                         join(allowedPorts),
                         responseTimeoutSeconds,
@@ -244,7 +241,6 @@ public class GeneralSettingsService {
         RemoteDownloadSettings remoteDownload = update.remoteDownload();
         updates.put("nas.remote-download.enabled", Boolean.toString(remoteDownload.enabled()));
         updates.put("nas.remote-download.direct-enabled", Boolean.toString(remoteDownload.directEnabled()));
-        updates.put("nas.remote-download.extractor-enabled", Boolean.toString(remoteDownload.extractorEnabled()));
         updates.put("nas.remote-download.block-private-networks", Boolean.toString(remoteDownload.blockPrivateNetworks()));
         updates.put("nas.remote-download.allowed-ports", remoteDownload.allowedPorts());
         updates.put("nas.remote-download.response-timeout-seconds", Integer.toString(remoteDownload.responseTimeoutSeconds()));
@@ -298,7 +294,6 @@ public class GeneralSettingsService {
         NasProperties.RemoteDownload remoteDownload = nasProperties.getRemoteDownload();
         remoteDownload.setEnabled(update.remoteDownload().enabled());
         remoteDownload.setDirectEnabled(update.remoteDownload().directEnabled());
-        remoteDownload.setExtractorEnabled(update.remoteDownload().extractorEnabled());
         remoteDownload.setBlockPrivateNetworks(update.remoteDownload().blockPrivateNetworks());
         remoteDownload.setAllowedPorts(update.allowedPorts());
         remoteDownload.setResponseTimeoutSeconds(update.remoteDownload().responseTimeoutSeconds());
@@ -446,7 +441,6 @@ public class GeneralSettingsService {
     public record RemoteDownloadSettings(
             boolean enabled,
             boolean directEnabled,
-            boolean extractorEnabled,
             boolean blockPrivateNetworks,
             String allowedPorts,
             int responseTimeoutSeconds,

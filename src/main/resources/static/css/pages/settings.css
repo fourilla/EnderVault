@@ -103,10 +103,60 @@
     padding-top: var(--space-4xl);
 }
 
+.settings-save-bar {
+    position: sticky;
+    z-index: 35;
+    top: var(--space-md);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-xl);
+    min-height: 58px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
+    background: color-mix(in srgb, var(--panel) 94%, transparent);
+    box-shadow: var(--shadow-soft);
+    padding: var(--space-md) var(--space-lg);
+    backdrop-filter: blur(12px);
+}
+
+.settings-save-bar.is-dirty {
+    border-color: color-mix(in srgb, var(--accent) 70%, var(--line));
+}
+
+.settings-save-state,
+.settings-save-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+}
+
+.settings-save-state {
+    color: var(--muted);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+}
+
+.settings-save-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+}
+
+.settings-save-bar.is-dirty .settings-save-state {
+    color: var(--text);
+}
+
+.settings-save-bar.is-dirty .settings-save-indicator {
+    background: var(--accent-strong);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
 .settings-actions-top {
     display: flex;
-    justify-content: flex-end;
     align-items: center;
+    justify-content: flex-end;
     border-bottom: 1px solid var(--line);
     padding-bottom: var(--space-3xl);
 }

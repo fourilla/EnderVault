@@ -48,7 +48,6 @@ class GeneralSettingsServiceTest {
                 nas.file-tools.comic-info-max-bytes=65536
                 nas.remote-download.enabled=true
                 nas.remote-download.direct-enabled=true
-                nas.remote-download.extractor-enabled=false
                 nas.remote-download.block-private-networks=true
                 nas.remote-download.allowed-ports=80,443
                 nas.remote-download.response-timeout-seconds=30
@@ -85,7 +84,6 @@ class GeneralSettingsServiceTest {
         parameters.set("comicMaxPages", "300");
         parameters.set("comicPageMaxBytes", "204800");
         parameters.set("comicInfoMaxBytes", "4096");
-        parameters.remove("remoteExtractorEnabled");
         parameters.set("remoteAllowedPorts", "80,443,8080");
         parameters.set("remoteResponseTimeoutSeconds", "45");
         parameters.set("remoteMaxRedirects", "7");
@@ -117,7 +115,6 @@ class GeneralSettingsServiceTest {
                 .contains("nas.file-tools.text-draft-cleanup-interval-ms=180000")
                 .contains("nas.file-tools.text-draft-lease-seconds=180")
                 .contains("nas.file-tools.comic-max-pages=300")
-                .contains("nas.remote-download.extractor-enabled=false")
                 .contains("nas.remote-download.allowed-ports=80,443,8080")
                 .contains("nas.remote-download.max-file-size-bytes=123456")
                 .contains("nas.remote-download.max-retries=3")
@@ -194,7 +191,6 @@ class GeneralSettingsServiceTest {
         parameters.add("comicInfoMaxBytes", "65536");
         parameters.add("remoteEnabled", "on");
         parameters.add("remoteDirectEnabled", "on");
-        parameters.add("remoteExtractorEnabled", "on");
         parameters.add("remoteBlockPrivateNetworks", "on");
         parameters.add("remoteAllowedPorts", "80,443");
         parameters.add("remoteResponseTimeoutSeconds", "30");

@@ -7,6 +7,7 @@
     <th:block th:replace="~{fragments/assets :: styles(true)}"></th:block>
     <th:block th:replace="~{fragments/assets :: coreScripts}"></th:block>
     <th:block th:replace="~{fragments/assets :: adminActionsScript}"></th:block>
+    <th:block th:replace="~{fragments/assets :: settingsFormScript}"></th:block>
 </head>
 <body>
 <div class="app-shell">
@@ -35,12 +36,11 @@
         <form class="general-settings-form"
               method="post"
               th:action="@{/api/v1/settings/vpn}"
-              data-ajax-action="vpn-settings-save">
+              data-ajax-action="vpn-settings-save"
+              data-settings-form>
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
 
-            <div class="settings-actions-top">
-                <button th:replace="~{fragments/settings :: saveButton}"></button>
-            </div>
+            <div th:replace="~{fragments/settings :: saveBar}"></div>
 
             <section class="settings-detail-section" aria-label="VPN proxy connection">
                 <header class="settings-subsection-heading">

@@ -7,6 +7,7 @@
     <th:block th:replace="~{fragments/assets :: styles(true)}"></th:block>
     <th:block th:replace="~{fragments/assets :: coreScripts}"></th:block>
     <th:block th:replace="~{fragments/assets :: adminActionsScript}"></th:block>
+    <th:block th:replace="~{fragments/assets :: settingsFormScript}"></th:block>
     <th:block th:replace="~{fragments/assets :: directoryPickerScript}"></th:block>
     <script defer th:src="@{/js/sticky-note-theme-settings.js}"></script>
 </head>
@@ -31,12 +32,11 @@
         <form class="general-settings-form"
               method="post"
               th:action="@{/api/v1/settings/general}"
-              data-ajax-action="general-settings-save">
+              data-ajax-action="general-settings-save"
+              data-settings-form>
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
 
-            <div class="settings-actions-top">
-                <button th:replace="~{fragments/settings :: saveButton}"></button>
-            </div>
+            <div th:replace="~{fragments/settings :: saveBar}"></div>
 
             <section class="settings-detail-section" aria-label="Browser default settings">
                 <header class="settings-subsection-heading">
@@ -275,13 +275,6 @@
                                name="remoteDirectEnabled"
                                th:checked="${settings.remoteDownload().directEnabled()}"
                                data-toggle-target=".remote-direct-dependent">
-                    </label>
-                    <label class="settings-inline-toggle">
-                        <span>
-                            <strong>Extractor plugins</strong>
-                            <small>Reserved for yt-dlp/gallery-dl style plugins.</small>
-                        </span>
-                        <input class="settings-switch-input" type="checkbox" name="remoteExtractorEnabled" th:checked="${settings.remoteDownload().extractorEnabled()}">
                     </label>
                     <label class="settings-inline-toggle remote-direct-dependent">
                         <span>

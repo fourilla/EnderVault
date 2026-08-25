@@ -1,9 +1,21 @@
 <!doctype html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <body>
-<button class="primary icon-text-button" type="submit" th:fragment="saveButton">
-    <i class="fas fa-floppy-disk" aria-hidden="true"></i>
-    <span>Save and Apply</span>
-</button>
+<div class="settings-save-bar" th:fragment="saveBar" data-settings-save-bar aria-live="polite">
+    <div class="settings-save-state">
+        <span class="settings-save-indicator" aria-hidden="true"></span>
+        <span data-settings-save-state>No unsaved changes</span>
+    </div>
+    <div class="settings-save-actions">
+        <button class="ghost icon-text-button" type="button" data-settings-discard disabled>
+            <i class="fas fa-rotate-left" aria-hidden="true"></i>
+            <span>Discard changes</span>
+        </button>
+        <button class="primary icon-text-button" type="submit" data-settings-save disabled>
+            <i class="fas fa-floppy-disk" aria-hidden="true"></i>
+            <span>Save settings</span>
+        </button>
+    </div>
+</div>
 </body>
 </html>

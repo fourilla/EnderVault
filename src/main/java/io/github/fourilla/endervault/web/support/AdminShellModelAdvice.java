@@ -135,8 +135,6 @@ public class AdminShellModelAdvice {
     public UploadUiConfig uploadUiConfig() {
         NasProperties.Upload upload = nasProperties.getUpload();
         return new UploadUiConfig(
-                upload.getMaxFilesPerRequest(),
-                upload.isDirectoryUploadEnabled(),
                 Math.min(upload.getMaxConcurrentChunks(), 8)
         );
     }
@@ -201,8 +199,6 @@ public class AdminShellModelAdvice {
     }
 
     public record UploadUiConfig(
-            int maxFilesPerRequest,
-            boolean directoryUploadEnabled,
             int maxConcurrentUploads
     ) {
     }

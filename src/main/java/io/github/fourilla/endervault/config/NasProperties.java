@@ -791,8 +791,6 @@ public class NasProperties {
 
         private boolean directEnabled = true;
 
-        private boolean extractorEnabled = false;
-
         private boolean blockPrivateNetworks = true;
 
         @NotNull
@@ -840,14 +838,6 @@ public class NasProperties {
 
         public void setDirectEnabled(boolean directEnabled) {
             this.directEnabled = directEnabled;
-        }
-
-        public boolean isExtractorEnabled() {
-            return extractorEnabled;
-        }
-
-        public void setExtractorEnabled(boolean extractorEnabled) {
-            this.extractorEnabled = extractorEnabled;
         }
 
         public boolean isBlockPrivateNetworks() {
@@ -1364,11 +1354,6 @@ public class NasProperties {
     }
 
     public static class Upload {
-        @Min(0)
-        private int maxFilesPerRequest = 0;
-
-        private boolean directoryUploadEnabled = false;
-
         @Min(1048576)
         @Max(67108864)
         private long resumableChunkSizeBytes = 33554432L;
@@ -1383,22 +1368,6 @@ public class NasProperties {
 
         @Min(60000)
         private long resumableCleanupIntervalMs = 600000L;
-
-        public int getMaxFilesPerRequest() {
-            return maxFilesPerRequest;
-        }
-
-        public void setMaxFilesPerRequest(int maxFilesPerRequest) {
-            this.maxFilesPerRequest = maxFilesPerRequest;
-        }
-
-        public boolean isDirectoryUploadEnabled() {
-            return directoryUploadEnabled;
-        }
-
-        public void setDirectoryUploadEnabled(boolean directoryUploadEnabled) {
-            this.directoryUploadEnabled = directoryUploadEnabled;
-        }
 
         public long getResumableChunkSizeBytes() {
             return resumableChunkSizeBytes;
