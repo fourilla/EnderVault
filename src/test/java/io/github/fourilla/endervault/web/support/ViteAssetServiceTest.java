@@ -1,0 +1,54 @@
+package io.github.fourilla.endervault.web.support;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Test;
+import org.springframework.core.io.DefaultResourceLoader;
+
+class ViteAssetServiceTest {
+
+    @Test
+    void resolvesProductionEntryFromGeneratedManifest() {
+        ViteAssetService service = new ViteAssetService(
+                new ObjectMapper(),
+                new DefaultResourceLoader(),
+                "");
+
+        ViteAssetService.ViteEntry entry = service.entry("src/settings/main.tsx");
+
+        assertThat(entry.available()).isTrue();
+        assertThat(entry.development()).isFalse();
+        assertThat(entry.entryScript()).startsWith("/react/assets/settings-").endsWith(".js");
+        assertThat(entry.styles())
+                .singleElement()
+                .asString()
+                .startsWith("/react/assets/settings-")
+                .endsWith(".css");
+    }
+
+    @Test
+    void resolvesLoopbackDevelopmentEntryWithoutManifest() {
+        ViteAssetService service = new ViteAssetService(
+                new ObjectMapper(),
+                new DefaultResourceLoader(),
+                "http://127.0.0.1:5173/");
+
+        ViteAssetService.ViteEntry entry = service.entry("src/settings/main.tsx");
+
+        assertThat(entry.available()).isTrue();
+        assertThat(entry.development()).isTrue();
+        assertThat(entry.clientScript()).isEqualTo("http://127.0.0.1:5173/@vite/client");
+        assertThat(entry.entryScript()).isEqualTo("http://127.0.0.1:5173/src/settings/main.tsx");
+        assertThat(entry.styles()).isEmpty();
+    }
+
+    @Test
+    void rejectsNonLoopbackDevelopmentServer() {
+        assertThatIllegalArgumentException().isThrownBy(() -> new ViteAssetService(
+                new ObjectMapper(),
+                new DefaultResourceLoader(),
+                "https://assets.example.com"));
+    }
+}

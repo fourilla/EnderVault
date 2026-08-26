@@ -5,6 +5,7 @@ FROM maven:3.9.16-eclipse-temurin-21-noble AS build
 WORKDIR /workspace
 
 COPY pom.xml .
+COPY frontend ./frontend
 COPY src ./src
 # BuildKit preserves resolved artifacts without dependency:go-offline traversing invalid snapshot metadata.
 RUN --mount=type=cache,target=/root/.m2 \

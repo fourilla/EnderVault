@@ -3,9 +3,12 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
     <title>EnderVault Settings</title>
     <th:block th:replace="~{fragments/assets :: styles(true)}"></th:block>
     <th:block th:replace="~{fragments/assets :: coreScripts}"></th:block>
+    <th:block th:replace="~{fragments/assets :: viteEntry(${settingsFrontend})}"></th:block>
 </head>
 <body>
 <div class="app-shell">
@@ -17,113 +20,19 @@
 <main class="workspace dashboard-workspace settings-workspace">
     <section th:replace="~{fragments/admin-shell :: pathbar('Settings', @{/admin/dashboard}, 'Back to dashboard')}"></section>
 
-    <section class="dashboard-panel settings-detail-panel settings-index-panel" aria-label="Settings categories">
-        <header class="section-heading">
-            <div>
-                <h2>Configuration</h2>
-                <p>Choose a settings area to edit.</p>
-            </div>
-        </header>
-
-        <section class="settings-detail-section" aria-label="Application settings">
-            <div class="settings-section-copy">
-                <h2>Application</h2>
-                <p>Runtime options and operational defaults.</p>
-            </div>
-            <div class="settings-link-list">
-                <a class="settings-link-row" th:href="@{/admin/settings/general}">
-                    <i class="fas fa-sliders" aria-hidden="true"></i>
-                    <span>
-                        <strong>General settings</strong>
-                        <small>Browser defaults, sticky note appearance, recent items, file tools, and remote download behavior.</small>
-                    </span>
-                    <i class="fas fa-chevron-right settings-link-arrow" aria-hidden="true"></i>
-                </a>
-                <a class="settings-link-row" th:href="@{/admin/settings/advanced}">
-                    <i class="fas fa-gears" aria-hidden="true"></i>
-                    <span>
-                        <strong>Advanced settings</strong>
-                        <small>Sharing, transfer engines, archive safety, maintenance, access identity, and deployment values.</small>
-                    </span>
-                    <i class="fas fa-chevron-right settings-link-arrow" aria-hidden="true"></i>
-                </a>
-                <a class="settings-link-row" th:href="@{/admin/settings/bookmarks}">
-                    <i class="fas fa-bookmark" aria-hidden="true"></i>
-                    <span>
-                        <strong>Bookmark settings</strong>
-                        <small>Link click behavior, metadata fetching, SSRF limits, and favicon cache options.</small>
-                    </span>
-                    <i class="fas fa-chevron-right settings-link-arrow" aria-hidden="true"></i>
-                </a>
-                <a class="settings-link-row" th:href="@{/admin/settings/file-requests}">
-                    <i class="fas fa-inbox" aria-hidden="true"></i>
-                    <span>
-                        <strong>File request settings</strong>
-                        <small>Upload link defaults, token rules, concurrency, access logging, and per-IP admission limits.</small>
-                    </span>
-                    <i class="fas fa-chevron-right settings-link-arrow" aria-hidden="true"></i>
-                </a>
-                <a class="settings-link-row" th:href="@{/admin/settings/vpn}">
-                    <i class="fas fa-shield-halved" aria-hidden="true"></i>
-                    <span>
-                        <strong>VPN egress</strong>
-                        <small>Configure the private outbound proxy and monitor tunnel health.</small>
-                    </span>
-                    <i class="fas fa-chevron-right settings-link-arrow" aria-hidden="true"></i>
-                </a>
-            </div>
+    <div id="settings-root" class="settings-react-root">
+        <section class="dashboard-panel settings-react-loading" th:if="${settingsFrontend.available()}">
+            Loading settings...
         </section>
-
-        <section class="settings-detail-section" aria-label="Security settings">
-            <div class="settings-section-copy">
-                <h2>Security</h2>
-                <p>Account access and trusted login devices.</p>
-            </div>
-            <div class="settings-link-list">
-                <a class="settings-link-row" th:href="@{/admin/settings/account}">
-                    <i class="fas fa-user-lock" aria-hidden="true"></i>
-                    <span>
-                        <strong>Admin account</strong>
-                        <small>Change admin ID, password, and ID/password login policy.</small>
-                    </span>
-                    <i class="fas fa-chevron-right settings-link-arrow" aria-hidden="true"></i>
-                </a>
-                <a class="settings-link-row" th:href="@{/admin/settings/passkeys}">
-                    <i class="fas fa-key" aria-hidden="true"></i>
-                    <span>
-                        <strong>Passkeys</strong>
-                        <small>Register, review, and remove trusted devices for passkey login.</small>
-                    </span>
-                    <i class="fas fa-chevron-right settings-link-arrow" aria-hidden="true"></i>
-                </a>
-                <a class="settings-link-row" th:href="@{/admin/settings/sessions}">
-                    <i class="fas fa-laptop" aria-hidden="true"></i>
-                    <span>
-                        <strong>Session settings</strong>
-                        <small>Configure concurrent login limits and idle session expiration.</small>
-                    </span>
-                    <i class="fas fa-chevron-right settings-link-arrow" aria-hidden="true"></i>
-                </a>
-            </div>
+        <section class="dashboard-panel" th:unless="${settingsFrontend.available()}">
+            <header class="section-heading">
+                <div>
+                    <h2>Settings frontend unavailable</h2>
+                    <p>Build the frontend assets or start the configured Vite development server.</p>
+                </div>
+            </header>
         </section>
-
-        <section class="settings-detail-section" aria-label="Notification settings">
-            <div class="settings-section-copy">
-                <h2>Notifications</h2>
-                <p>Activity alerts and delivery channels.</p>
-            </div>
-            <div class="settings-link-list">
-                <a class="settings-link-row" th:href="@{/admin/settings/telegram-alerts}">
-                    <i class="fab fa-telegram" aria-hidden="true"></i>
-                    <span>
-                        <strong>Telegram alerts</strong>
-                        <small>Configure activity notifications, bot connection, and test messages.</small>
-                    </span>
-                    <i class="fas fa-chevron-right settings-link-arrow" aria-hidden="true"></i>
-                </a>
-            </div>
-        </section>
-    </section>
+    </div>
 </main>
 </div>
 </div>

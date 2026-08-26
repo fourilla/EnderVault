@@ -61,6 +61,13 @@
     <script defer th:src="@{/js/settings-form.js}"></script>
 </th:block>
 
+<th:block th:fragment="viteEntry(entry)">
+    <link rel="stylesheet" th:each="style : ${entry.styles()}" th:href="${style}">
+    <link rel="modulepreload" th:each="preload : ${entry.modulePreloads()}" th:href="${preload}">
+    <script type="module" th:if="${entry.development()}" th:src="${entry.clientScript()}"></script>
+    <script type="module" th:if="${entry.available()}" th:src="${entry.entryScript()}"></script>
+</th:block>
+
 <th:block th:fragment="metadataScript">
     <script defer th:src="@{/js/metadata.js}"></script>
 </th:block>

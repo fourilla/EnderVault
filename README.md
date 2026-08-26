@@ -28,7 +28,7 @@ EnderVault는 현재 개인 사용을 중심으로 개발 중인 beta 프로젝�
 ## Requirements
 
 - Standalone JAR: Java 21
-- 소스 빌드: 저장소에 포함된 Maven Wrapper 사용, 별도 Maven 설치는 선택 사항
+- 소스 빌드: 저장소에 포함된 Maven Wrapper 사용, 별도 Maven/Node 설치는 선택 사항
 - Docker 배포: Docker Engine과 Docker Compose plugin, 호스트 Java/Maven은 불필요
 
 ## Clone
@@ -59,6 +59,8 @@ Linux/macOS:
 ```text
 target/endervault-nas-0.1.0-SNAPSHOT.jar
 ```
+
+Maven은 고정된 Node.js를 프로젝트 로컬에 준비하고, `frontend/package-lock.json` 기준으로 React/Vite 자산도 함께 빌드합니다. 최초 빌드에는 Maven 및 npm 의존성을 받을 인터넷 연결이 필요합니다.
 
 ### First Run
 

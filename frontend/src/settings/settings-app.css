@@ -1,0 +1,9 @@
+.settings-react-root {
+  display: block;
+  min-width: 0;
+}
+
+.settings-react-loading {
+  color: var(--muted);
+  font-size: var(--font-size-sm);
+}

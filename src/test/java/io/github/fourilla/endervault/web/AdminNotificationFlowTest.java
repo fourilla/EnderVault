@@ -44,6 +44,7 @@ import io.github.fourilla.endervault.upload.ResumableUploadSession;
 import io.github.fourilla.endervault.upload.ResumableUploadSource;
 import io.github.fourilla.endervault.upload.ResumableUploadStatus;
 import io.github.fourilla.endervault.web.support.FlashNotification;
+import io.github.fourilla.endervault.web.support.ViteAssetService;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -95,6 +96,9 @@ class AdminNotificationFlowTest {
 
     @Autowired
     ObjectMapper objectMapper;
+
+    @Autowired
+    ViteAssetService viteAssetService;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -1278,27 +1282,23 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void settingsPageLinksToSecurityAndNotificationSettings() throws Exception {
+    void settingsPageHostsTheReactSettingsEntryPoint() throws Exception {
         mockMvc.perform(get("/admin/settings"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Settings")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("settings-index-panel")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("settings-link-row")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Application")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Security")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Notifications")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Passkeys")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Telegram alerts")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("General settings")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("File request settings")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("VPN egress")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/passkeys")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/telegram-alerts")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/general")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/file-requests")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/vpn")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Metadata inspector"))));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"settings-root\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"_csrf\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/settings-")));
+    }
+
+    @Test
+    @WithAnonymousUser
+    void reactBuildAssetsUseThePublicStaticResourcePolicy() throws Exception {
+        String entryScript = viteAssetService.entry("src/settings/main.tsx").entryScript();
+
+        mockMvc.perform(get(entryScript))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("application/javascript"));
     }
 
     @Test
