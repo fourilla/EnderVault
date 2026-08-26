@@ -412,16 +412,24 @@ document.addEventListener("DOMContentLoaded", () => {
                 formData.set("conflictPolicy", "ask");
             }
             setBusy(form, true);
+            let successBody = null;
             try {
                 const submit = conflictAware ? submitJsonFormResolvingConflicts : submitJsonForm;
                 const body = await submit(form, formData, target.url, target.method);
                 handleSuccess(form, body, action);
+                successBody = body;
             } catch (error) {
                 window.EnderVault.showToast("error", error.message || "The action failed.");
             } finally {
                 setBusy(form, false);
                 syncSettingDependencies();
                 window.EnderVaultMetadata?.syncSelection?.();
+                if (successBody) {
+                    form.dispatchEvent(new CustomEvent("endervault:ajax-success", {
+                        bubbles: true,
+                        detail: { action, body: successBody }
+                    }));
+                }
             }
         });
     }

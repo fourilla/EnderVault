@@ -5,6 +5,7 @@ import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
 import io.github.fourilla.endervault.storage.StorageService;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -17,6 +18,10 @@ import org.springframework.util.MultiValueMap;
 @Service
 public class GeneralSettingsService {
 
+    private static final long KIB = 1024L;
+    private static final long MIB = 1024L * KIB;
+    private static final long GIB = 1024L * MIB;
+    private static final long MINUTE_MS = 60000L;
     private static final List<String> VIEWS = List.of("table", "grid");
     private static final List<String> SORTS = List.of("name", "size", "modified", "type");
     private static final List<String> DIRECTIONS = List.of("asc", "desc");
@@ -81,7 +86,6 @@ public class GeneralSettingsService {
                 new RemoteDownloadSettings(
                         remoteDownload.isEnabled(),
                         remoteDownload.isDirectEnabled(),
-                        remoteDownload.isExtractorEnabled(),
                         remoteDownload.isBlockPrivateNetworks(),
                         join(remoteDownload.getAllowedPorts()),
                         remoteDownload.getResponseTimeoutSeconds(),
@@ -117,10 +121,17 @@ public class GeneralSettingsService {
 
         int trashRetentionDays = intRange(first(parameters, "trashRetentionDays"), 1, 36500, "Trash retention days");
         boolean cleanupOnStartup = parameters.containsKey("trashCleanupOnStartup");
-        long cleanupIntervalMs = longRange(first(parameters, "trashCleanupIntervalMs"), 60000L, Long.MAX_VALUE, "Trash cleanup interval");
+        long cleanupIntervalMs = scaledLong(
+                first(parameters, "trashCleanupIntervalMinutes"),
+                MINUTE_MS, 60000L, Long.MAX_VALUE, "Trash cleanup interval"
+        );
 
-        long textAutoLoadMaxBytes = longRange(first(parameters, "textAutoLoadMaxBytes"), 1024L, Long.MAX_VALUE, "Text auto-load limit");
-        long textManualLoadMaxBytes = longRange(first(parameters, "textManualLoadMaxBytes"), 1024L, Long.MAX_VALUE, "Text manual-load limit");
+        long textAutoLoadMaxBytes = scaledLong(
+                first(parameters, "textAutoLoadMaxMib"), MIB, 1024L, Long.MAX_VALUE, "Text auto-load limit"
+        );
+        long textManualLoadMaxBytes = scaledLong(
+                first(parameters, "textManualLoadMaxMib"), MIB, 1024L, Long.MAX_VALUE, "Text manual-load limit"
+        );
         if (textManualLoadMaxBytes < textAutoLoadMaxBytes) {
             throw new IllegalArgumentException("Text manual-load limit must be greater than or equal to the auto-load limit.");
         }
@@ -130,11 +141,9 @@ public class GeneralSettingsService {
                 Long.MAX_VALUE,
                 "Text draft retention"
         );
-        long textDraftCleanupIntervalMs = longRange(
-                first(parameters, "textDraftCleanupIntervalMs"),
-                60000L,
-                Long.MAX_VALUE,
-                "Text draft cleanup interval"
+        long textDraftCleanupIntervalMs = scaledLong(
+                first(parameters, "textDraftCleanupIntervalMinutes"),
+                MINUTE_MS, 60000L, Long.MAX_VALUE, "Text draft cleanup interval"
         );
         long textDraftLeaseSeconds = longRange(
                 first(parameters, "textDraftLeaseSeconds"),
@@ -143,17 +152,22 @@ public class GeneralSettingsService {
                 "Text draft lease"
         );
         int comicMaxPages = intRange(first(parameters, "comicMaxPages"), 1, 50000, "Comic max pages");
-        long comicPageMaxBytes = longRange(first(parameters, "comicPageMaxBytes"), 1024L, Long.MAX_VALUE, "Comic page max bytes");
-        long comicInfoMaxBytes = longRange(first(parameters, "comicInfoMaxBytes"), 1024L, Long.MAX_VALUE, "Comic info max bytes");
+        long comicPageMaxBytes = scaledLong(
+                first(parameters, "comicPageMaxMib"), MIB, 1024L, Long.MAX_VALUE, "Comic page limit"
+        );
+        long comicInfoMaxBytes = scaledLong(
+                first(parameters, "comicInfoMaxKib"), KIB, 1024L, Long.MAX_VALUE, "Comic info limit"
+        );
 
         boolean remoteEnabled = parameters.containsKey("remoteEnabled");
         boolean remoteDirectEnabled = parameters.containsKey("remoteDirectEnabled");
-        boolean remoteExtractorEnabled = parameters.containsKey("remoteExtractorEnabled");
         boolean remoteBlockPrivateNetworks = parameters.containsKey("remoteBlockPrivateNetworks");
         List<Integer> allowedPorts = allowedPorts(first(parameters, "remoteAllowedPorts"));
         int responseTimeoutSeconds = intRange(first(parameters, "remoteResponseTimeoutSeconds"), 1, 3600, "Remote response timeout");
         int maxRedirects = intRange(first(parameters, "remoteMaxRedirects"), 0, 50, "Remote max redirects");
-        long maxFileSizeBytes = longRange(first(parameters, "remoteMaxFileSizeBytes"), 0L, Long.MAX_VALUE, "Remote max file size");
+        long maxFileSizeBytes = scaledLong(
+                first(parameters, "remoteMaxFileSizeGib"), GIB, 0L, Long.MAX_VALUE, "Remote max file size"
+        );
         int historyLimit = intRange(first(parameters, "remoteHistoryLimit"), 1, 1000, "Remote history limit");
         String rawMaxRetries = first(parameters, "remoteMaxRetries");
         int maxRetries = rawMaxRetries == null || rawMaxRetries.isBlank()
@@ -183,7 +197,6 @@ public class GeneralSettingsService {
                 new RemoteDownloadSettings(
                         remoteEnabled,
                         remoteDirectEnabled,
-                        remoteExtractorEnabled,
                         remoteBlockPrivateNetworks,
                         join(allowedPorts),
                         responseTimeoutSeconds,
@@ -201,6 +214,11 @@ public class GeneralSettingsService {
     public void save(GeneralSettingsUpdate update) throws IOException {
         persist(update);
         applyToRuntime(update);
+    }
+
+    public boolean requiresRestart(GeneralSettingsUpdate update) {
+        return nasProperties.getTrash().getCleanupIntervalMs() != update.trash().cleanupIntervalMs()
+                || nasProperties.getRemoteDownload().getHistoryLimit() != update.remoteDownload().historyLimit();
     }
 
     private void persist(GeneralSettingsUpdate update) throws IOException {
@@ -244,7 +262,6 @@ public class GeneralSettingsService {
         RemoteDownloadSettings remoteDownload = update.remoteDownload();
         updates.put("nas.remote-download.enabled", Boolean.toString(remoteDownload.enabled()));
         updates.put("nas.remote-download.direct-enabled", Boolean.toString(remoteDownload.directEnabled()));
-        updates.put("nas.remote-download.extractor-enabled", Boolean.toString(remoteDownload.extractorEnabled()));
         updates.put("nas.remote-download.block-private-networks", Boolean.toString(remoteDownload.blockPrivateNetworks()));
         updates.put("nas.remote-download.allowed-ports", remoteDownload.allowedPorts());
         updates.put("nas.remote-download.response-timeout-seconds", Integer.toString(remoteDownload.responseTimeoutSeconds()));
@@ -298,7 +315,6 @@ public class GeneralSettingsService {
         NasProperties.RemoteDownload remoteDownload = nasProperties.getRemoteDownload();
         remoteDownload.setEnabled(update.remoteDownload().enabled());
         remoteDownload.setDirectEnabled(update.remoteDownload().directEnabled());
-        remoteDownload.setExtractorEnabled(update.remoteDownload().extractorEnabled());
         remoteDownload.setBlockPrivateNetworks(update.remoteDownload().blockPrivateNetworks());
         remoteDownload.setAllowedPorts(update.allowedPorts());
         remoteDownload.setResponseTimeoutSeconds(update.remoteDownload().responseTimeoutSeconds());
@@ -357,6 +373,28 @@ public class GeneralSettingsService {
         } catch (NumberFormatException ex) {
             throw new IllegalArgumentException(label + " must be a number.");
         }
+    }
+
+    private static long scaledLong(String rawValue, long scale, long min, long max, String label) {
+        try {
+            BigDecimal displayValue = new BigDecimal(clean(rawValue));
+            long value = displayValue.multiply(BigDecimal.valueOf(scale)).longValueExact();
+            if (value < min || value > max) {
+                throw new IllegalArgumentException(label + " is outside the supported range.");
+            }
+            return value;
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException(label + " must be a number.");
+        } catch (ArithmeticException ex) {
+            throw new IllegalArgumentException(label + " has too much precision or is too large.");
+        }
+    }
+
+    private static String scaledDisplay(long value, long scale) {
+        return BigDecimal.valueOf(value)
+                .divide(BigDecimal.valueOf(scale))
+                .stripTrailingZeros()
+                .toPlainString();
     }
 
     private static String color(String rawValue, String label) {
@@ -429,6 +467,10 @@ public class GeneralSettingsService {
     }
 
     public record TrashSettings(int retentionDays, boolean cleanupOnStartup, long cleanupIntervalMs) {
+
+        public String cleanupIntervalMinutes() {
+            return scaledDisplay(cleanupIntervalMs, MINUTE_MS);
+        }
     }
 
     public record FileToolSettings(
@@ -441,12 +483,31 @@ public class GeneralSettingsService {
             long comicPageMaxBytes,
             long comicInfoMaxBytes
     ) {
+
+        public String textAutoLoadMaxMib() {
+            return scaledDisplay(textAutoLoadMaxBytes, MIB);
+        }
+
+        public String textManualLoadMaxMib() {
+            return scaledDisplay(textManualLoadMaxBytes, MIB);
+        }
+
+        public String textDraftCleanupIntervalMinutes() {
+            return scaledDisplay(textDraftCleanupIntervalMs, MINUTE_MS);
+        }
+
+        public String comicPageMaxMib() {
+            return scaledDisplay(comicPageMaxBytes, MIB);
+        }
+
+        public String comicInfoMaxKib() {
+            return scaledDisplay(comicInfoMaxBytes, KIB);
+        }
     }
 
     public record RemoteDownloadSettings(
             boolean enabled,
             boolean directEnabled,
-            boolean extractorEnabled,
             boolean blockPrivateNetworks,
             String allowedPorts,
             int responseTimeoutSeconds,
@@ -457,5 +518,9 @@ public class GeneralSettingsService {
             boolean skipInspectByDefault,
             String defaultTargetDirectory
     ) {
+
+        public String maxFileSizeGib() {
+            return scaledDisplay(maxFileSizeBytes, GIB);
+        }
     }
 }

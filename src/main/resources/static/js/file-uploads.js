@@ -17,7 +17,6 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
     }
 
-    const maxFilesPerRequest = Math.max(0, Number.parseInt(uploadForm.dataset.maxFilesPerRequest || "0", 10) || 0);
     const maxConcurrentUploads = Math.max(
         1,
         Number.parseInt(uploadForm.dataset.maxConcurrentUploads || "1", 10) || 1
@@ -245,13 +244,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const validateUploadBatch = (files) => {
         if (!files || files.length === 0) {
-            return false;
-        }
-        if (maxFilesPerRequest > 0 && files.length > maxFilesPerRequest) {
-            showUploadStatus(
-                `You can upload up to ${maxFilesPerRequest} file${maxFilesPerRequest === 1 ? "" : "s"} at once.`,
-                true
-            );
             return false;
         }
         return true;

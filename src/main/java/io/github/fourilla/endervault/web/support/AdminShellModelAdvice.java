@@ -22,13 +22,7 @@ import io.github.fourilla.endervault.web.filerequest.AdminFileRequestController;
 import io.github.fourilla.endervault.web.metadata.AdminMetadataController;
 import io.github.fourilla.endervault.web.pending.AdminPendingFileDecisionController;
 import io.github.fourilla.endervault.web.remote.AdminRemoteDownloadController;
-import io.github.fourilla.endervault.web.settings.AdminAccountSettingsController;
-import io.github.fourilla.endervault.web.settings.AdminBookmarkSettingsController;
-import io.github.fourilla.endervault.web.settings.AdminFileRequestSettingsController;
-import io.github.fourilla.endervault.web.settings.AdminGeneralSettingsController;
 import io.github.fourilla.endervault.web.settings.AdminSettingsController;
-import io.github.fourilla.endervault.web.settings.AdminSessionSettingsController;
-import io.github.fourilla.endervault.web.settings.AdminVpnSettingsController;
 import io.github.fourilla.endervault.web.share.AdminShareController;
 import io.github.fourilla.endervault.web.stickynote.AdminStickyNoteController;
 import io.github.fourilla.endervault.web.trash.AdminTrashController;
@@ -38,7 +32,7 @@ import java.util.List;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
 
-@ControllerAdvice(assignableTypes = {
+@ControllerAdvice(basePackageClasses = AdminSettingsController.class, assignableTypes = {
         AdminDashboardController.class,
         AdminTelegramSettingsController.class,
         AdminPasskeyController.class,
@@ -54,13 +48,6 @@ import org.springframework.web.bind.annotation.ModelAttribute;
         AdminRemoteDownloadController.class,
         AdminShareController.class,
         AdminTrashController.class,
-        AdminSettingsController.class,
-        AdminAccountSettingsController.class,
-        AdminBookmarkSettingsController.class,
-        AdminFileRequestSettingsController.class,
-        AdminGeneralSettingsController.class,
-        AdminSessionSettingsController.class,
-        AdminVpnSettingsController.class,
         AdminVpnController.class,
         AdminMetadataController.class,
         AdminPendingFileDecisionController.class,
@@ -135,8 +122,6 @@ public class AdminShellModelAdvice {
     public UploadUiConfig uploadUiConfig() {
         NasProperties.Upload upload = nasProperties.getUpload();
         return new UploadUiConfig(
-                upload.getMaxFilesPerRequest(),
-                upload.isDirectoryUploadEnabled(),
                 Math.min(upload.getMaxConcurrentChunks(), 8)
         );
     }
@@ -201,8 +186,6 @@ public class AdminShellModelAdvice {
     }
 
     public record UploadUiConfig(
-            int maxFilesPerRequest,
-            boolean directoryUploadEnabled,
             int maxConcurrentUploads
     ) {
     }

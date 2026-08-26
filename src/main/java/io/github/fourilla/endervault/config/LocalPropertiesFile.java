@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import org.springframework.stereotype.Component;
 
@@ -29,7 +30,20 @@ public class LocalPropertiesFile {
         return configFile;
     }
 
-    public void update(Map<String, String> updates, String missingComment) throws IOException {
+    public synchronized Map<String, String> readValues() throws IOException {
+        if (Files.notExists(configFile)) {
+            return Map.of();
+        }
+        Properties properties = new Properties();
+        try (var reader = Files.newBufferedReader(configFile, StandardCharsets.UTF_8)) {
+            properties.load(reader);
+        }
+        Map<String, String> values = new java.util.LinkedHashMap<>();
+        properties.stringPropertyNames().forEach(key -> values.put(key, properties.getProperty(key, "")));
+        return Map.copyOf(values);
+    }
+
+    public synchronized void update(Map<String, String> updates, String missingComment) throws IOException {
         if (Files.notExists(configFile)) {
             throw new IOException("Local configuration file was not found: " + configFile);
         }

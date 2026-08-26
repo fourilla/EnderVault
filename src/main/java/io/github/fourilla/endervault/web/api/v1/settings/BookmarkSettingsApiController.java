@@ -22,7 +22,12 @@ public class BookmarkSettingsApiController {
 
     @PostMapping
     public ActionResponse save(@RequestParam MultiValueMap<String, String> parameters) throws IOException {
-        bookmarkSettingsService.save(bookmarkSettingsService.updateFrom(parameters));
-        return ActionResponse.ok(FlashNotification.success("Bookmark settings saved and applied."));
+        BookmarkSettingsService.BookmarkSettingsUpdate update = bookmarkSettingsService.updateFrom(parameters);
+        boolean restartRequired = bookmarkSettingsService.requiresRestart(update);
+        bookmarkSettingsService.save(update);
+        String message = restartRequired
+                ? "Bookmark settings saved. Restart EnderVault to apply fields marked Restart required."
+                : "Bookmark settings saved and applied.";
+        return ActionResponse.ok(FlashNotification.success(message));
     }
 }

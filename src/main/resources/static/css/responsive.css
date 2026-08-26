@@ -239,6 +239,22 @@
         box-shadow: none;
     }
 
+    .settings-save-bar {
+        align-items: stretch;
+        flex-direction: column;
+        gap: var(--space-md);
+    }
+
+    .settings-save-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .settings-readonly-list > div {
+        grid-template-columns: 1fr;
+        gap: var(--space-xs);
+    }
+
     .details div {
         grid-template-columns: 1fr;
     }

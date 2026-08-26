@@ -7,6 +7,7 @@
     <th:block th:replace="~{fragments/assets :: styles(true)}"></th:block>
     <th:block th:replace="~{fragments/assets :: coreScripts}"></th:block>
     <th:block th:replace="~{fragments/assets :: adminActionsScript}"></th:block>
+    <th:block th:replace="~{fragments/assets :: settingsFormScript}"></th:block>
 </head>
 <body>
 <div class="app-shell">
@@ -24,29 +25,36 @@
                 <h2>Activity Notifications</h2>
                 <p th:text="|Config: ${telegramSettings.configPath()}|">Config: endervault-nas.properties</p>
             </div>
-            <label class="settings-heading-switch" title="Enable Telegram alerts">
-                <span class="visually-hidden">Enable Telegram alerts</span>
-                <input class="settings-switch-input"
-                       type="checkbox"
-                       form="telegramSettingsForm"
-                       name="enabled"
-                       value="true"
-                       aria-label="Enable Telegram alerts"
-                       th:checked="${telegramSettings.enabled()}"
-                       data-toggle-target=".telegram-settings-dependent">
-            </label>
         </header>
 
         <form id="telegramSettingsForm"
               class="telegram-settings-form"
               method="post"
               th:action="@{/api/v1/settings/telegram-alerts}"
-              data-ajax-action="telegram-settings-save">
+              data-ajax-action="telegram-settings-save"
+              data-settings-form>
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
 
-            <div class="dashboard-actions telegram-actions telegram-actions-top">
-                <button th:replace="~{fragments/settings :: saveButton}"></button>
-            </div>
+            <div th:replace="~{fragments/settings :: saveBar}"></div>
+
+            <section class="settings-detail-section" aria-label="Telegram alert availability">
+                <header class="settings-subsection-heading">
+                    <div>
+                        <h3>Telegram Alerts</h3>
+                        <p>Send selected activity events through the configured Telegram bot.</p>
+                    </div>
+                    <label class="settings-heading-switch">
+                        <span>Enabled</span>
+                        <input class="settings-switch-input"
+                               type="checkbox"
+                               name="enabled"
+                               value="true"
+                               aria-label="Enable Telegram alerts"
+                               th:checked="${telegramSettings.enabled()}"
+                               data-toggle-target=".telegram-settings-dependent">
+                    </label>
+                </header>
+            </section>
 
             <section class="settings-detail-section telegram-settings-dependent" aria-label="Telegram connection settings">
                 <header class="settings-subsection-heading">

@@ -7,6 +7,7 @@
     <th:block th:replace="~{fragments/assets :: styles(true)}"></th:block>
     <th:block th:replace="~{fragments/assets :: coreScripts}"></th:block>
     <th:block th:replace="~{fragments/assets :: adminActionsScript}"></th:block>
+    <th:block th:replace="~{fragments/assets :: settingsFormScript}"></th:block>
 </head>
 <body>
 <div class="app-shell">
@@ -29,12 +30,11 @@
         <form class="general-settings-form"
               method="post"
               th:action="@{/api/v1/settings/bookmarks}"
-              data-ajax-action="bookmark-settings-save">
+              data-ajax-action="bookmark-settings-save"
+              data-settings-form>
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
 
-            <div class="settings-actions-top">
-                <button th:replace="~{fragments/settings :: saveButton}"></button>
-            </div>
+            <div th:replace="~{fragments/settings :: saveBar}"></div>
 
             <section class="settings-detail-section" aria-label="Bookmark behavior settings">
                 <header class="settings-subsection-heading">
@@ -97,12 +97,20 @@
                         <input type="number" name="maxRedirects" min="0" max="50" th:value="${settings.metadata().maxRedirects()}">
                     </label>
                     <label>
-                        <span>HTML max bytes</span>
-                        <input type="number" name="htmlMaxBytes" min="1024" th:value="${settings.metadata().htmlMaxBytes()}">
+                        <span>HTML response limit</span>
+                        <div class="settings-unit-field">
+                            <input type="number" name="htmlMaxKib" min="1" step="any"
+                                   th:value="${settings.metadata().htmlMaxKib()}">
+                            <span>KiB</span>
+                        </div>
                     </label>
                     <label>
-                        <span>Favicon max bytes</span>
-                        <input type="number" name="faviconMaxBytes" min="1024" th:value="${settings.metadata().faviconMaxBytes()}">
+                        <span>Favicon response limit</span>
+                        <div class="settings-unit-field">
+                            <input type="number" name="faviconMaxKib" min="1" step="any"
+                                   th:value="${settings.metadata().faviconMaxKib()}">
+                            <span>KiB</span>
+                        </div>
                     </label>
                 </div>
             </section>
