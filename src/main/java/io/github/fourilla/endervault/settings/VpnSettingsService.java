@@ -1,5 +1,6 @@
 package io.github.fourilla.endervault.settings;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.github.fourilla.endervault.config.LocalPropertiesFile;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealth;
@@ -194,14 +195,17 @@ public class VpnSettingsService {
             String configPath
     ) {
 
+        @JsonProperty
         public String healthConnectTimeoutSeconds() {
             return seconds(healthConnectTimeoutMs);
         }
 
+        @JsonProperty
         public String healthRequestTimeoutSeconds() {
             return seconds(healthRequestTimeoutMs);
         }
 
+        @JsonProperty
         public String healthCheckIntervalSeconds() {
             return seconds(healthCheckIntervalMs);
         }

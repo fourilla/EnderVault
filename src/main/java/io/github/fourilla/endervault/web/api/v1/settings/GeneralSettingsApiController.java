@@ -4,6 +4,7 @@ import io.github.fourilla.endervault.settings.GeneralSettingsService;
 import io.github.fourilla.endervault.web.support.ActionResponse;
 import io.github.fourilla.endervault.web.support.FlashNotification;
 import java.io.IOException;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,6 +19,11 @@ public class GeneralSettingsApiController {
 
     public GeneralSettingsApiController(GeneralSettingsService generalSettingsService) {
         this.generalSettingsService = generalSettingsService;
+    }
+
+    @GetMapping
+    public GeneralSettingsService.GeneralSettingsSnapshot current() {
+        return generalSettingsService.currentSettings();
     }
 
     @PostMapping

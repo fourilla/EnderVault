@@ -1,5 +1,6 @@
 package io.github.fourilla.endervault.settings;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.github.fourilla.endervault.config.LocalPropertiesFile;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
@@ -447,14 +448,17 @@ public class GeneralSettingsService {
 
     public record StickyNoteSettings(String backgroundColor, String borderColor, String textColor) {
 
+        @JsonProperty
         public String defaultBackgroundColor() {
             return NasProperties.StickyNotes.DEFAULT_BACKGROUND_COLOR;
         }
 
+        @JsonProperty
         public String defaultBorderColor() {
             return NasProperties.StickyNotes.DEFAULT_BORDER_COLOR;
         }
 
+        @JsonProperty
         public String defaultTextColor() {
             return NasProperties.StickyNotes.DEFAULT_TEXT_COLOR;
         }
@@ -468,6 +472,7 @@ public class GeneralSettingsService {
 
     public record TrashSettings(int retentionDays, boolean cleanupOnStartup, long cleanupIntervalMs) {
 
+        @JsonProperty
         public String cleanupIntervalMinutes() {
             return scaledDisplay(cleanupIntervalMs, MINUTE_MS);
         }
@@ -484,22 +489,27 @@ public class GeneralSettingsService {
             long comicInfoMaxBytes
     ) {
 
+        @JsonProperty
         public String textAutoLoadMaxMib() {
             return scaledDisplay(textAutoLoadMaxBytes, MIB);
         }
 
+        @JsonProperty
         public String textManualLoadMaxMib() {
             return scaledDisplay(textManualLoadMaxBytes, MIB);
         }
 
+        @JsonProperty
         public String textDraftCleanupIntervalMinutes() {
             return scaledDisplay(textDraftCleanupIntervalMs, MINUTE_MS);
         }
 
+        @JsonProperty
         public String comicPageMaxMib() {
             return scaledDisplay(comicPageMaxBytes, MIB);
         }
 
+        @JsonProperty
         public String comicInfoMaxKib() {
             return scaledDisplay(comicInfoMaxBytes, KIB);
         }
@@ -519,6 +529,7 @@ public class GeneralSettingsService {
             String defaultTargetDirectory
     ) {
 
+        @JsonProperty
         public String maxFileSizeGib() {
             return scaledDisplay(maxFileSizeBytes, GIB);
         }

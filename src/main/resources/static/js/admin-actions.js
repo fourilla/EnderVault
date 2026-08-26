@@ -254,82 +254,6 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     };
 
-    const settingToggleControllers = () =>
-        Array.from(document.querySelectorAll("input[type='checkbox'][data-toggle-target]"));
-
-    const syncSwitchStateLabels = () => {
-        document.querySelectorAll("input[type='checkbox'][data-state-label]").forEach((controller) => {
-            const label = document.querySelector(controller.dataset.stateLabel);
-            if (!label) {
-                return;
-            }
-
-            const active = controller.checked;
-            const onClass = controller.dataset.onClass || "active";
-            const offClass = controller.dataset.offClass || "expired";
-            label.textContent = active
-                    ? (controller.dataset.onLabel || "Enabled")
-                    : (controller.dataset.offLabel || "Disabled");
-            label.className = `status-badge ${active ? onClass : offClass}`;
-        });
-    };
-
-    const syncSettingDependencies = () => {
-        const controllers = settingToggleControllers();
-        const controlled = new Set();
-
-        controllers.forEach((controller) => {
-            document.querySelectorAll(controller.dataset.toggleTarget).forEach((element) => {
-                controlled.add(element);
-            });
-        });
-
-        controlled.forEach((element) => {
-            const locked = controllers.some((controller) =>
-                !controller.checked && element.matches(controller.dataset.toggleTarget));
-            element.classList.toggle("settings-dependent-locked", locked);
-            element.setAttribute("aria-disabled", String(locked));
-            element.querySelectorAll("input, select, textarea, button, a").forEach((control) => {
-                if (control === element) {
-                    return;
-                }
-                if ("readOnly" in control) {
-                    control.readOnly = locked;
-                }
-                if (locked) {
-                    if (!control.dataset.previousTabIndex && control.hasAttribute("tabindex")) {
-                        control.dataset.previousTabIndex = control.getAttribute("tabindex");
-                    }
-                    control.setAttribute("tabindex", "-1");
-                } else if (control.dataset.previousTabIndex) {
-                    control.setAttribute("tabindex", control.dataset.previousTabIndex);
-                    delete control.dataset.previousTabIndex;
-                } else {
-                    control.removeAttribute("tabindex");
-                }
-            });
-        });
-        syncSwitchStateLabels();
-    };
-
-    const enhanceSettingDependencies = () => {
-        settingToggleControllers().forEach((controller) => {
-            if (controller.dataset.settingDependencyBound === "true") {
-                return;
-            }
-            controller.dataset.settingDependencyBound = "true";
-            controller.addEventListener("change", syncSettingDependencies);
-        });
-        document.querySelectorAll("input[type='checkbox'][data-state-label]").forEach((controller) => {
-            if (controller.dataset.switchStateBound === "true") {
-                return;
-            }
-            controller.dataset.switchStateBound = "true";
-            controller.addEventListener("change", syncSwitchStateLabels);
-        });
-        syncSettingDependencies();
-    };
-
     const handleSuccess = (form, body, action = ajaxAction(form)) => {
         if ([
             "detail-rename",
@@ -385,11 +309,6 @@ document.addEventListener("DOMContentLoaded", () => {
             case "metadata-repair":
                 window.EnderVaultMetadata?.handleRepair(body, form);
                 break;
-            case "general-settings-save":
-                document.dispatchEvent(new CustomEvent("endervault:general-settings-saved", {
-                    detail: { form }
-                }));
-                break;
             default:
                 break;
         }
@@ -422,7 +341,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 window.EnderVault.showToast("error", error.message || "The action failed.");
             } finally {
                 setBusy(form, false);
-                syncSettingDependencies();
                 window.EnderVaultMetadata?.syncSelection?.();
                 if (successBody) {
                     form.dispatchEvent(new CustomEvent("endervault:ajax-success", {
@@ -437,6 +355,5 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll("form[data-ajax-action]").forEach(bindAjaxForm);
     bindCopyButtons();
     bindSessionDetailDialog();
-    enhanceSettingDependencies();
     window.EnderVaultActions = { submitJsonForm, showNotification };
 });

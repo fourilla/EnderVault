@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.util.Map;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -26,6 +27,11 @@ public class AccountSettingsApiController {
     ) {
         this.accountSettingsService = accountSettingsService;
         this.activityLogService = activityLogService;
+    }
+
+    @GetMapping
+    public AccountSettingsService.AccountSettingsSnapshot current() {
+        return accountSettingsService.currentSettings();
     }
 
     @PostMapping

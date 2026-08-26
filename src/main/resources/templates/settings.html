@@ -8,6 +8,7 @@
     <title>EnderVault Settings</title>
     <th:block th:replace="~{fragments/assets :: styles(true)}"></th:block>
     <th:block th:replace="~{fragments/assets :: coreScripts}"></th:block>
+    <th:block th:replace="~{fragments/assets :: directoryPickerScript}"></th:block>
     <th:block th:replace="~{fragments/assets :: viteEntry(${settingsFrontend})}"></th:block>
 </head>
 <body>
@@ -33,6 +34,7 @@
             </header>
         </section>
     </div>
+    <th:block th:replace="~{fragments/directory-picker :: dialog}"></th:block>
 </main>
 </div>
 </div>

@@ -10,8 +10,10 @@ import io.github.fourilla.endervault.web.support.FlashNotification;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import java.util.Map;
+import java.util.List;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -34,6 +36,20 @@ public class PasskeySettingsApiController {
         this.passkeyService = passkeyService;
         this.objectMapper = objectMapper;
         this.activityLogService = activityLogService;
+    }
+
+    @GetMapping
+    public PasskeySettingsSnapshot current() {
+        List<PasskeyCredentialSummary> credentials = passkeyService.listCredentials().stream()
+                .map(PasskeyCredentialSummary::from)
+                .toList();
+        return new PasskeySettingsSnapshot(
+                passkeyService.isEnabled(),
+                passkeyService.isPasswordLoginEnabled(),
+                passkeyService.rpId(),
+                passkeyService.allowedOrigins(),
+                credentials
+        );
     }
 
     @PostMapping(value = "/register/options", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -71,7 +87,7 @@ public class PasskeySettingsApiController {
             );
             return ResponseEntity.ok(ActionResponse.redirect(
                     FlashNotification.success("Passkey registered."),
-                    "/admin/settings/passkeys"
+                    "/admin/settings?section=passkeys"
             ));
         } catch (Exception ex) {
             return ResponseEntity.badRequest().body(ActionResponse.error("Passkey registration failed. Try again."));
@@ -95,10 +111,43 @@ public class PasskeySettingsApiController {
             );
             return ResponseEntity.ok(ActionResponse.redirect(
                     FlashNotification.success("Passkey deleted."),
-                    "/admin/settings/passkeys"
+                    "/admin/settings?section=passkeys"
             ));
         } catch (Exception ex) {
             return ResponseEntity.badRequest().body(ActionResponse.error("Passkey delete failed."));
+        }
+    }
+
+    public record PasskeySettingsSnapshot(
+            boolean enabled,
+            boolean passwordLoginEnabled,
+            String rpId,
+            java.util.Set<String> allowedOrigins,
+            List<PasskeyCredentialSummary> credentials
+    ) {
+    }
+
+    public record PasskeyCredentialSummary(
+            String id,
+            String label,
+            String credentialId,
+            String shortCredentialId,
+            String transports,
+            boolean backedUp,
+            String created,
+            String lastUsed
+    ) {
+        static PasskeyCredentialSummary from(PasskeyCredential credential) {
+            return new PasskeyCredentialSummary(
+                    credential.id(),
+                    credential.displayLabel(),
+                    credential.credentialId(),
+                    credential.shortCredentialId(),
+                    credential.transportLabel(),
+                    credential.backedUp(),
+                    credential.createdLabel(),
+                    credential.lastUsedLabel()
+            );
         }
     }
 }

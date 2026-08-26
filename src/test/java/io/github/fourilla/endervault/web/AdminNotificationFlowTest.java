@@ -1302,79 +1302,38 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void fileRequestSettingsPageRendersApiOnlySettingsForm() throws Exception {
-        mockMvc.perform(get("/admin/settings/file-requests"))
+    void settingsReadApisExposeEveryReactSection() throws Exception {
+        mockMvc.perform(get("/api/v1/settings/general"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("File Request Settings")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("New Request Defaults")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Request Tokens")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Upload Controls")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(
-                        "action=\"/api/v1/settings/file-requests\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(
-                        "data-ajax-action=\"file-request-settings-save\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(
-                        "name=\"rateLimitMaxAdmissions\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(
-                        "name=\"accessLogDedupSeconds\"")));
-    }
-
-    @Test
-    void generalSettingsPageRendersApplicationSettingsForm() throws Exception {
-        mockMvc.perform(get("/admin/settings/general"))
+                .andExpect(jsonPath("$.browser.defaultView").isString())
+                .andExpect(jsonPath("$.stickyNotes.defaultBackgroundColor").value("#1B3033"))
+                .andExpect(jsonPath("$.fileTools.textAutoLoadMaxMib").isString());
+        mockMvc.perform(get("/api/v1/settings/advanced"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("General Settings")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Browser Defaults")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Recent Items")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"sticky-note-theme\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"stickyNoteBackgroundColor\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"stickyNoteBorderColor\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"stickyNoteTextColor\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/sticky-note-theme-settings.js")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("--sticky-note-bg: #1B3033")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Trash")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("File Tools")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote Download")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"remoteDefaultTargetDirectory\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/directory-tree.js")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/directory-picker.js")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"general-settings-save\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-settings-form")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/settings-form.js")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(
-                        "action=\"/api/v1/settings/general\"")));
-    }
-
-    @Test
-    void advancedSettingsPageRendersCatalogAndDeploymentValues() throws Exception {
-        mockMvc.perform(get("/admin/settings/advanced"))
+                .andExpect(jsonPath("$.groups").isArray())
+                .andExpect(jsonPath("$.deployment").isArray());
+        mockMvc.perform(get("/api/v1/settings/bookmarks"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("Advanced Settings")))
-                .andExpect(content().string(Matchers.containsString("Share Links")))
-                .andExpect(content().string(Matchers.containsString("Archive Safety")))
-                .andExpect(content().string(Matchers.containsString("Restart required")))
-                .andExpect(content().string(Matchers.containsString("Deployment")))
-                .andExpect(content().string(Matchers.containsString("name=\"uploadChunkSizeMib\"")))
-                .andExpect(content().string(Matchers.containsString("name=\"publicBaseUrl\"")))
-                .andExpect(content().string(Matchers.containsString("data-settings-form")))
-                .andExpect(content().string(Matchers.containsString(
-                        "action=\"/api/v1/settings/advanced\"")));
-    }
-
-    @Test
-    void settingsMutationFormsUseTheVersionedApiNamespace() throws Exception {
-        mockMvc.perform(get("/admin/settings/account"))
+                .andExpect(jsonPath("$.metadata.htmlMaxKib").isString());
+        mockMvc.perform(get("/api/v1/settings/file-requests"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString(
-                        "action=\"/api/v1/settings/account\"")));
-        mockMvc.perform(get("/admin/settings/bookmarks"))
+                .andExpect(jsonPath("$.rateLimitMaxAdmissions").isNumber());
+        mockMvc.perform(get("/api/v1/settings/vpn"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString(
-                        "action=\"/api/v1/settings/bookmarks\"")));
-        mockMvc.perform(get("/admin/settings/sessions"))
+                .andExpect(jsonPath("$.healthConnectTimeoutSeconds").isString());
+        mockMvc.perform(get("/api/v1/settings/sessions"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString(
-                        "action=\"/api/v1/settings/sessions\"")));
+                .andExpect(jsonPath("$.activeSessions").isNumber());
+        mockMvc.perform(get("/api/v1/settings/account"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").isString());
+        mockMvc.perform(get("/api/v1/settings/telegram-alerts"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.groups").isArray());
+        mockMvc.perform(get("/api/v1/settings/passkeys"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.credentials").isArray())
+                .andExpect(jsonPath("$.rpId").isString());
     }
 
     @Test
@@ -1384,12 +1343,14 @@ class AdminNotificationFlowTest {
                 "/admin/settings/bookmarks",
                 "/admin/settings/advanced",
                 "/admin/settings/general",
+                "/admin/settings/file-requests",
+                "/admin/settings/passkeys",
                 "/admin/settings/sessions",
                 "/admin/settings/vpn",
                 "/admin/settings/telegram-alerts"
         )) {
-            mockMvc.perform(post(endpoint).with(csrf()))
-                    .andExpect(status().isMethodNotAllowed());
+            mockMvc.perform(get(endpoint)).andExpect(status().isNotFound());
+            mockMvc.perform(post(endpoint).with(csrf())).andExpect(status().isNotFound());
         }
 
         mockMvc.perform(post("/admin/settings/telegram-alerts/test").with(csrf()))
@@ -1403,25 +1364,6 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isNotFound());
         mockMvc.perform(post("/admin/settings/passkeys/legacy/delete").with(csrf()))
                 .andExpect(status().isNotFound());
-    }
-
-    @Test
-    void vpnSettingsPageRendersConfigurationAndStatusLink() throws Exception {
-        mockMvc.perform(get("/admin/settings/vpn"))
-                .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("VPN Egress")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Proxy Connection")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Tunnel Health")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"vpn-settings-save\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(
-                        "action=\"/api/v1/settings/vpn\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("href=\"/admin/vpn\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Current State")
-                )))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("vpn-health-refresh")
-                )));
     }
 
     @Test
@@ -1457,7 +1399,7 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void settingsPagesRenderSidebarFavorites() throws Exception {
+    void settingsPageRendersSidebarFavoritesAndSharedReactShell() throws Exception {
         String filename = "settings-favorite-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "favorite");
         favoriteService.toggle(filename);
@@ -1465,52 +1407,11 @@ class AdminNotificationFlowTest {
         mockMvc.perform(get("/admin/settings"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-sidebar-favorites-list")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(filename)));
-
-        mockMvc.perform(get("/admin/settings/general"))
-                .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-sidebar-favorites-list")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(filename)));
-    }
-
-    @Test
-    void passkeysPageRendersSettingsScopedActions() throws Exception {
-        mockMvc.perform(get("/admin/settings/passkeys"))
-                .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Passkeys")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Register Device")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("settings-detail-panel")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(
-                        "/api/v1/settings/passkeys/register/options")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(
-                        "/api/v1/settings/passkeys/register/finish")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Back to settings")));
-    }
-
-    @Test
-    void telegramAlertsPageRendersSettingsForm() throws Exception {
-        mockMvc.perform(get("/admin/settings/telegram-alerts"))
-                .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Telegram Alerts")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Enable Telegram alerts")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("settings-switch-input")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(filename)))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/directory-tree.js")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/directory-picker.js")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("form=\"telegramSettingsForm\""))))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-toggle-target=\".telegram-settings-dependent\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Bot token")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Chat ID")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("LOGIN_SUCCESS")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Save settings")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Send Test Message")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-password-toggle")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Show bot token")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/admin-actions.js")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(
-                        "action=\"/api/v1/settings/telegram-alerts\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(
-                        "formaction=\"/api/v1/settings/telegram-alerts/test\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"telegram-settings-save\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"telegram-settings-test\"")));
+                        org.hamcrest.Matchers.containsString("/js/settings-form.js"))));
     }
 
     @Test
