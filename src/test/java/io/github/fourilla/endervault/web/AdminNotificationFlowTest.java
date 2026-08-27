@@ -820,6 +820,66 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void fileBrowserListingApiReturnsSharedBrowserContract() throws Exception {
+        Path container = ROOT.resolve("browser-listing-api-test");
+        Files.createDirectories(container.resolve("nested"));
+        Files.writeString(container.resolve("note.txt"), "hello");
+
+        mockMvc.perform(get("/api/v1/fs/listing")
+                        .param("path", "browser-listing-api-test")
+                        .param("view", "grid")
+                        .param("sort", "name")
+                        .param("dir", "asc")
+                        .param("hidden", "show")
+                        .param("size", "50"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.mode").value("browse"))
+                .andExpect(jsonPath("$.path").value("browser-listing-api-test"))
+                .andExpect(jsonPath("$.directories.length()").value(1))
+                .andExpect(jsonPath("$.directories[0].name").value("nested"))
+                .andExpect(jsonPath("$.directories[0].type").value("directory"))
+                .andExpect(jsonPath("$.entries.length()").value(1))
+                .andExpect(jsonPath("$.entries[0].name").value("note.txt"))
+                .andExpect(jsonPath("$.entries[0].typeLabel").value("Text"))
+                .andExpect(jsonPath("$.entries[0].detailUrl").isNotEmpty())
+                .andExpect(jsonPath("$.entries[0].downloadUrl").isNotEmpty())
+                .andExpect(jsonPath("$.page.number").value(1))
+                .andExpect(jsonPath("$.page.totalItems").value(1))
+                .andExpect(jsonPath("$.preferences.view").value("grid"))
+                .andExpect(jsonPath("$.preferences.hidden").value("show"))
+                .andExpect(jsonPath("$.preferences.pageSize").value(50))
+                .andExpect(jsonPath("$.search.performed").value(false));
+    }
+
+    @Test
+    void fileBrowserSearchApiUsesTheSharedBrowserContract() throws Exception {
+        Path container = ROOT.resolve("browser-search-api-test");
+        Files.createDirectories(container.resolve("nested"));
+        Files.writeString(container.resolve("nested").resolve("Q11-note.txt"), "eleven");
+        Files.writeString(container.resolve("nested").resolve("Q2-note.txt"), "two");
+
+        mockMvc.perform(get("/api/v1/fs/search")
+                        .param("path", "browser-search-api-test")
+                        .param("q", "note")
+                        .param("view", "table")
+                        .param("sort", "name")
+                        .param("dir", "asc")
+                        .param("size", "50"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.mode").value("search"))
+                .andExpect(jsonPath("$.directories.length()").value(0))
+                .andExpect(jsonPath("$.entries.length()").value(2))
+                .andExpect(jsonPath("$.entries[0].name").value("Q2-note.txt"))
+                .andExpect(jsonPath("$.entries[1].name").value("Q11-note.txt"))
+                .andExpect(jsonPath("$.page.totalItems").value(2))
+                .andExpect(jsonPath("$.preferences.view").value("table"))
+                .andExpect(jsonPath("$.search.query").value("note"))
+                .andExpect(jsonPath("$.search.performed").value(true));
+    }
+
+    @Test
     @WithMockUser(roles = "USER")
     void storageEntriesEndpointRequiresAdminRole() throws Exception {
         mockMvc.perform(get("/api/v1/fs/entries"))

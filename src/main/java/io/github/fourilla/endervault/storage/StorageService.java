@@ -156,6 +156,17 @@ public class StorageService {
         return listingService.search(scope, requestedRoot, query, showHidden);
     }
 
+    public List<FileItem> search(
+            StorageScope scope,
+            String requestedRoot,
+            String query,
+            FileSort sort,
+            SortDirection direction,
+            boolean showHidden
+    ) throws IOException {
+        return listingService.search(scope, requestedRoot, query, sort, direction, showHidden);
+    }
+
     public Path resolveFile(StorageScope scope, String directoryPath, String fileName) throws IOException {
         Path file = pathResolver.resolveChild(scope, directoryPath, fileName, true);
         if (!Files.isRegularFile(file)) {

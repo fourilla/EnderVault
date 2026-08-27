@@ -109,6 +109,17 @@ final class StorageListingService {
     }
 
     List<FileItem> search(StorageScope scope, String requestedRoot, String query, boolean showHidden) throws IOException {
+        return search(scope, requestedRoot, query, null, null, showHidden);
+    }
+
+    List<FileItem> search(
+            StorageScope scope,
+            String requestedRoot,
+            String query,
+            FileSort sort,
+            SortDirection direction,
+            boolean showHidden
+    ) throws IOException {
         String normalizedQuery = normalizeSearchQuery(query);
         if (normalizedQuery.isEmpty()) {
             return List.of();
@@ -124,9 +135,10 @@ final class StorageListingService {
 
         List<FileItem> results = new ArrayList<>();
         searchRecursively(scope, searchRoot, normalizedQuery, showHidden, results);
-        return results.stream()
-                .sorted(Comparator.comparing(FileItem::path, NaturalNameComparator.INSTANCE))
-                .toList();
+        Comparator<FileItem> comparator = sort == null || direction == null
+                ? Comparator.comparing(FileItem::path, NaturalNameComparator.INSTANCE)
+                : itemComparator(sort, direction);
+        return results.stream().sorted(comparator).toList();
     }
 
     DirectoryListing listSharedDirectory(String sharedBasePath, String requestedPath) throws IOException {
