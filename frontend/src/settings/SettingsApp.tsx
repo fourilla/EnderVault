@@ -8,6 +8,7 @@ import { PasskeySettings } from './sections/PasskeySettings';
 import { SessionSettings } from './sections/SessionSettings';
 import { TelegramSettings } from './sections/TelegramSettings';
 import { VpnSettings } from './sections/VpnSettings';
+import { OverflowMarquee } from './components/OverflowMarquee';
 
 type InternalSectionId =
   | 'appearance'
@@ -209,12 +210,12 @@ export function SettingsApp() {
                   onClick={() => void openInternal(link.internal!)}
                 >
                   <i className={link.icon} aria-hidden="true" />
-                  <span><strong>{link.title}</strong><small>{link.description}</small></span>
+                  <span><strong>{link.title}</strong><small><OverflowMarquee text={link.description} /></small></span>
                 </button>
               ) : (
                 <a key={link.id} className="settings-spa-nav-item" href={link.href} onClick={(event) => void openLegacy(event, link.href)}>
                   <i className={link.icon} aria-hidden="true" />
-                  <span><strong>{link.title}</strong><small>{link.description}</small></span>
+                  <span><strong>{link.title}</strong><small><OverflowMarquee text={link.description} /></small></span>
                   <i className="fas fa-arrow-up-right-from-square settings-spa-nav-external" aria-hidden="true" />
                 </a>
               ))}

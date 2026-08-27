@@ -1,6 +1,7 @@
 import { useCallback, type CSSProperties } from 'react';
 import type { FormValue, FormValues, GeneralSettingsSnapshot } from '../types';
 import {
+  SettingsDirectoryField,
   SettingsField,
   SettingsSaveBar,
   SettingsSection,
@@ -236,38 +237,14 @@ function GeneralSettingsEditor({ snapshot, scope, onDirtyChange }: {
               { name: 'remoteMaxRedirects', label: 'Max redirects', type: 'number' as const, min: '0', max: '50', disabled: !directEnabled },
               { name: 'remoteMaxFileSizeGib', label: 'Maximum file size', type: 'number' as const, min: '0', step: 'any', unit: 'GiB', description: 'Use 0 for no application-level size limit.', disabled: !directEnabled },
             ].map(field)}
-            <label className={`settings-control-row settings-field-row${directEnabled ? '' : ' settings-dependent-locked'}`}>
-            <span className="settings-control-copy">
-              <span className="settings-field-label"><span>Default destination</span></span>
-              <small>Vault-relative directory used when this browser has no remembered destination.</small>
-            </span>
-            <span className="settings-control-area">
-              <span className="settings-unit-field">
-                <span className="settings-directory-input">
-                  <input
-                    id="remoteDefaultTargetDirectory"
-                    name="remoteDefaultTargetDirectory"
-                    type="text"
-                    value={String(editor.values.remoteDefaultTargetDirectory)}
-                    disabled={!directEnabled}
-                    onChange={(event) => editor.change('remoteDefaultTargetDirectory', event.target.value)}
-                  />
-                  <button
-                    className="ghost icon-button"
-                    type="button"
-                    disabled={!directEnabled}
-                    data-directory-picker-open
-                    data-directory-picker-target="remoteDefaultTargetDirectory"
-                    title="Browse directories"
-                    aria-label="Browse directories"
-                  >
-                    <i className="fas fa-folder-open" aria-hidden="true" />
-                  </button>
-                </span>
-                <span className="settings-unit-slot is-empty" aria-hidden="true">{'\u00a0'}</span>
-              </span>
-            </span>
-            </label>
+            <SettingsDirectoryField
+              name="remoteDefaultTargetDirectory"
+              label="Default destination"
+              description="Vault-relative directory used when this browser has no remembered destination."
+              values={editor.values}
+              onChange={editor.change}
+              disabled={!directEnabled}
+            />
             <SettingsToggle name="remoteSkipInspectByDefault" label="Skip inspection by default" description="Send no metadata probe before confirmation and use one connection." values={editor.values} onChange={editor.change} disabled={!directEnabled} />
           </div>
         </div>

@@ -55,14 +55,14 @@ function Editor({ snapshot, onDirtyChange }: { snapshot: TelegramSettingsSnapsho
               <h4>{group.name}</h4>
               <div className="telegram-activity-grid">
                 {group.activities.map((activity) => (
-                  <label className="telegram-activity-toggle" key={activity.key}>
+                  <label className="telegram-activity-toggle" key={activity.key} title={activity.label}>
                     <input
                       type="checkbox"
                       checked={Boolean(editor.values[`activity.${activity.key}`])}
                       disabled={!enabled}
                       onChange={(event) => editor.change(`activity.${activity.key}`, event.target.checked)}
                     />
-                    <span><strong>{activity.label}</strong><small>{activity.type}</small></span>
+                    <span>{activity.type}</span>
                   </label>
                 ))}
               </div>

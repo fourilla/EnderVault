@@ -70,10 +70,6 @@
         grid-template-columns: 1fr;
     }
 
-    .telegram-activity-settings {
-        grid-template-columns: 1fr;
-    }
-
     .telegram-subsection-heading,
     .settings-subsection-heading {
         align-items: start;
@@ -293,17 +289,5 @@
     .readonly-date-col {
         width: 96px;
         font-size: var(--font-size-xs);
-    }
-}
-
-@media (max-width: 1100px) {
-    .telegram-activity-settings {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-}
-
-@media (max-width: 720px) {
-    .telegram-activity-settings {
-        grid-template-columns: 1fr;
     }
 }

@@ -26,13 +26,16 @@
 }
 
 .settings-save-bar {
-    position: sticky;
+    position: fixed;
     z-index: 35;
     top: var(--space-md);
+    left: 50%;
+    transform: translateX(-50%);
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: var(--space-xl);
+    width: min(680px, calc(100vw - 32px));
     min-height: 58px;
     border: 1px solid var(--line);
     border-radius: var(--radius-panel);
@@ -40,6 +43,18 @@
     box-shadow: var(--shadow-soft);
     padding: var(--space-md) var(--space-lg);
     backdrop-filter: blur(12px);
+    animation: settings-save-bar-enter 160ms ease-out;
+}
+
+@keyframes settings-save-bar-enter {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -8px);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
 }
 
 .settings-save-bar.is-dirty {

@@ -1,5 +1,6 @@
 import { useState, type ChangeEvent, type ReactNode } from 'react';
 import type { FormValue, FormValues } from '../types';
+import { OverflowMarquee } from './OverflowMarquee';
 
 export type FieldOption = { value: string; label: string };
 
@@ -31,15 +32,17 @@ export function SettingsSaveBar({ dirty, saving, onSave, onDiscard }: {
   onSave: () => void;
   onDiscard: () => void;
 }) {
+  if (!dirty) return null;
+
   return (
-    <div className={`settings-save-bar${dirty ? ' is-dirty' : ''}`} aria-live="polite">
+    <div className="settings-save-bar is-dirty" aria-live="polite">
       <span className="settings-save-state">
         <i className="settings-save-indicator" aria-hidden="true" />
-        {dirty ? 'Unsaved changes' : 'No unsaved changes'}
+        Unsaved changes
       </span>
       <span className="settings-save-actions">
-        <button className="ghost" type="button" disabled={!dirty || saving} onClick={onDiscard}>Discard</button>
-        <button className="primary" type="button" disabled={!dirty || saving} onClick={onSave}>
+        <button className="ghost" type="button" disabled={saving} onClick={onDiscard}>Discard</button>
+        <button className="primary" type="button" disabled={saving} onClick={onSave}>
           {saving ? 'Saving...' : 'Save settings'}
         </button>
       </span>
@@ -110,7 +113,7 @@ export function SettingsField({ field, values, onChange }: { field: FieldDefinit
     <label className={`settings-control-row settings-field-row${field.type === 'textarea' ? ' is-multiline' : ''}${field.disabled ? ' settings-dependent-locked' : ''}`}>
       <span className="settings-control-copy">
         {label}
-        {field.description && <small title={field.description}>{field.description}</small>}
+        {field.description && <small><OverflowMarquee text={field.description} /></small>}
       </span>
       <span className="settings-control-area">
         <span className="settings-unit-field">
@@ -118,6 +121,48 @@ export function SettingsField({ field, values, onChange }: { field: FieldDefinit
           <span className={`settings-unit-slot${field.unit ? '' : ' is-empty'}`} aria-hidden="true">
             {field.unit || '\u00a0'}
           </span>
+        </span>
+      </span>
+    </label>
+  );
+}
+
+export function SettingsDirectoryField({ name, label, description, values, onChange, disabled = false }: {
+  name: string;
+  label: string;
+  description?: string;
+  disabled?: boolean;
+} & ValuesProps) {
+  return (
+    <label className={`settings-control-row settings-field-row${disabled ? ' settings-dependent-locked' : ''}`}>
+      <span className="settings-control-copy">
+        <span className="settings-field-label"><span>{label}</span></span>
+        {description && <small><OverflowMarquee text={description} /></small>}
+      </span>
+      <span className="settings-control-area">
+        <span className="settings-unit-field">
+          <span className="settings-directory-input">
+            <input
+              id={name}
+              name={name}
+              type="text"
+              value={String(values[name] ?? '')}
+              disabled={disabled}
+              onChange={(event) => onChange(name, event.target.value)}
+            />
+            <button
+              className="ghost icon-button"
+              type="button"
+              disabled={disabled}
+              data-directory-picker-open
+              data-directory-picker-target={name}
+              title="Browse directories"
+              aria-label={`Browse ${label.toLowerCase()}`}
+            >
+              <i className="fas fa-folder-open" aria-hidden="true" />
+            </button>
+          </span>
+          <span className="settings-unit-slot is-empty" aria-hidden="true">{'\u00a0'}</span>
         </span>
       </span>
     </label>
@@ -138,7 +183,7 @@ export function SettingsToggle({ name, label, description, restartRequired = fal
           <span>{label}</span>
           {restartRequired && <em className="settings-restart-note">Restart required</em>}
         </span>
-        {description && <small title={description}>{description}</small>}
+        {description && <small><OverflowMarquee text={description} /></small>}
       </span>
       <span className="settings-control-area">
         <span className="settings-unit-field">
@@ -172,7 +217,7 @@ export function SettingsPasswordField({ name, label, autoComplete, values, onCha
     <label className={`settings-control-row settings-field-row${disabled ? ' settings-dependent-locked' : ''}`}>
       <span className="settings-control-copy">
         <span className="settings-field-label"><span>{label}</span></span>
-        {description && <small title={description}>{description}</small>}
+        {description && <small><OverflowMarquee text={description} /></small>}
       </span>
       <span className="settings-control-area">
         <span className="settings-unit-field">
