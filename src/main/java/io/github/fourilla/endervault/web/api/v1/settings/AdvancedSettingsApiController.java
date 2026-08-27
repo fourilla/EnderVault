@@ -30,8 +30,8 @@ public class AdvancedSettingsApiController {
     public ActionResponse save(@RequestParam MultiValueMap<String, String> parameters) throws IOException {
         boolean restartRequired = advancedSettingsService.save(advancedSettingsService.updateFrom(parameters));
         String message = restartRequired
-                ? "Advanced settings saved. Restart EnderVault to apply fields marked Restart required."
-                : "Advanced settings saved and applied.";
+                ? "Settings saved. Restart EnderVault to apply fields marked Restart required."
+                : "Settings saved and applied.";
         return ActionResponse.ok(FlashNotification.success(message));
     }
 }

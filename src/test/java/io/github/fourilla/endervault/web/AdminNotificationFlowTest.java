@@ -1307,10 +1307,13 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.browser.defaultView").isString())
                 .andExpect(jsonPath("$.stickyNotes.defaultBackgroundColor").value("#1B3033"))
-                .andExpect(jsonPath("$.fileTools.textAutoLoadMaxMib").isString());
+                .andExpect(jsonPath("$.fileTools.textAutoLoadMaxMib").isString())
+                .andExpect(jsonPath("$.remoteDownload.connectTimeoutSeconds").isNumber())
+                .andExpect(jsonPath("$.remoteDownload.workerThreads").isNumber());
         mockMvc.perform(get("/api/v1/settings/advanced"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.groups").isArray())
+                .andExpect(jsonPath("$.groups[0].fields[1].dependencies[0]").value("shareEnabled"))
                 .andExpect(jsonPath("$.deployment").isArray());
         mockMvc.perform(get("/api/v1/settings/bookmarks"))
                 .andExpect(status().isOk())

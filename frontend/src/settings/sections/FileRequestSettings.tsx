@@ -48,23 +48,27 @@ function Editor({ snapshot, onDirtyChange }: { snapshot: FileRequestSettingsSnap
         <p className="settings-section-note">Existing request metadata remains available when uploads are disabled.</p>
       </SettingsSection>
       <SettingsSection title="Request Defaults" description="Initial limits used when an administrator creates a request link.">
-        <div className={`settings-field-grid${enabled ? '' : ' settings-dependent-locked'}`}>{fields.map((definition) => field(definition))}</div>
+        <div className="settings-field-grid settings-dependent-fields">{fields.map((definition) => field(definition))}</div>
       </SettingsSection>
       <SettingsSection title="Token Policy" description="Controls generated and custom capability tokens."
         action={<label className={`settings-heading-switch${enabled ? '' : ' settings-dependent-locked'}`}><span>Custom tokens</span><input className="settings-switch-input" type="checkbox" checked={Boolean(editor.values.customTokenEnabled)} disabled={!enabled} onChange={(event) => editor.change('customTokenEnabled', event.target.checked)} /></label>}>
-        <div className="settings-field-grid">
-          {field({ name: 'customTokenMinLength', label: 'Minimum custom token length', type: 'number', min: '1', max: '256' }, !customTokenEnabled)}
-          {field({ name: 'customTokenMaxLength', label: 'Maximum custom token length', type: 'number', min: '1', max: '256' }, !customTokenEnabled)}
+        <div className="settings-field-grid settings-dependent-fields">
           {field({ name: 'randomTokenBytes', label: 'Random token bytes', type: 'number', min: '8', max: '64' })}
+          <div className="settings-child-group">
+            {field({ name: 'customTokenMinLength', label: 'Minimum custom token length', type: 'number', min: '1', max: '256' }, !customTokenEnabled)}
+            {field({ name: 'customTokenMaxLength', label: 'Maximum custom token length', type: 'number', min: '1', max: '256' }, !customTokenEnabled)}
+          </div>
         </div>
       </SettingsSection>
       <SettingsSection title="Admission Control" description="Limits concurrent uploads and repeated admission attempts from one IP."
         action={<label className={`settings-heading-switch${enabled ? '' : ' settings-dependent-locked'}`}><span>Rate limit</span><input className="settings-switch-input" type="checkbox" checked={Boolean(editor.values.rateLimitEnabled)} disabled={!enabled} onChange={(event) => editor.change('rateLimitEnabled', event.target.checked)} /></label>}>
-        <div className={`settings-field-grid${enabled ? '' : ' settings-dependent-locked'}`}>
+        <div className="settings-field-grid settings-dependent-fields">
           {field({ name: 'maxConcurrentUploadsPerRequest', label: 'Concurrent uploads per request', type: 'number', min: '1', max: '2' })}
           {field({ name: 'accessLogDedupSeconds', label: 'Access log deduplication', type: 'number', min: '0', max: '86400', unit: 'seconds', description: 'Use 0 to log every accepted access.' })}
-          {field({ name: 'rateLimitMaxAdmissions', label: 'Maximum admissions', type: 'number', min: '1', max: '100000' }, !rateLimitEnabled)}
-          {field({ name: 'rateLimitWindowSeconds', label: 'Admission window', type: 'number', min: '1', max: '86400', unit: 'seconds' }, !rateLimitEnabled)}
+          <div className="settings-child-group">
+            {field({ name: 'rateLimitMaxAdmissions', label: 'Maximum admissions', type: 'number', min: '1', max: '100000' }, !rateLimitEnabled)}
+            {field({ name: 'rateLimitWindowSeconds', label: 'Admission window', type: 'number', min: '1', max: '86400', unit: 'seconds' }, !rateLimitEnabled)}
+          </div>
         </div>
       </SettingsSection>
       <p className="settings-config-path">Stored in <code>{snapshot.configPath}</code></p>

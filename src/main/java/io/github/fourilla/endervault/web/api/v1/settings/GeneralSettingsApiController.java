@@ -32,8 +32,8 @@ public class GeneralSettingsApiController {
         boolean restartRequired = generalSettingsService.requiresRestart(update);
         generalSettingsService.save(update);
         String message = restartRequired
-                ? "General settings saved. Restart EnderVault to apply fields marked Restart required."
-                : "General settings saved and applied.";
+                ? "Settings saved. Restart EnderVault to apply fields marked Restart required."
+                : "Settings saved and applied.";
         return ActionResponse.ok(FlashNotification.success(message));
     }
 }

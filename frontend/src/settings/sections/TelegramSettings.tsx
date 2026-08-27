@@ -49,7 +49,7 @@ function Editor({ snapshot, onDirtyChange }: { snapshot: TelegramSettingsSnapsho
         </div>
       </SettingsSection>
       <SettingsSection title="Activity Types" description="Choose which log categories are sent to Telegram.">
-        <div className={`telegram-activity-settings${enabled ? '' : ' settings-dependent-locked'}`}>
+        <div className={`telegram-activity-settings settings-dependent-fields${enabled ? '' : ' settings-dependent-locked'}`}>
           {snapshot.groups.map((group) => (
             <section className="telegram-activity-group" key={group.name}>
               <h4>{group.name}</h4>

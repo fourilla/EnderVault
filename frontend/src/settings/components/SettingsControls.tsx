@@ -89,7 +89,7 @@ export function SettingsField({ field, values, onChange }: { field: FieldDefinit
   } else if (field.type === 'textarea') {
     control = <textarea name={field.name} rows={3} value={value} disabled={field.disabled} onChange={update} />;
   } else {
-    const input = (
+    control = (
       <input
         name={field.name}
         type={field.type ?? 'text'}
@@ -104,76 +104,102 @@ export function SettingsField({ field, values, onChange }: { field: FieldDefinit
         onChange={update}
       />
     );
-    control = field.unit
-      ? <div className="settings-unit-field">{input}<span>{field.unit}</span></div>
-      : input;
   }
 
   return (
-    <label className={field.disabled ? 'settings-dependent-locked' : undefined}>
-      {label}
-      {control}
-      {field.description && <small>{field.description}</small>}
+    <label className={`settings-control-row settings-field-row${field.type === 'textarea' ? ' is-multiline' : ''}${field.disabled ? ' settings-dependent-locked' : ''}`}>
+      <span className="settings-control-copy">
+        {label}
+        {field.description && <small title={field.description}>{field.description}</small>}
+      </span>
+      <span className="settings-control-area">
+        <span className="settings-unit-field">
+          {control}
+          <span className={`settings-unit-slot${field.unit ? '' : ' is-empty'}`} aria-hidden="true">
+            {field.unit || '\u00a0'}
+          </span>
+        </span>
+      </span>
     </label>
   );
 }
 
-export function SettingsToggle({ name, label, description, values, onChange, disabled = false }: {
+export function SettingsToggle({ name, label, description, restartRequired = false, values, onChange, disabled = false }: {
   name: string;
   label: string;
   description?: string;
+  restartRequired?: boolean;
   disabled?: boolean;
 } & ValuesProps) {
   return (
-    <label className={`settings-inline-toggle${disabled ? ' settings-dependent-locked' : ''}`}>
-      <span>
-        <strong>{label}</strong>
-        {description && <small>{description}</small>}
+    <label className={`settings-control-row settings-inline-toggle${disabled ? ' settings-dependent-locked' : ''}`}>
+      <span className="settings-control-copy">
+        <span className="settings-field-label">
+          <span>{label}</span>
+          {restartRequired && <em className="settings-restart-note">Restart required</em>}
+        </span>
+        {description && <small title={description}>{description}</small>}
       </span>
-      <input
-        className="settings-switch-input"
-        name={name}
-        type="checkbox"
-        checked={Boolean(values[name])}
-        disabled={disabled}
-        onChange={(event) => onChange(name, event.target.checked)}
-      />
+      <span className="settings-control-area">
+        <span className="settings-unit-field">
+          <span className="settings-switch-control">
+            <input
+              className="settings-switch-input"
+              name={name}
+              type="checkbox"
+              checked={Boolean(values[name])}
+              disabled={disabled}
+              onChange={(event) => onChange(name, event.target.checked)}
+            />
+          </span>
+          <span className="settings-unit-slot is-empty" aria-hidden="true">{'\u00a0'}</span>
+        </span>
+      </span>
     </label>
   );
 }
 
-export function SettingsPasswordField({ name, label, autoComplete, values, onChange, disabled = false }: {
+export function SettingsPasswordField({ name, label, autoComplete, values, onChange, disabled = false, description }: {
   name: string;
   label: string;
   autoComplete: string;
   disabled?: boolean;
+  description?: string;
 } & ValuesProps) {
   const [visible, setVisible] = useState(false);
   const value = String(values[name] ?? '');
   return (
-    <label className={disabled ? 'settings-dependent-locked' : undefined}>
-      <span>{label}</span>
-      <span className="password-field">
-        <input
-          type={visible ? 'text' : 'password'}
-          name={name}
-          value={value}
-          autoComplete={autoComplete}
-          disabled={disabled}
-          onChange={(event) => onChange(name, event.target.value)}
-        />
-        {value && (
-          <button
-            className="ghost icon-button password-toggle"
-            type="button"
-            title={visible ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
-            aria-label={visible ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
-            aria-pressed={visible}
-            onClick={() => setVisible((current) => !current)}
-          >
-            <i className={`fas ${visible ? 'fa-eye-slash' : 'fa-eye'}`} aria-hidden="true" />
-          </button>
-        )}
+    <label className={`settings-control-row settings-field-row${disabled ? ' settings-dependent-locked' : ''}`}>
+      <span className="settings-control-copy">
+        <span className="settings-field-label"><span>{label}</span></span>
+        {description && <small title={description}>{description}</small>}
+      </span>
+      <span className="settings-control-area">
+        <span className="settings-unit-field">
+          <span className="password-field">
+            <input
+              type={visible ? 'text' : 'password'}
+              name={name}
+              value={value}
+              autoComplete={autoComplete}
+              disabled={disabled}
+              onChange={(event) => onChange(name, event.target.value)}
+            />
+            {value && (
+              <button
+                className="ghost icon-button password-toggle"
+                type="button"
+                title={visible ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
+                aria-label={visible ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
+                aria-pressed={visible}
+                onClick={() => setVisible((current) => !current)}
+              >
+                <i className={`fas ${visible ? 'fa-eye-slash' : 'fa-eye'}`} aria-hidden="true" />
+              </button>
+            )}
+          </span>
+          <span className="settings-unit-slot is-empty" aria-hidden="true">{'\u00a0'}</span>
+        </span>
       </span>
     </label>
   );

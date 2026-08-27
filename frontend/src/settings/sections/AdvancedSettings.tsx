@@ -1,7 +1,7 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, type ReactNode } from 'react';
 import { SettingsField, SettingsSaveBar, SettingsSection, SettingsToggle } from '../components/SettingsControls';
 import { useSettingsEditor } from '../hooks/useSettingsEditor';
-import type { AdvancedSettingsSnapshot, FormValues } from '../types';
+import type { AdvancedSettingField, AdvancedSettingsSnapshot, FormValues } from '../types';
 import { useSettingsSnapshot } from '../hooks/useSettingsSnapshot';
 
 const toValues = (snapshot: AdvancedSettingsSnapshot): FormValues => Object.fromEntries(
@@ -11,8 +11,10 @@ const toValues = (snapshot: AdvancedSettingsSnapshot): FormValues => Object.from
   ])),
 );
 
-function AdvancedSettingsEditor({ snapshot, onDirtyChange }: {
+function AdvancedSettingsEditor({ snapshot, groupIds, includeDeployment, onDirtyChange }: {
   snapshot: AdvancedSettingsSnapshot;
+  groupIds: string[];
+  includeDeployment: boolean;
   onDirtyChange: (dirty: boolean) => void;
 }) {
   const sensitiveNames = useMemo(() => new Set(snapshot.groups
@@ -31,44 +33,68 @@ function AdvancedSettingsEditor({ snapshot, onDirtyChange }: {
   }, [sensitiveNames]);
   const editor = useSettingsEditor(toValues(snapshot), '/api/v1/settings/advanced', onDirtyChange, confirmSave);
 
+  const renderField = (field: AdvancedSettingField) => {
+    const disabled = field.dependencies.some((dependency) => !Boolean(editor.values[dependency]));
+    return field.type === 'boolean' ? (
+      <SettingsToggle
+        key={field.name}
+        name={field.name}
+        label={field.label}
+        description={field.description}
+        restartRequired={field.restartRequired}
+        values={editor.values}
+        onChange={editor.change}
+        disabled={disabled}
+      />
+    ) : (
+      <SettingsField
+        key={field.name}
+        field={{
+          name: field.name,
+          label: field.label,
+          type: field.type,
+          description: field.description,
+          min: field.min || undefined,
+          max: field.max || undefined,
+          step: field.step || undefined,
+          unit: field.unit || undefined,
+          restartRequired: field.restartRequired,
+          options: field.choices,
+          disabled,
+        }}
+        values={editor.values}
+        onChange={editor.change}
+      />
+    );
+  };
+
+  const renderTree = (fields: AdvancedSettingField[], parent?: string): ReactNode => {
+    const children = fields.filter((field) => {
+      const immediateParent = field.dependencies.at(-1);
+      return immediateParent === parent || (!parent && !immediateParent);
+    });
+    return children.map((field) => {
+      const descendants = fields.some((candidate) => candidate.dependencies.at(-1) === field.name);
+      return (
+        <div className="settings-field-node" key={field.name}>
+          {renderField(field)}
+          {descendants && <div className="settings-child-group">{renderTree(fields, field.name)}</div>}
+        </div>
+      );
+    });
+  };
+
+  const visibleGroups = snapshot.groups.filter((group) => groupIds.includes(group.id));
+
   return (
     <form className="general-settings-form advanced-settings-form settings-spa-form" onSubmit={(event) => { event.preventDefault(); void editor.save(); }}>
       <SettingsSaveBar {...editor} onSave={() => void editor.save()} onDiscard={editor.discard} />
-      {snapshot.groups.map((group) => (
+      {visibleGroups.map((group) => (
         <SettingsSection key={group.id} id={group.id} title={group.title} description={group.description}>
-          <div className="settings-field-grid advanced-settings-grid">
-            {group.fields.map((field) => field.type === 'boolean' ? (
-              <SettingsToggle
-                key={field.name}
-                name={field.name}
-                label={field.label}
-                description={`${field.description}${field.restartRequired ? ' Restart required.' : ''}`}
-                values={editor.values}
-                onChange={editor.change}
-              />
-            ) : (
-              <SettingsField
-                key={field.name}
-                field={{
-                  name: field.name,
-                  label: field.label,
-                  type: field.type,
-                  description: field.description,
-                  min: field.min || undefined,
-                  max: field.max || undefined,
-                  step: field.step || undefined,
-                  unit: field.unit || undefined,
-                  restartRequired: field.restartRequired,
-                  options: field.choices,
-                }}
-                values={editor.values}
-                onChange={editor.change}
-              />
-            ))}
-          </div>
+          <div className="settings-field-grid">{renderTree(group.fields)}</div>
         </SettingsSection>
       ))}
-      <SettingsSection id="deployment" title="Deployment" description="Effective values managed outside the running web UI.">
+      {includeDeployment && <SettingsSection id="deployment" title="Deployment" description="Effective values managed outside the running web UI.">
         <dl className="settings-readonly-list">
           {snapshot.deployment.map((item) => (
             <div key={item.label}>
@@ -77,16 +103,20 @@ function AdvancedSettingsEditor({ snapshot, onDirtyChange }: {
             </div>
           ))}
         </dl>
-      </SettingsSection>
+      </SettingsSection>}
       <p className="settings-config-path">Stored in <code>{snapshot.configPath}</code></p>
     </form>
   );
 }
 
-export function AdvancedSettings({ onDirtyChange }: { onDirtyChange: (dirty: boolean) => void }) {
+export function AdvancedSettings({ groupIds = [], includeDeployment = false, onDirtyChange }: {
+  groupIds?: string[];
+  includeDeployment?: boolean;
+  onDirtyChange: (dirty: boolean) => void;
+}) {
   const { snapshot, error } = useSettingsSnapshot<AdvancedSettingsSnapshot>('/api/v1/settings/advanced');
 
   if (error) return <div className="settings-spa-error">{error}</div>;
   if (!snapshot) return <div className="settings-spa-loading">Loading advanced settings...</div>;
-  return <AdvancedSettingsEditor snapshot={snapshot} onDirtyChange={onDirtyChange} />;
+  return <AdvancedSettingsEditor snapshot={snapshot} groupIds={groupIds} includeDeployment={includeDeployment} onDirtyChange={onDirtyChange} />;
 }

@@ -36,7 +36,7 @@ function Editor({ snapshot, onDirtyChange }: { snapshot: BookmarkSettingsSnapsho
       </SettingsSection>
       <SettingsSection title="Metadata Fetch" description="Fetch page titles and favicons for external HTTP(S) links."
         action={<label className="settings-heading-switch"><span>Enabled</span><input className="settings-switch-input" type="checkbox" checked={metadataEnabled} onChange={(event) => editor.change('metadataFetchEnabled', event.target.checked)} /></label>}>
-        <div className={`settings-field-grid${metadataEnabled ? '' : ' settings-dependent-locked'}`}>
+        <div className="settings-field-grid settings-child-group">
           <SettingsToggle name="blockPrivateNetworks" label="Block private networks" description="Keep enabled to reduce SSRF risk against localhost and LAN addresses." values={editor.values} onChange={editor.change} disabled={!metadataEnabled} />
           {field('allowedPorts', 'Allowed ports')}
           {field('connectTimeoutSeconds', 'Connect timeout', { name: '', label: '', type: 'number', min: '1', max: '3600', unit: 'seconds' })}

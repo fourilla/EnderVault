@@ -9,7 +9,26 @@ import { SessionSettings } from './sections/SessionSettings';
 import { TelegramSettings } from './sections/TelegramSettings';
 import { VpnSettings } from './sections/VpnSettings';
 
-type InternalSectionId = 'general' | 'advanced' | 'bookmarks' | 'file-requests' | 'vpn' | 'account' | 'passkeys' | 'sessions' | 'telegram-alerts';
+type InternalSectionId =
+  | 'appearance'
+  | 'files'
+  | 'file-tools'
+  | 'archive-safety'
+  | 'bookmarks'
+  | 'share-links'
+  | 'file-requests'
+  | 'uploads'
+  | 'thumbnails'
+  | 'remote-downloads'
+  | 'vpn'
+  | 'account'
+  | 'passkeys'
+  | 'sessions'
+  | 'access-identity'
+  | 'tasks-staging'
+  | 'metadata-activity'
+  | 'telegram-alerts'
+  | 'deployment';
 
 type SettingsLink = {
   id: string;
@@ -25,23 +44,41 @@ type SettingsGroup = { id: string; title: string; links: SettingsLink[] };
 const settingsGroups: SettingsGroup[] = [
   {
     id: 'application', title: 'Application', links: [
-      { id: 'general', internal: 'general', href: '/admin/settings?section=general', icon: 'fas fa-sliders', title: 'General', description: 'Browser, storage, recent items, file tools, and remote downloads' },
-      { id: 'advanced', internal: 'advanced', href: '/admin/settings?section=advanced', icon: 'fas fa-gears', title: 'Advanced', description: 'Sharing, transfer engines, maintenance, and deployment' },
+      { id: 'appearance', internal: 'appearance', href: '/admin/settings?section=appearance', icon: 'fas fa-display', title: 'Appearance & Browser', description: 'Browser defaults and sticky note appearance' },
+      { id: 'files', internal: 'files', href: '/admin/settings?section=files', icon: 'fas fa-folder-tree', title: 'Files & Storage', description: 'Conflicts, recent items, and trash retention' },
+      { id: 'file-tools', internal: 'file-tools', href: '/admin/settings?section=file-tools', icon: 'fas fa-screwdriver-wrench', title: 'File Tools', description: 'Text, comic, and draft limits' },
+      { id: 'archive-safety', internal: 'archive-safety', href: '/admin/settings?section=archive-safety', icon: 'fas fa-file-zipper', title: 'Archive Safety', description: 'Extraction limits and archive manifest caching' },
+      { id: 'thumbnails', internal: 'thumbnails', href: '/admin/settings?section=thumbnails', icon: 'fas fa-images', title: 'Thumbnails', description: 'Enabled formats, cache, and generator workers' },
       { id: 'bookmarks', internal: 'bookmarks', href: '/admin/settings?section=bookmarks', icon: 'fas fa-bookmark', title: 'Bookmarks', description: 'Link behavior, metadata fetching, and favicon cache' },
+    ],
+  },
+  {
+    id: 'sharing', title: 'Sharing', links: [
+      { id: 'share-links', internal: 'share-links', href: '/admin/settings?section=share-links', icon: 'fas fa-share-nodes', title: 'Share Links', description: 'Public read-only links, tokens, and expiration' },
       { id: 'file-requests', internal: 'file-requests', href: '/admin/settings?section=file-requests', icon: 'fas fa-inbox', title: 'File Requests', description: 'Upload link defaults, admission limits, and access logs' },
-      { id: 'vpn', internal: 'vpn', href: '/admin/settings?section=vpn', icon: 'fas fa-shield-halved', title: 'VPN Egress', description: 'Private outbound proxy and tunnel health policy' },
+    ],
+  },
+  {
+    id: 'transfer', title: 'Transfers & Network', links: [
+      { id: 'uploads', internal: 'uploads', href: '/admin/settings?section=uploads', icon: 'fas fa-cloud-arrow-up', title: 'Uploads', description: 'Resumable chunks, concurrency, retention, and cleanup' },
+      { id: 'remote-downloads', internal: 'remote-downloads', href: '/admin/settings?section=remote-downloads', icon: 'fas fa-cloud-arrow-down', title: 'Remote Downloads', description: 'Direct URL policy, workers, retries, and history' },
+      { id: 'vpn', internal: 'vpn', href: '/admin/settings?section=vpn', icon: 'fas fa-shield-halved', title: 'VPN Egress', description: 'Startup route, private proxy, and tunnel health policy' },
     ],
   },
   {
     id: 'security', title: 'Security', links: [
       { id: 'account', internal: 'account', href: '/admin/settings?section=account', icon: 'fas fa-user-lock', title: 'Admin Account', description: 'Admin ID, password, and password login policy' },
-      { id: 'passkeys', internal: 'passkeys', href: '/admin/settings?section=passkeys', icon: 'fas fa-key', title: 'Passkeys', description: 'Trusted devices and passkey registration' },
+      { id: 'passkeys', internal: 'passkeys', href: '/admin/settings?section=passkeys', icon: 'fas fa-key', title: 'Passkey Devices', description: 'Trusted devices and passkey registration' },
       { id: 'sessions', internal: 'sessions', href: '/admin/settings?section=sessions', icon: 'fas fa-laptop', title: 'Sessions', description: 'Concurrent login and idle expiration policy' },
+      { id: 'access-identity', internal: 'access-identity', href: '/admin/settings?section=access-identity', icon: 'fas fa-fingerprint', title: 'Access & Identity', description: 'Public URL, reverse proxies, and passkey identity' },
     ],
   },
   {
-    id: 'notifications', title: 'Notifications', links: [
+    id: 'operations', title: 'Operations', links: [
+      { id: 'tasks-staging', internal: 'tasks-staging', href: '/admin/settings?section=tasks-staging', icon: 'fas fa-list-check', title: 'Tasks & Staging', description: 'Pending decisions, temporary artifacts, and task workers' },
+      { id: 'metadata-activity', internal: 'metadata-activity', href: '/admin/settings?section=metadata-activity', icon: 'fas fa-clipboard-list', title: 'Metadata & Activity Logs', description: 'Inspector limits and activity log retention' },
       { id: 'telegram-alerts', internal: 'telegram-alerts', href: '/admin/settings?section=telegram-alerts', icon: 'fab fa-telegram', title: 'Telegram Alerts', description: 'Bot connection and activity notification types' },
+      { id: 'deployment', internal: 'deployment', href: '/admin/settings?section=deployment', icon: 'fas fa-server', title: 'Deployment', description: 'Read-only storage, metadata, and VPN control topology' },
     ],
   },
 ];
@@ -54,7 +91,7 @@ const internalSections = Object.fromEntries(
 
 const sectionFromLocation = (): InternalSectionId => {
   const requested = new URLSearchParams(window.location.search).get('section');
-  return requested && requested in internalSections ? requested as InternalSectionId : 'general';
+  return requested && requested in internalSections ? requested as InternalSectionId : 'appearance';
 };
 
 export function SettingsApp() {
@@ -90,7 +127,7 @@ export function SettingsApp() {
 
   useEffect(() => {
     const url = new URL(window.location.href);
-    if (!url.searchParams.has('section')) {
+    if (url.searchParams.get('section') !== section) {
       url.searchParams.set('section', section);
       window.history.replaceState({ settingsSection: section }, '', url);
     }
@@ -130,15 +167,25 @@ export function SettingsApp() {
   const editor = useMemo(() => {
     const props = { onDirtyChange: setDirty };
     switch (section) {
-      case 'advanced': return <AdvancedSettings {...props} />;
-      case 'bookmarks': return <BookmarkSettings {...props} />;
-      case 'file-requests': return <FileRequestSettings {...props} />;
-      case 'vpn': return <VpnSettings {...props} />;
-      case 'account': return <AccountSettings {...props} />;
-      case 'passkeys': return <PasskeySettings {...props} />;
-      case 'sessions': return <SessionSettings {...props} />;
-      case 'telegram-alerts': return <TelegramSettings {...props} />;
-      default: return <GeneralSettings {...props} />;
+      case 'appearance': return <GeneralSettings key={section} scope="appearance" {...props} />;
+      case 'files': return <GeneralSettings key={section} scope="files" {...props} />;
+      case 'file-tools': return <GeneralSettings key={section} scope="file-tools" {...props} />;
+      case 'archive-safety': return <AdvancedSettings key={section} groupIds={['archive']} {...props} />;
+      case 'share-links': return <AdvancedSettings key={section} groupIds={['sharing']} {...props} />;
+      case 'uploads': return <AdvancedSettings key={section} groupIds={['uploads']} {...props} />;
+      case 'thumbnails': return <AdvancedSettings key={section} groupIds={['thumbnails']} {...props} />;
+      case 'remote-downloads': return <GeneralSettings key={section} scope="remote-downloads" {...props} />;
+      case 'access-identity': return <AdvancedSettings key={section} groupIds={['access']} {...props} />;
+      case 'tasks-staging': return <AdvancedSettings key={section} groupIds={['staging', 'tasks']} {...props} />;
+      case 'metadata-activity': return <AdvancedSettings key={section} groupIds={['metadata', 'activity']} {...props} />;
+      case 'deployment': return <AdvancedSettings key={section} includeDeployment {...props} />;
+      case 'bookmarks': return <BookmarkSettings key={section} {...props} />;
+      case 'file-requests': return <FileRequestSettings key={section} {...props} />;
+      case 'vpn': return <VpnSettings key={section} {...props} />;
+      case 'account': return <AccountSettings key={section} {...props} />;
+      case 'passkeys': return <PasskeySettings key={section} {...props} />;
+      case 'sessions': return <SessionSettings key={section} {...props} />;
+      case 'telegram-alerts': return <TelegramSettings key={section} {...props} />;
     }
   }, [section]);
 

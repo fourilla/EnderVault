@@ -199,27 +199,6 @@ button.settings-spa-nav-item.is-active {
   color: var(--text);
 }
 
-.settings-directory-field {
-  display: grid;
-  gap: var(--space-sm);
-  min-width: 0;
-}
-
-.settings-directory-field > span,
-.settings-directory-field > small {
-  color: var(--muted);
-}
-
-.settings-directory-field > span {
-  font-size: var(--font-size-xs);
-  font-weight: 700;
-}
-
-.settings-directory-field > small {
-  font-size: var(--font-size-2xs);
-  line-height: 1.5;
-}
-
 .settings-directory-input {
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--control-height);

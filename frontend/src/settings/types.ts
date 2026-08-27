@@ -58,10 +58,12 @@ export type GeneralSettingsSnapshot = {
     directEnabled: boolean;
     blockPrivateNetworks: boolean;
     allowedPorts: string;
+    connectTimeoutSeconds: number;
     responseTimeoutSeconds: number;
     maxRedirects: number;
     maxFileSizeBytes: number;
     historyLimit: number;
+    workerThreads: number;
     maxRetries: number;
     skipInspectByDefault: boolean;
     defaultTargetDirectory: string;
@@ -84,6 +86,7 @@ export type AdvancedSettingField = {
   unit: string;
   restartRequired: boolean;
   confirmationRequired: boolean;
+  dependencies: string[];
   choices: AdvancedSettingChoice[];
 };
 
@@ -136,6 +139,7 @@ export type FileRequestSettingsSnapshot = {
 };
 
 export type VpnSettingsSnapshot = {
+  initialRoute: string;
   enabled: boolean;
   proxyHost: string;
   proxyPort: number;

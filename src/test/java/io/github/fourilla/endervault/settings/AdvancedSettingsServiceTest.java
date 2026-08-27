@@ -118,8 +118,14 @@ class AdvancedSettingsServiceTest {
 
         assertThat(snapshot.groups())
                 .extracting(AdvancedSettingsService.SettingGroup::id)
-                .containsExactly("sharing", "transfer", "archive", "operations", "access");
-        assertThat(snapshot.groups().stream().mapToInt(group -> group.fields().size()).sum()).isEqualTo(50);
+                .containsExactly("sharing", "uploads", "thumbnails", "archive", "staging", "tasks", "metadata", "activity", "access");
+        assertThat(snapshot.groups().stream().mapToInt(group -> group.fields().size()).sum()).isEqualTo(47);
+        assertThat(field(snapshot, "shareDefaultExpirationDays").dependencies())
+                .containsExactly("shareEnabled");
+        assertThat(field(snapshot, "shareCustomTokenMinLength").dependencies())
+                .containsExactly("shareEnabled", "shareCustomTokenEnabled");
+        assertThat(field(snapshot, "passkeyAllowedOrigins").dependencies())
+                .containsExactly("passkeysEnabled");
         assertThat(snapshot.deployment())
                 .extracting(AdvancedSettingsService.ReadOnlySetting::label)
                 .contains("Configuration file", "Storage root", "VPN control key file", "VPN control timeout");
@@ -145,11 +151,17 @@ class AdvancedSettingsServiceTest {
             AdvancedSettingsService.AdvancedSettingsSnapshot snapshot,
             String fieldName
     ) {
+        return field(snapshot, fieldName).value();
+    }
+
+    private AdvancedSettingsService.SettingField field(
+            AdvancedSettingsService.AdvancedSettingsSnapshot snapshot,
+            String fieldName
+    ) {
         return snapshot.groups().stream()
                 .flatMap(group -> group.fields().stream())
                 .filter(field -> field.name().equals(fieldName))
                 .findFirst()
-                .orElseThrow()
-                .value();
+                .orElseThrow();
     }
 }

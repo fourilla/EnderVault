@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.fourilla.endervault.config.LocalPropertiesFile;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.outbound.NetworkRoute;
 import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthService;
 import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthState;
 import io.github.fourilla.endervault.outbound.vpn.VpnTunnelHealthProbe;
@@ -28,6 +29,7 @@ class VpnSettingsServiceTest {
         NasProperties properties = new NasProperties();
         VpnSettingsService service = service(properties, configFile);
         MultiValueMap<String, String> parameters = validParameters();
+        parameters.set("initialRoute", "vpn-required");
         parameters.set("proxyHost", "vpn");
         parameters.set("proxyPort", "8899");
         parameters.set("tunnelHealthUrl", "http://vpn:9999/");
@@ -39,12 +41,14 @@ class VpnSettingsServiceTest {
 
         String saved = Files.readString(configFile, StandardCharsets.UTF_8);
         assertThat(saved)
+                .contains("nas.outbound.initial-route=vpn-required")
                 .contains("nas.outbound.vpn.enabled=false")
                 .contains("nas.outbound.vpn.proxy-host=vpn")
                 .contains("nas.outbound.vpn.proxy-port=8899")
                 .contains("nas.outbound.vpn.tunnel-health-url=http://vpn:9999/")
                 .contains("nas.outbound.vpn.health-check-interval-ms=45000");
         assertThat(properties.getOutbound().getVpn().getProxyHost()).isEqualTo("vpn");
+        assertThat(properties.getOutbound().getInitialRoute()).isEqualTo(NetworkRoute.VPN_REQUIRED);
         assertThat(properties.getOutbound().getVpn().getProxyPort()).isEqualTo(8899);
         assertThat(properties.getOutbound().getVpn().getHealthCheckIntervalMs()).isEqualTo(45000L);
         assertThat(health.state()).isEqualTo(VpnProxyHealthState.DISABLED);
@@ -82,6 +86,7 @@ class VpnSettingsServiceTest {
 
     private MultiValueMap<String, String> validParameters() {
         MultiValueMap<String, String> parameters = new LinkedMultiValueMap<>();
+        parameters.add("initialRoute", "direct");
         parameters.add("proxyHost", "");
         parameters.add("proxyPort", "8888");
         parameters.add("healthConnectTimeoutSeconds", "1.5");

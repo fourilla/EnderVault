@@ -24,12 +24,15 @@ const browserFields: FieldDefinition[] = [
   { name: 'defaultPageSize', label: 'Default page size', type: 'number', min: '1', max: '1000' },
 ];
 
-const fileToolFields: FieldDefinition[] = [
+const textToolFields: FieldDefinition[] = [
   { name: 'textAutoLoadMaxMib', label: 'Text auto-load limit', type: 'number', min: '0.001', step: 'any', unit: 'MiB' },
   { name: 'textManualLoadMaxMib', label: 'Text manual-load limit', type: 'number', min: '0.001', step: 'any', unit: 'MiB' },
   { name: 'textDraftRetentionHours', label: 'Text draft retention', type: 'number', min: '1', unit: 'hours' },
   { name: 'textDraftCleanupIntervalMinutes', label: 'Draft cleanup interval', type: 'number', min: '1', step: 'any', unit: 'minutes' },
   { name: 'textDraftLeaseSeconds', label: 'Text editor lease', type: 'number', min: '30', unit: 'seconds' },
+];
+
+const comicToolFields: FieldDefinition[] = [
   { name: 'comicMaxPages', label: 'Comic max pages', type: 'number', min: '1', max: '50000' },
   { name: 'comicPageMaxMib', label: 'Comic page limit', type: 'number', min: '0.001', step: 'any', unit: 'MiB' },
   { name: 'comicInfoMaxKib', label: 'Comic info limit', type: 'number', min: '1', step: 'any', unit: 'KiB' },
@@ -61,10 +64,12 @@ const toValues = (snapshot: GeneralSettingsSnapshot): FormValues => ({
   remoteDirectEnabled: snapshot.remoteDownload.directEnabled,
   remoteBlockPrivateNetworks: snapshot.remoteDownload.blockPrivateNetworks,
   remoteAllowedPorts: snapshot.remoteDownload.allowedPorts,
+  remoteConnectTimeoutSeconds: String(snapshot.remoteDownload.connectTimeoutSeconds),
   remoteResponseTimeoutSeconds: String(snapshot.remoteDownload.responseTimeoutSeconds),
   remoteMaxRedirects: String(snapshot.remoteDownload.maxRedirects),
   remoteMaxFileSizeGib: snapshot.remoteDownload.maxFileSizeGib,
   remoteHistoryLimit: String(snapshot.remoteDownload.historyLimit),
+  remoteWorkerThreads: String(snapshot.remoteDownload.workerThreads),
   remoteMaxRetries: String(snapshot.remoteDownload.maxRetries),
   remoteSkipInspectByDefault: snapshot.remoteDownload.skipInspectByDefault,
   remoteDefaultTargetDirectory: snapshot.remoteDownload.defaultTargetDirectory,
@@ -84,8 +89,11 @@ const contrastRatio = (first: string, second: string) => {
   return (brighter + 0.05) / (darker + 0.05);
 };
 
-function GeneralSettingsEditor({ snapshot, onDirtyChange }: {
+export type GeneralSettingsScope = 'appearance' | 'files' | 'file-tools' | 'remote-downloads';
+
+function GeneralSettingsEditor({ snapshot, scope, onDirtyChange }: {
   snapshot: GeneralSettingsSnapshot;
+  scope: GeneralSettingsScope;
   onDirtyChange: (dirty: boolean) => void;
 }) {
   const applyStickyNoteTheme = useCallback((values: FormValues) => {
@@ -136,11 +144,11 @@ function GeneralSettingsEditor({ snapshot, onDirtyChange }: {
     <form className="general-settings-form settings-spa-form" onSubmit={(event) => { event.preventDefault(); void editor.save(); }}>
       <SettingsSaveBar {...editor} onSave={() => void editor.save()} onDiscard={editor.discard} />
 
-      <SettingsSection title="Browser Defaults" description="Used when the browser has no saved preference cookie.">
+      {scope === 'appearance' && <SettingsSection title="Browser Defaults" description="Used when the browser has no saved preference cookie.">
         <div className="settings-field-grid">{browserFields.map(field)}</div>
-      </SettingsSection>
+      </SettingsSection>}
 
-      <SettingsSection id="sticky-note-theme" title="Sticky Notes" description="Sets one shared note theme for every administrator device.">
+      {scope === 'appearance' && <SettingsSection id="sticky-note-theme" title="Sticky Notes" description="Sets one shared note theme for every administrator device.">
         <div className="sticky-note-theme-editor">
           <div className="sticky-note-theme-preview-stage">
             <article className="sticky-note-theme-preview" style={stickyStyle}>
@@ -166,9 +174,9 @@ function GeneralSettingsEditor({ snapshot, onDirtyChange }: {
             </button>
           </div>
         </div>
-      </SettingsSection>
+      </SettingsSection>}
 
-      <SettingsSection title="File Conflicts" description="Default behavior when a file operation finds the same name.">
+      {scope === 'files' && <SettingsSection title="File Conflicts" description="Default behavior when a file operation finds the same name.">
         <div className="settings-field-grid">
           {field({ name: 'defaultConflictPolicy', label: 'Default conflict policy', type: 'select', options: [
             { value: 'cancel', label: 'Cancel' },
@@ -176,17 +184,17 @@ function GeneralSettingsEditor({ snapshot, onDirtyChange }: {
             { value: 'overwrite', label: 'Overwrite files' },
           ] })}
         </div>
-      </SettingsSection>
+      </SettingsSection>}
 
-      <SettingsSection
+      {scope === 'files' && <SettingsSection
         title="Recent Items"
         description="Controls the virtual Recent page and recording policy."
         action={<label className="settings-heading-switch"><span>Record directories</span><input className="settings-switch-input" type="checkbox" checked={Boolean(editor.values.recordDirectories)} onChange={(event) => editor.change('recordDirectories', event.target.checked)} /></label>}
       >
         <div className="settings-field-grid">{field({ name: 'recentMaxItems', label: 'Max items', type: 'number', min: '1', max: '1000' })}</div>
-      </SettingsSection>
+      </SettingsSection>}
 
-      <SettingsSection
+      {scope === 'files' && <SettingsSection
         title="Trash"
         description="Retention applies to newly trashed items; scheduler timing may require restart."
         action={<label className="settings-heading-switch"><span>Cleanup on startup</span><input className="settings-switch-input" type="checkbox" checked={Boolean(editor.values.trashCleanupOnStartup)} onChange={(event) => editor.change('trashCleanupOnStartup', event.target.checked)} /></label>}
@@ -195,66 +203,95 @@ function GeneralSettingsEditor({ snapshot, onDirtyChange }: {
           {field({ name: 'trashRetentionDays', label: 'Retention days', type: 'number', min: '1' })}
           {field({ name: 'trashCleanupIntervalMinutes', label: 'Cleanup interval', type: 'number', min: '1', step: 'any', unit: 'minutes', restartRequired: true })}
         </div>
-      </SettingsSection>
+      </SettingsSection>}
 
-      <SettingsSection title="File Tools" description="Limits for text editor loading and CBZ comic preview safety.">
-        <div className="settings-field-grid">{fileToolFields.map(field)}</div>
-      </SettingsSection>
+      {scope === 'file-tools' && <SettingsSection title="Text Tools" description="Loading thresholds, draft retention, and editor lease policy.">
+        <div className="settings-field-grid">{textToolFields.map(field)}</div>
+      </SettingsSection>}
 
-      <SettingsSection
-        title="Remote Download"
-        description="Security limits and task history for direct URL downloads."
+      {scope === 'file-tools' && <SettingsSection title="Comic Tools" description="CBZ page-count, page-size, and metadata safety limits.">
+        <div className="settings-field-grid">{comicToolFields.map(field)}</div>
+      </SettingsSection>}
+
+      {scope === 'remote-downloads' && <SettingsSection
+        title="Availability"
+        description="Controls the remote download subsystem without changing retained history."
         action={<label className="settings-heading-switch"><span>Enabled</span><input className="settings-switch-input" type="checkbox" checked={remoteEnabled} onChange={(event) => editor.change('remoteEnabled', event.target.checked)} /></label>}
       >
-        <div className={`settings-field-grid${remoteEnabled ? '' : ' settings-dependent-locked'}`}>
+        <p className="settings-section-note">Existing jobs and history remain available while new downloads are disabled.</p>
+      </SettingsSection>}
+
+      {scope === 'remote-downloads' && <SettingsSection
+        title="Direct URL Downloads"
+        description="Network and inspection policy for HTTP(S) downloads."
+      >
+        <div className="settings-field-grid settings-dependent-fields">
           <SettingsToggle name="remoteDirectEnabled" label="Direct URL downloads" description="Allow downloads from exact URLs." values={editor.values} onChange={editor.change} disabled={!remoteEnabled} />
-          <SettingsToggle name="remoteBlockPrivateNetworks" label="Block private networks" description="Keep enabled to reduce SSRF risk." values={editor.values} onChange={editor.change} disabled={!directEnabled} />
-          {[
-            { name: 'remoteAllowedPorts', label: 'Allowed ports', disabled: !directEnabled },
-            { name: 'remoteResponseTimeoutSeconds', label: 'Response timeout', type: 'number' as const, min: '1', max: '3600', unit: 'seconds', disabled: !directEnabled },
-            { name: 'remoteMaxRedirects', label: 'Max redirects', type: 'number' as const, min: '0', max: '50', disabled: !directEnabled },
-            { name: 'remoteMaxFileSizeGib', label: 'Maximum file size', type: 'number' as const, min: '0', step: 'any', unit: 'GiB', description: 'Use 0 for no application-level size limit.', disabled: !directEnabled },
-            { name: 'remoteHistoryLimit', label: 'History limit', type: 'number' as const, min: '1', max: '1000', restartRequired: true, disabled: !remoteEnabled },
-            { name: 'remoteMaxRetries', label: 'Maximum retries', type: 'number' as const, min: '0', max: '5', disabled: !remoteEnabled },
-          ].map(field)}
-          <label className={`settings-directory-field${directEnabled ? '' : ' settings-dependent-locked'}`}>
-            <span>Default destination</span>
-            <span className="settings-directory-input">
-              <input
-                id="remoteDefaultTargetDirectory"
-                name="remoteDefaultTargetDirectory"
-                type="text"
-                value={String(editor.values.remoteDefaultTargetDirectory)}
-                disabled={!directEnabled}
-                onChange={(event) => editor.change('remoteDefaultTargetDirectory', event.target.value)}
-              />
-              <button
-                className="ghost icon-button"
-                type="button"
-                disabled={!directEnabled}
-                data-directory-picker-open
-                data-directory-picker-target="remoteDefaultTargetDirectory"
-                title="Browse directories"
-                aria-label="Browse directories"
-              >
-                <i className="fas fa-folder-open" aria-hidden="true" />
-              </button>
+          <div className="settings-child-group">
+            <SettingsToggle name="remoteBlockPrivateNetworks" label="Block private networks" description="Keep enabled to reduce SSRF risk." values={editor.values} onChange={editor.change} disabled={!directEnabled} />
+            {[
+              { name: 'remoteAllowedPorts', label: 'Allowed ports', disabled: !directEnabled },
+              { name: 'remoteConnectTimeoutSeconds', label: 'Connect timeout', type: 'number' as const, min: '1', max: '3600', unit: 'seconds', disabled: !directEnabled },
+              { name: 'remoteResponseTimeoutSeconds', label: 'Response timeout', type: 'number' as const, min: '1', max: '3600', unit: 'seconds', disabled: !directEnabled },
+              { name: 'remoteMaxRedirects', label: 'Max redirects', type: 'number' as const, min: '0', max: '50', disabled: !directEnabled },
+              { name: 'remoteMaxFileSizeGib', label: 'Maximum file size', type: 'number' as const, min: '0', step: 'any', unit: 'GiB', description: 'Use 0 for no application-level size limit.', disabled: !directEnabled },
+            ].map(field)}
+            <label className={`settings-control-row settings-field-row${directEnabled ? '' : ' settings-dependent-locked'}`}>
+            <span className="settings-control-copy">
+              <span className="settings-field-label"><span>Default destination</span></span>
+              <small>Vault-relative directory used when this browser has no remembered destination.</small>
             </span>
-            <small>Vault-relative directory used when this browser has no remembered destination.</small>
-          </label>
-          <SettingsToggle name="remoteSkipInspectByDefault" label="Skip inspection by default" description="Send no metadata probe before confirmation and use one connection." values={editor.values} onChange={editor.change} disabled={!directEnabled} />
+            <span className="settings-control-area">
+              <span className="settings-unit-field">
+                <span className="settings-directory-input">
+                  <input
+                    id="remoteDefaultTargetDirectory"
+                    name="remoteDefaultTargetDirectory"
+                    type="text"
+                    value={String(editor.values.remoteDefaultTargetDirectory)}
+                    disabled={!directEnabled}
+                    onChange={(event) => editor.change('remoteDefaultTargetDirectory', event.target.value)}
+                  />
+                  <button
+                    className="ghost icon-button"
+                    type="button"
+                    disabled={!directEnabled}
+                    data-directory-picker-open
+                    data-directory-picker-target="remoteDefaultTargetDirectory"
+                    title="Browse directories"
+                    aria-label="Browse directories"
+                  >
+                    <i className="fas fa-folder-open" aria-hidden="true" />
+                  </button>
+                </span>
+                <span className="settings-unit-slot is-empty" aria-hidden="true">{'\u00a0'}</span>
+              </span>
+            </span>
+            </label>
+            <SettingsToggle name="remoteSkipInspectByDefault" label="Skip inspection by default" description="Send no metadata probe before confirmation and use one connection." values={editor.values} onChange={editor.change} disabled={!directEnabled} />
+          </div>
         </div>
-      </SettingsSection>
+      </SettingsSection>}
+
+      {scope === 'remote-downloads' && <SettingsSection title="Download Tasks" description="Concurrency, retry, and retained history policy.">
+        <div className="settings-field-grid settings-dependent-fields">
+          {[
+            { name: 'remoteWorkerThreads', label: 'Worker threads', type: 'number' as const, min: '1', max: '8', unit: 'threads', restartRequired: true, disabled: !remoteEnabled },
+            { name: 'remoteMaxRetries', label: 'Maximum retries', type: 'number' as const, min: '0', max: '5', disabled: !remoteEnabled },
+            { name: 'remoteHistoryLimit', label: 'History limit', type: 'number' as const, min: '1', max: '1000', restartRequired: true, disabled: !remoteEnabled },
+          ].map(field)}
+        </div>
+      </SettingsSection>}
 
       <p className="settings-config-path">Stored in <code>{snapshot.configPath}</code></p>
     </form>
   );
 }
 
-export function GeneralSettings({ onDirtyChange }: { onDirtyChange: (dirty: boolean) => void }) {
+export function GeneralSettings({ scope, onDirtyChange }: { scope: GeneralSettingsScope; onDirtyChange: (dirty: boolean) => void }) {
   const { snapshot, error } = useSettingsSnapshot<GeneralSettingsSnapshot>('/api/v1/settings/general');
 
   if (error) return <div className="settings-spa-error">{error}</div>;
   if (!snapshot) return <div className="settings-spa-loading">Loading general settings...</div>;
-  return <GeneralSettingsEditor snapshot={snapshot} onDirtyChange={onDirtyChange} />;
+  return <GeneralSettingsEditor snapshot={snapshot} scope={scope} onDirtyChange={onDirtyChange} />;
 }
