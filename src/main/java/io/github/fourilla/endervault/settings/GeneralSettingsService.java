@@ -1,5 +1,6 @@
 package io.github.fourilla.endervault.settings;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.github.fourilla.endervault.config.LocalPropertiesFile;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
@@ -88,10 +89,12 @@ public class GeneralSettingsService {
                         remoteDownload.isDirectEnabled(),
                         remoteDownload.isBlockPrivateNetworks(),
                         join(remoteDownload.getAllowedPorts()),
+                        remoteDownload.getConnectTimeoutSeconds(),
                         remoteDownload.getResponseTimeoutSeconds(),
                         remoteDownload.getMaxRedirects(),
                         remoteDownload.getMaxFileSizeBytes(),
                         remoteDownload.getHistoryLimit(),
+                        remoteDownload.getWorkerThreads(),
                         remoteDownload.getMaxRetries(),
                         remoteDownload.isSkipInspectByDefault(),
                         remoteDownload.getDefaultTargetDirectory()
@@ -163,12 +166,14 @@ public class GeneralSettingsService {
         boolean remoteDirectEnabled = parameters.containsKey("remoteDirectEnabled");
         boolean remoteBlockPrivateNetworks = parameters.containsKey("remoteBlockPrivateNetworks");
         List<Integer> allowedPorts = allowedPorts(first(parameters, "remoteAllowedPorts"));
+        int connectTimeoutSeconds = intRange(first(parameters, "remoteConnectTimeoutSeconds"), 1, 3600, "Remote connect timeout");
         int responseTimeoutSeconds = intRange(first(parameters, "remoteResponseTimeoutSeconds"), 1, 3600, "Remote response timeout");
         int maxRedirects = intRange(first(parameters, "remoteMaxRedirects"), 0, 50, "Remote max redirects");
         long maxFileSizeBytes = scaledLong(
                 first(parameters, "remoteMaxFileSizeGib"), GIB, 0L, Long.MAX_VALUE, "Remote max file size"
         );
         int historyLimit = intRange(first(parameters, "remoteHistoryLimit"), 1, 1000, "Remote history limit");
+        int workerThreads = intRange(first(parameters, "remoteWorkerThreads"), 1, 8, "Remote worker threads");
         String rawMaxRetries = first(parameters, "remoteMaxRetries");
         int maxRetries = rawMaxRetries == null || rawMaxRetries.isBlank()
                 ? nasProperties.getRemoteDownload().getMaxRetries()
@@ -199,10 +204,12 @@ public class GeneralSettingsService {
                         remoteDirectEnabled,
                         remoteBlockPrivateNetworks,
                         join(allowedPorts),
+                        connectTimeoutSeconds,
                         responseTimeoutSeconds,
                         maxRedirects,
                         maxFileSizeBytes,
                         historyLimit,
+                        workerThreads,
                         maxRetries,
                         skipInspectByDefault,
                         defaultTargetDirectory
@@ -218,7 +225,8 @@ public class GeneralSettingsService {
 
     public boolean requiresRestart(GeneralSettingsUpdate update) {
         return nasProperties.getTrash().getCleanupIntervalMs() != update.trash().cleanupIntervalMs()
-                || nasProperties.getRemoteDownload().getHistoryLimit() != update.remoteDownload().historyLimit();
+                || nasProperties.getRemoteDownload().getHistoryLimit() != update.remoteDownload().historyLimit()
+                || nasProperties.getRemoteDownload().getWorkerThreads() != update.remoteDownload().workerThreads();
     }
 
     private void persist(GeneralSettingsUpdate update) throws IOException {
@@ -264,10 +272,12 @@ public class GeneralSettingsService {
         updates.put("nas.remote-download.direct-enabled", Boolean.toString(remoteDownload.directEnabled()));
         updates.put("nas.remote-download.block-private-networks", Boolean.toString(remoteDownload.blockPrivateNetworks()));
         updates.put("nas.remote-download.allowed-ports", remoteDownload.allowedPorts());
+        updates.put("nas.remote-download.connect-timeout-seconds", Integer.toString(remoteDownload.connectTimeoutSeconds()));
         updates.put("nas.remote-download.response-timeout-seconds", Integer.toString(remoteDownload.responseTimeoutSeconds()));
         updates.put("nas.remote-download.max-redirects", Integer.toString(remoteDownload.maxRedirects()));
         updates.put("nas.remote-download.max-file-size-bytes", Long.toString(remoteDownload.maxFileSizeBytes()));
         updates.put("nas.remote-download.history-limit", Integer.toString(remoteDownload.historyLimit()));
+        updates.put("nas.remote-download.worker-threads", Integer.toString(remoteDownload.workerThreads()));
         updates.put("nas.remote-download.max-retries", Integer.toString(remoteDownload.maxRetries()));
         updates.put(
                 "nas.remote-download.skip-inspect-by-default",
@@ -317,10 +327,12 @@ public class GeneralSettingsService {
         remoteDownload.setDirectEnabled(update.remoteDownload().directEnabled());
         remoteDownload.setBlockPrivateNetworks(update.remoteDownload().blockPrivateNetworks());
         remoteDownload.setAllowedPorts(update.allowedPorts());
+        remoteDownload.setConnectTimeoutSeconds(update.remoteDownload().connectTimeoutSeconds());
         remoteDownload.setResponseTimeoutSeconds(update.remoteDownload().responseTimeoutSeconds());
         remoteDownload.setMaxRedirects(update.remoteDownload().maxRedirects());
         remoteDownload.setMaxFileSizeBytes(update.remoteDownload().maxFileSizeBytes());
         remoteDownload.setHistoryLimit(update.remoteDownload().historyLimit());
+        remoteDownload.setWorkerThreads(update.remoteDownload().workerThreads());
         remoteDownload.setMaxRetries(update.remoteDownload().maxRetries());
         remoteDownload.setSkipInspectByDefault(update.remoteDownload().skipInspectByDefault());
         remoteDownload.setDefaultTargetDirectory(update.remoteDownload().defaultTargetDirectory());
@@ -447,14 +459,17 @@ public class GeneralSettingsService {
 
     public record StickyNoteSettings(String backgroundColor, String borderColor, String textColor) {
 
+        @JsonProperty
         public String defaultBackgroundColor() {
             return NasProperties.StickyNotes.DEFAULT_BACKGROUND_COLOR;
         }
 
+        @JsonProperty
         public String defaultBorderColor() {
             return NasProperties.StickyNotes.DEFAULT_BORDER_COLOR;
         }
 
+        @JsonProperty
         public String defaultTextColor() {
             return NasProperties.StickyNotes.DEFAULT_TEXT_COLOR;
         }
@@ -468,6 +483,7 @@ public class GeneralSettingsService {
 
     public record TrashSettings(int retentionDays, boolean cleanupOnStartup, long cleanupIntervalMs) {
 
+        @JsonProperty
         public String cleanupIntervalMinutes() {
             return scaledDisplay(cleanupIntervalMs, MINUTE_MS);
         }
@@ -484,22 +500,27 @@ public class GeneralSettingsService {
             long comicInfoMaxBytes
     ) {
 
+        @JsonProperty
         public String textAutoLoadMaxMib() {
             return scaledDisplay(textAutoLoadMaxBytes, MIB);
         }
 
+        @JsonProperty
         public String textManualLoadMaxMib() {
             return scaledDisplay(textManualLoadMaxBytes, MIB);
         }
 
+        @JsonProperty
         public String textDraftCleanupIntervalMinutes() {
             return scaledDisplay(textDraftCleanupIntervalMs, MINUTE_MS);
         }
 
+        @JsonProperty
         public String comicPageMaxMib() {
             return scaledDisplay(comicPageMaxBytes, MIB);
         }
 
+        @JsonProperty
         public String comicInfoMaxKib() {
             return scaledDisplay(comicInfoMaxBytes, KIB);
         }
@@ -510,15 +531,18 @@ public class GeneralSettingsService {
             boolean directEnabled,
             boolean blockPrivateNetworks,
             String allowedPorts,
+            int connectTimeoutSeconds,
             int responseTimeoutSeconds,
             int maxRedirects,
             long maxFileSizeBytes,
             int historyLimit,
+            int workerThreads,
             int maxRetries,
             boolean skipInspectByDefault,
             String defaultTargetDirectory
     ) {
 
+        @JsonProperty
         public String maxFileSizeGib() {
             return scaledDisplay(maxFileSizeBytes, GIB);
         }

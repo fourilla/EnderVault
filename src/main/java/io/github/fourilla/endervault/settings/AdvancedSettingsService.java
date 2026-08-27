@@ -26,6 +26,29 @@ public class AdvancedSettingsService {
 
     private static final long MIB = 1024L * 1024L;
     private static final long GIB = 1024L * MIB;
+    private static final Map<String, List<String>> FIELD_DEPENDENCIES = Map.ofEntries(
+            Map.entry("shareDefaultExpirationDays", List.of("shareEnabled")),
+            Map.entry("shareAllowNeverExpires", List.of("shareEnabled")),
+            Map.entry("shareMaxExpirationDays", List.of("shareEnabled")),
+            Map.entry("shareCustomTokenEnabled", List.of("shareEnabled")),
+            Map.entry("shareCustomTokenMinLength", List.of("shareEnabled", "shareCustomTokenEnabled")),
+            Map.entry("shareCustomTokenMaxLength", List.of("shareEnabled", "shareCustomTokenEnabled")),
+            Map.entry("shareRandomTokenBytes", List.of("shareEnabled")),
+            Map.entry("shareDirectoryEnabled", List.of("shareEnabled")),
+            Map.entry("shareDirectDownloadEnabled", List.of("shareEnabled")),
+            Map.entry("shareShowHiddenItems", List.of("shareEnabled", "shareDirectoryEnabled")),
+            Map.entry("taskCompletedDisplaySeconds", List.of("taskActivityPanelEnabled")),
+            Map.entry("taskFailedDisplaySeconds", List.of("taskActivityPanelEnabled")),
+            Map.entry("metadataMaxIssues", List.of("metadataInspectorEnabled")),
+            Map.entry("activityLogMaxFileMib", List.of("activityLogEnabled")),
+            Map.entry("activityLogMaxArchives", List.of("activityLogEnabled")),
+            Map.entry("activityLogDefaultPageSize", List.of("activityLogEnabled")),
+            Map.entry("activityLogPageSizeOptions", List.of("activityLogEnabled")),
+            Map.entry("activityLogAllowArchiveDelete", List.of("activityLogEnabled")),
+            Map.entry("passkeyRpId", List.of("passkeysEnabled")),
+            Map.entry("passkeyRpName", List.of("passkeysEnabled")),
+            Map.entry("passkeyAllowedOrigins", List.of("passkeysEnabled"))
+    );
 
     private final NasProperties nasProperties;
     private final LocalPropertiesFile localPropertiesFile;
@@ -54,6 +77,7 @@ public class AdvancedSettingsService {
                     definition.unit(),
                     definition.mode() == ApplyMode.RESTART,
                     confirmationRequired(definition.key()),
+                    FIELD_DEPENDENCIES.getOrDefault(definition.name(), List.of()),
                     definition.choices()
             );
             fieldsByGroup.computeIfAbsent(definition.groupId(), ignored -> new ArrayList<>()).add(field);
@@ -120,7 +144,6 @@ public class AdvancedSettingsService {
         NasProperties.Upload upload = nasProperties.getUpload();
         NasProperties.Thumbnails thumbnails = nasProperties.getThumbnails();
         NasProperties.FileTools fileTools = nasProperties.getFileTools();
-        NasProperties.RemoteDownload remote = nasProperties.getRemoteDownload();
         NasProperties.PendingFileDecisions pending = nasProperties.getPendingFileDecisions();
         NasProperties.TemporaryArtifacts temporary = nasProperties.getTemporaryArtifacts();
         NasProperties.Tasks tasks = nasProperties.getTasks();
@@ -152,28 +175,24 @@ public class AdvancedSettingsService {
                 bool("sharing", "nas.share.directory-show-hidden-items", "shareShowHiddenItems", "Show hidden items in shared directories", "Hidden descendants remain inaccessible when this is disabled.", ApplyMode.RUNTIME,
                         share::isDirectoryShowHiddenItems, share::setDirectoryShowHiddenItems),
 
-                scaledNumber("transfer", "nas.upload.resumable-chunk-size-bytes", "uploadChunkSizeMib", "Upload chunk size", "Size of each resumable upload request. Reverse-proxy limits must be larger.", "MiB", 1, 64, 1, MIB, ApplyMode.RUNTIME,
+                scaledNumber("uploads", "nas.upload.resumable-chunk-size-bytes", "uploadChunkSizeMib", "Upload chunk size", "Size of each resumable upload request. Reverse-proxy limits must be larger.", "MiB", 1, 64, 1, MIB, ApplyMode.RUNTIME,
                         upload::getResumableChunkSizeBytes, upload::setResumableChunkSizeBytes),
-                number("transfer", "nas.upload.max-concurrent-chunks", "uploadConcurrentChunks", "Concurrent upload chunks", "Global number of chunks that may be written at once.", "chunks", 1, 16, ApplyMode.RESTART,
+                number("uploads", "nas.upload.max-concurrent-chunks", "uploadConcurrentChunks", "Concurrent upload chunks", "Global number of chunks that may be written at once.", "chunks", 1, 16, ApplyMode.RESTART,
                         upload::getMaxConcurrentChunks, null),
-                number("transfer", "nas.upload.resumable-session-retention-hours", "uploadSessionRetentionHours", "Interrupted upload retention", "How long resumable upload state is kept after interruption.", "hours", 1, 168, ApplyMode.RUNTIME,
+                number("uploads", "nas.upload.resumable-session-retention-hours", "uploadSessionRetentionHours", "Interrupted upload retention", "How long resumable upload state is kept after interruption.", "hours", 1, 168, ApplyMode.RUNTIME,
                         upload::getResumableSessionRetentionHours, upload::setResumableSessionRetentionHours),
-                scaledNumber("transfer", "nas.upload.resumable-cleanup-interval-ms", "uploadCleanupIntervalMinutes", "Upload cleanup interval", "How often abandoned resumable sessions are inspected.", "minutes", 1, 10080, 1, 60000L, ApplyMode.RESTART,
+                scaledNumber("uploads", "nas.upload.resumable-cleanup-interval-ms", "uploadCleanupIntervalMinutes", "Upload cleanup interval", "How often abandoned resumable sessions are inspected.", "minutes", 1, 10080, 1, 60000L, ApplyMode.RESTART,
                         upload::getResumableCleanupIntervalMs),
-                bool("transfer", "nas.thumbnails.video-enabled", "thumbnailVideoEnabled", "Video thumbnails", "Generate and cache a representative video frame.", ApplyMode.RESTART,
+                bool("thumbnails", "nas.thumbnails.video-enabled", "thumbnailVideoEnabled", "Video thumbnails", "Generate and cache a representative video frame.", ApplyMode.RESTART,
                         thumbnails::isVideoEnabled, null),
-                bool("transfer", "nas.thumbnails.comic-enabled", "thumbnailComicEnabled", "Comic thumbnails", "Use the first supported CBZ image as the thumbnail.", ApplyMode.RESTART,
+                bool("thumbnails", "nas.thumbnails.comic-enabled", "thumbnailComicEnabled", "Comic thumbnails", "Use the first supported CBZ image as the thumbnail.", ApplyMode.RESTART,
                         thumbnails::isComicEnabled, null),
-                bool("transfer", "nas.thumbnails.pdf-enabled", "thumbnailPdfEnabled", "PDF thumbnails", "Render the first page of supported PDF files.", ApplyMode.RESTART,
+                bool("thumbnails", "nas.thumbnails.pdf-enabled", "thumbnailPdfEnabled", "PDF thumbnails", "Render the first page of supported PDF files.", ApplyMode.RESTART,
                         thumbnails::isPdfEnabled, null),
-                text("transfer", "nas.thumbnails.cache-directory", "thumbnailCacheDirectory", "Thumbnail cache directory", "Simple directory name below EnderVault metadata.", ApplyMode.RESTART,
+                text("thumbnails", "nas.thumbnails.cache-directory", "thumbnailCacheDirectory", "Thumbnail cache directory", "Simple directory name below EnderVault metadata.", ApplyMode.RESTART,
                         thumbnails::getCacheDirectory, AdvancedSettingsService::simpleDirectory),
-                number("transfer", "nas.thumbnails.generator-threads", "thumbnailGeneratorThreads", "Thumbnail workers", "Maximum number of thumbnail jobs processed concurrently.", "threads", 1, 16, ApplyMode.RESTART,
+                number("thumbnails", "nas.thumbnails.generator-threads", "thumbnailGeneratorThreads", "Thumbnail workers", "Maximum number of thumbnail jobs processed concurrently.", "threads", 1, 16, ApplyMode.RESTART,
                         thumbnails::getGeneratorThreads, null),
-                number("transfer", "nas.remote-download.connect-timeout-seconds", "remoteConnectTimeoutSeconds", "Remote connect timeout", "Time allowed to establish a remote-download connection.", "seconds", 1, 3600, ApplyMode.RUNTIME,
-                        remote::getConnectTimeoutSeconds, remote::setConnectTimeoutSeconds),
-                number("transfer", "nas.remote-download.worker-threads", "remoteWorkerThreads", "Remote download workers", "Number of remote-download tasks that may execute concurrently.", "threads", 1, 8, ApplyMode.RESTART,
-                        remote::getWorkerThreads, null),
 
                 number("archive", "nas.file-tools.archive-max-entries", "archiveMaxEntries", "Maximum entries", "Reject archives with more entries than this limit.", "entries", 1, 1000000, ApplyMode.RESTART,
                         fileTools::getArchiveMaxEntries, null),
@@ -188,35 +207,35 @@ public class AdvancedSettingsService {
                 number("archive", "nas.file-tools.archive-manifest-cache-entries", "archiveManifestCacheEntries", "Manifest cache entries", "Number of parsed archive manifests retained in memory.", "archives", 1, 512, ApplyMode.RESTART,
                         fileTools::getArchiveManifestCacheEntries, null),
 
-                number("operations", "nas.pending-file-decisions.warning-days", "pendingWarningDays", "Pending decision warning age", "Age at which unresolved file decisions are highlighted by metadata inspection.", "days", 1, 3650, ApplyMode.RESTART,
+                number("staging", "nas.pending-file-decisions.warning-days", "pendingWarningDays", "Pending decision warning age", "Age at which unresolved file decisions are highlighted by metadata inspection.", "days", 1, 3650, ApplyMode.RESTART,
                         pending::getWarningDays, null),
-                number("operations", "nas.temporary-artifacts.stale-after-minutes", "temporaryStaleMinutes", "Temporary artifact stale age", "Inactive, unregistered staging artifacts older than this are reported as stale.", "minutes", 1, 525600, ApplyMode.RUNTIME,
+                number("staging", "nas.temporary-artifacts.stale-after-minutes", "temporaryStaleMinutes", "Temporary artifact stale age", "Inactive, unregistered staging artifacts older than this are reported as stale.", "minutes", 1, 525600, ApplyMode.RUNTIME,
                         temporary::getStaleAfterMinutes, temporary::setStaleAfterMinutes),
-                number("operations", "nas.tasks.history-limit", "taskHistoryLimit", "Task history limit", "Maximum completed task records retained in memory.", "tasks", 1, 10000, ApplyMode.RUNTIME,
+                number("tasks", "nas.tasks.history-limit", "taskHistoryLimit", "Task history limit", "Maximum completed task records retained in memory.", "tasks", 1, 10000, ApplyMode.RUNTIME,
                         tasks::getHistoryLimit, tasks::setHistoryLimit),
-                number("operations", "nas.tasks.worker-threads", "taskWorkerThreads", "Background task workers", "Size of the shared background-task executor.", "threads", 1, 16, ApplyMode.RESTART,
+                number("tasks", "nas.tasks.worker-threads", "taskWorkerThreads", "Background task workers", "Size of the shared background-task executor.", "threads", 1, 16, ApplyMode.RESTART,
                         tasks::getWorkerThreads, null),
-                bool("operations", "nas.tasks.activity-panel-enabled", "taskActivityPanelEnabled", "Activity panel", "Show background task progress in the global activity dock.", ApplyMode.RUNTIME,
+                bool("tasks", "nas.tasks.activity-panel-enabled", "taskActivityPanelEnabled", "Activity panel", "Show background task progress in the global activity dock.", ApplyMode.RUNTIME,
                         tasks::isActivityPanelEnabled, tasks::setActivityPanelEnabled),
-                scaledDecimal("operations", "nas.tasks.completed-display-ms", "taskCompletedDisplaySeconds", "Completed task display time", "How long completed tasks remain visible in the dock.", "seconds", BigDecimal.ZERO, new BigDecimal("3600"), new BigDecimal("0.1"), 1000L, ApplyMode.RUNTIME,
+                scaledDecimal("tasks", "nas.tasks.completed-display-ms", "taskCompletedDisplaySeconds", "Completed task display time", "How long completed tasks remain visible in the dock.", "seconds", BigDecimal.ZERO, new BigDecimal("3600"), new BigDecimal("0.1"), 1000L, ApplyMode.RUNTIME,
                         tasks::getCompletedDisplayMs, value -> tasks.setCompletedDisplayMs(Math.toIntExact(value))),
-                scaledDecimal("operations", "nas.tasks.failed-display-ms", "taskFailedDisplaySeconds", "Failed task display time", "How long failed tasks remain visible in the dock.", "seconds", BigDecimal.ZERO, new BigDecimal("3600"), new BigDecimal("0.1"), 1000L, ApplyMode.RUNTIME,
+                scaledDecimal("tasks", "nas.tasks.failed-display-ms", "taskFailedDisplaySeconds", "Failed task display time", "How long failed tasks remain visible in the dock.", "seconds", BigDecimal.ZERO, new BigDecimal("3600"), new BigDecimal("0.1"), 1000L, ApplyMode.RUNTIME,
                         tasks::getFailedDisplayMs, value -> tasks.setFailedDisplayMs(Math.toIntExact(value))),
-                bool("operations", "nas.metadata-inspector.enabled", "metadataInspectorEnabled", "Metadata Inspector", "Allow administrators to scan and repair metadata areas.", ApplyMode.RUNTIME,
+                bool("metadata", "nas.metadata-inspector.enabled", "metadataInspectorEnabled", "Metadata Inspector", "Allow administrators to scan and repair metadata areas.", ApplyMode.RUNTIME,
                         metadata::isEnabled, metadata::setEnabled),
-                number("operations", "nas.metadata-inspector.max-issues-per-area", "metadataMaxIssues", "Maximum issues per area", "Stop collecting findings after this many issues in one area. Use 0 for no findings.", "issues", 0, 1000000, ApplyMode.RUNTIME,
+                number("metadata", "nas.metadata-inspector.max-issues-per-area", "metadataMaxIssues", "Maximum issues per area", "Stop collecting findings after this many issues in one area. Use 0 for no findings.", "issues", 0, 1000000, ApplyMode.RUNTIME,
                         metadata::getMaxIssuesPerArea, metadata::setMaxIssuesPerArea),
-                bool("operations", "nas.activity-log.enabled", "activityLogEnabled", "Activity logging", "Record supported administrative and public-link activity.", ApplyMode.RUNTIME,
+                bool("activity", "nas.activity-log.enabled", "activityLogEnabled", "Activity logging", "Record supported administrative and public-link activity.", ApplyMode.RUNTIME,
                         activity::isEnabled, activity::setEnabled),
-                scaledNumber("operations", "nas.activity-log.max-file-size-bytes", "activityLogMaxFileMib", "Activity log file size", "Roll the current JSONL log after it reaches this size.", "MiB", 1, 102400, 1, MIB, ApplyMode.RUNTIME,
+                scaledNumber("activity", "nas.activity-log.max-file-size-bytes", "activityLogMaxFileMib", "Activity log file size", "Roll the current JSONL log after it reaches this size.", "MiB", 1, 102400, 1, MIB, ApplyMode.RUNTIME,
                         activity::getMaxFileSizeBytes, activity::setMaxFileSizeBytes),
-                number("operations", "nas.activity-log.max-archive-files", "activityLogMaxArchives", "Activity log archives", "Maximum rolled log files retained. Use 0 to disable automatic archive deletion.", "files", 0, 100000, ApplyMode.RUNTIME,
+                number("activity", "nas.activity-log.max-archive-files", "activityLogMaxArchives", "Activity log archives", "Maximum rolled log files retained. Use 0 to disable automatic archive deletion.", "files", 0, 100000, ApplyMode.RUNTIME,
                         activity::getMaxArchiveFiles, activity::setMaxArchiveFiles),
-                number("operations", "nas.activity-log.default-page-size", "activityLogDefaultPageSize", "Default activity page size", "Initial number of activity rows displayed.", "rows", 1, 1000, ApplyMode.RUNTIME,
+                number("activity", "nas.activity-log.default-page-size", "activityLogDefaultPageSize", "Default activity page size", "Initial number of activity rows displayed.", "rows", 1, 1000, ApplyMode.RUNTIME,
                         activity::getDefaultPageSize, activity::setDefaultPageSize),
-                csvIntegers("operations", "nas.activity-log.page-size-options", "activityLogPageSizeOptions", "Activity page size choices", "Comma-separated choices offered by the activity log page.", 1, 1000, ApplyMode.RUNTIME,
+                csvIntegers("activity", "nas.activity-log.page-size-options", "activityLogPageSizeOptions", "Activity page size choices", "Comma-separated choices offered by the activity log page.", 1, 1000, ApplyMode.RUNTIME,
                         activity::getPageSizeOptions, activity::setPageSizeOptions),
-                bool("operations", "nas.activity-log.allow-archive-delete", "activityLogAllowArchiveDelete", "Allow archived log deletion", "Permit deletion of rolled activity logs from the web UI.", ApplyMode.RUNTIME,
+                bool("activity", "nas.activity-log.allow-archive-delete", "activityLogAllowArchiveDelete", "Allow archived log deletion", "Permit deletion of rolled activity logs from the web UI.", ApplyMode.RUNTIME,
                         activity::isAllowArchiveDelete, activity::setAllowArchiveDelete),
 
                 text("access", "nas.server.public-base-url", "publicBaseUrl", "Public base URL", "Optional externally reachable base URL used when generating public links.", ApplyMode.RUNTIME,
@@ -231,10 +250,7 @@ public class AdvancedSettingsService {
                 text("access", "nas.passkeys.rp-name", "passkeyRpName", "Passkey RP name", "Human-readable vault name shown by authenticators.", ApplyMode.RESTART,
                         passkeys::getRpName, value -> requiredOneLine(value, "Passkey RP name", 100)),
                 textarea("access", "nas.passkeys.allowed-origins", "passkeyAllowedOrigins", "Passkey allowed origins", "Exact HTTP(S) origins accepted during WebAuthn ceremonies, separated by commas or lines.", ApplyMode.RESTART,
-                        () -> String.join(",", passkeys.getAllowedOrigins()), AdvancedSettingsService::allowedOrigins),
-                select("access", "nas.outbound.initial-route", "outboundInitialRoute", "Initial outbound route", "Route selected whenever EnderVault starts. VPN requires VPN egress to be enabled and healthy.", ApplyMode.RESTART,
-                        () -> nasProperties.getOutbound().getInitialRoute().settingValue(),
-                        List.of(new SettingChoice("direct", "Direct"), new SettingChoice("vpn-required", "VPN required")))
+                        () -> String.join(",", passkeys.getAllowedOrigins()), AdvancedSettingsService::allowedOrigins)
         );
     }
 
@@ -300,10 +316,14 @@ public class AdvancedSettingsService {
     private static List<GroupMetadata> groupMetadata() {
         return List.of(
                 new GroupMetadata("sharing", "Share Links", "Defaults and security boundaries for public read-only links."),
-                new GroupMetadata("transfer", "Transfer and Thumbnails", "Resumable upload, remote worker, and thumbnail engine settings."),
+                new GroupMetadata("uploads", "Resumable Uploads", "Chunking, concurrency, retention, and cleanup for browser uploads."),
+                new GroupMetadata("thumbnails", "Thumbnails", "Enabled formats, cache location, and thumbnail worker concurrency."),
                 new GroupMetadata("archive", "Archive Safety", "Extraction limits and manifest caching for ZIP-compatible file tools."),
-                new GroupMetadata("operations", "Operations and Maintenance", "Task history, temporary artifacts, metadata inspection, and activity logs."),
-                new GroupMetadata("access", "Access and Network Identity", "Public URL, trusted proxies, passkey identity, and startup route.")
+                new GroupMetadata("staging", "Pending Decisions and Staging", "Review thresholds for unresolved decisions and unowned temporary artifacts."),
+                new GroupMetadata("tasks", "Background Tasks", "Task history, worker concurrency, and activity dock timing."),
+                new GroupMetadata("metadata", "Metadata Inspector", "Availability and report collection limits for consistency inspection."),
+                new GroupMetadata("activity", "Activity Logs", "Log rotation, paging, and archived-log management policy."),
+                new GroupMetadata("access", "Access and Network Identity", "Public URL, trusted proxies, and passkey relying-party identity.")
         );
     }
 
@@ -686,6 +706,7 @@ public class AdvancedSettingsService {
             String unit,
             boolean restartRequired,
             boolean confirmationRequired,
+            List<String> dependencies,
             List<SettingChoice> choices
     ) {
     }

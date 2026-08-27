@@ -79,7 +79,7 @@ class SessionManagementFlowTest {
                 .andExpect(content().string(containsString("data-session-user-agent=\"Second Browser\"")))
                 .andExpect(content().string(containsString("<dt>Last active</dt>")));
 
-        mockMvc.perform(get("/admin/settings/sessions").session(second))
+        mockMvc.perform(get("/admin/settings").param("section", "sessions").session(second))
                 .andExpect(status().isOk());
     }
 

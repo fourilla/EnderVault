@@ -50,10 +50,12 @@ class GeneralSettingsServiceTest {
                 nas.remote-download.direct-enabled=true
                 nas.remote-download.block-private-networks=true
                 nas.remote-download.allowed-ports=80,443
+                nas.remote-download.connect-timeout-seconds=10
                 nas.remote-download.response-timeout-seconds=30
                 nas.remote-download.max-redirects=5
                 nas.remote-download.max-file-size-bytes=0
                 nas.remote-download.history-limit=100
+                nas.remote-download.worker-threads=2
                 nas.remote-download.max-retries=2
                 nas.remote-download.default-target-directory=
                 nas.remote-download.skip-inspect-by-default=false
@@ -85,10 +87,12 @@ class GeneralSettingsServiceTest {
         parameters.set("comicPageMaxMib", "0.25");
         parameters.set("comicInfoMaxKib", "4");
         parameters.set("remoteAllowedPorts", "80,443,8080");
+        parameters.set("remoteConnectTimeoutSeconds", "12");
         parameters.set("remoteResponseTimeoutSeconds", "45");
         parameters.set("remoteMaxRedirects", "7");
         parameters.set("remoteMaxFileSizeGib", "1.5");
         parameters.set("remoteHistoryLimit", "25");
+        parameters.set("remoteWorkerThreads", "3");
         parameters.set("remoteMaxRetries", "3");
         parameters.set("remoteDefaultTargetDirectory", "incoming");
         parameters.set("remoteSkipInspectByDefault", "on");
@@ -118,8 +122,10 @@ class GeneralSettingsServiceTest {
                 .contains("nas.file-tools.text-draft-lease-seconds=180")
                 .contains("nas.file-tools.comic-max-pages=300")
                 .contains("nas.remote-download.allowed-ports=80,443,8080")
+                .contains("nas.remote-download.connect-timeout-seconds=12")
                 .contains("nas.remote-download.max-file-size-bytes=1610612736")
                 .contains("nas.remote-download.max-retries=3")
+                .contains("nas.remote-download.worker-threads=3")
                 .contains("nas.remote-download.default-target-directory=incoming")
                 .contains("nas.remote-download.skip-inspect-by-default=true");
 
@@ -139,6 +145,7 @@ class GeneralSettingsServiceTest {
         assertThat(properties.getFileTools().getTextDraftCleanupIntervalMs()).isEqualTo(180000);
         assertThat(properties.getFileTools().getTextDraftLeaseSeconds()).isEqualTo(180);
         assertThat(properties.getRemoteDownload().getAllowedPorts()).isEqualTo(List.of(80, 443, 8080));
+        assertThat(properties.getRemoteDownload().getConnectTimeoutSeconds()).isEqualTo(12);
         assertThat(properties.getRemoteDownload().getMaxFileSizeBytes()).isEqualTo(1610612736L);
         assertThat(properties.getRemoteDownload().getMaxRetries()).isEqualTo(3);
         assertThat(properties.getRemoteDownload().getDefaultTargetDirectory()).isEqualTo("incoming");
@@ -195,10 +202,12 @@ class GeneralSettingsServiceTest {
         parameters.add("remoteDirectEnabled", "on");
         parameters.add("remoteBlockPrivateNetworks", "on");
         parameters.add("remoteAllowedPorts", "80,443");
+        parameters.add("remoteConnectTimeoutSeconds", "10");
         parameters.add("remoteResponseTimeoutSeconds", "30");
         parameters.add("remoteMaxRedirects", "5");
         parameters.add("remoteMaxFileSizeGib", "0");
         parameters.add("remoteHistoryLimit", "100");
+        parameters.add("remoteWorkerThreads", "2");
         parameters.add("remoteMaxRetries", "2");
         parameters.add("remoteDefaultTargetDirectory", "");
         return parameters;

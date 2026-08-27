@@ -79,85 +79,76 @@
     justify-content: flex-end;
 }
 
-.telegram-activity-toggle {
-    border: 1px solid var(--line);
-    border-radius: var(--radius-panel);
-    background: var(--panel-muted);
-}
-
 .telegram-activity-toggle input[type="checkbox"] {
-    width: var(--sidebar-icon-width);
-    height: var(--sidebar-icon-width);
+    width: 15px;
+    height: 15px;
+    margin: 0;
     accent-color: var(--accent);
-}
-
-.telegram-activity-toggle small {
-    color: var(--muted);
-    font-size: var(--font-size-2xs);
 }
 
 .telegram-activity-settings {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    align-items: stretch;
-    gap: var(--space-3xl);
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
 }
 
 .telegram-activity-group {
     display: grid;
     align-content: start;
-    align-self: stretch;
-    gap: var(--space-lg);
+    gap: var(--space-sm);
     min-width: 0;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-panel);
-    background: var(--panel-muted);
-    padding: var(--panel-padding);
+    border-top: 1px solid var(--line);
+    padding: var(--space-lg) 0;
+}
+
+.telegram-activity-group:first-child {
+    border-top: 0;
+    padding-top: 0;
+}
+
+.telegram-activity-group:last-child {
+    padding-bottom: 0;
 }
 
 .telegram-activity-group h4 {
     margin: 0;
     color: var(--muted);
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-xs);
 }
 
 .telegram-activity-grid {
     display: grid;
     grid-template-columns: 1fr;
     align-content: start;
-    gap: var(--space-md);
+    gap: 2px;
 }
 
 .telegram-activity-toggle {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
-    gap: var(--space-md);
+    gap: var(--space-sm);
     align-items: center;
-    height: 54px;
-    min-height: 54px;
-    border-color: #3a4653;
-    background: var(--panel);
-    padding: var(--space-md) var(--space-lg);
+    min-height: 28px;
+    border: 0;
+    border-radius: var(--radius-control);
+    background: transparent;
+    padding: 3px var(--space-sm);
+    cursor: pointer;
 }
 
 .telegram-activity-toggle span {
-    display: grid;
-    gap: 1px;
+    display: block;
     min-width: 0;
-}
-
-.telegram-activity-toggle strong {
     overflow: hidden;
     color: var(--text);
-    font-size: var(--font-size-sm);
+    font-family: Consolas, "Courier New", monospace;
+    font-size: var(--font-size-xs);
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.telegram-activity-toggle small {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+.telegram-activity-toggle:hover {
+    background: var(--item-hover-bg);
 }
 
 .telegram-actions {

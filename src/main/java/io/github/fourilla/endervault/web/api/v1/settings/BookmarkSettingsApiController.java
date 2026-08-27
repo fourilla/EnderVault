@@ -5,6 +5,7 @@ import io.github.fourilla.endervault.web.support.ActionResponse;
 import io.github.fourilla.endervault.web.support.FlashNotification;
 import java.io.IOException;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -18,6 +19,11 @@ public class BookmarkSettingsApiController {
 
     public BookmarkSettingsApiController(BookmarkSettingsService bookmarkSettingsService) {
         this.bookmarkSettingsService = bookmarkSettingsService;
+    }
+
+    @GetMapping
+    public BookmarkSettingsService.BookmarkSettingsSnapshot current() {
+        return bookmarkSettingsService.currentSettings();
     }
 
     @PostMapping

@@ -1,5 +1,6 @@
 package io.github.fourilla.endervault.settings;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.github.fourilla.endervault.config.LocalPropertiesFile;
 import io.github.fourilla.endervault.config.NasProperties;
 import java.io.IOException;
@@ -234,10 +235,12 @@ public class BookmarkSettingsService {
             int faviconMaxBytes
     ) {
 
+        @JsonProperty
         public String htmlMaxKib() {
             return kibibytes(htmlMaxBytes);
         }
 
+        @JsonProperty
         public String faviconMaxKib() {
             return kibibytes(faviconMaxBytes);
         }

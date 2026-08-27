@@ -9,6 +9,9 @@
 .vscode
 
 target
+.frontend
+frontend/node_modules
+frontend/dist
 docs
 logs
 storage
