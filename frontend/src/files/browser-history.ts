@@ -56,14 +56,13 @@ export const parseBrowserState = (candidate: unknown): BrowserHistoryState | nul
 
 const stateFromLegacyUrl = (): BrowserHistoryState | null => {
   const url = new URL(window.location.href);
-  const legacySearch = url.pathname === '/files/search';
-  const hasState = legacySearch || Array.from(url.searchParams.keys()).length > 0;
+  const hasState = Array.from(url.searchParams.keys()).length > 0;
   if (!hasState) return null;
   return {
     version: 1,
-    mode: legacySearch ? 'search' : 'browse',
+    mode: 'browse',
     path: url.searchParams.get('path') || '',
-    query: legacySearch ? url.searchParams.get('q') || '' : '',
+    query: '',
     page: finiteInteger(url.searchParams.get('page'), 1, 1),
     view: view(url.searchParams.get('view')),
     sort: sort(url.searchParams.get('sort')),

@@ -25,7 +25,7 @@ public class AdminFileController {
         this.viteAssetService = viteAssetService;
     }
 
-    @GetMapping({"/files", "/files/search"})
+    @GetMapping("/files")
     public String files(
             Model model
     ) {
