@@ -15,6 +15,8 @@ export interface BrowserEntry {
   sizeLabel: string;
   modifiedAt: string;
   modifiedLabel: string;
+  accessedAt?: string | null;
+  accessedLabel?: string | null;
   mediaType: string;
   previewable: boolean;
   streamable: boolean;

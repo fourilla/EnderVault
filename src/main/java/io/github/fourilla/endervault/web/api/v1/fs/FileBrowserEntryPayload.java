@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.web.api.v1.fs;
 
 import io.github.fourilla.endervault.storage.FileItem;
+import io.github.fourilla.endervault.recent.RecentListItem;
 import io.github.fourilla.endervault.web.support.FilePreviewSupport;
 import java.time.Instant;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -16,6 +17,8 @@ public record FileBrowserEntryPayload(
         String sizeLabel,
         Instant modifiedAt,
         String modifiedLabel,
+        Instant accessedAt,
+        String accessedLabel,
         String mediaType,
         boolean previewable,
         boolean streamable,
@@ -31,7 +34,7 @@ public record FileBrowserEntryPayload(
         String thumbnailUrl
 ) {
 
-    static FileBrowserEntryPayload from(
+    public static FileBrowserEntryPayload from(
             FileItem item,
             boolean favorite,
             FilePreviewSupport filePreviewSupport
@@ -48,6 +51,8 @@ public record FileBrowserEntryPayload(
                 item.sizeLabel(),
                 item.modifiedAt(),
                 item.modifiedLabel(),
+                null,
+                null,
                 item.mediaType(),
                 item.previewable(),
                 item.streamable(),
@@ -61,6 +66,41 @@ public record FileBrowserEntryPayload(
                 directory ? null : downloadUrl(item.path()),
                 item.previewable() ? filePreviewSupport.previewUrl(item) : null,
                 thumbnailUrl(item, filePreviewSupport)
+        );
+    }
+
+    public static FileBrowserEntryPayload from(
+            RecentListItem item,
+            boolean favorite,
+            FilePreviewSupport filePreviewSupport
+    ) {
+        FileBrowserEntryPayload entry = from(item.item(), favorite, filePreviewSupport);
+        return new FileBrowserEntryPayload(
+                entry.name(),
+                entry.path(),
+                entry.parentPath(),
+                entry.type(),
+                entry.typeLabel(),
+                entry.extensionLabel(),
+                entry.size(),
+                entry.sizeLabel(),
+                entry.modifiedAt(),
+                entry.modifiedLabel(),
+                item.lastAccessedAt(),
+                item.accessedLabel(),
+                entry.mediaType(),
+                entry.previewable(),
+                entry.streamable(),
+                entry.hidden(),
+                entry.favorite(),
+                entry.image(),
+                entry.video(),
+                entry.pdf(),
+                entry.comic(),
+                entry.detailUrl(),
+                entry.downloadUrl(),
+                entry.previewUrl(),
+                entry.thumbnailUrl()
         );
     }
 

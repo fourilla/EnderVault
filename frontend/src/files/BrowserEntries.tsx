@@ -99,7 +99,9 @@ function SelectAllCheckbox({
 
 export function EntryTable({
   entries,
-  search,
+  showLocation = false,
+  selectable = true,
+  showAccessed = false,
   onBrowse,
   selected,
   onSelect,
@@ -107,11 +109,13 @@ export function EntryTable({
   itemInteractionProps,
 }: {
   entries: BrowserEntry[];
-  search: boolean;
+  showLocation?: boolean;
+  selectable?: boolean;
+  showAccessed?: boolean;
   onBrowse: (path: string) => void;
   selected: Set<string>;
   onSelect: (entry: BrowserEntry, checked: boolean) => void;
-  onFavorite: (entry: BrowserEntry) => void;
+  onFavorite?: (entry: BrowserEntry) => void;
   itemInteractionProps: (entry: BrowserEntry) => Record<string, unknown>;
 }) {
   return (
@@ -119,7 +123,7 @@ export function EntryTable({
       <table>
         <thead>
           <tr>
-            {!search && (
+            {selectable && (
               <th className="select-col">
                 <label className="select-all-label" title="Select all items in this table">
                   <SelectAllCheckbox entries={entries} selected={selected} onSelect={onSelect} />
@@ -127,9 +131,10 @@ export function EntryTable({
               </th>
             )}
             <th>Name</th>
-            {search && <th>Location</th>}
+            {showLocation && <th>Location</th>}
             <th>Type</th>
             <th>Size</th>
+            {showAccessed && <th>Accessed</th>}
             <th>Modified</th>
             <th>Actions</th>
           </tr>
@@ -145,7 +150,7 @@ export function EntryTable({
               data-entry-kind={entry.type}
               {...itemInteractionProps(entry)}
             >
-              {!search && (
+              {selectable && (
                 <td className="select-cell">
                   <input
                     className="row-select-checkbox"
@@ -160,7 +165,7 @@ export function EntryTable({
                 <EntryName entry={entry} onBrowse={onBrowse} />
                 {entry.hidden && <span className="status-badge expired hidden-badge">Hidden</span>}
               </td>
-              {search && (
+              {showLocation && (
                 <td>
                   <button
                     className="muted files-location-link"
@@ -174,19 +179,22 @@ export function EntryTable({
               )}
               <td>{entry.typeLabel}</td>
               <td>{entry.sizeLabel}</td>
+              {showAccessed && <td>{entry.accessedLabel || '-'}</td>}
               <td>{entry.modifiedLabel}</td>
               <td>
                 <div className="table-actions">
-                  <button
-                    className={'ghost icon-button action-icon favorite-toggle'
-                      + (entry.favorite ? ' is-favorite' : '')}
-                    type="button"
-                    title={entry.favorite ? 'Remove from favorites' : 'Add to favorites'}
-                    aria-label={entry.favorite ? 'Remove from favorites' : 'Add to favorites'}
-                    onClick={() => onFavorite(entry)}
-                  >
-                    {icon('fas fa-star')}
-                  </button>
+                  {onFavorite && (
+                    <button
+                      className={'ghost icon-button action-icon favorite-toggle'
+                        + (entry.favorite ? ' is-favorite' : '')}
+                      type="button"
+                      title={entry.favorite ? 'Remove from favorites' : 'Add to favorites'}
+                      aria-label={entry.favorite ? 'Remove from favorites' : 'Add to favorites'}
+                      onClick={() => onFavorite(entry)}
+                    >
+                      {icon('fas fa-star')}
+                    </button>
+                  )}
                   <EntryActions entry={entry} />
                 </div>
               </td>
@@ -204,12 +212,14 @@ export function EntryGrid({
   selected,
   onSelect,
   itemInteractionProps,
+  showAccessed = false,
 }: {
   entries: BrowserEntry[];
   onBrowse: (path: string) => void;
   selected: Set<string>;
   onSelect: (entry: BrowserEntry, checked: boolean) => void;
   itemInteractionProps: (entry: BrowserEntry) => Record<string, unknown>;
+  showAccessed?: boolean;
 }) {
   return (
     <div className="browser-grid">
@@ -269,7 +279,14 @@ export function EntryGrid({
                 <span>{entry.typeLabel}</span>
                 <span>{entry.sizeLabel}</span>
               </p>
-              <p className="card-meta">{entry.modifiedLabel}</p>
+              {showAccessed ? (
+                <p className="card-meta">
+                  <span>Accessed</span>
+                  <span>{entry.accessedLabel || '-'}</span>
+                </p>
+              ) : (
+                <p className="card-meta">{entry.modifiedLabel}</p>
+              )}
             </div>
           </article>
         );

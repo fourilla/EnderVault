@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { BrowserEntry, BrowserPayload } from './types';
+import type { BrowserEntry } from './types';
 
 export function useEntrySelection(
-  payload: BrowserPayload | null,
-  payloadRef: React.RefObject<BrowserPayload | null>,
+  selectableEntries: BrowserEntry[],
+  selectionEnabled: boolean,
   browse: (path: string) => void,
   locationKey: string,
 ) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const selectedRef = useRef(selected);
+  const selectionEnabledRef = useRef(selectionEnabled);
   const longPressRef = useRef<{
     timer: number | null;
     pointerId: number | null;
@@ -19,13 +20,9 @@ export function useEntrySelection(
   }>({ timer: null, pointerId: null, startX: 0, startY: 0, entry: null, suppressClick: false });
 
   selectedRef.current = selected;
+  selectionEnabledRef.current = selectionEnabled;
 
   useEffect(() => setSelected(new Set()), [locationKey]);
-
-  const selectableEntries = useMemo(() => {
-    if (!payload || payload.mode === 'search') return [];
-    return [...payload.directories, ...payload.entries];
-  }, [payload]);
 
   const selectedEntries = useMemo(
     () => selectableEntries.filter((entry) => selected.has(entry.path)),
@@ -64,7 +61,7 @@ export function useEntrySelection(
 
   const itemInteractionProps = (entry: BrowserEntry) => ({
     onPointerDown: (event: React.PointerEvent<HTMLElement>) => {
-      if (payloadRef.current?.mode !== 'browse'
+      if (!selectionEnabledRef.current
           || event.button !== 0
           || (event.target as HTMLElement).closest('input, button, label, .table-actions, .action-icon')) {
         return;
@@ -107,7 +104,7 @@ export function useEntrySelection(
       if (target.closest('input, button, label, select, textarea, summary, .table-actions, .action-icon')) {
         return;
       }
-      const selectionClick = payloadRef.current?.mode === 'browse'
+      const selectionClick = selectionEnabledRef.current
         && (selectedRef.current.size > 0 || event.ctrlKey || event.metaKey);
       if (selectionClick) {
         event.preventDefault();

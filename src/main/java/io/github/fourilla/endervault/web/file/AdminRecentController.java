@@ -1,22 +1,19 @@
 package io.github.fourilla.endervault.web.file;
 
 import io.github.fourilla.endervault.activity.ActivityLogService;
-import io.github.fourilla.endervault.config.NasProperties;
-import io.github.fourilla.endervault.favorite.FavoriteService;
 import io.github.fourilla.endervault.recent.RecentListItem;
 import io.github.fourilla.endervault.recent.RecentService;
 import io.github.fourilla.endervault.recent.RecentSort;
 import io.github.fourilla.endervault.storage.SortDirection;
 import io.github.fourilla.endervault.storage.StorageService;
-import io.github.fourilla.endervault.web.support.BrowserPreferenceCookies;
 import io.github.fourilla.endervault.web.support.FileResponseService;
+import io.github.fourilla.endervault.web.support.ViteAssetService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.ContentDisposition;
@@ -30,72 +27,29 @@ import org.springframework.web.bind.annotation.RequestParam;
 @Controller
 public class AdminRecentController {
 
-    private static final int FALLBACK_PAGE_SIZE = 200;
-    private static final List<Integer> PAGE_SIZE_OPTIONS = List.of(50, 100, 200, 500);
-
-    private final NasProperties nasProperties;
     private final RecentService recentService;
-    private final FavoriteService favoriteService;
     private final StorageService storageService;
     private final ActivityLogService activityLogService;
     private final FileResponseService fileResponseService;
+    private final ViteAssetService viteAssetService;
 
     public AdminRecentController(
-            NasProperties nasProperties,
             RecentService recentService,
-            FavoriteService favoriteService,
             StorageService storageService,
             ActivityLogService activityLogService,
-            FileResponseService fileResponseService
+            FileResponseService fileResponseService,
+            ViteAssetService viteAssetService
     ) {
-        this.nasProperties = nasProperties;
         this.recentService = recentService;
-        this.favoriteService = favoriteService;
         this.storageService = storageService;
         this.activityLogService = activityLogService;
         this.fileResponseService = fileResponseService;
+        this.viteAssetService = viteAssetService;
     }
 
     @GetMapping("/files/recent")
-    public String recent(
-            @RequestParam(value = "q", required = false) String query,
-            @RequestParam(value = "view", required = false) String view,
-            @RequestParam(value = "sort", required = false) String sort,
-            @RequestParam(value = "dir", required = false) String direction,
-            @RequestParam(value = "hidden", required = false) String hidden,
-            @RequestParam(value = "page", required = false) Integer page,
-            @RequestParam(value = "size", required = false) Integer size,
-            HttpServletRequest request,
-            HttpServletResponse response,
-            Model model
-    ) throws IOException {
-        String normalizedView = recentView(request, response, view);
-        RecentSort recentSort = recentSort(request, response, sort);
-        SortDirection sortDirection = recentDirection(request, response, direction, recentSort);
-        int pageSize = recentPageSize(request, response, size);
-        boolean showHidden = recentShowHidden(request, response, hidden);
-        String normalizedQuery = normalizeQuery(query);
-
-        List<RecentListItem> items = recentService.list(normalizedQuery, recentSort, sortDirection, showHidden);
-        List<RecentListItem> directories = items.stream().filter(RecentListItem::directory).toList();
-        List<RecentListItem> files = items.stream().filter(item -> !item.directory()).toList();
-        RecentPage filePage = pageFiles(files, page, pageSize);
-
-        model.addAttribute("recentDirectories", directories);
-        model.addAttribute("filePage", filePage);
-        model.addAttribute("query", normalizedQuery);
-        model.addAttribute("searchPerformed", !normalizedQuery.isBlank());
-        model.addAttribute("view", normalizedView);
-        model.addAttribute("nextView", nextView(normalizedView));
-        model.addAttribute("viewToggleLabel", viewToggleLabel(normalizedView));
-        model.addAttribute("viewToggleIcon", viewToggleIcon(normalizedView));
-        model.addAttribute("sort", recentSort.parameter());
-        model.addAttribute("dir", sortDirection.parameter());
-        model.addAttribute("hidden", hiddenMode(showHidden));
-        model.addAttribute("showHidden", showHidden);
-        model.addAttribute("pageSizes", pageSizeOptions());
-        model.addAttribute("favoritePaths", favoriteService.favoritePaths());
-        model.addAttribute("recentTotalItems", items.size());
+    public String recent(Model model) {
+        model.addAttribute("recentFrontend", viteAssetService.entry("src/recent/main.tsx"));
         return "recent";
     }
 
@@ -151,146 +105,6 @@ public class AdminRecentController {
                 .filter(path -> path != null && !path.isBlank())
                 .distinct()
                 .toList();
-    }
-
-    private String normalizeView(String view) {
-        if ("grid".equalsIgnoreCase(view)) {
-            return "grid";
-        }
-        if ("table".equalsIgnoreCase(view)) {
-            return "table";
-        }
-        return "table";
-    }
-
-    private String recentView(HttpServletRequest request, HttpServletResponse response, String view) {
-        return BrowserPreferenceCookies.value(
-                request,
-                response,
-                BrowserPreferenceCookies.RECENT.viewCookie(),
-                view,
-                this::normalizeView
-        );
-    }
-
-    private RecentSort recentSort(HttpServletRequest request, HttpServletResponse response, String sort) {
-        String normalizedSort = BrowserPreferenceCookies.value(
-                request,
-                response,
-                BrowserPreferenceCookies.RECENT.sortCookie(),
-                sort,
-                value -> normalizeSort(value).parameter()
-        );
-        return RecentSort.from(normalizedSort);
-    }
-
-    private SortDirection recentDirection(
-            HttpServletRequest request,
-            HttpServletResponse response,
-            String direction,
-            RecentSort sort
-    ) {
-        String normalizedDirection = BrowserPreferenceCookies.value(
-                request,
-                response,
-                BrowserPreferenceCookies.RECENT.directionCookie(),
-                direction,
-                value -> normalizeDirection(value, sort).parameter()
-        );
-        return SortDirection.from(normalizedDirection);
-    }
-
-    private int recentPageSize(HttpServletRequest request, HttpServletResponse response, Integer size) {
-        return BrowserPreferenceCookies.intValue(
-                request,
-                response,
-                BrowserPreferenceCookies.RECENT.pageSizeCookie(),
-                size,
-                this::normalizePageSize
-        );
-    }
-
-    private boolean recentShowHidden(HttpServletRequest request, HttpServletResponse response, String hidden) {
-        String normalizedHidden = BrowserPreferenceCookies.value(
-                request,
-                response,
-                BrowserPreferenceCookies.RECENT.hiddenCookie(),
-                hidden,
-                this::normalizeHiddenMode
-        );
-        return "show".equals(normalizedHidden);
-    }
-
-    private String normalizeHiddenMode(String hidden) {
-        if (hidden == null || hidden.isBlank()) {
-            return "hide";
-        }
-        return "show".equalsIgnoreCase(hidden) || "true".equalsIgnoreCase(hidden) ? "show" : "hide";
-    }
-
-    private String hiddenMode(boolean showHidden) {
-        return showHidden ? "show" : "hide";
-    }
-
-    private RecentSort normalizeSort(String sort) {
-        return RecentSort.from(sort);
-    }
-
-    private SortDirection normalizeDirection(String direction, RecentSort sort) {
-        if (direction == null || direction.isBlank()) {
-            return sort == RecentSort.RECENT ? SortDirection.DESC : SortDirection.ASC;
-        }
-        return SortDirection.from(direction);
-    }
-
-    private int normalizePageSize(Integer size) {
-        if (size == null) {
-            return defaultPageSize();
-        }
-        return pageSizeOptions().contains(size) ? size : defaultPageSize();
-    }
-
-    private int defaultPageSize() {
-        int configuredPageSize = nasProperties.getBrowser().getDefaultPageSize();
-        return configuredPageSize > 0 ? configuredPageSize : FALLBACK_PAGE_SIZE;
-    }
-
-    private List<Integer> pageSizeOptions() {
-        List<Integer> options = new ArrayList<>(PAGE_SIZE_OPTIONS);
-        int defaultPageSize = defaultPageSize();
-        if (!options.contains(defaultPageSize)) {
-            options.add(defaultPageSize);
-            options.sort(Integer::compareTo);
-        }
-        return List.copyOf(options);
-    }
-
-    private RecentPage pageFiles(List<RecentListItem> files, Integer requestedPage, int pageSize) {
-        int totalItems = files.size();
-        int totalPages = Math.max(1, (int) Math.ceil((double) totalItems / pageSize));
-        int page = requestedPage == null ? 1 : requestedPage;
-        page = Math.max(1, Math.min(page, totalPages));
-        int startIndex = totalItems == 0 ? 0 : (page - 1) * pageSize;
-        int endIndex = Math.min(startIndex + pageSize, totalItems);
-        List<RecentListItem> items = totalItems == 0 ? List.of() : files.subList(startIndex, endIndex);
-        int startItem = totalItems == 0 ? 0 : startIndex + 1;
-        return new RecentPage(items, page, pageSize, totalItems, totalPages, startItem, endIndex);
-    }
-
-    private String nextView(String view) {
-        return "grid".equals(view) ? "table" : "grid";
-    }
-
-    private String viewToggleLabel(String view) {
-        return "grid".equals(view) ? "Switch to table view" : "Switch to grid view";
-    }
-
-    private String viewToggleIcon(String view) {
-        return "grid".equals(view) ? "fas fa-bars" : "fas fa-border-all";
-    }
-
-    private String normalizeQuery(String query) {
-        return query == null ? "" : query.trim();
     }
 
     private String contentDisposition(String filename) {

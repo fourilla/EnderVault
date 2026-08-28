@@ -139,7 +139,7 @@ class AdminNotificationFlowTest {
 
     @Test
     void pagesWithCommonAjaxActionsLoadTheirFormBinder() throws Exception {
-        for (String path : List.of("/files/read-only", "/files/recent", "/admin/trash", "/admin/logs")) {
+        for (String path : List.of("/files/read-only", "/admin/trash", "/admin/logs")) {
             mockMvc.perform(get(path))
                     .andExpect(status().isOk())
                     .andExpect(content().string(Matchers.containsString("/js/admin-actions.js")));
@@ -148,6 +148,11 @@ class AdminNotificationFlowTest {
         mockMvc.perform(get("/files"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("/react/assets/files-")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/admin-actions.js"))));
+
+        mockMvc.perform(get("/files/recent"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("/react/assets/recent-")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("/js/admin-actions.js"))));
     }
 
@@ -1471,12 +1476,19 @@ class AdminNotificationFlowTest {
 
     @Test
     void recentPageRendersVirtualDirectoryShell() throws Exception {
-        mockMvc.perform(get("/files/recent")
-                        .param("q", "unlikely-recent-query-" + System.nanoTime()))
+        String query = "unlikely-recent-query-" + System.nanoTime();
+
+        mockMvc.perform(get("/files/recent"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Virtual location")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Search in recent")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("No recent items matched your search.")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"recent-root\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Loading recent items...")));
+
+        mockMvc.perform(get("/api/v1/recent").param("q", query))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.search.query").value(query))
+                .andExpect(jsonPath("$.search.performed").value(true))
+                .andExpect(jsonPath("$.directories").isEmpty())
+                .andExpect(jsonPath("$.entries").isEmpty());
     }
 
     @Test
@@ -1536,13 +1548,12 @@ class AdminNotificationFlowTest {
         mockMvc.perform(get("/files/detail").param("path", filename))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/files/recent").param("q", "recent-ui"))
+        mockMvc.perform(get("/api/v1/recent").param("q", "recent-ui"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(filename)))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Accessed")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remove selected from recent")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/api/v1/recent/remove")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/api/v1/recent/clear")));
+                .andExpect(jsonPath("$.entries[0].name").value(filename))
+                .andExpect(jsonPath("$.entries[0].accessedAt").isNotEmpty())
+                .andExpect(jsonPath("$.entries[0].accessedLabel").isNotEmpty())
+                .andExpect(jsonPath("$.search.performed").value(true));
 
         mockMvc.perform(post("/api/v1/recent/remove")
                         .with(csrf())

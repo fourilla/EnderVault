@@ -43,7 +43,7 @@ export function BrowserListing({
         <>
           {payload.mode === 'search' && (payload.entries.length > 0 ? (
             <section className="browser-section" aria-label="Search results">
-              <EntryTable entries={payload.entries} search onBrowse={browse} selected={selected}
+              <EntryTable entries={payload.entries} showLocation selectable={false} onBrowse={browse} selected={selected}
                 onSelect={selectEntry} onFavorite={toggleFavorite} itemInteractionProps={itemInteractionProps} />
             </section>
           ) : <p className="empty browser-grid-empty">No matching items.</p>)}
@@ -51,7 +51,7 @@ export function BrowserListing({
           {payload.mode === 'browse' && payload.directories.length > 0 && (
             <section className="browser-section" aria-label="Directories">
               <header className="section-heading"><h2>Directories ({payload.directories.length})</h2></header>
-              <EntryTable entries={payload.directories} search={false} onBrowse={browse} selected={selected}
+              <EntryTable entries={payload.directories} onBrowse={browse} selected={selected}
                 onSelect={selectEntry} onFavorite={toggleFavorite} itemInteractionProps={itemInteractionProps} />
             </section>
           )}
@@ -66,7 +66,7 @@ export function BrowserListing({
                 <EntryGrid entries={payload.entries} onBrowse={browse} selected={selected}
                   onSelect={selectEntry} itemInteractionProps={itemInteractionProps} />
               ) : (
-                <EntryTable entries={payload.entries} search={false} onBrowse={browse} selected={selected}
+                <EntryTable entries={payload.entries} onBrowse={browse} selected={selected}
                   onSelect={selectEntry} onFavorite={toggleFavorite} itemInteractionProps={itemInteractionProps} />
               )}
             </section>
@@ -75,8 +75,9 @@ export function BrowserListing({
           {payload.mode === 'browse' && payload.directories.length === 0 && payload.entries.length === 0 && (
             <p className="empty browser-grid-empty">This directory is empty.</p>
           )}
-          <BrowserPagination page={payload.page} effectiveState={effectiveState}
-            navigate={navigate} jumpToPage={jumpToPage} />
+          <BrowserPagination page={payload.page}
+            onPageChange={(page) => navigate({ ...effectiveState(), page, scrollTop: 0 })}
+            jumpToPage={jumpToPage} />
         </>
       )}
     </>
