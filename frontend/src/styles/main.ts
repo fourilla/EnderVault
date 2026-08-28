@@ -1,0 +1,1 @@
+import '../../../src/main/resources/static/css/app.css';

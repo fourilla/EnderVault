@@ -63,9 +63,10 @@ class StickyNoteFlowTest {
                 .andExpect(content().string(containsString("href=\"/admin/sticky-notes\"")))
                 .andExpect(content().string(containsString("Note list")))
                 .andExpect(content().string(not(containsString("data-sticky-note-collapse-all"))))
-                .andExpect(content().string(containsString("/js/topbar-controls.js")))
-                .andExpect(content().string(containsString("/js/sticky-notes.js")))
-                .andExpect(content().string(containsString("/js/page-context-menu.js")));
+                .andExpect(content().string(containsString("/react/assets/shell-")))
+                .andExpect(content().string(not(containsString("/js/topbar-controls.js"))))
+                .andExpect(content().string(not(containsString("/js/sticky-notes.js"))))
+                .andExpect(content().string(not(containsString("/js/page-context-menu.js"))));
 
         mockMvc.perform(get("/files/read-only"))
                 .andExpect(status().isOk())

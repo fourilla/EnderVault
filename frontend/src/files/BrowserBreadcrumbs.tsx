@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import { icon } from './BrowserEntries';
+import { icon } from '../shared/browser/BrowserEntries';
 import type { BrowserHistoryState, BrowserPayload } from './types';
 
 const breadcrumbsForPath = (path: string) => {

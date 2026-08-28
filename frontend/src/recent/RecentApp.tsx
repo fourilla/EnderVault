@@ -1,9 +1,9 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { EntryGrid, EntryTable, icon } from '../files/BrowserEntries';
-import { BrowserPagination } from '../files/BrowserPagination';
-import { notify, postForm, toastError } from '../files/file-actions-api';
-import type { BrowserEntry } from '../files/types';
-import { useEntrySelection } from '../files/useEntrySelection';
+import { EntryGrid, EntryTable, icon } from '../shared/browser/BrowserEntries';
+import { BrowserPagination } from '../shared/browser/BrowserPagination';
+import type { BrowserEntry } from '../shared/browser/types';
+import { useEntrySelection } from '../shared/browser/useEntrySelection';
+import { notify, postForm, toastError } from '../shared/api/form-api';
 import { canonicalRecentState, loadRecentPayload } from './recent-api';
 import {
   defaultRecentState,

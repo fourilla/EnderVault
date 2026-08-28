@@ -16,6 +16,10 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       input: {
+        styles: 'src/styles/main.ts',
+        shell: 'src/shell/main.ts',
+        fileTools: 'src/file-tools/main.ts',
+        markdown: 'src/markdown/main.ts',
         files: 'src/files/main.tsx',
         recent: 'src/recent/main.tsx',
         settings: 'src/settings/main.tsx',

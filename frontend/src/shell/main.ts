@@ -1,0 +1,12 @@
+import '../../../src/main/resources/static/js/endervault-core.js';
+import '../../../src/main/resources/static/js/context-menu.js';
+import '../../../src/main/resources/static/js/password-toggle.js';
+import '../../../src/main/resources/static/js/notifications.js';
+import '../../../src/main/resources/static/js/activity-panel.js';
+import '../../../src/main/resources/static/js/server-tasks.js';
+import '../../../src/main/resources/static/js/favorites.js';
+import '../../../src/main/resources/static/js/topbar-controls.js';
+import '../../../src/main/resources/static/js/notification-center.js';
+import '../../../src/main/resources/static/js/outbound-route.js';
+import '../../../src/main/resources/static/js/sticky-notes.js';
+import '../../../src/main/resources/static/js/page-context-menu.js';

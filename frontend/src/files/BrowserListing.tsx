@@ -1,5 +1,5 @@
-import { EntryGrid, EntryTable } from './BrowserEntries';
-import { BrowserPagination } from './BrowserPagination';
+import { EntryGrid, EntryTable } from '../shared/browser/BrowserEntries';
+import { BrowserPagination } from '../shared/browser/BrowserPagination';
 import type { BrowserEntry, BrowserHistoryState, BrowserPayload } from './types';
 
 export function BrowserListing({

@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { icon } from './BrowserEntries';
+import { icon } from '../shared/browser/BrowserEntries';
 import type { BrowserEntry, BrowserHistoryState, BrowserPayload, BrowserView } from './types';
 import type { FileBrowserActions } from './useFileActions';
 
