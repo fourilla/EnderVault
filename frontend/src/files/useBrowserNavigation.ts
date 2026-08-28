@@ -6,7 +6,8 @@ import {
   parseBrowserState,
   rememberBrowserState,
 } from './browser-history';
-import type { BrowserHistoryState, BrowserPayload } from './types';
+import { postForm, toastError } from './file-actions-api';
+import type { BrowserHistoryState, BrowserPayload, BrowserView } from './types';
 
 export function useBrowserNavigation() {
   const [state, setState] = useState<BrowserHistoryState>(() => initialBrowserState());
@@ -18,6 +19,7 @@ export function useBrowserNavigation() {
   const stateRef = useRef(state);
   const payloadRef = useRef(payload);
   const restoreScrollRef = useRef(state.scrollTop);
+  const requestGenerationRef = useRef(0);
 
   stateRef.current = state;
   payloadRef.current = payload;
@@ -38,6 +40,10 @@ export function useBrowserNavigation() {
   const navigate = useCallback((next: BrowserHistoryState, replace = false) => {
     persistCurrentScroll();
     const normalized = { ...next, version: 1 as const, scrollTop: next.scrollTop || 0 };
+    requestGenerationRef.current += 1;
+    payloadRef.current = null;
+    setPayload(null);
+    setLoading(true);
     restoreScrollRef.current = normalized.scrollTop;
     rememberBrowserState(normalized, replace);
     setState(normalized);
@@ -86,13 +92,26 @@ export function useBrowserNavigation() {
     };
   }, [effectiveState, navigate]);
 
+  const listingRequestKey = [
+    state.mode,
+    state.path,
+    state.query,
+    state.page,
+    state.sort || '',
+    state.direction || '',
+    state.hidden || '',
+    state.pageSize || '',
+  ].join('\u0000');
+
   useEffect(() => {
+    const requestGeneration = ++requestGenerationRef.current;
     rememberBrowserState(state, true);
     const controller = new AbortController();
     setLoading(true);
     setError('');
     void loadBrowserPayload(state, controller.signal)
       .then((nextPayload) => {
+        if (controller.signal.aborted || requestGeneration !== requestGenerationRef.current) return;
         setPayload(nextPayload);
         const resolvedState = canonicalState(state, nextPayload);
         rememberBrowserState(resolvedState, true);
@@ -119,18 +138,24 @@ export function useBrowserNavigation() {
         });
       })
       .catch((reason: unknown) => {
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || requestGeneration !== requestGenerationRef.current) return;
         setError(reason instanceof Error ? reason.message : 'The file list could not be loaded.');
       })
       .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
+        if (!controller.signal.aborted && requestGeneration === requestGenerationRef.current) {
+          setLoading(false);
+        }
       });
     return () => controller.abort();
-  }, [state, refreshToken]);
+  }, [listingRequestKey, refreshToken]);
 
   useEffect(() => {
     const onPopState = (event: PopStateEvent) => {
       const restored = parseBrowserState(event.state) || defaultBrowserState();
+      requestGenerationRef.current += 1;
+      payloadRef.current = null;
+      setPayload(null);
+      setLoading(true);
       restoreScrollRef.current = restored.scrollTop;
       setSearchText(restored.query);
       setState(restored);
@@ -146,6 +171,41 @@ export function useBrowserNavigation() {
 
   const applyPreferences = (updates: Partial<BrowserHistoryState>) => {
     navigate({ ...effectiveState(), ...updates, page: 1, scrollTop: 0 });
+  };
+
+  const applyView = async (view: BrowserView) => {
+    const previousView = payloadRef.current?.preferences.view
+      || stateRef.current.view
+      || 'table';
+    if (previousView === view) return;
+
+    const updateLocalView = (nextView: BrowserView) => {
+      const nextState = { ...stateRef.current, view: nextView };
+      stateRef.current = nextState;
+      setState(nextState);
+      rememberBrowserState(nextState, true);
+      setPayload((current) => {
+        if (!current) return current;
+        const updated = {
+          ...current,
+          preferences: { ...current.preferences, view: nextView },
+        };
+        payloadRef.current = updated;
+        return updated;
+      });
+    };
+
+    updateLocalView(view);
+    try {
+      const body = await postForm('/api/v1/browser-preferences/files/view', { view });
+      const savedView = body?.view === 'grid' ? 'grid' : 'table';
+      if (stateRef.current.view === view && savedView !== view) {
+        updateLocalView(savedView);
+      }
+    } catch (reason) {
+      if (stateRef.current.view === view) updateLocalView(previousView);
+      toastError(reason, 'View preference could not be saved.');
+    }
   };
 
   const submitSearch = (event: FormEvent) => {
@@ -177,6 +237,7 @@ export function useBrowserNavigation() {
     effectiveState,
     navigate,
     browse,
+    applyView,
     applyPreferences,
     submitSearch,
     reload: () => setRefreshToken((current) => current + 1),

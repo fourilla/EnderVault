@@ -101,11 +101,17 @@ public class FileBrowserQueryService {
                         resolved.direction(),
                         resolved.showHidden()
                 );
+        List<FileItem> directories = results.stream()
+                .filter(FileItem::directory)
+                .toList();
+        List<FileItem> files = results.stream()
+                .filter(item -> !item.directory())
+                .toList();
         return result(
                 FileBrowserResult.Mode.SEARCH,
                 context,
-                List.of(),
-                results,
+                directories,
+                files,
                 page,
                 resolved,
                 normalizedQuery,

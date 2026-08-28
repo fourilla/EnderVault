@@ -864,6 +864,7 @@ class AdminNotificationFlowTest {
     void fileBrowserSearchApiUsesTheSharedBrowserContract() throws Exception {
         Path container = ROOT.resolve("browser-search-api-test");
         Files.createDirectories(container.resolve("nested"));
+        Files.createDirectories(container.resolve("Q3-note-directory"));
         Files.writeString(container.resolve("nested").resolve("Q11-note.txt"), "eleven");
         Files.writeString(container.resolve("nested").resolve("Q2-note.txt"), "two");
 
@@ -877,7 +878,8 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.mode").value("search"))
-                .andExpect(jsonPath("$.directories.length()").value(0))
+                .andExpect(jsonPath("$.directories.length()").value(1))
+                .andExpect(jsonPath("$.directories[0].name").value("Q3-note-directory"))
                 .andExpect(jsonPath("$.entries.length()").value(2))
                 .andExpect(jsonPath("$.entries[0].name").value("Q2-note.txt"))
                 .andExpect(jsonPath("$.entries[1].name").value("Q11-note.txt"))
@@ -999,6 +1001,17 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(post("/files/preferences/reset").with(csrf()))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void fileBrowserViewPreferenceCanBeSavedWithoutReloadingTheListing() throws Exception {
+        mockMvc.perform(post("/api/v1/browser-preferences/files/view")
+                        .with(csrf())
+                        .param("view", "grid"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.view").value("grid"))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE,
+                        Matchers.containsString("endervault.files.view=grid")));
     }
 
     @Test

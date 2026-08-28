@@ -25,6 +25,7 @@ export function BrowserApp() {
     effectiveState,
     navigate,
     browse,
+    applyView,
     applyPreferences,
     submitSearch,
     reload,
@@ -84,13 +85,14 @@ export function BrowserApp() {
         </div>
       </div>
 
-      <BrowserBreadcrumbs payload={payload} browse={browse} />
+      <BrowserBreadcrumbs payload={payload} currentState={currentState} browse={browse} />
       <BrowserToolbar
         payload={payload}
         currentState={currentState}
         searchText={searchText}
         setSearchText={setSearchText}
         submitSearch={submitSearch}
+        applyView={applyView}
         applyPreferences={applyPreferences}
         browse={browse}
         selectedEntries={selection.selectedEntries}
@@ -98,12 +100,13 @@ export function BrowserApp() {
       />
       <TransferBufferPanel
         transferBuffer={actions.transferBuffer}
-        mode={payload?.mode}
+        mode={currentState.mode}
         path={currentState.path}
         actions={actions}
       />
       <BrowserListing
         payload={payload}
+        currentState={currentState}
         loading={loading}
         error={error}
         selected={selection.selected}

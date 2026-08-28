@@ -1,22 +1,38 @@
 import { Fragment } from 'react';
 import { icon } from './BrowserEntries';
-import type { BrowserPayload } from './types';
+import type { BrowserHistoryState, BrowserPayload } from './types';
+
+const breadcrumbsForPath = (path: string) => {
+  const parts = path.split('/').filter(Boolean);
+  return [
+    { label: 'Root', path: '' },
+    ...parts.map((label, index) => ({
+      label,
+      path: parts.slice(0, index + 1).join('/'),
+    })),
+  ];
+};
 
 export function BrowserBreadcrumbs({
   payload,
+  currentState,
   browse,
 }: {
   payload: BrowserPayload | null;
+  currentState: BrowserHistoryState;
   browse: (path: string) => void;
 }) {
+  const mode = payload?.mode || currentState.mode;
+  const path = payload?.path ?? currentState.path;
+  const breadcrumbs = payload?.breadcrumbs || breadcrumbsForPath(path);
   return (
     <section className="breadcrumb-panel" aria-label="Current location">
       <div className="breadcrumb-main">
         <p className="breadcrumb-label">
-          {payload?.mode === 'search' ? 'Search in' : 'Location'}
+          {mode === 'search' ? 'Search in' : 'Location'}
         </p>
         <nav className="breadcrumbs">
-          {(payload?.breadcrumbs || [{ label: 'Root', path: '' }]).map((breadcrumb, index, items) => (
+          {breadcrumbs.map((breadcrumb, index, items) => (
             <Fragment key={breadcrumb.path + ':' + breadcrumb.label}>
               <a
                 className={index === items.length - 1 ? 'current' : undefined}
@@ -33,7 +49,7 @@ export function BrowserBreadcrumbs({
           ))}
         </nav>
       </div>
-      {payload?.mode === 'search' ? (
+      {mode === 'search' ? (
         <a
           className="button-link ghost icon-button"
           href="/files"
@@ -41,7 +57,7 @@ export function BrowserBreadcrumbs({
           aria-label="Back to files"
           onClick={(event) => {
             event.preventDefault();
-            browse(payload.path);
+            browse(path);
           }}
         >
           {icon('fas fa-folder-open')}

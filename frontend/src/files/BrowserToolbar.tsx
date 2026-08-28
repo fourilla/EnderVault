@@ -1,6 +1,6 @@
 import type { FormEvent } from 'react';
 import { icon } from './BrowserEntries';
-import type { BrowserEntry, BrowserHistoryState, BrowserPayload } from './types';
+import type { BrowserEntry, BrowserHistoryState, BrowserPayload, BrowserView } from './types';
 import type { FileBrowserActions } from './useFileActions';
 
 export function BrowserToolbar({
@@ -9,6 +9,7 @@ export function BrowserToolbar({
   searchText,
   setSearchText,
   submitSearch,
+  applyView,
   applyPreferences,
   browse,
   selectedEntries,
@@ -19,12 +20,14 @@ export function BrowserToolbar({
   searchText: string;
   setSearchText: (value: string) => void;
   submitSearch: (event: FormEvent) => void;
+  applyView: (view: BrowserView) => Promise<void>;
   applyPreferences: (updates: Partial<BrowserHistoryState>) => void;
   browse: (path: string) => void;
   selectedEntries: BrowserEntry[];
   actions: FileBrowserActions;
 }) {
   const preferences = payload?.preferences;
+  const searchMode = currentState.mode === 'search';
   return (
     <section className="toolbar files-react-toolbar" aria-label="File tools">
       <form className="search-form" onSubmit={submitSearch}>
@@ -47,7 +50,7 @@ export function BrowserToolbar({
         <div
           className="toolbar-actions file-actions"
           aria-label="File management actions"
-          hidden={payload?.mode === 'search'}
+          hidden={searchMode}
         >
           <form
             className="icon-form"
@@ -117,9 +120,9 @@ export function BrowserToolbar({
             {icon('fas fa-trash-can')}
           </button>
         </div>
-        {payload?.mode === 'search' && (
+        {searchMode && (
           <button className="ghost icon-text-button files-exit-search" type="button"
-            onClick={() => browse(payload.path)}>
+            onClick={() => browse(currentState.path)}>
             {icon('fas fa-xmark')}
             <span>Exit search</span>
           </button>
@@ -130,7 +133,7 @@ export function BrowserToolbar({
             type="button"
             title={preferences?.view === 'grid' ? 'Switch to table view' : 'Switch to grid view'}
             aria-label={preferences?.view === 'grid' ? 'Switch to table view' : 'Switch to grid view'}
-            onClick={() => applyPreferences({ view: preferences?.view === 'grid' ? 'table' : 'grid' })}
+            onClick={() => void applyView(preferences?.view === 'grid' ? 'table' : 'grid')}
           >
             {icon(preferences?.view === 'grid' ? 'fas fa-bars' : 'fas fa-border-all')}
           </button>

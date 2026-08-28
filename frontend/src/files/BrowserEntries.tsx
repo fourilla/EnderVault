@@ -34,7 +34,7 @@ function EntryActions({ entry }: { entry: BrowserEntry }) {
     <>
       {entry.previewUrl && (
         <a
-          className="ghost icon-button action-icon"
+          className="button-link ghost icon-button action-icon"
           href={entry.previewUrl}
           target="_blank"
           rel="noopener noreferrer"
@@ -46,7 +46,7 @@ function EntryActions({ entry }: { entry: BrowserEntry }) {
       )}
       {entry.downloadUrl && (
         <a
-          className="ghost icon-button action-icon"
+          className="button-link ghost icon-button action-icon"
           href={entry.downloadUrl}
           title="Download"
           aria-label="Download"
@@ -55,7 +55,7 @@ function EntryActions({ entry }: { entry: BrowserEntry }) {
         </a>
       )}
       <a
-        className="ghost icon-button action-icon"
+        className="button-link ghost icon-button action-icon"
         href={entry.detailUrl}
         title="Details"
         aria-label="Details"
@@ -213,6 +213,8 @@ export function EntryGrid({
   onSelect,
   itemInteractionProps,
   showAccessed = false,
+  showLocation = false,
+  selectable = true,
 }: {
   entries: BrowserEntry[];
   onBrowse: (path: string) => void;
@@ -220,6 +222,8 @@ export function EntryGrid({
   onSelect: (entry: BrowserEntry, checked: boolean) => void;
   itemInteractionProps: (entry: BrowserEntry) => Record<string, unknown>;
   showAccessed?: boolean;
+  showLocation?: boolean;
+  selectable?: boolean;
 }) {
   return (
     <div className="browser-grid">
@@ -241,13 +245,15 @@ export function EntryGrid({
             data-entry-kind={entry.type}
             {...itemInteractionProps(entry)}
           >
-            <input
-              className="card-check"
-              type="checkbox"
-              checked={selected.has(entry.path)}
-              onChange={(event) => onSelect(entry, event.target.checked)}
-              aria-label={'Select ' + entry.name}
-            />
+            {selectable && (
+              <input
+                className="card-check"
+                type="checkbox"
+                checked={selected.has(entry.path)}
+                onChange={(event) => onSelect(entry, event.target.checked)}
+                aria-label={'Select ' + entry.name}
+              />
+            )}
             {entry.hidden && (
               <span className="status-badge expired hidden-badge card-hidden-badge">Hidden</span>
             )}
@@ -279,6 +285,11 @@ export function EntryGrid({
                 <span>{entry.typeLabel}</span>
                 <span>{entry.sizeLabel}</span>
               </p>
+              {showLocation && (
+                <p className="card-meta files-grid-location" title={entry.parentPath || 'Root'}>
+                  <span>{entry.parentPath || 'Root'}</span>
+                </p>
+              )}
               {showAccessed ? (
                 <p className="card-meta">
                   <span>Accessed</span>

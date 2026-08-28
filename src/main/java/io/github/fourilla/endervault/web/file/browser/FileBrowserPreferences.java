@@ -66,6 +66,20 @@ public class FileBrowserPreferences {
         );
     }
 
+    public String rememberFilesView(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            String view
+    ) {
+        return BrowserPreferenceCookies.value(
+                request,
+                response,
+                BrowserPreferenceCookies.FILES.viewCookie(),
+                view,
+                this::normalizeView
+        );
+    }
+
     private Values resolve(
             HttpServletRequest request,
             HttpServletResponse response,
