@@ -1,0 +1,61 @@
+.files-react-root {
+  min-width: 0;
+}
+
+.files-breadcrumb .breadcrumb-link {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+
+.files-react-toolbar {
+  align-items: center;
+}
+
+.files-exit-search {
+  white-space: nowrap;
+}
+
+.files-react-heading {
+  margin-top: var(--space-3xl);
+}
+
+.files-load-error {
+  color: var(--danger);
+}
+
+.files-directory-thumb {
+  color: var(--accent);
+  font-size: 3rem;
+}
+
+.files-location-link {
+  display: block;
+  max-width: 260px;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.files-page-status {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+@media (max-width: 760px) {
+  .files-react-toolbar,
+  .files-react-toolbar .toolbar-cluster {
+    align-items: stretch;
+  }
+
+  .files-react-toolbar .search-form {
+    width: 100%;
+  }
+}

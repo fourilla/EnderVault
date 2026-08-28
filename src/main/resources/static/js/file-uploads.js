@@ -1,4 +1,10 @@
-document.addEventListener("DOMContentLoaded", () => {
+(() => {
+    let initialized = false;
+
+    const initialize = () => {
+    if (initialized) {
+        return;
+    }
     const uploadForm = document.getElementById("uploadForm");
     const fileUploadInput = document.getElementById("fileUploadInput");
     const uploadButton = document.getElementById("uploadButton");
@@ -16,6 +22,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!uploadForm || !fileUploadInput || !uploadButton) {
         return;
     }
+    initialized = true;
 
     const maxConcurrentUploads = Math.max(
         1,
@@ -507,4 +514,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     window.EnderVaultUploads = { startFileUploads };
-});
+    };
+
+    document.addEventListener("DOMContentLoaded", initialize);
+    document.addEventListener("endervault:files-ready", initialize);
+})();

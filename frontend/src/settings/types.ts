@@ -195,19 +195,3 @@ export type PasskeySettingsSnapshot = {
     lastUsed: string;
   }>;
 };
-
-declare global {
-  interface Window {
-    EnderVault?: {
-      askConfirmation?: (options: {
-        title: string;
-        message: string;
-        confirmLabel: string;
-        danger?: boolean;
-      }) => Promise<boolean>;
-    };
-    EnderVaultToasts?: {
-      show: (notification: NotificationPayload) => void;
-    };
-  }
-}

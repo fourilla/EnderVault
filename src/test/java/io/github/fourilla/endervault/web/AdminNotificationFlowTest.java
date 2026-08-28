@@ -114,11 +114,9 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"_csrf\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"_csrf_header\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("action=\"/api/v1/files\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("action=\"/api/v1/files/directories\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("formaction=\"/api/v1/files/trash\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("file-new-noscript-form"))))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"files-root\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/files-")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/file-uploads.js")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"toastRegion\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-notification-center")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/notification-center.js")))
@@ -127,7 +125,7 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-outbound-route-form")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString(
                         "action=\"/api/v1/outbound-route\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/page-jump.js")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-read-only-link")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Open read-only mode")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Recent")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Favorites")))
@@ -141,11 +139,16 @@ class AdminNotificationFlowTest {
 
     @Test
     void pagesWithCommonAjaxActionsLoadTheirFormBinder() throws Exception {
-        for (String path : List.of("/files", "/files/read-only", "/files/recent", "/admin/trash", "/admin/logs")) {
+        for (String path : List.of("/files/read-only", "/files/recent", "/admin/trash", "/admin/logs")) {
             mockMvc.perform(get(path))
                     .andExpect(status().isOk())
                     .andExpect(content().string(Matchers.containsString("/js/admin-actions.js")));
         }
+
+        mockMvc.perform(get("/files"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("/react/assets/files-")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/admin-actions.js"))));
     }
 
     @Test
@@ -951,13 +954,11 @@ class AdminNotificationFlowTest {
         Files.createDirectories(ROOT.resolve(directory));
         Files.writeString(ROOT.resolve(filename), "grid");
 
-        mockMvc.perform(get("/files").param("view", "grid"))
+        mockMvc.perform(get("/api/v1/fs/listing").param("view", "grid"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(directory)))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-select-pick-label")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-select-all")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("directory-card"))));
+                .andExpect(jsonPath("$.preferences.view").value("grid"))
+                .andExpect(jsonPath("$.directories[?(@.name == '" + directory + "')]").exists())
+                .andExpect(jsonPath("$.entries[?(@.name == '" + filename + "')]").exists());
     }
 
     @Test
@@ -965,32 +966,25 @@ class AdminNotificationFlowTest {
         String filename = "grid-card-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "grid");
 
-        mockMvc.perform(get("/files").param("view", "grid"))
+        mockMvc.perform(get("/api/v1/fs/listing").param("view", "grid"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("thumb-extension")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("card-name")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("card-actions"))));
+                .andExpect(jsonPath("$.preferences.view").value("grid"))
+                .andExpect(jsonPath("$.entries[?(@.name == '" + filename + "')].extensionLabel")
+                        .value("TXT"))
+                .andExpect(jsonPath("$.entries[?(@.name == '" + filename + "')].detailUrl").exists());
     }
 
     @Test
     void filesPageRendersTransferControls() throws Exception {
-        mockMvc.perform(get("/files"))
+        mockMvc.perform(get("/api/v1/files/transfer-buffer"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"addToTransferBufferButton\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-transfer-action=\"transfer-buffer-add\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(
-                        "formaction=\"/api/v1/files/transfer-buffer\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-selection-required")));
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.transferBuffer.active").value(false))
+                .andExpect(jsonPath("$.transferBuffer.count").value(0));
     }
 
     @Test
     void browserPreferenceResetUsesVersionedApiOnly() throws Exception {
-        mockMvc.perform(get("/files"))
-                .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString(
-                        "action=\"/api/v1/browser-preferences/reset\"")));
-
         mockMvc.perform(post("/api/v1/browser-preferences/reset")
                         .with(csrf())
                         .param("target", "files"))
@@ -1017,13 +1011,11 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void filesPageRendersSharedZipCreationDialogAndScript() throws Exception {
+    void filesPageLoadsReactOwnedArchiveCreationUi() throws Exception {
         mockMvc.perform(get("/files"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("id=\"compressSelectedButton\"")))
-                .andExpect(content().string(Matchers.containsString("id=\"archiveCreationDialog\"")))
-                .andExpect(content().string(Matchers.containsString("action=\"/api/v1/files/archives\"")))
-                .andExpect(content().string(Matchers.containsString("/js/archive-create.js")));
+                .andExpect(content().string(Matchers.containsString("/react/assets/files-")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/archive-create.js"))));
     }
 
     @Test
@@ -1587,10 +1579,10 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/api/v1/favorites/move")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/api/v1/favorites/remove")));
 
-        mockMvc.perform(get("/files"))
+        mockMvc.perform(get("/api/v1/fs/listing"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("is-favorite")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-favorite-action")));
+                .andExpect(jsonPath("$.entries[?(@.name == '" + filename + "')].favorite")
+                        .value(true));
     }
 
     @Test

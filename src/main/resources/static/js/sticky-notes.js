@@ -23,6 +23,7 @@
     let topLayer = 1;
     let layer;
     let activePointerInteractions = 0;
+    let contextRevision = 0;
 
     const csrfHeaders = () => {
         const csrf = window.EnderVault?.csrfPair();
@@ -509,6 +510,65 @@
         }
     };
 
+    const normalizedContext = (candidate) => ({
+        targetType: String(candidate?.targetType || "").trim(),
+        targetKey: String(candidate?.targetKey || "").trim(),
+        surface: String(candidate?.surface || "").trim(),
+        label: String(candidate?.label || "").trim()
+    });
+
+    const clearRenderedNotes = () => {
+        states.forEach((state) => {
+            keepaliveFlush(state);
+            state.resizeObserver?.disconnect();
+            state.card.remove();
+        });
+        states.clear();
+        topLayer = 1;
+    };
+
+    const loadCurrentContext = async () => {
+        const revision = ++contextRevision;
+        const query = new URLSearchParams({
+            targetType: context.targetType,
+            targetKey: context.targetKey,
+            surface: context.surface
+        });
+        const body = await window.EnderVault.requestJson(`${apiRoot}?${query}`);
+        if (revision !== contextRevision) {
+            return;
+        }
+        body.notes.forEach(renderNote);
+    };
+
+    const setContext = async (candidate) => {
+        const next = normalizedContext(candidate);
+        if (!next.targetType || !next.surface) {
+            return;
+        }
+        if (next.targetType === context.targetType
+                && next.targetKey === context.targetKey
+                && next.surface === context.surface
+                && next.label === context.label) {
+            return;
+        }
+        Object.assign(context, next);
+        if (!layer || !window.EnderVault) {
+            return;
+        }
+        clearRenderedNotes();
+        try {
+            await loadCurrentContext();
+        } catch (error) {
+            showToast("error", error.message || "Sticky notes could not be loaded.");
+        }
+    };
+
+    window.EnderVaultStickyNotes = { setContext };
+    document.addEventListener("endervault:sticky-context-changed", (event) => {
+        void setContext(event.detail);
+    });
+
     const initialize = async () => {
         if (!window.EnderVault || !controls) {
             return;
@@ -569,13 +629,7 @@
         setAllHidden(initiallyHidden);
 
         try {
-            const query = new URLSearchParams({
-                targetType: context.targetType,
-                targetKey: context.targetKey,
-                surface: context.surface
-            });
-            const body = await window.EnderVault.requestJson(`${apiRoot}?${query}`);
-            body.notes.forEach(renderNote);
+            await loadCurrentContext();
         } catch (error) {
             showToast("error", error.message || "Sticky notes could not be loaded.");
         }
