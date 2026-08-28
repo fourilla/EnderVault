@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -21,9 +22,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -1201,6 +1205,58 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void transferBufferAcceptsFullPathsFromDifferentDirectories() throws Exception {
+        String base = "transfer-search-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(base).resolve("alpha"));
+        Files.createDirectories(ROOT.resolve(base).resolve("beta"));
+        Files.writeString(ROOT.resolve(base).resolve("alpha/note.txt"), "alpha");
+        Files.writeString(ROOT.resolve(base).resolve("beta/note.txt"), "beta");
+        MockHttpSession session = new MockHttpSession();
+
+        mockMvc.perform(post("/api/v1/files/transfer-buffer")
+                        .session(session)
+                        .with(csrf())
+                        .param("paths", base + "/alpha/note.txt")
+                        .param("paths", base + "/beta/note.txt"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.transferBuffer.count").value(2))
+                .andExpect(jsonPath("$.transferBuffer.items[0].path").value(base + "/alpha/note.txt"))
+                .andExpect(jsonPath("$.transferBuffer.items[1].path").value(base + "/beta/note.txt"));
+    }
+
+    @Test
+    void fullPathSelectionCollapsesItemsCoveredBySelectedDirectory() throws Exception {
+        String base = "transfer-collapse-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(base).resolve("docs"));
+        Files.writeString(ROOT.resolve(base).resolve("docs/note.txt"), "note");
+        MockHttpSession session = new MockHttpSession();
+
+        mockMvc.perform(post("/api/v1/files/transfer-buffer")
+                        .session(session)
+                        .with(csrf())
+                        .param("paths", base + "/docs/note.txt")
+                        .param("paths", base + "/docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.transferBuffer.count").value(1))
+                .andExpect(jsonPath("$.transferBuffer.items[0].path").value(base + "/docs"));
+    }
+
+    @Test
+    void selectionRequestRejectsMixedFullPathAndLegacyItemContracts() throws Exception {
+        String base = "transfer-ambiguous-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(base));
+        Files.writeString(ROOT.resolve(base).resolve("note.txt"), "note");
+
+        mockMvc.perform(post("/api/v1/files/transfer-buffer")
+                        .session(new MockHttpSession())
+                        .with(csrf())
+                        .param("path", base)
+                        .param("items", "note.txt")
+                        .param("paths", base + "/note.txt"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void selectedItemsCanBeCopiedThroughTransferBuffer() throws Exception {
         String source = "transfer-copy-source-" + System.nanoTime();
         String target = "transfer-copy-target-" + System.nanoTime();
@@ -2105,6 +2161,33 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void mixedParentDownloadPreservesPathsRelativeToSearchRoot() throws Exception {
+        String base = "selected-search-zip-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(base).resolve("alpha"));
+        Files.createDirectories(ROOT.resolve(base).resolve("beta"));
+        Files.writeString(ROOT.resolve(base).resolve("alpha/note.txt"), "alpha");
+        Files.writeString(ROOT.resolve(base).resolve("beta/note.txt"), "beta");
+
+        MvcResult result = mockMvc.perform(get("/files/download.zip")
+                        .param("path", base)
+                        .param("paths", base + "/alpha/note.txt")
+                        .param("paths", base + "/beta/note.txt"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE, Matchers.containsString("application/zip")))
+                .andReturn();
+
+        Set<String> entries = new LinkedHashSet<>();
+        try (ZipInputStream zip = new ZipInputStream(
+                new ByteArrayInputStream(result.getResponse().getContentAsByteArray()))) {
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                entries.add(entry.getName());
+            }
+        }
+        assertThat(entries).containsExactly("alpha/note.txt", "beta/note.txt");
+    }
+
+    @Test
     void deleteSelectedCanReturnJsonForEnhancedForms() throws Exception {
         String filename = "ajax-delete-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "delete");
@@ -2119,6 +2202,33 @@ class AdminNotificationFlowTest {
                 .andExpect(jsonPath("$.task.id").exists())
                 .andExpect(jsonPath("$.task.type").value("FILE_TRASH"))
                 .andExpect(jsonPath("$.redirectUrl").exists());
+    }
+
+    @Test
+    void fullPathSelectionCanMoveItemsFromDifferentDirectoriesToTrash() throws Exception {
+        String base = "trash-search-" + System.nanoTime();
+        Path first = ROOT.resolve(base).resolve("alpha/note.txt");
+        Path second = ROOT.resolve(base).resolve("beta/note.txt");
+        Files.createDirectories(first.getParent());
+        Files.createDirectories(second.getParent());
+        Files.writeString(first, "alpha");
+        Files.writeString(second, "beta");
+
+        mockMvc.perform(post("/api/v1/files/trash")
+                        .with(csrf())
+                        .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
+                        .param("path", base)
+                        .param("paths", base + "/alpha/note.txt")
+                        .param("paths", base + "/beta/note.txt"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.task.type").value("FILE_TRASH"));
+
+        long deadline = System.currentTimeMillis() + 5_000L;
+        while ((Files.exists(first) || Files.exists(second)) && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20L);
+        }
+        assertThat(first).doesNotExist();
+        assertThat(second).doesNotExist();
     }
 
     @Test

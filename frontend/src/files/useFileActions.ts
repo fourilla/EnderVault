@@ -81,8 +81,7 @@ export function useFileActions({
     if (entries.length === 0) return;
     try {
       const body = await postForm('/api/v1/files/transfer-buffer', {
-        path: entries[0].parentPath,
-        items: entries.map((entry) => entry.name),
+        paths: entries.map((entry) => entry.path),
       });
       notify(body);
       if (body.transferBuffer) setTransferBuffer(body.transferBuffer);
@@ -125,8 +124,8 @@ export function useFileActions({
     if (!confirmed) return;
     try {
       const body = await postForm('/api/v1/files/trash', {
-        path: entries[0].parentPath,
-        items: entries.map((entry) => entry.name),
+        path: effectiveState().path,
+        paths: entries.map((entry) => entry.path),
       });
       notify(body);
       setSelected(new Set());
@@ -149,8 +148,8 @@ export function useFileActions({
       return;
     }
     const query = new URLSearchParams();
-    if (entries[0].parentPath) query.set('path', entries[0].parentPath);
-    entries.forEach((entry) => query.append('items', entry.name));
+    if (effectiveState().path) query.set('path', effectiveState().path);
+    entries.forEach((entry) => query.append('paths', entry.path));
     window.location.assign('/files/download.zip?' + query.toString());
   };
 
@@ -166,8 +165,8 @@ export function useFileActions({
     if (!outputName) return;
     try {
       const body = await postForm('/api/v1/files/archives', {
-        path: entries[0].parentPath,
-        items: entries.map((entry) => entry.name),
+        path: effectiveState().path,
+        paths: entries.map((entry) => entry.path),
         outputName,
       });
       notify(body);

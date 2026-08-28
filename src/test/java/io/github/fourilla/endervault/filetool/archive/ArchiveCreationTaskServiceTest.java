@@ -118,6 +118,27 @@ class ArchiveCreationTaskServiceTest {
     }
 
     @Test
+    void createsArchiveFromFullPathsRelativeToDestinationContext() throws Exception {
+        Files.createDirectories(root.resolve("search-root/alpha"));
+        Files.createDirectories(root.resolve("search-root/beta"));
+        Files.writeString(root.resolve("search-root/alpha/note.txt"), "alpha");
+        Files.writeString(root.resolve("search-root/beta/note.txt"), "beta");
+
+        AppTask task = service.queueVaultPaths(
+                "search-root",
+                List.of("search-root/alpha/note.txt", "search-root/beta/note.txt"),
+                "results",
+                request()
+        );
+        waitUntilFinished(task);
+
+        assertThat(task.status()).isEqualTo(TaskStatus.COMPLETE);
+        assertThat(zipEntries(root.resolve("search-root/results.zip")))
+                .containsEntry("alpha/note.txt", "alpha")
+                .containsEntry("beta/note.txt", "beta");
+    }
+
+    @Test
     void existingArchiveQueuesCompletedZipForReview() throws Exception {
         Files.writeString(root.resolve("report.txt"), "new report");
         Files.writeString(root.resolve("report.zip"), "existing archive");

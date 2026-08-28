@@ -9,6 +9,17 @@ import {
 import { postForm, toastError } from './file-actions-api';
 import type { BrowserHistoryState, BrowserPayload, BrowserView } from './types';
 
+const listingRequestKeyFor = (state: BrowserHistoryState) => [
+  state.mode,
+  state.path,
+  state.query,
+  state.page,
+  state.sort || '',
+  state.direction || '',
+  state.hidden || '',
+  state.pageSize || '',
+].join('\u0000');
+
 export function useBrowserNavigation() {
   const [state, setState] = useState<BrowserHistoryState>(() => initialBrowserState());
   const [payload, setPayload] = useState<BrowserPayload | null>(null);
@@ -40,13 +51,17 @@ export function useBrowserNavigation() {
   const navigate = useCallback((next: BrowserHistoryState, replace = false) => {
     persistCurrentScroll();
     const normalized = { ...next, version: 1 as const, scrollTop: next.scrollTop || 0 };
+    const sameRequest = listingRequestKeyFor(stateRef.current) === listingRequestKeyFor(normalized);
     requestGenerationRef.current += 1;
     payloadRef.current = null;
     setPayload(null);
     setLoading(true);
     restoreScrollRef.current = normalized.scrollTop;
-    rememberBrowserState(normalized, replace);
+    rememberBrowserState(normalized, replace || sameRequest);
     setState(normalized);
+    if (sameRequest) {
+      setRefreshToken((current) => current + 1);
+    }
   }, [persistCurrentScroll]);
 
   const browse = useCallback((path: string) => {
@@ -92,16 +107,7 @@ export function useBrowserNavigation() {
     };
   }, [effectiveState, navigate]);
 
-  const listingRequestKey = [
-    state.mode,
-    state.path,
-    state.query,
-    state.page,
-    state.sort || '',
-    state.direction || '',
-    state.hidden || '',
-    state.pageSize || '',
-  ].join('\u0000');
+  const listingRequestKey = listingRequestKeyFor(state);
 
   useEffect(() => {
     const requestGeneration = ++requestGenerationRef.current;

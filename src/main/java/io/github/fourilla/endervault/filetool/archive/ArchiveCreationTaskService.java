@@ -13,7 +13,6 @@ import io.github.fourilla.endervault.pending.PendingFileDecisionSource;
 import io.github.fourilla.endervault.storage.FileItem;
 import io.github.fourilla.endervault.storage.StorageOperationSummary;
 import io.github.fourilla.endervault.storage.StorageProgressListener;
-import io.github.fourilla.endervault.storage.StorageScope;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.task.AppTask;
 import io.github.fourilla.endervault.task.TaskCanceledException;
@@ -76,25 +75,38 @@ public class ArchiveCreationTaskService {
             HttpServletRequest request
     ) throws IOException {
         List<String> selectedNames = normalizeSelectedNames(itemNames);
-        List<FileItem> selectedItems = selectedNames.stream()
+        List<String> sourcePaths = selectedNames.stream()
                 .map(name -> describe(directoryPath, name))
+                .map(FileItem::path)
+                .toList();
+        return queueVaultPaths(directoryPath, sourcePaths, outputName, request);
+    }
+
+    public AppTask queueVaultPaths(
+            String destinationDirectoryPath,
+            List<String> sourcePaths,
+            String outputName,
+            HttpServletRequest request
+    ) throws IOException {
+        List<FileItem> selectedItems = normalizeSourcePaths(sourcePaths).stream()
+                .map(this::describe)
                 .toList();
         String archiveName = normalizeArchiveName(outputName, selectedItems);
         storageService.validateVaultEntryName(archiveName);
 
-        List<String> sourcePaths = selectedItems.stream().map(FileItem::path).toList();
+        List<String> selectedPaths = selectedItems.stream().map(FileItem::path).toList();
         RequestSnapshot snapshot = RequestSnapshot.from(request, clientIpResolver);
-        String requestedTarget = childPath(directoryPath, archiveName);
+        String requestedTarget = childPath(destinationDirectoryPath, archiveName);
         activityLogService.record(
                 "ARCHIVE_CREATE_QUEUED",
                 snapshot.actor(),
                 snapshot.ip(),
-                directoryPath,
+                destinationDirectoryPath,
                 requestedTarget,
                 true,
                 "Queued ZIP archive creation",
                 Map.of(
-                        "selectedItems", Integer.toString(selectedNames.size())
+                        "selectedItems", Integer.toString(selectedPaths.size())
                 )
         );
 
@@ -105,9 +117,8 @@ public class ArchiveCreationTaskService {
                 snapshot.actor(),
                 snapshot.ip(),
                 context -> createArchive(
-                        directoryPath,
-                        selectedNames,
-                        sourcePaths,
+                        destinationDirectoryPath,
+                        selectedPaths,
                         archiveName,
                         snapshot,
                         context
@@ -117,7 +128,6 @@ public class ArchiveCreationTaskService {
 
     private TaskOutcome createArchive(
             String directoryPath,
-            List<String> selectedNames,
             List<String> sourcePaths,
             String archiveName,
             RequestSnapshot request,
@@ -150,10 +160,9 @@ public class ArchiveCreationTaskService {
                     StandardOpenOption.CREATE_NEW,
                     StandardOpenOption.WRITE
             )) {
-                storageService.writeZip(
-                        StorageScope.VAULT,
+                storageService.writeVaultPathsZip(
                         directoryPath,
-                        selectedNames,
+                        sourcePaths,
                         outputStream,
                         progressListener(context)
                 );
@@ -208,7 +217,7 @@ public class ArchiveCreationTaskService {
                     true,
                     "ZIP archive creation complete",
                     Map.of(
-                            "selectedItems", Integer.toString(selectedNames.size()),
+                            "selectedItems", Integer.toString(sourcePaths.size()),
                             "sourceBytes", Long.toString(summary.totalBytes()),
                             "archiveBytes", Long.toString(archiveBytes)
                     )
@@ -264,11 +273,32 @@ public class ArchiveCreationTaskService {
         return List.copyOf(selected);
     }
 
+    private List<String> normalizeSourcePaths(List<String> sourcePaths) {
+        LinkedHashSet<String> selected = new LinkedHashSet<>();
+        if (sourcePaths != null) {
+            sourcePaths.stream()
+                    .filter(path -> path != null && !path.isBlank())
+                    .forEach(selected::add);
+        }
+        if (selected.isEmpty()) {
+            throw new StorageAccessException("Select at least one item to compress.");
+        }
+        return List.copyOf(selected);
+    }
+
     private FileItem describe(String directoryPath, String itemName) {
         try {
             return storageService.describeVaultChild(directoryPath, itemName);
         } catch (IOException ex) {
             throw new StorageAccessException("A selected item is no longer available: " + itemName, ex);
+        }
+    }
+
+    private FileItem describe(String vaultPath) {
+        try {
+            return storageService.describeVaultPath(vaultPath);
+        } catch (IOException ex) {
+            throw new StorageAccessException("A selected item is no longer available: " + vaultPath, ex);
         }
     }
 

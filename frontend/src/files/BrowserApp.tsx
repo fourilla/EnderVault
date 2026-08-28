@@ -31,8 +31,8 @@ export function BrowserApp() {
     reload,
   } = navigation;
   const selection = useEntrySelection(
-    payload?.mode === 'browse' ? [...payload.directories, ...payload.entries] : [],
-    payload?.mode === 'browse',
+    payload ? [...payload.directories, ...payload.entries] : [],
+    Boolean(payload),
     browse,
     [state.mode, state.path, state.query, state.page].join('\u0000'),
   );

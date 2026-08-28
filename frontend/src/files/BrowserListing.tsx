@@ -60,7 +60,7 @@ export function BrowserListing({
           {payload.directories.length > 0 && (
             <section className="browser-section" aria-label="Directories">
               <header className="section-heading"><h2>Directories ({payload.directories.length})</h2></header>
-              <EntryTable entries={payload.directories} showLocation={searchMode} selectable={!searchMode}
+              <EntryTable entries={payload.directories} showLocation={searchMode}
                 onBrowse={browse} selected={selected}
                 onSelect={selectEntry} onFavorite={toggleFavorite} itemInteractionProps={itemInteractionProps} />
             </section>
@@ -73,11 +73,11 @@ export function BrowserListing({
                 <p>Showing {payload.page.startItem}-{payload.page.endItem}</p>
               </header>
               {payload.preferences.view === 'grid' ? (
-                <EntryGrid entries={payload.entries} showLocation={searchMode} selectable={!searchMode}
+                <EntryGrid entries={payload.entries} showLocation={searchMode}
                   onBrowse={browse} selected={selected}
                   onSelect={selectEntry} itemInteractionProps={itemInteractionProps} />
               ) : (
-                <EntryTable entries={payload.entries} showLocation={searchMode} selectable={!searchMode}
+                <EntryTable entries={payload.entries} showLocation={searchMode}
                   onBrowse={browse} selected={selected}
                   onSelect={selectEntry} onFavorite={toggleFavorite} itemInteractionProps={itemInteractionProps} />
               )}

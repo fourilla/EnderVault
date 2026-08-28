@@ -50,11 +50,11 @@ export function BrowserToolbar({
         <div
           className="toolbar-actions file-actions"
           aria-label="File management actions"
-          hidden={searchMode}
         >
           <form
             className="icon-form"
             id="uploadForm"
+            hidden={searchMode}
             data-max-concurrent-uploads={
               document.getElementById('files-root')?.dataset.maxConcurrentUploads || '1'
             }
@@ -81,7 +81,7 @@ export function BrowserToolbar({
             </button>
           </form>
 
-          <details className="settings-menu file-new-menu">
+          <details className="settings-menu file-new-menu" hidden={searchMode}>
             <summary className="icon-button menu-summary" title="Create new item" aria-label="Create new item">
               {icon('fas fa-plus')}
             </summary>

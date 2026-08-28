@@ -16,13 +16,12 @@ import io.github.fourilla.endervault.web.support.FileConflictPayload;
 import io.github.fourilla.endervault.web.support.FileConflictPolicies;
 import io.github.fourilla.endervault.web.support.FileConflictResponse;
 import io.github.fourilla.endervault.web.support.FlashNotification;
-import io.github.fourilla.endervault.web.support.SelectedItems;
+import io.github.fourilla.endervault.web.support.VaultSelectionResolver;
 import io.github.fourilla.endervault.web.task.TaskPayload;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
-import java.util.ArrayList;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -37,15 +36,18 @@ import org.springframework.web.bind.annotation.RestController;
 public class TransferBufferApiController {
 
     private final StorageService storageService;
+    private final VaultSelectionResolver vaultSelectionResolver;
     private final TransferBufferService transferBufferService;
     private final FileOperationTaskService fileOperationTaskService;
 
     public TransferBufferApiController(
             StorageService storageService,
+            VaultSelectionResolver vaultSelectionResolver,
             TransferBufferService transferBufferService,
             FileOperationTaskService fileOperationTaskService
     ) {
         this.storageService = storageService;
+        this.vaultSelectionResolver = vaultSelectionResolver;
         this.transferBufferService = transferBufferService;
         this.fileOperationTaskService = fileOperationTaskService;
     }
@@ -61,12 +63,10 @@ public class TransferBufferApiController {
             HttpSession session,
             HttpServletRequest request
     ) throws IOException {
-        List<String> itemNames = SelectedItems.from(request);
-        if (itemNames.isEmpty()) {
+        List<FileItem> selectedItems = vaultSelectionResolver.resolve(request, path);
+        if (selectedItems.isEmpty()) {
             return ResponseEntity.badRequest().body(ActionResponse.error("Select at least one item."));
         }
-
-        List<FileItem> selectedItems = selectedItems(path, itemNames);
         TransferBuffer buffer = transferBufferService.add(session, selectedItems);
         FlashNotification notification = FlashNotification.success(
                 "Added " + selectedItems.size() + " item(s) to transfer buffer."
@@ -155,14 +155,6 @@ public class TransferBufferApiController {
                 FlashNotification.success("Removed item from transfer buffer."),
                 buffer
         );
-    }
-
-    private List<FileItem> selectedItems(String path, List<String> itemNames) throws IOException {
-        List<FileItem> selectedItems = new ArrayList<>();
-        for (String itemName : itemNames) {
-            selectedItems.add(storageService.describeVaultChild(path, itemName));
-        }
-        return selectedItems;
     }
 
     private TransferBufferItem firstConflictingTarget(

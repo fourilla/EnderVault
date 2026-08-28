@@ -6,6 +6,7 @@ import io.github.fourilla.endervault.filetool.TextFileContent;
 import io.github.fourilla.endervault.filetool.text.TextFileService;
 import io.github.fourilla.endervault.storage.FileDetail;
 import io.github.fourilla.endervault.storage.FileItem;
+import io.github.fourilla.endervault.storage.StorageProgressListener;
 import io.github.fourilla.endervault.storage.StorageScope;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.thumbnail.ThumbnailFile;
@@ -14,7 +15,7 @@ import io.github.fourilla.endervault.recent.RecentService;
 import io.github.fourilla.endervault.web.support.FilePreviewSupport;
 import io.github.fourilla.endervault.web.support.FileResponseService;
 import io.github.fourilla.endervault.web.support.FlashNotifications;
-import io.github.fourilla.endervault.web.support.SelectedItems;
+import io.github.fourilla.endervault.web.support.VaultSelectionResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -49,6 +50,7 @@ public class AdminFileTransferController {
     private final FileToolService fileToolService;
     private final TextFileService textFileService;
     private final FilePreviewSupport filePreviewSupport;
+    private final VaultSelectionResolver vaultSelectionResolver;
 
     public AdminFileTransferController(
             StorageService storageService,
@@ -58,7 +60,8 @@ public class AdminFileTransferController {
             ActivityLogService activityLogService,
             FileToolService fileToolService,
             TextFileService textFileService,
-            FilePreviewSupport filePreviewSupport
+            FilePreviewSupport filePreviewSupport,
+            VaultSelectionResolver vaultSelectionResolver
     ) {
         this.storageService = storageService;
         this.fileResponseService = fileResponseService;
@@ -68,6 +71,7 @@ public class AdminFileTransferController {
         this.fileToolService = fileToolService;
         this.textFileService = textFileService;
         this.filePreviewSupport = filePreviewSupport;
+        this.vaultSelectionResolver = vaultSelectionResolver;
     }
 
     @GetMapping("/files/download")
@@ -120,7 +124,7 @@ public class AdminFileTransferController {
             HttpServletResponse response,
             RedirectAttributes redirectAttributes
     ) throws IOException {
-        List<String> items = SelectedItems.from(request);
+        List<FileItem> items = vaultSelectionResolver.resolve(request, path);
         if (items.isEmpty()) {
             FlashNotifications.warning(redirectAttributes, "Select at least one item.");
             response.sendRedirect(FileRedirects.filesUrl(path, view, sort, direction, page, size));
@@ -128,11 +132,11 @@ public class AdminFileTransferController {
         }
 
         if (items.size() == 1) {
-            FileItem item = storageService.describeVaultChild(path, items.get(0));
+            FileItem item = items.get(0);
             if (!item.directory()) {
                 recentService.recordVaultPath(item.path());
                 activityLogService.record("DOWNLOAD", request, item.path(), null, "Downloaded " + item.name());
-                Path file = storageService.resolveFile(StorageScope.VAULT, path, item.name());
+                Path file = storageService.resolveVaultFile(item.path());
                 fileResponseService.writeAttachment(file, headers, response);
                 return;
             }
@@ -141,8 +145,15 @@ public class AdminFileTransferController {
         activityLogService.record("DOWNLOAD_ZIP", request, path, null, "Downloaded ZIP with " + items.size() + " item(s)");
         response.setContentType("application/zip");
         response.setHeader(HttpHeaders.ACCEPT_RANGES, "none");
-        response.setHeader(HttpHeaders.CONTENT_DISPOSITION, zipContentDisposition(items));
-        storageService.writeZip(StorageScope.VAULT, path, items, response.getOutputStream());
+        response.setHeader(HttpHeaders.CONTENT_DISPOSITION, zipContentDisposition(
+                items.stream().map(FileItem::name).toList()
+        ));
+        storageService.writeVaultPathsZip(
+                path,
+                items.stream().map(FileItem::path).toList(),
+                response.getOutputStream(),
+                StorageProgressListener.NOOP
+        );
     }
 
     @GetMapping("/files/detail/download.zip")
