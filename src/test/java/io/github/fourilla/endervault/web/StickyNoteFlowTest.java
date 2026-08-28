@@ -158,6 +158,12 @@ class StickyNoteFlowTest {
                 .andExpect(status().isNotFound());
     }
 
+    @Test
+    void removedSearchHtmlEndpointIsNotAvailable() throws Exception {
+        mockMvc.perform(get("/files/search"))
+                .andExpect(status().isNotFound());
+    }
+
     private static Path createTempRoot() {
         try {
             return Files.createTempDirectory("endervault-sticky-note-flow-");

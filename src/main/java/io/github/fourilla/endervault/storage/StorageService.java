@@ -156,6 +156,17 @@ public class StorageService {
         return listingService.search(scope, requestedRoot, query, showHidden);
     }
 
+    public List<FileItem> search(
+            StorageScope scope,
+            String requestedRoot,
+            String query,
+            FileSort sort,
+            SortDirection direction,
+            boolean showHidden
+    ) throws IOException {
+        return listingService.search(scope, requestedRoot, query, sort, direction, showHidden);
+    }
+
     public Path resolveFile(StorageScope scope, String directoryPath, String fileName) throws IOException {
         Path file = pathResolver.resolveChild(scope, directoryPath, fileName, true);
         if (!Files.isRegularFile(file)) {
@@ -741,11 +752,28 @@ public class StorageService {
     }
 
     public void writeVaultPathsZip(List<String> vaultPaths, OutputStream outputStream) throws IOException {
-        try (StorageZipWriter.EntryWriter zip = zipWriter.open(outputStream)) {
+        writeVaultPathsZip("", vaultPaths, outputStream, StorageProgressListener.NOOP);
+    }
+
+    public void writeVaultPathsZip(
+            String baseDirectoryPath,
+            List<String> vaultPaths,
+            OutputStream outputStream,
+            StorageProgressListener progressListener
+    ) throws IOException {
+        Path baseDirectory = pathResolver.resolveDirectory(StorageScope.VAULT, baseDirectoryPath);
+        try (StorageZipWriter.EntryWriter zip = zipWriter.open(outputStream, progressListener)) {
             for (String vaultPath : vaultPaths) {
                 pathResolver.validateVaultItemPath(vaultPath);
                 Path item = pathResolver.resolve(StorageScope.VAULT, vaultPath);
-                zip.write(item, pathResolver.toRelativePath(root, item));
+                if (!item.startsWith(baseDirectory)) {
+                    throw new StorageAccessException("Selected items must be inside the archive destination context.");
+                }
+                String entryName = pathResolver.toRelativePath(baseDirectory, item);
+                if (entryName.isBlank()) {
+                    throw new StorageAccessException("The archive destination directory cannot select itself.");
+                }
+                zip.write(item, entryName);
             }
         }
     }

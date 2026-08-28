@@ -43,24 +43,6 @@
     </div>
 </section>
 
-<section class="breadcrumb-panel" th:fragment="search(listing, path, query)" aria-label="Search root">
-    <div class="breadcrumb-main">
-        <p class="breadcrumb-label">Search in</p>
-        <nav class="breadcrumbs">
-            <th:block th:each="crumb, iter : ${listing.breadcrumbs()}">
-                <a th:classappend="${iter.last} ? ' current' : ''"
-                   th:href="@{/files/search(path=${crumb.path()}, q=${query})}"
-                   th:text="${crumb.label()}">Root</a>
-                <span class="breadcrumb-separator" th:unless="${iter.last}">/</span>
-            </th:block>
-        </nav>
-    </div>
-    <a class="button-link ghost icon-button" th:href="@{/files(path=${path})}"
-       title="Back to files" aria-label="Back to files">
-        <i class="fas fa-folder-open" aria-hidden="true"></i>
-    </a>
-</section>
-
 <section class="breadcrumb-panel" th:fragment="readOnly(listing, path)" aria-label="Current path">
     <div class="breadcrumb-main">
         <p class="breadcrumb-label">Read-only location</p>

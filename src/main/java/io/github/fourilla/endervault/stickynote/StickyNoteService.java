@@ -259,7 +259,7 @@ public class StickyNoteService {
         String encoded = urlEncode(key);
         return switch (context.surface()) {
             case DETAIL -> "/files/detail?path=" + encoded;
-            case SEARCH -> "/files/search?path=" + encoded;
+            case SEARCH -> key.isBlank() ? "/files" : "/files?path=" + encoded;
             default -> key.isBlank() ? "/files" : "/files?path=" + encoded;
         };
     }

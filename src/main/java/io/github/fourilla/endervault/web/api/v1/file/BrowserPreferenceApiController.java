@@ -1,8 +1,10 @@
 package io.github.fourilla.endervault.web.api.v1.file;
 
 import io.github.fourilla.endervault.web.support.ActionResponse;
+import io.github.fourilla.endervault.web.file.browser.FileBrowserPreferences;
 import io.github.fourilla.endervault.web.support.BrowserPreferenceCookies;
 import io.github.fourilla.endervault.web.support.FlashNotification;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -13,6 +15,25 @@ import org.springframework.web.util.UriComponentsBuilder;
 @RestController
 @RequestMapping("/api/v1/browser-preferences")
 public class BrowserPreferenceApiController {
+
+    private final FileBrowserPreferences fileBrowserPreferences;
+
+    public BrowserPreferenceApiController(FileBrowserPreferences fileBrowserPreferences) {
+        this.fileBrowserPreferences = fileBrowserPreferences;
+    }
+
+    @PostMapping("/files/view")
+    public ViewPreferenceResponse rememberFilesView(
+            @RequestParam("view") String view,
+            HttpServletRequest request,
+            HttpServletResponse response
+    ) {
+        return new ViewPreferenceResponse(fileBrowserPreferences.rememberFilesView(
+                request,
+                response,
+                view
+        ));
+    }
 
     @PostMapping("/reset")
     public ActionResponse reset(
@@ -66,5 +87,8 @@ public class BrowserPreferenceApiController {
             builder.queryParam("path", path);
         }
         return builder.build().encode().toUriString();
+    }
+
+    public record ViewPreferenceResponse(String view) {
     }
 }

@@ -52,6 +52,13 @@ class StickyNoteContextResolverTest {
     }
 
     @Test
+    void doesNotResolveRemovedSearchPageRoute() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/files/search");
+
+        assertThat(resolver.resolve(request).available()).isFalse();
+    }
+
+    @Test
     void resolvesNewerAdminManagementPagesFromThePageCatalog() {
         MockHttpServletRequest fileRequests = new MockHttpServletRequest("GET", "/admin/file-requests");
         MockHttpServletRequest pendingDecisions = new MockHttpServletRequest("GET", "/admin/pending-decisions");

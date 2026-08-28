@@ -16,6 +16,8 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       input: {
+        files: 'src/files/main.tsx',
+        recent: 'src/recent/main.tsx',
         settings: 'src/settings/main.tsx',
       },
     },

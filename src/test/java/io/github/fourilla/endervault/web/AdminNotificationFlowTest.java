@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -21,9 +22,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -114,11 +118,9 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"_csrf\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"_csrf_header\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("action=\"/api/v1/files\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("action=\"/api/v1/files/directories\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("formaction=\"/api/v1/files/trash\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("file-new-noscript-form"))))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"files-root\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/files-")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/file-uploads.js")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"toastRegion\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-notification-center")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/notification-center.js")))
@@ -127,7 +129,7 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-outbound-route-form")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString(
                         "action=\"/api/v1/outbound-route\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/page-jump.js")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-read-only-link")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Open read-only mode")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Recent")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Favorites")))
@@ -141,11 +143,21 @@ class AdminNotificationFlowTest {
 
     @Test
     void pagesWithCommonAjaxActionsLoadTheirFormBinder() throws Exception {
-        for (String path : List.of("/files", "/files/read-only", "/files/recent", "/admin/trash", "/admin/logs")) {
+        for (String path : List.of("/files/read-only", "/admin/trash", "/admin/logs")) {
             mockMvc.perform(get(path))
                     .andExpect(status().isOk())
                     .andExpect(content().string(Matchers.containsString("/js/admin-actions.js")));
         }
+
+        mockMvc.perform(get("/files"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("/react/assets/files-")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/admin-actions.js"))));
+
+        mockMvc.perform(get("/files/recent"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("/react/assets/recent-")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/admin-actions.js"))));
     }
 
     @Test
@@ -820,6 +832,68 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void fileBrowserListingApiReturnsSharedBrowserContract() throws Exception {
+        Path container = ROOT.resolve("browser-listing-api-test");
+        Files.createDirectories(container.resolve("nested"));
+        Files.writeString(container.resolve("note.txt"), "hello");
+
+        mockMvc.perform(get("/api/v1/fs/listing")
+                        .param("path", "browser-listing-api-test")
+                        .param("view", "grid")
+                        .param("sort", "name")
+                        .param("dir", "asc")
+                        .param("hidden", "show")
+                        .param("size", "50"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.mode").value("browse"))
+                .andExpect(jsonPath("$.path").value("browser-listing-api-test"))
+                .andExpect(jsonPath("$.directories.length()").value(1))
+                .andExpect(jsonPath("$.directories[0].name").value("nested"))
+                .andExpect(jsonPath("$.directories[0].type").value("directory"))
+                .andExpect(jsonPath("$.entries.length()").value(1))
+                .andExpect(jsonPath("$.entries[0].name").value("note.txt"))
+                .andExpect(jsonPath("$.entries[0].typeLabel").value("Text"))
+                .andExpect(jsonPath("$.entries[0].detailUrl").isNotEmpty())
+                .andExpect(jsonPath("$.entries[0].downloadUrl").isNotEmpty())
+                .andExpect(jsonPath("$.page.number").value(1))
+                .andExpect(jsonPath("$.page.totalItems").value(1))
+                .andExpect(jsonPath("$.preferences.view").value("grid"))
+                .andExpect(jsonPath("$.preferences.hidden").value("show"))
+                .andExpect(jsonPath("$.preferences.pageSize").value(50))
+                .andExpect(jsonPath("$.search.performed").value(false));
+    }
+
+    @Test
+    void fileBrowserSearchApiUsesTheSharedBrowserContract() throws Exception {
+        Path container = ROOT.resolve("browser-search-api-test");
+        Files.createDirectories(container.resolve("nested"));
+        Files.createDirectories(container.resolve("Q3-note-directory"));
+        Files.writeString(container.resolve("nested").resolve("Q11-note.txt"), "eleven");
+        Files.writeString(container.resolve("nested").resolve("Q2-note.txt"), "two");
+
+        mockMvc.perform(get("/api/v1/fs/search")
+                        .param("path", "browser-search-api-test")
+                        .param("q", "note")
+                        .param("view", "table")
+                        .param("sort", "name")
+                        .param("dir", "asc")
+                        .param("size", "50"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.mode").value("search"))
+                .andExpect(jsonPath("$.directories.length()").value(1))
+                .andExpect(jsonPath("$.directories[0].name").value("Q3-note-directory"))
+                .andExpect(jsonPath("$.entries.length()").value(2))
+                .andExpect(jsonPath("$.entries[0].name").value("Q2-note.txt"))
+                .andExpect(jsonPath("$.entries[1].name").value("Q11-note.txt"))
+                .andExpect(jsonPath("$.page.totalItems").value(2))
+                .andExpect(jsonPath("$.preferences.view").value("table"))
+                .andExpect(jsonPath("$.search.query").value("note"))
+                .andExpect(jsonPath("$.search.performed").value(true));
+    }
+
+    @Test
     @WithMockUser(roles = "USER")
     void storageEntriesEndpointRequiresAdminRole() throws Exception {
         mockMvc.perform(get("/api/v1/fs/entries"))
@@ -891,13 +965,11 @@ class AdminNotificationFlowTest {
         Files.createDirectories(ROOT.resolve(directory));
         Files.writeString(ROOT.resolve(filename), "grid");
 
-        mockMvc.perform(get("/files").param("view", "grid"))
+        mockMvc.perform(get("/api/v1/fs/listing").param("view", "grid"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(directory)))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-select-pick-label")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-select-all")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("directory-card"))));
+                .andExpect(jsonPath("$.preferences.view").value("grid"))
+                .andExpect(jsonPath("$.directories[?(@.name == '" + directory + "')]").exists())
+                .andExpect(jsonPath("$.entries[?(@.name == '" + filename + "')]").exists());
     }
 
     @Test
@@ -905,32 +977,25 @@ class AdminNotificationFlowTest {
         String filename = "grid-card-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "grid");
 
-        mockMvc.perform(get("/files").param("view", "grid"))
+        mockMvc.perform(get("/api/v1/fs/listing").param("view", "grid"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("thumb-extension")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("card-name")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("card-actions"))));
+                .andExpect(jsonPath("$.preferences.view").value("grid"))
+                .andExpect(jsonPath("$.entries[?(@.name == '" + filename + "')].extensionLabel")
+                        .value("TXT"))
+                .andExpect(jsonPath("$.entries[?(@.name == '" + filename + "')].detailUrl").exists());
     }
 
     @Test
     void filesPageRendersTransferControls() throws Exception {
-        mockMvc.perform(get("/files"))
+        mockMvc.perform(get("/api/v1/files/transfer-buffer"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"addToTransferBufferButton\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-transfer-action=\"transfer-buffer-add\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(
-                        "formaction=\"/api/v1/files/transfer-buffer\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-selection-required")));
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.transferBuffer.active").value(false))
+                .andExpect(jsonPath("$.transferBuffer.count").value(0));
     }
 
     @Test
     void browserPreferenceResetUsesVersionedApiOnly() throws Exception {
-        mockMvc.perform(get("/files"))
-                .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString(
-                        "action=\"/api/v1/browser-preferences/reset\"")));
-
         mockMvc.perform(post("/api/v1/browser-preferences/reset")
                         .with(csrf())
                         .param("target", "files"))
@@ -940,6 +1005,17 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(post("/files/preferences/reset").with(csrf()))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void fileBrowserViewPreferenceCanBeSavedWithoutReloadingTheListing() throws Exception {
+        mockMvc.perform(post("/api/v1/browser-preferences/files/view")
+                        .with(csrf())
+                        .param("view", "grid"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.view").value("grid"))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE,
+                        Matchers.containsString("endervault.files.view=grid")));
     }
 
     @Test
@@ -957,13 +1033,11 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void filesPageRendersSharedZipCreationDialogAndScript() throws Exception {
+    void filesPageLoadsReactOwnedArchiveCreationUi() throws Exception {
         mockMvc.perform(get("/files"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("id=\"compressSelectedButton\"")))
-                .andExpect(content().string(Matchers.containsString("id=\"archiveCreationDialog\"")))
-                .andExpect(content().string(Matchers.containsString("action=\"/api/v1/files/archives\"")))
-                .andExpect(content().string(Matchers.containsString("/js/archive-create.js")));
+                .andExpect(content().string(Matchers.containsString("/react/assets/files-")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/archive-create.js"))));
     }
 
     @Test
@@ -1128,6 +1202,58 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true))
                 .andExpect(jsonPath("$.transferBuffer.active").value(false));
+    }
+
+    @Test
+    void transferBufferAcceptsFullPathsFromDifferentDirectories() throws Exception {
+        String base = "transfer-search-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(base).resolve("alpha"));
+        Files.createDirectories(ROOT.resolve(base).resolve("beta"));
+        Files.writeString(ROOT.resolve(base).resolve("alpha/note.txt"), "alpha");
+        Files.writeString(ROOT.resolve(base).resolve("beta/note.txt"), "beta");
+        MockHttpSession session = new MockHttpSession();
+
+        mockMvc.perform(post("/api/v1/files/transfer-buffer")
+                        .session(session)
+                        .with(csrf())
+                        .param("paths", base + "/alpha/note.txt")
+                        .param("paths", base + "/beta/note.txt"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.transferBuffer.count").value(2))
+                .andExpect(jsonPath("$.transferBuffer.items[0].path").value(base + "/alpha/note.txt"))
+                .andExpect(jsonPath("$.transferBuffer.items[1].path").value(base + "/beta/note.txt"));
+    }
+
+    @Test
+    void fullPathSelectionCollapsesItemsCoveredBySelectedDirectory() throws Exception {
+        String base = "transfer-collapse-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(base).resolve("docs"));
+        Files.writeString(ROOT.resolve(base).resolve("docs/note.txt"), "note");
+        MockHttpSession session = new MockHttpSession();
+
+        mockMvc.perform(post("/api/v1/files/transfer-buffer")
+                        .session(session)
+                        .with(csrf())
+                        .param("paths", base + "/docs/note.txt")
+                        .param("paths", base + "/docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.transferBuffer.count").value(1))
+                .andExpect(jsonPath("$.transferBuffer.items[0].path").value(base + "/docs"));
+    }
+
+    @Test
+    void selectionRequestRejectsMixedFullPathAndLegacyItemContracts() throws Exception {
+        String base = "transfer-ambiguous-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(base));
+        Files.writeString(ROOT.resolve(base).resolve("note.txt"), "note");
+
+        mockMvc.perform(post("/api/v1/files/transfer-buffer")
+                        .session(new MockHttpSession())
+                        .with(csrf())
+                        .param("path", base)
+                        .param("items", "note.txt")
+                        .param("paths", base + "/note.txt"))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -1419,12 +1545,19 @@ class AdminNotificationFlowTest {
 
     @Test
     void recentPageRendersVirtualDirectoryShell() throws Exception {
-        mockMvc.perform(get("/files/recent")
-                        .param("q", "unlikely-recent-query-" + System.nanoTime()))
+        String query = "unlikely-recent-query-" + System.nanoTime();
+
+        mockMvc.perform(get("/files/recent"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Virtual location")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Search in recent")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("No recent items matched your search.")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"recent-root\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Loading recent items...")));
+
+        mockMvc.perform(get("/api/v1/recent").param("q", query))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.search.query").value(query))
+                .andExpect(jsonPath("$.search.performed").value(true))
+                .andExpect(jsonPath("$.directories").isEmpty())
+                .andExpect(jsonPath("$.entries").isEmpty());
     }
 
     @Test
@@ -1484,13 +1617,12 @@ class AdminNotificationFlowTest {
         mockMvc.perform(get("/files/detail").param("path", filename))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/files/recent").param("q", "recent-ui"))
+        mockMvc.perform(get("/api/v1/recent").param("q", "recent-ui"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(filename)))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Accessed")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remove selected from recent")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/api/v1/recent/remove")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/api/v1/recent/clear")));
+                .andExpect(jsonPath("$.entries[0].name").value(filename))
+                .andExpect(jsonPath("$.entries[0].accessedAt").isNotEmpty())
+                .andExpect(jsonPath("$.entries[0].accessedLabel").isNotEmpty())
+                .andExpect(jsonPath("$.search.performed").value(true));
 
         mockMvc.perform(post("/api/v1/recent/remove")
                         .with(csrf())
@@ -1527,10 +1659,10 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/api/v1/favorites/move")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/api/v1/favorites/remove")));
 
-        mockMvc.perform(get("/files"))
+        mockMvc.perform(get("/api/v1/fs/listing"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("is-favorite")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-favorite-action")));
+                .andExpect(jsonPath("$.entries[?(@.name == '" + filename + "')].favorite")
+                        .value(true));
     }
 
     @Test
@@ -2029,6 +2161,33 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void mixedParentDownloadPreservesPathsRelativeToSearchRoot() throws Exception {
+        String base = "selected-search-zip-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(base).resolve("alpha"));
+        Files.createDirectories(ROOT.resolve(base).resolve("beta"));
+        Files.writeString(ROOT.resolve(base).resolve("alpha/note.txt"), "alpha");
+        Files.writeString(ROOT.resolve(base).resolve("beta/note.txt"), "beta");
+
+        MvcResult result = mockMvc.perform(get("/files/download.zip")
+                        .param("path", base)
+                        .param("paths", base + "/alpha/note.txt")
+                        .param("paths", base + "/beta/note.txt"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE, Matchers.containsString("application/zip")))
+                .andReturn();
+
+        Set<String> entries = new LinkedHashSet<>();
+        try (ZipInputStream zip = new ZipInputStream(
+                new ByteArrayInputStream(result.getResponse().getContentAsByteArray()))) {
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                entries.add(entry.getName());
+            }
+        }
+        assertThat(entries).containsExactly("alpha/note.txt", "beta/note.txt");
+    }
+
+    @Test
     void deleteSelectedCanReturnJsonForEnhancedForms() throws Exception {
         String filename = "ajax-delete-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "delete");
@@ -2043,6 +2202,33 @@ class AdminNotificationFlowTest {
                 .andExpect(jsonPath("$.task.id").exists())
                 .andExpect(jsonPath("$.task.type").value("FILE_TRASH"))
                 .andExpect(jsonPath("$.redirectUrl").exists());
+    }
+
+    @Test
+    void fullPathSelectionCanMoveItemsFromDifferentDirectoriesToTrash() throws Exception {
+        String base = "trash-search-" + System.nanoTime();
+        Path first = ROOT.resolve(base).resolve("alpha/note.txt");
+        Path second = ROOT.resolve(base).resolve("beta/note.txt");
+        Files.createDirectories(first.getParent());
+        Files.createDirectories(second.getParent());
+        Files.writeString(first, "alpha");
+        Files.writeString(second, "beta");
+
+        mockMvc.perform(post("/api/v1/files/trash")
+                        .with(csrf())
+                        .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
+                        .param("path", base)
+                        .param("paths", base + "/alpha/note.txt")
+                        .param("paths", base + "/beta/note.txt"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.task.type").value("FILE_TRASH"));
+
+        long deadline = System.currentTimeMillis() + 5_000L;
+        while ((Files.exists(first) || Files.exists(second)) && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20L);
+        }
+        assertThat(first).doesNotExist();
+        assertThat(second).doesNotExist();
     }
 
     @Test

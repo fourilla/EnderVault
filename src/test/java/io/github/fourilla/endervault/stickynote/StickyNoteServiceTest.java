@@ -127,4 +127,16 @@ class StickyNoteServiceTest {
         inspector.repair(MetadataIssueAction.REMOVE_METADATA, note.id());
         assertThat(service.listAll()).isEmpty();
     }
+
+    @Test
+    void opensLegacySearchNotesInTheCanonicalFileBrowser() throws Exception {
+        Files.createDirectories(root.resolve("docs"));
+        StickyNote note = service.create(new StickyNoteContext(
+                StickyNoteTargetType.STORAGE,
+                "docs",
+                StickyNoteSurface.SEARCH
+        ), 0, 0);
+
+        assertThat(service.openUrl(note.context())).isEqualTo("/files?path=docs");
+    }
 }

@@ -20,7 +20,7 @@ import io.github.fourilla.endervault.web.support.FileConflictPayload;
 import io.github.fourilla.endervault.web.support.FileConflictPolicies;
 import io.github.fourilla.endervault.web.support.FileConflictResponse;
 import io.github.fourilla.endervault.web.support.FlashNotification;
-import io.github.fourilla.endervault.web.support.SelectedItems;
+import io.github.fourilla.endervault.web.support.VaultSelectionResolver;
 import io.github.fourilla.endervault.web.task.TaskPayload;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
@@ -43,19 +43,22 @@ public class FileMutationApiController {
     private final TrashService trashService;
     private final ActivityLogService activityLogService;
     private final FileOperationTaskService fileOperationTaskService;
+    private final VaultSelectionResolver vaultSelectionResolver;
 
     public FileMutationApiController(
             StorageService storageService,
             FileLifecycleService fileLifecycleService,
             TrashService trashService,
             ActivityLogService activityLogService,
-            FileOperationTaskService fileOperationTaskService
+            FileOperationTaskService fileOperationTaskService,
+            VaultSelectionResolver vaultSelectionResolver
     ) {
         this.storageService = storageService;
         this.fileLifecycleService = fileLifecycleService;
         this.trashService = trashService;
         this.activityLogService = activityLogService;
         this.fileOperationTaskService = fileOperationTaskService;
+        this.vaultSelectionResolver = vaultSelectionResolver;
     }
 
     @PostMapping("/directories")
@@ -195,12 +198,11 @@ public class FileMutationApiController {
             @RequestParam(value = "size", required = false) Integer size,
             HttpServletRequest request
     ) throws IOException {
-        List<String> items = SelectedItems.from(request);
         String redirectUrl = filesUrl(path, view, sort, direction, page, size);
+        List<FileItem> items = vaultSelectionResolver.resolve(request, path);
         if (items.isEmpty()) {
             return ResponseEntity.badRequest().body(ActionResponse.error("Select at least one item."));
         }
-
         AppTask task = fileOperationTaskService.queueMoveToTrash(path, items, request);
         FlashNotification notification = FlashNotification.info("Trash task queued.");
         return ResponseEntity.accepted().body(new FileTaskActionResponse(

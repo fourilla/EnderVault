@@ -4,6 +4,7 @@ import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.auth.ClientIpResolver;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
+import io.github.fourilla.endervault.storage.FileItem;
 import io.github.fourilla.endervault.storage.FileLifecycleService;
 import io.github.fourilla.endervault.storage.StorageOperationSummary;
 import io.github.fourilla.endervault.storage.StorageProgressListener;
@@ -77,19 +78,19 @@ public class FileOperationTaskService {
     }
 
     public AppTask queueMoveToTrash(
-            String directoryPath,
-            List<String> itemNames,
+            String contextPath,
+            List<FileItem> items,
             HttpServletRequest request
     ) {
-        List<String> snapshot = List.copyOf(itemNames);
+        List<FileItem> snapshot = List.copyOf(items);
         RequestSnapshot requestSnapshot = RequestSnapshot.from(request, clientIpResolver);
         return taskManagerService.submit(
                 TaskType.FILE_TRASH,
                 "Move " + snapshot.size() + " item(s) to trash",
-                directoryPath,
+                contextPath,
                 requestSnapshot.actor(),
                 requestSnapshot.ip(),
-                context -> runMoveToTrash(directoryPath, snapshot, requestSnapshot, context)
+                context -> runMoveToTrash(snapshot, requestSnapshot, context)
         );
     }
 
@@ -141,32 +142,29 @@ public class FileOperationTaskService {
     }
 
     private TaskOutcome runMoveToTrash(
-            String directoryPath,
-            List<String> itemNames,
+            List<FileItem> items,
             RequestSnapshot request,
             TaskContext context
     ) throws IOException {
-        context.setTotalItems(itemNames.size());
+        context.setTotalItems(items.size());
         int completedCount = 0;
         int failedCount = 0;
-        for (String itemName : itemNames) {
+        for (FileItem item : items) {
             context.checkCanceled();
-            context.message("Moving " + itemName + " to trash.");
+            context.message("Moving " + item.name() + " to trash.");
             try {
-                List<TrashRecord> records = trashService.moveToTrash(directoryPath, List.of(itemName));
-                for (TrashRecord record : records) {
-                    activityLogService.record(
-                            "TRASH_MOVE",
-                            request.actor(),
-                            request.ip(),
-                            record.originalPath(),
-                            null,
-                            true,
-                            "Moved item to trash",
-                            Map.of()
-                    );
-                }
-                completedCount += records.size();
+                TrashRecord record = trashService.moveVaultPathToTrash(item.path());
+                activityLogService.record(
+                        "TRASH_MOVE",
+                        request.actor(),
+                        request.ip(),
+                        record.originalPath(),
+                        null,
+                        true,
+                        "Moved item to trash",
+                        Map.of()
+                );
+                completedCount++;
                 context.incrementProcessedItems();
             } catch (TaskCanceledException ex) {
                 throw ex;
@@ -176,7 +174,7 @@ public class FileOperationTaskService {
                         "TRASH_MOVE",
                         request.actor(),
                         request.ip(),
-                        itemName,
+                        item.path(),
                         null,
                         false,
                         "Could not move item to trash",

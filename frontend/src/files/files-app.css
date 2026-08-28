@@ -1,0 +1,78 @@
+.files-react-root {
+  min-width: 0;
+}
+
+.files-react-toolbar {
+  align-items: center;
+}
+
+.files-exit-search {
+  white-space: nowrap;
+}
+
+.files-load-error {
+  color: var(--danger);
+}
+
+.files-search-progress {
+  display: flex;
+  min-height: 12rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  color: var(--muted);
+}
+
+.files-search-progress i {
+  color: var(--accent);
+  font-size: 1.15rem;
+}
+
+.files-directory-thumb {
+  color: var(--accent);
+  font-size: 3rem;
+}
+
+.files-location-link {
+  display: block;
+  max-width: 260px;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.files-grid-location {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.files-grid-location span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.files-page-status {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+@media (max-width: 760px) {
+  .files-react-toolbar,
+  .files-react-toolbar .toolbar-cluster {
+    align-items: stretch;
+  }
+
+  .files-react-toolbar .search-form {
+    width: 100%;
+  }
+}

@@ -7,7 +7,7 @@ import io.github.fourilla.endervault.filetool.archive.ArchiveExtractionTaskServi
 import io.github.fourilla.endervault.storage.ConflictPolicy;
 import io.github.fourilla.endervault.task.AppTask;
 import io.github.fourilla.endervault.web.support.FlashNotification;
-import io.github.fourilla.endervault.web.support.SelectedItems;
+import io.github.fourilla.endervault.web.support.VaultSelectionResolver;
 import io.github.fourilla.endervault.web.task.TaskActionResponse;
 import io.github.fourilla.endervault.web.task.TaskPayload;
 import jakarta.servlet.http.HttpServletRequest;
@@ -23,13 +23,16 @@ public class ArchiveApiController {
 
     private final ArchiveCreationTaskService archiveCreationTaskService;
     private final ArchiveExtractionTaskService archiveExtractionTaskService;
+    private final VaultSelectionResolver vaultSelectionResolver;
 
     public ArchiveApiController(
             ArchiveCreationTaskService archiveCreationTaskService,
-            ArchiveExtractionTaskService archiveExtractionTaskService
+            ArchiveExtractionTaskService archiveExtractionTaskService,
+            VaultSelectionResolver vaultSelectionResolver
     ) {
         this.archiveCreationTaskService = archiveCreationTaskService;
         this.archiveExtractionTaskService = archiveExtractionTaskService;
+        this.vaultSelectionResolver = vaultSelectionResolver;
     }
 
     @PostMapping
@@ -38,9 +41,9 @@ public class ArchiveApiController {
             @RequestParam(value = "outputName", required = false) String outputName,
             HttpServletRequest request
     ) throws IOException {
-        AppTask task = archiveCreationTaskService.queue(
+        AppTask task = archiveCreationTaskService.queueVaultPaths(
                 path,
-                SelectedItems.from(request),
+                vaultSelectionResolver.resolve(request, path).stream().map(item -> item.path()).toList(),
                 outputName,
                 request
         );

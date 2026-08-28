@@ -45,9 +45,6 @@ public class StickyNoteContextResolver {
         if (path.equals("/files/detail")) {
             return storage(request.getParameter("path"), StickyNoteSurface.DETAIL);
         }
-        if (path.equals("/files/search")) {
-            return storage(request.getParameter("path"), StickyNoteSurface.SEARCH);
-        }
         return null;
     }
 

@@ -2,12 +2,17 @@ package io.github.fourilla.endervault.web.api.v1.recent;
 
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.recent.RecentService;
+import io.github.fourilla.endervault.web.file.recent.RecentBrowserQueryService;
 import io.github.fourilla.endervault.web.support.ActionResponse;
+import io.github.fourilla.endervault.web.support.FilePreviewSupport;
 import io.github.fourilla.endervault.web.support.FlashNotification;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -20,10 +25,44 @@ public class RecentApiController {
 
     private final RecentService recentService;
     private final ActivityLogService activityLogService;
+    private final RecentBrowserQueryService queryService;
+    private final FilePreviewSupport filePreviewSupport;
 
-    public RecentApiController(RecentService recentService, ActivityLogService activityLogService) {
+    public RecentApiController(
+            RecentService recentService,
+            ActivityLogService activityLogService,
+            RecentBrowserQueryService queryService,
+            FilePreviewSupport filePreviewSupport
+    ) {
         this.recentService = recentService;
         this.activityLogService = activityLogService;
+        this.queryService = queryService;
+        this.filePreviewSupport = filePreviewSupport;
+    }
+
+    @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
+    public RecentBrowserPayload list(
+            @RequestParam(value = "q", required = false) String query,
+            @RequestParam(value = "view", required = false) String view,
+            @RequestParam(value = "sort", required = false) String sort,
+            @RequestParam(value = "dir", required = false) String direction,
+            @RequestParam(value = "hidden", required = false) String hidden,
+            @RequestParam(value = "page", required = false) Integer page,
+            @RequestParam(value = "size", required = false) Integer size,
+            HttpServletRequest request,
+            HttpServletResponse response
+    ) throws IOException {
+        return RecentBrowserPayload.from(queryService.query(
+                query,
+                view,
+                sort,
+                direction,
+                hidden,
+                page,
+                size,
+                request,
+                response
+        ), filePreviewSupport);
     }
 
     @PostMapping("/remove")
