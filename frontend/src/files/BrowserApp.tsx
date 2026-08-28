@@ -1,4 +1,5 @@
 import {
+  Fragment,
   FormEvent,
   useCallback,
   useEffect,
@@ -723,22 +724,56 @@ export function BrowserApp() {
         </div>
       </div>
 
-      <section className="breadcrumb-bar files-breadcrumb" aria-label="Current location">
-        <span className="breadcrumb-label">
-          {payload?.mode === 'search' ? 'Search in' : 'Location'}
-        </span>
-        <div className="breadcrumb-list">
-          {(payload?.breadcrumbs || [{ label: 'Root', path: '' }]).map((breadcrumb) => (
-            <button
-              className="breadcrumb-link"
-              type="button"
-              key={breadcrumb.path + ':' + breadcrumb.label}
-              onClick={() => browse(breadcrumb.path)}
-            >
-              {breadcrumb.label}
-            </button>
-          ))}
+      <section className="breadcrumb-panel" aria-label="Current location">
+        <div className="breadcrumb-main">
+          <p className="breadcrumb-label">
+            {payload?.mode === 'search' ? 'Search in' : 'Location'}
+          </p>
+          <nav className="breadcrumbs">
+            {(payload?.breadcrumbs || [{ label: 'Root', path: '' }]).map((breadcrumb, index, items) => (
+              <Fragment key={breadcrumb.path + ':' + breadcrumb.label}>
+                <a
+                  className={index === items.length - 1 ? 'current' : undefined}
+                  href="/files"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    browse(breadcrumb.path);
+                  }}
+                >
+                  {breadcrumb.label}
+                </a>
+                {index < items.length - 1 && <span className="breadcrumb-separator">/</span>}
+              </Fragment>
+            ))}
+          </nav>
         </div>
+        {payload?.mode === 'search' ? (
+          <a
+            className="button-link ghost icon-button"
+            href="/files"
+            title="Back to files"
+            aria-label="Back to files"
+            onClick={(event) => {
+              event.preventDefault();
+              browse(payload.path);
+            }}
+          >
+            {icon('fas fa-folder-open')}
+          </a>
+        ) : payload?.parentPath != null ? (
+          <a
+            className="button-link ghost breadcrumb-up"
+            href="/files"
+            title="Up"
+            aria-label="Up"
+            onClick={(event) => {
+              event.preventDefault();
+              browse(payload.parentPath || '');
+            }}
+          >
+            {icon('fas fa-arrow-up')}
+          </a>
+        ) : null}
       </section>
 
       <section className="toolbar files-react-toolbar" aria-label="File tools">
@@ -1022,20 +1057,14 @@ export function BrowserApp() {
         </section>
       )}
 
-      <section className="section-heading files-react-heading">
-        <div>
-          <h1>{payload?.mode === 'search' ? 'Search' : (payload?.path || 'Files')}</h1>
-          {payload?.mode === 'search' ? (
+      {payload?.mode === 'search' && (
+        <section className="section-heading">
+          <div>
+            <h1>Search</h1>
             <p>{payload.page.totalItems} results for <strong>{payload.search.query}</strong></p>
-          ) : (
-            <p>
-              {payload
-                ? payload.directories.length + ' directories, ' + payload.page.totalItems + ' files'
-                : 'Loading files...'}
-            </p>
-          )}
-        </div>
-      </section>
+          </div>
+        </section>
+      )}
 
       {error && <section className="dashboard-panel files-load-error" role="alert">{error}</section>}
       {loading && !payload && <p className="empty browser-grid-empty">Loading files...</p>}

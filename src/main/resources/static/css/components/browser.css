@@ -100,7 +100,8 @@ td input[readonly] {
     text-align: center;
 }
 
-.select-cell input[type="checkbox"][form="bulkActionForm"] {
+.select-cell input[type="checkbox"][form="bulkActionForm"],
+.select-cell .row-select-checkbox {
     width: var(--checkbox-size);
     height: var(--checkbox-size);
     margin: 0;

@@ -2,23 +2,12 @@
   min-width: 0;
 }
 
-.files-breadcrumb .breadcrumb-link {
-  border: 0;
-  background: transparent;
-  color: inherit;
-  padding: 0;
-}
-
 .files-react-toolbar {
   align-items: center;
 }
 
 .files-exit-search {
   white-space: nowrap;
-}
-
-.files-react-heading {
-  margin-top: var(--space-3xl);
 }
 
 .files-load-error {

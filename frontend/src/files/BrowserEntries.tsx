@@ -88,6 +88,7 @@ function SelectAllCheckbox({
   return (
     <input
       ref={inputRef}
+      className="select-all-checkbox"
       type="checkbox"
       checked={allSelected}
       onChange={(event) => entries.forEach((entry) => onSelect(entry, event.target.checked))}
@@ -119,8 +120,10 @@ export function EntryTable({
         <thead>
           <tr>
             {!search && (
-              <th className="select-cell">
-                <SelectAllCheckbox entries={entries} selected={selected} onSelect={onSelect} />
+              <th className="select-col">
+                <label className="select-all-label" title="Select all items in this table">
+                  <SelectAllCheckbox entries={entries} selected={selected} onSelect={onSelect} />
+                </label>
               </th>
             )}
             <th>Name</th>
@@ -145,6 +148,7 @@ export function EntryTable({
               {!search && (
                 <td className="select-cell">
                   <input
+                    className="row-select-checkbox"
                     type="checkbox"
                     checked={selected.has(entry.path)}
                     onChange={(event) => onSelect(entry, event.target.checked)}
