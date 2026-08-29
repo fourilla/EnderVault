@@ -132,6 +132,9 @@
 
         let mermaid;
         try {
+            if (!window.mermaid && window.EnderVaultMarkdownMermaidLoader) {
+                await window.EnderVaultMarkdownMermaidLoader();
+            }
             mermaid = mermaidApi();
             initializeMermaid(mermaid);
         } catch (error) {
@@ -221,7 +224,15 @@
             return;
         }
 
-        const mathJax = window.MathJax;
+        let mathJax = window.MathJax;
+        if (!mathJax?.startup?.promise && window.EnderVaultMarkdownMathLoader) {
+            try {
+                mathJax = await window.EnderVaultMarkdownMathLoader();
+            } catch (error) {
+                appendExtensionNotice(target, "MathJax is unavailable. Math source is shown as text.");
+                return;
+            }
+        }
         if (!mathJax?.startup?.promise) {
             appendExtensionNotice(target, "MathJax is unavailable. Math source is shown as text.");
             return;

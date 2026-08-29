@@ -1,11 +1,17 @@
-import type { BrowserEntry, BrowserPayload, BrowserView, HiddenMode, SortDirection } from '../files/types';
+import type {
+  BrowserEntry,
+  BrowserPage,
+  BrowserView,
+  HiddenMode,
+  SortDirection,
+} from '../shared/browser/types';
 
 export type RecentSort = 'recent' | 'name' | 'size' | 'modified' | 'type';
 
 export interface RecentPayload {
   directories: BrowserEntry[];
   entries: BrowserEntry[];
-  page: BrowserPayload['page'];
+  page: BrowserPage;
   preferences: {
     view: BrowserView;
     sort: RecentSort;

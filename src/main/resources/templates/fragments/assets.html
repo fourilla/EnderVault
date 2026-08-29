@@ -4,7 +4,11 @@
 <th:block th:fragment="styles(fontawesome)">
     <link rel="stylesheet" th:if="${fontawesome}"
           th:href="@{/webjars/fortawesome__fontawesome-free/6.7.2/css/all.min.css}">
-    <link rel="stylesheet" th:href="@{/css/app.css}">
+    <link rel="stylesheet" th:if="${!stylesFrontend.available()}" th:href="@{/css/app.css}">
+    <link rel="stylesheet" th:each="style : ${stylesFrontend.styles()}" th:href="${style}">
+    <link rel="modulepreload" th:each="preload : ${stylesFrontend.modulePreloads()}" th:href="${preload}">
+    <script type="module" th:if="${stylesFrontend.development()}" th:src="${stylesFrontend.clientScript()}"></script>
+    <script type="module" th:if="${stylesFrontend.development()}" th:src="${stylesFrontend.entryScript()}"></script>
     <style th:if="${#ctx.containsVariable('stickyNoteTheme')}"
            th:text="|:root { --sticky-note-bg: ${stickyNoteTheme.backgroundColor()}; --sticky-note-border: ${stickyNoteTheme.borderColor()}; --sticky-note-text: ${stickyNoteTheme.textColor()}; }|">
         :root { --sticky-note-bg: #1B3033; --sticky-note-border: #4E8F8A; --sticky-note-text: #EAF6F4; }
@@ -35,18 +39,22 @@
           name="endervault-sticky-surface" th:content="${stickyNoteContext.surface()}">
     <meta th:if="${#ctx.containsVariable('stickyNoteContext') and stickyNoteContext.available()}"
           name="endervault-sticky-label" th:content="${stickyNoteContext.label()}">
-    <script defer th:src="@{/js/endervault-core.js}"></script>
-    <script defer th:src="@{/js/context-menu.js}"></script>
-    <script defer th:src="@{/js/password-toggle.js}"></script>
-    <script defer th:src="@{/js/notifications.js}"></script>
-    <script defer th:src="@{/js/activity-panel.js}"></script>
-    <script defer th:src="@{/js/server-tasks.js}"></script>
-    <script defer th:src="@{/js/favorites.js}"></script>
-    <script defer th:src="@{/js/topbar-controls.js}"></script>
-    <script defer th:src="@{/js/notification-center.js}"></script>
-    <script defer th:src="@{/js/outbound-route.js}"></script>
-    <script defer th:src="@{/js/sticky-notes.js}"></script>
-    <script defer th:src="@{/js/page-context-menu.js}"></script>
+    <th:block th:if="${shellFrontend.available()}"
+              th:replace="~{fragments/assets :: viteEntry(${shellFrontend})}"></th:block>
+    <th:block th:unless="${shellFrontend.available()}">
+        <script defer th:src="@{/js/endervault-core.js}"></script>
+        <script defer th:src="@{/js/context-menu.js}"></script>
+        <script defer th:src="@{/js/password-toggle.js}"></script>
+        <script defer th:src="@{/js/notifications.js}"></script>
+        <script defer th:src="@{/js/activity-panel.js}"></script>
+        <script defer th:src="@{/js/server-tasks.js}"></script>
+        <script defer th:src="@{/js/favorites.js}"></script>
+        <script defer th:src="@{/js/topbar-controls.js}"></script>
+        <script defer th:src="@{/js/notification-center.js}"></script>
+        <script defer th:src="@{/js/outbound-route.js}"></script>
+        <script defer th:src="@{/js/sticky-notes.js}"></script>
+        <script defer th:src="@{/js/page-context-menu.js}"></script>
+    </th:block>
 </th:block>
 
 <th:block th:fragment="pendingDecisionsScript">
@@ -100,50 +108,13 @@
 </th:block>
 
 <th:block th:fragment="markdownRendererScript">
-    <link rel="stylesheet" th:href="@{/webjars/highlightjs/11.11.1/styles/github-dark.min.css}">
-    <script defer th:src="@{/webjars/markdown-it/14.3.0/dist/markdown-it.min.js}"></script>
-    <script defer th:src="@{/webjars/markdown-it-task-lists/2.1.1/dist/markdown-it-task-lists.min.js}"></script>
-    <script defer th:src="@{/webjars/markdown-it-footnote/2.0.0/dist/markdown-it-footnote.min.js}"></script>
-    <script defer th:src="@{/webjars/dompurify/3.4.11/dist/purify.min.js}"></script>
-    <script defer th:src="@{/webjars/highlightjs/11.11.1/highlight.js}"></script>
-    <script defer th:src="@{/webjars/mermaid/11.15.0/dist/mermaid.min.js}"></script>
-    <script defer th:src="@{/js/markdown-math-plugin.js}"></script>
-    <script defer th:src="@{/js/mathjax-config.js}"></script>
-    <script defer th:src="@{/_static/mathjax/4.1.1/tex-chtml.js}"></script>
-    <script defer th:src="@{/js/markdown-renderer.js}"></script>
+    <th:block th:if="${markdownFrontend.available()}"
+              th:replace="~{fragments/assets :: viteEntry(${markdownFrontend})}"></th:block>
 </th:block>
 
 <th:block th:fragment="fileToolsScript">
-    <link rel="stylesheet" th:href="@{/webjars/codemirror/5.65.19/lib/codemirror.css}">
-    <link rel="stylesheet" th:href="@{/webjars/codemirror/5.65.19/theme/material-darker.css}">
-    <link rel="stylesheet" th:href="@{/webjars/codemirror/5.65.19/addon/dialog/dialog.css}">
-    <script defer th:src="@{/webjars/codemirror/5.65.19/lib/codemirror.js}"></script>
-    <script defer th:src="@{/webjars/codemirror/5.65.19/addon/mode/simple.js}"></script>
-    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/xml/xml.js}"></script>
-    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/javascript/javascript.js}"></script>
-    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/css/css.js}"></script>
-    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/htmlmixed/htmlmixed.js}"></script>
-    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/markdown/markdown.js}"></script>
-    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/clike/clike.js}"></script>
-    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/python/python.js}"></script>
-    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/shell/shell.js}"></script>
-    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/properties/properties.js}"></script>
-    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/yaml/yaml.js}"></script>
-    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/sql/sql.js}"></script>
-    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/powershell/powershell.js}"></script>
-    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/ruby/ruby.js}"></script>
-    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/go/go.js}"></script>
-    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/rust/rust.js}"></script>
-    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/php/php.js}"></script>
-    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/dockerfile/dockerfile.js}"></script>
-    <script defer th:src="@{/webjars/codemirror/5.65.19/mode/toml/toml.js}"></script>
-    <script defer th:src="@{/webjars/codemirror/5.65.19/addon/selection/active-line.js}"></script>
-    <script defer th:src="@{/webjars/codemirror/5.65.19/addon/edit/matchbrackets.js}"></script>
-    <script defer th:src="@{/webjars/codemirror/5.65.19/addon/edit/closebrackets.js}"></script>
-    <script defer th:src="@{/webjars/codemirror/5.65.19/addon/search/searchcursor.js}"></script>
-    <script defer th:src="@{/webjars/codemirror/5.65.19/addon/dialog/dialog.js}"></script>
-    <script defer th:src="@{/webjars/codemirror/5.65.19/addon/search/search.js}"></script>
-    <script defer th:src="@{/js/file-tools.js}"></script>
+    <th:block th:if="${fileToolsFrontend.available()}"
+              th:replace="~{fragments/assets :: viteEntry(${fileToolsFrontend})}"></th:block>
 </th:block>
 
 <th:block th:fragment="imageViewerScript">

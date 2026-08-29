@@ -1,4 +1,4 @@
-import type { BrowserPayload } from './types';
+import type { BrowserPage } from './types';
 
 export function BrowserPagination({
   page,
@@ -6,7 +6,7 @@ export function BrowserPagination({
   jumpToPage,
   ariaLabel = 'File pages',
 }: {
-  page: BrowserPayload['page'];
+  page: BrowserPage;
   onPageChange: (page: number) => void;
   jumpToPage: () => Promise<void>;
   ariaLabel?: string;

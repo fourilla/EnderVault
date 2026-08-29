@@ -1,36 +1,22 @@
-export type BrowserMode = 'browse' | 'search';
-export type BrowserView = 'table' | 'grid';
-export type BrowserSort = 'name' | 'size' | 'modified' | 'type';
-export type SortDirection = 'asc' | 'desc';
-export type HiddenMode = 'hide' | 'show';
+import type {
+  BrowserEntry,
+  BrowserPage,
+  BrowserSort,
+  BrowserView,
+  HiddenMode,
+  SortDirection,
+} from '../shared/browser/types';
 
-export interface BrowserEntry {
-  name: string;
-  path: string;
-  parentPath: string;
-  type: 'directory' | 'file';
-  typeLabel: string;
-  extensionLabel: string;
-  size: number;
-  sizeLabel: string;
-  modifiedAt: string;
-  modifiedLabel: string;
-  accessedAt?: string | null;
-  accessedLabel?: string | null;
-  mediaType: string;
-  previewable: boolean;
-  streamable: boolean;
-  hidden: boolean;
-  favorite: boolean;
-  image: boolean;
-  video: boolean;
-  pdf: boolean;
-  comic: boolean;
-  detailUrl: string;
-  downloadUrl: string | null;
-  previewUrl: string | null;
-  thumbnailUrl: string | null;
-}
+export type {
+  BrowserEntry,
+  BrowserPage,
+  BrowserSort,
+  BrowserView,
+  HiddenMode,
+  SortDirection,
+} from '../shared/browser/types';
+
+export type BrowserMode = 'browse' | 'search';
 
 export interface BrowserPayload {
   mode: BrowserMode;
@@ -39,16 +25,7 @@ export interface BrowserPayload {
   breadcrumbs: Array<{ label: string; path: string }>;
   directories: BrowserEntry[];
   entries: BrowserEntry[];
-  page: {
-    number: number;
-    size: number;
-    totalItems: number;
-    totalPages: number;
-    startItem: number;
-    endItem: number;
-    hasPrevious: boolean;
-    hasNext: boolean;
-  };
+  page: BrowserPage;
   preferences: {
     view: BrowserView;
     sort: BrowserSort;

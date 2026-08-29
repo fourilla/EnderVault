@@ -123,7 +123,10 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/file-uploads.js")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"toastRegion\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-notification-center")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/notification-center.js")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/styles-")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/shell-")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("/js/notification-center.js"))))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString(
                         "data-file-requests-enabled=\"true\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("data-outbound-route-form")))
@@ -1968,9 +1971,9 @@ class AdminNotificationFlowTest {
 
         MvcResult result = mockMvc.perform(get("/s/{token}", shareLink.token()))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("/webjars/codemirror/5.65.19/lib/codemirror.js")))
-                .andExpect(content().string(Matchers.containsString("/webjars/codemirror/5.65.19/addon/mode/simple.js")))
-                .andExpect(content().string(Matchers.containsString("/js/file-tools.js")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/fileTools-")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/webjars/codemirror/"))))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/file-tools.js"))))
                 .andExpect(content().string(Matchers.containsString("data-shared-text-preview")))
                 .andExpect(content().string(Matchers.containsString("data-text-extension=\"html\"")))
                 .andExpect(content().string(Matchers.containsString("Text Preview")))
@@ -1982,9 +1985,7 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(Matchers.containsString("&lt;script&gt;alert(1)&lt;/script&gt;")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("<script>alert"))))
                 .andReturn();
-        String body = result.getResponse().getContentAsString();
-        assertThat(body.indexOf("/webjars/codemirror/5.65.19/addon/mode/simple.js"))
-                .isLessThan(body.indexOf("/webjars/codemirror/5.65.19/mode/rust/rust.js"));
+        assertThat(result.getResponse().getContentAsString()).contains("/react/assets/fileTools-");
     }
 
     @Test

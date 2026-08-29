@@ -29,6 +29,74 @@ class ViteAssetServiceTest {
     }
 
     @Test
+    void resolvesBundledGlobalStylesFromGeneratedManifest() {
+        ViteAssetService service = new ViteAssetService(
+                new ObjectMapper(),
+                new DefaultResourceLoader(),
+                "");
+
+        ViteAssetService.ViteEntry entry = service.entry("src/styles/main.ts");
+
+        assertThat(entry.available()).isTrue();
+        assertThat(entry.entryScript()).startsWith("/react/assets/styles-").endsWith(".js");
+        assertThat(entry.styles())
+                .singleElement()
+                .asString()
+                .startsWith("/react/assets/styles-")
+                .endsWith(".css");
+    }
+
+    @Test
+    void resolvesBundledShellRuntimeFromGeneratedManifest() {
+        ViteAssetService service = new ViteAssetService(
+                new ObjectMapper(),
+                new DefaultResourceLoader(),
+                "");
+
+        ViteAssetService.ViteEntry entry = service.entry("src/shell/main.ts");
+
+        assertThat(entry.available()).isTrue();
+        assertThat(entry.entryScript()).startsWith("/react/assets/shell-").endsWith(".js");
+        assertThat(entry.styles()).isEmpty();
+    }
+
+    @Test
+    void resolvesBundledFileToolsFromGeneratedManifest() {
+        ViteAssetService service = new ViteAssetService(
+                new ObjectMapper(),
+                new DefaultResourceLoader(),
+                "");
+
+        ViteAssetService.ViteEntry entry = service.entry("src/file-tools/main.ts");
+
+        assertThat(entry.available()).isTrue();
+        assertThat(entry.entryScript()).startsWith("/react/assets/fileTools-").endsWith(".js");
+        assertThat(entry.styles())
+                .singleElement()
+                .asString()
+                .startsWith("/react/assets/fileTools-")
+                .endsWith(".css");
+    }
+
+    @Test
+    void resolvesBundledMarkdownRendererFromGeneratedManifest() {
+        ViteAssetService service = new ViteAssetService(
+                new ObjectMapper(),
+                new DefaultResourceLoader(),
+                "");
+
+        ViteAssetService.ViteEntry entry = service.entry("src/markdown/main.ts");
+
+        assertThat(entry.available()).isTrue();
+        assertThat(entry.entryScript()).startsWith("/react/assets/markdown-").endsWith(".js");
+        assertThat(entry.styles())
+                .singleElement()
+                .asString()
+                .startsWith("/react/assets/markdown-")
+                .endsWith(".css");
+    }
+
+    @Test
     void resolvesLoopbackDevelopmentEntryWithoutManifest() {
         ViteAssetService service = new ViteAssetService(
                 new ObjectMapper(),

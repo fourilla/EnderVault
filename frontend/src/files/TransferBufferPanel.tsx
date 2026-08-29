@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { icon } from './BrowserEntries';
+import { icon } from '../shared/browser/BrowserEntries';
 import type { BrowserMode, TransferBufferPayload } from './types';
 import type { FileBrowserActions } from './useFileActions';
 

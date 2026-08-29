@@ -1,11 +1,11 @@
 import { useEffect } from 'react';
 import { BrowserBreadcrumbs } from './BrowserBreadcrumbs';
-import { icon } from './BrowserEntries';
+import { icon } from '../shared/browser/BrowserEntries';
 import { BrowserListing } from './BrowserListing';
 import { BrowserToolbar } from './BrowserToolbar';
 import { TransferBufferPanel } from './TransferBufferPanel';
 import { useBrowserNavigation } from './useBrowserNavigation';
-import { useEntrySelection } from './useEntrySelection';
+import { useEntrySelection } from '../shared/browser/useEntrySelection';
 import { useFileActions } from './useFileActions';
 import { useFileContextMenu } from './useFileContextMenu';
 import './files-app.css';

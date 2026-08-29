@@ -6,7 +6,7 @@ import {
   parseBrowserState,
   rememberBrowserState,
 } from './browser-history';
-import { postForm, toastError } from './file-actions-api';
+import { postForm, toastError } from '../shared/api/form-api';
 import type { BrowserHistoryState, BrowserPayload, BrowserView } from './types';
 
 const listingRequestKeyFor = (state: BrowserHistoryState) => [

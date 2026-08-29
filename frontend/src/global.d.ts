@@ -4,6 +4,16 @@ export {};
 
 declare global {
   interface Window {
+    CodeMirror?: any;
+    markdownit?: any;
+    markdownitTaskLists?: any;
+    markdownitFootnote?: any;
+    DOMPurify?: any;
+    hljs?: any;
+    mermaid?: any;
+    MathJax?: any;
+    EnderVaultMarkdownMermaidLoader?: () => Promise<any>;
+    EnderVaultMarkdownMathLoader?: () => Promise<any>;
     EnderVault?: {
       requestJson: (url: string, options?: RequestInit) => Promise<any>;
       requestJsonResolvingConflicts: (url: string, options?: RequestInit) => Promise<any>;
