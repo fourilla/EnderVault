@@ -27,11 +27,15 @@ public final class BookmarkRoutes {
     }
 
     public static String bookmarkDetailUrl(String id) {
-        return UriComponentsBuilder.fromPath("/files/bookmarks/detail")
-                .queryParam("id", id)
-                .build()
-                .encode()
-                .toUriString();
+        return bookmarkItemUrl("/files/bookmarks/detail", id);
+    }
+
+    public static String bookmarkOpenUrl(String id) {
+        return bookmarkItemUrl("/files/bookmarks/open", id);
+    }
+
+    public static String bookmarkFaviconUrl(String id) {
+        return bookmarkItemUrl("/files/bookmarks/favicon", id);
     }
 
     public static String redirectToBookmarkDetail(String id) {
@@ -55,6 +59,14 @@ public final class BookmarkRoutes {
                 .map(String::trim)
                 .distinct()
                 .toList();
+    }
+
+    private static String bookmarkItemUrl(String path, String id) {
+        return UriComponentsBuilder.fromPath(path)
+                .queryParam("id", id)
+                .build()
+                .encode()
+                .toUriString();
     }
 
     static MediaType mediaType(String contentType) {

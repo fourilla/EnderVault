@@ -18,6 +18,10 @@ class BookmarkRoutesTest {
                 .isEqualTo("redirect:/files/bookmarks");
         assertThat(BookmarkRoutes.bookmarkDetailUrl("bookmark id"))
                 .isEqualTo("/files/bookmarks/detail?id=bookmark%20id");
+        assertThat(BookmarkRoutes.bookmarkOpenUrl("bookmark id"))
+                .isEqualTo("/files/bookmarks/open?id=bookmark%20id");
+        assertThat(BookmarkRoutes.bookmarkFaviconUrl("bookmark id"))
+                .isEqualTo("/files/bookmarks/favicon?id=bookmark%20id");
     }
 
     @Test

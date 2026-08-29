@@ -22,6 +22,7 @@ export default defineConfig({
         markdown: 'src/markdown/main.ts',
         files: 'src/files/main.tsx',
         recent: 'src/recent/main.tsx',
+        bookmarks: 'src/bookmarks/main.tsx',
         settings: 'src/settings/main.tsx',
       },
     },

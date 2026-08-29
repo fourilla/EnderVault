@@ -57,6 +57,9 @@ declare global {
     EnderVaultServerTasks?: {
       track: (task: unknown, options?: Record<string, unknown>) => void;
     };
+    EnderVaultFavorites?: {
+      toggleBookmark: (id: string) => Promise<{ active?: boolean }>;
+    };
     EnderVaultToasts?: {
       show: (notification: NotificationPayload) => void;
     };
