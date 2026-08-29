@@ -11,6 +11,10 @@ document.addEventListener("DOMContentLoaded", () => {
     let activeSidebarMenu = null;
     let activeSidebarFavorite = null;
 
+    const dispatchFavoritesChanged = (detail) => {
+        document.dispatchEvent(new CustomEvent("endervault:favorites-changed", { detail }));
+    };
+
     const favoriteUrl = (favorite) => {
         if (favorite.openUrl) {
             return favorite.openUrl;
@@ -126,19 +130,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
 
-    const removeManagementRow = (path) => {
-        favoriteElement(document, "data-favorite-row-path", path)?.remove();
-        const tableBody = document.querySelector(".favorites-panel tbody");
-        if (!tableBody || tableBody.querySelector("[data-favorite-row-path]")) {
-            return;
-        }
-
-        const emptyRow = document.createElement("tr");
-        emptyRow.className = "empty-row";
-        emptyRow.innerHTML = '<td colspan="5" class="empty">No favorites yet.</td>';
-        tableBody.append(emptyRow);
-    };
-
     const moveElement = (element, direction, candidates) => {
         const index = candidates.indexOf(element);
         const sibling = direction === "up" ? candidates[index - 1] : candidates[index + 1];
@@ -157,37 +148,6 @@ document.addEventListener("DOMContentLoaded", () => {
         moveElement(link, direction, sidebarFavoriteLinks());
     };
 
-    const managementRows = () =>
-        Array.from(document.querySelectorAll("[data-favorite-row-path]"));
-
-    const syncManagementMoveButtons = () => {
-        const rows = managementRows();
-        rows.forEach((row, index) => {
-            row.querySelectorAll('form[data-favorite-action="move"]').forEach((form) => {
-                const direction = form.querySelector('input[name="direction"]')?.value;
-                const button = form.querySelector("button");
-                if (button) {
-                    button.disabled = direction === "up" ? index === 0 : index === rows.length - 1;
-                }
-            });
-        });
-    };
-
-    const reorderManagementFavorite = (path, direction) => {
-        const row = favoriteElement(document, "data-favorite-row-path", path);
-        moveElement(row, direction, managementRows());
-        syncManagementMoveButtons();
-    };
-
-    const handleMoveResponse = (form, body) => {
-        const formData = new FormData(form);
-        const path = form.dataset.favoritePath || formData.get("path") || "";
-        const direction = formData.get("direction") || "";
-        reorderSidebarFavorite(path, direction);
-        reorderManagementFavorite(path, direction);
-        showNotification(body.notification);
-    };
-
     const handleFavoriteResponse = (form, body) => {
         const path = body.path || form.dataset.favoritePath || new FormData(form).get("path");
         showNotification(body.notification);
@@ -195,13 +155,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (body.active) {
             addSidebarFavorite(body.favorite);
-            return;
+        } else {
+            removeSidebarFavorite(path);
         }
-
-        removeSidebarFavorite(path);
-        if (form.dataset.favoriteAction === "remove") {
-            removeManagementRow(path);
-        }
+        dispatchFavoritesChanged({ action: body.active ? "add" : "remove", path, active: body.active });
     };
 
     const togglePath = async (path) => {
@@ -234,6 +191,36 @@ document.addEventListener("DOMContentLoaded", () => {
                 favoritePath: path
             }
         }, body);
+        return body;
+    };
+
+    const remove = async (path) => {
+        const formData = formDataWithCsrf();
+        formData.append("path", path);
+        const body = await requestJson("/api/v1/favorites/remove", {
+            method: "POST",
+            body: formData
+        });
+        handleFavoriteResponse({
+            dataset: {
+                favoriteAction: "remove",
+                favoritePath: path
+            }
+        }, body);
+        return body;
+    };
+
+    const move = async (path, direction) => {
+        const formData = formDataWithCsrf();
+        formData.append("path", path);
+        formData.append("direction", direction);
+        const body = await requestJson("/api/v1/favorites/move", {
+            method: "POST",
+            body: formData
+        });
+        reorderSidebarFavorite(path, direction);
+        showNotification(body.notification);
+        dispatchFavoritesChanged({ action: "move", path, direction });
         return body;
     };
 
@@ -294,33 +281,12 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        const formData = formDataWithCsrf();
-        formData.append("path", link.dataset.favoriteSidebarPath || "");
-        formData.append("direction", direction);
-        const body = await requestJson("/api/v1/favorites/move", {
-            method: "POST",
-            body: formData
-        });
-
-        reorderSidebarFavorite(link.dataset.favoriteSidebarPath || "", direction);
-        reorderManagementFavorite(link.dataset.favoriteSidebarPath || "", direction);
-        showNotification(body.notification);
+        await move(link.dataset.favoriteSidebarPath || "", direction);
     };
 
     const removeSidebarFavoriteViaMenu = async (link) => {
         const path = link.dataset.favoriteSidebarPath || "";
-        const formData = formDataWithCsrf();
-        formData.append("path", path);
-        const body = await requestJson("/api/v1/favorites/remove", {
-            method: "POST",
-            body: formData
-        });
-        handleFavoriteResponse({
-            dataset: {
-                favoriteAction: "remove",
-                favoritePath: path
-            }
-        }, body);
+        await remove(path);
     };
 
     const showSidebarFavoriteMenu = (event, link) => {
@@ -456,11 +422,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 button.disabled = true;
                 try {
                     const body = await submitJsonForm(form);
-                    if (form.dataset.favoriteAction === "move") {
-                        handleMoveResponse(form, body);
-                    } else {
-                        handleFavoriteResponse(form, body);
-                    }
+                    handleFavoriteResponse(form, body);
                 } catch (error) {
                     showToast("error", error.message || "Favorite update failed.");
                 } finally {
@@ -471,13 +433,14 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     bindFavoriteForms();
-    syncManagementMoveButtons();
     bindSidebarFavoriteContextMenu();
     document.addEventListener("endervault:listing-refreshed", () => bindFavoriteForms());
 
     window.EnderVaultFavorites = {
         togglePath,
         toggleBookmark,
+        remove,
+        move,
         bind: bindFavoriteForms
     };
 });

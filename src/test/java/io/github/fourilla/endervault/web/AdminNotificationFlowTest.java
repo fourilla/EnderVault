@@ -1666,11 +1666,17 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get("/files/favorites"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(filename)))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Move up")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remove")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/api/v1/favorites/move")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/api/v1/favorites/remove")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"favorites-root\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/favorites-")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("<table>"))));
+
+        mockMvc.perform(get("/api/v1/favorites"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[?(@.path == '" + filename + "')].name").value(filename))
+                .andExpect(jsonPath("$.items[?(@.path == '" + filename + "')].typeLabel").value("File"))
+                .andExpect(jsonPath("$.items[?(@.path == '" + filename + "')].openUrl")
+                        .value("/files/detail?path=" + filename))
+                .andExpect(jsonPath("$.items[?(@.path == '" + filename + "')].hidden").value(false));
 
         mockMvc.perform(get("/api/v1/fs/listing"))
                 .andExpect(status().isOk())
