@@ -1,3 +1,4 @@
+import { toggleBookmarkFavorite } from '../shared/api/favorite-api';
 import { notify, postForm, toastError } from '../shared/api/form-api';
 import type { BookmarkEntry, BookmarkHistoryState, BookmarkPayload } from './types';
 
@@ -94,10 +95,7 @@ export function useBookmarkActions({
 
   const toggleFavorite = async (entry: BookmarkEntry) => {
     try {
-      const body = window.EnderVaultFavorites
-        ? await window.EnderVaultFavorites.toggleBookmark(entry.id)
-        : await postForm('/api/v1/favorites/toggle-bookmark', { id: entry.id });
-      if (!window.EnderVaultFavorites) notify(body);
+      const body = await toggleBookmarkFavorite(entry.id);
       const active = Boolean(body.active);
       setPayload((current) => {
         if (!current) return current;

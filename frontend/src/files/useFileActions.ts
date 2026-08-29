@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
+import { togglePathFavorite } from '../shared/api/favorite-api';
 import { notify, postForm, toastError } from '../shared/api/form-api';
 import type {
   BrowserEntry,
@@ -59,8 +60,7 @@ export function useFileActions({
 
   const toggleFavorite = async (entry: BrowserEntry) => {
     try {
-      const body = await postForm('/api/v1/favorites/toggle', { path: entry.path });
-      notify(body);
+      const body = await togglePathFavorite(entry.path);
       const active = Boolean(body.active);
       setPayload((current) => {
         if (!current) return current;

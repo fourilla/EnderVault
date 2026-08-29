@@ -58,6 +58,7 @@ declare global {
       track: (task: unknown, options?: Record<string, unknown>) => void;
     };
     EnderVaultFavorites?: {
+      togglePath: (path: string) => Promise<{ active?: boolean }>;
       toggleBookmark: (id: string) => Promise<{ active?: boolean }>;
     };
     EnderVaultToasts?: {

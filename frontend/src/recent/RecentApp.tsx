@@ -3,6 +3,7 @@ import { EntryGrid, EntryTable, icon } from '../shared/browser/BrowserEntries';
 import { BrowserPagination } from '../shared/browser/BrowserPagination';
 import type { BrowserEntry } from '../shared/browser/types';
 import { useEntrySelection } from '../shared/browser/useEntrySelection';
+import { togglePathFavorite } from '../shared/api/favorite-api';
 import { notify, postForm, toastError } from '../shared/api/form-api';
 import { canonicalRecentState, loadRecentPayload } from './recent-api';
 import {
@@ -95,8 +96,7 @@ export function RecentApp() {
 
   const toggleFavorite = async (entry: BrowserEntry) => {
     try {
-      const body = await postForm('/api/v1/favorites/toggle', { path: entry.path });
-      notify(body);
+      const body = await togglePathFavorite(entry.path);
       const active = Boolean(body.active);
       setPayload((current) => current ? {
         ...current,
