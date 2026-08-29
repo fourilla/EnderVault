@@ -1376,10 +1376,16 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get("/admin/trash"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("/api/v1/trash/empty")))
-                .andExpect(content().string(Matchers.containsString("/api/v1/trash/restore")))
-                .andExpect(content().string(Matchers.containsString("/api/v1/trash/delete")))
+                .andExpect(content().string(Matchers.containsString("id=\"trash-root\"")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/trash-")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("data-trash-item"))))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("/admin/trash/empty"))));
+
+        mockMvc.perform(get("/api/v1/trash"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].id").value(record.id()))
+                .andExpect(jsonPath("$.items[0].originalName").value(fileName))
+                .andExpect(jsonPath("$.items[0].directory").value(false));
 
         mockMvc.perform(post("/api/v1/trash/delete")
                         .with(csrf())

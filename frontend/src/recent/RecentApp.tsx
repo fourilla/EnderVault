@@ -268,7 +268,7 @@ export function RecentApp() {
         </div>
       </section>
 
-      {error && <section className="dashboard-panel files-load-error" role="alert">{error}</section>}
+      {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
       {loading && !payload && <p className="empty browser-grid-empty">Loading recent items...</p>}
       {payload && (
         <>

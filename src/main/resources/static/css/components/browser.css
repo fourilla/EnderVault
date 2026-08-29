@@ -2,6 +2,24 @@
     margin-top: var(--space-4xl);
 }
 
+.browser-load-error {
+    color: var(--danger);
+}
+
+.browser-load-progress {
+    display: flex;
+    min-height: 12rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.65rem;
+    color: var(--muted);
+}
+
+.browser-load-progress i {
+    color: var(--accent);
+    font-size: 1.15rem;
+}
+
 .section-heading {
     display: flex;
     flex-wrap: wrap;

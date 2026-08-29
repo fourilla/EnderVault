@@ -8,6 +8,7 @@ import io.github.fourilla.endervault.web.support.ActionResponse;
 import io.github.fourilla.endervault.web.support.FlashNotification;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -23,6 +24,11 @@ public class TrashApiController {
     public TrashApiController(TrashService trashService, ActivityLogService activityLogService) {
         this.trashService = trashService;
         this.activityLogService = activityLogService;
+    }
+
+    @GetMapping
+    public TrashBrowserPayload list() throws IOException {
+        return TrashBrowserPayload.from(trashService.list());
     }
 
     @PostMapping("/restore")

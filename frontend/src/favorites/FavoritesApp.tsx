@@ -66,9 +66,9 @@ export function FavoritesApp() {
         </div>
       </section>
 
-      {error && <section className="dashboard-panel files-load-error" role="alert">{error}</section>}
+      {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
       {loading && !payload && (
-        <section className="files-search-progress" role="status" aria-live="polite">
+        <section className="browser-load-progress" role="status" aria-live="polite">
           <i className="fas fa-spinner fa-spin" aria-hidden="true" />
           <span>Loading favorites...</span>
         </section>

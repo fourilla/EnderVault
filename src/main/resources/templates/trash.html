@@ -3,10 +3,12 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
     <title>EnderVault Trash</title>
     <th:block th:replace="~{fragments/assets :: styles(true)}"></th:block>
     <th:block th:replace="~{fragments/assets :: coreScripts}"></th:block>
-    <th:block th:replace="~{fragments/assets :: adminActionsScript}"></th:block>
+    <th:block th:replace="~{fragments/assets :: viteEntry(${trashFrontend})}"></th:block>
 </head>
 <body>
 <div class="app-shell">
@@ -15,83 +17,20 @@
 <header th:replace="~{fragments/admin-shell :: topbar}"></header>
 <div th:replace="~{fragments/notifications :: toasts}"></div>
 
-<main class="workspace">
-    <section class="pathbar">
-        <a class="ghost icon-button" th:href="@{/admin/dashboard}" title="Back to dashboard" aria-label="Back to dashboard">
-            <i class="fas fa-arrow-left" aria-hidden="true"></i>
-        </a>
-        <div class="pathbar-title-group">
-            <h1>Trash</h1>
-            <form class="row-form" method="post" th:action="@{/api/v1/trash/empty}"
-                  data-ajax-action="trash-empty" data-trash-empty-action
-                  th:if="${not #lists.isEmpty(records)}">
-                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                <button class="danger icon-button" type="submit" title="Empty trash" aria-label="Empty trash">
-                    <i class="fas fa-broom" aria-hidden="true"></i>
-                </button>
-            </form>
-        </div>
-    </section>
-
-    <section class="browser-section" data-trash-section th:if="${not #lists.isEmpty(records)}" aria-label="Trash items">
-        <header class="section-heading">
-            <h2>Items (<span data-trash-count th:text="${#lists.size(records)}">0</span>)</h2>
-        </header>
-
-        <div class="table-wrap">
-            <table>
-                <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Original path</th>
-                    <th>Type</th>
-                    <th>Size</th>
-                    <th>Deleted</th>
-                    <th>Expires</th>
-                    <th>Actions</th>
-                </tr>
-                </thead>
-                <tbody>
-                <tr data-trash-item th:each="record : ${records}">
-                    <td>
-                        <span class="item-name" th:title="${record.originalName()}">
-                            <i th:class="${record.directory()} ? 'fas fa-folder item-icon' : 'fas fa-file item-icon'" aria-hidden="true"></i>
-                            <span th:text="${record.originalName()}">item</span>
-                        </span>
-                    </td>
-                    <td th:text="${record.originalPath()}">path</td>
-                    <td th:text="${record.typeLabel()}">File</td>
-                    <td th:text="${record.sizeLabel()}">0 B</td>
-                    <td th:text="${record.deletedLabel()}">deleted</td>
-                    <td th:text="${record.expiresLabel()}">expires</td>
-                    <td>
-                        <div class="table-actions">
-                            <form class="row-form" method="post" th:action="@{/api/v1/trash/restore}"
-                                  data-ajax-action="trash-restore">
-                                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                                <input type="hidden" name="id" th:value="${record.id()}">
-                                <button class="icon-button action-icon" type="submit" title="Restore" aria-label="Restore">
-                                    <i class="fas fa-rotate-left" aria-hidden="true"></i>
-                                </button>
-                            </form>
-                            <form class="row-form" method="post" th:action="@{/api/v1/trash/delete}"
-                                  data-ajax-action="trash-delete">
-                                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                                <input type="hidden" name="id" th:value="${record.id()}">
-                                <button class="danger icon-button action-icon" type="submit"
-                                        title="Permanently delete" aria-label="Permanently delete">
-                                    <i class="fas fa-trash-can" aria-hidden="true"></i>
-                                </button>
-                            </form>
-                        </div>
-                    </td>
-                </tr>
-                </tbody>
-            </table>
-        </div>
-    </section>
-
-    <p data-trash-empty th:hidden="${not #lists.isEmpty(records)}" class="empty browser-grid-empty">No trash items.</p>
+<main class="workspace trash-workspace">
+    <div id="trash-root" class="trash-react-root">
+        <section class="dashboard-panel settings-react-loading" th:if="${trashFrontend.available()}">
+            Loading trash...
+        </section>
+        <section class="dashboard-panel" th:unless="${trashFrontend.available()}">
+            <header class="section-heading">
+                <div>
+                    <h2>Trash frontend unavailable</h2>
+                    <p>Build the frontend assets or start the configured Vite development server.</p>
+                </div>
+            </header>
+        </section>
+    </div>
 </main>
 </div>
 </div>

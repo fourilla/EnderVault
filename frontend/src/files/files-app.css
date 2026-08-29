@@ -10,24 +10,6 @@
   white-space: nowrap;
 }
 
-.files-load-error {
-  color: var(--danger);
-}
-
-.files-search-progress {
-  display: flex;
-  min-height: 12rem;
-  align-items: center;
-  justify-content: center;
-  gap: 0.65rem;
-  color: var(--muted);
-}
-
-.files-search-progress i {
-  color: var(--accent);
-  font-size: 1.15rem;
-}
-
 .files-directory-thumb {
   color: var(--accent);
   font-size: 3rem;
