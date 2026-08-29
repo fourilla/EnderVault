@@ -1,0 +1,7 @@
+.bookmarks-react-root {
+  min-width: 0;
+}
+
+.bookmarks-react-root .bookmark-form-dialog textarea {
+  min-height: min(360px, 48vh);
+}

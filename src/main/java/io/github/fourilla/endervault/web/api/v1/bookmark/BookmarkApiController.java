@@ -5,10 +5,13 @@ import io.github.fourilla.endervault.bookmark.BookmarkItem;
 import io.github.fourilla.endervault.bookmark.BookmarkLogMetadata;
 import io.github.fourilla.endervault.bookmark.BookmarkService;
 import io.github.fourilla.endervault.common.StorageAccessException;
+import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.favorite.FavoriteService;
 import io.github.fourilla.endervault.task.AppTask;
 import io.github.fourilla.endervault.task.BookmarkBulkTaskService;
 import io.github.fourilla.endervault.web.bookmark.BookmarkRoutes;
 import io.github.fourilla.endervault.web.support.ActionResponse;
+import io.github.fourilla.endervault.web.support.BookmarkLinkClickAction;
 import io.github.fourilla.endervault.web.support.FlashNotification;
 import io.github.fourilla.endervault.web.task.TaskActionResponse;
 import io.github.fourilla.endervault.web.task.TaskPayload;
@@ -16,7 +19,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -30,15 +35,41 @@ public class BookmarkApiController {
     private final BookmarkService bookmarkService;
     private final BookmarkBulkTaskService bookmarkBulkTaskService;
     private final ActivityLogService activityLogService;
+    private final FavoriteService favoriteService;
+    private final NasProperties nasProperties;
 
     public BookmarkApiController(
             BookmarkService bookmarkService,
             BookmarkBulkTaskService bookmarkBulkTaskService,
-            ActivityLogService activityLogService
+            ActivityLogService activityLogService,
+            FavoriteService favoriteService,
+            NasProperties nasProperties
     ) {
         this.bookmarkService = bookmarkService;
         this.bookmarkBulkTaskService = bookmarkBulkTaskService;
         this.activityLogService = activityLogService;
+        this.favoriteService = favoriteService;
+        this.nasProperties = nasProperties;
+    }
+
+    @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
+    public BookmarkBrowserPayload list(
+            @RequestParam(value = "directory", required = false) String directoryId,
+            @RequestParam(value = "q", required = false) String query
+    ) throws IOException {
+        String currentDirectoryId = BookmarkRoutes.normalizeId(directoryId);
+        String normalizedQuery = BookmarkRoutes.normalizeQuery(query);
+        bookmarkService.currentDirectory(currentDirectoryId);
+        boolean metadataFetchEnabled = bookmarkService.metadataFetchEnabled();
+        return BookmarkBrowserPayload.from(
+                bookmarkService.list(currentDirectoryId, normalizedQuery),
+                bookmarkService.breadcrumbs(currentDirectoryId),
+                currentDirectoryId,
+                normalizedQuery,
+                metadataFetchEnabled,
+                BookmarkLinkClickAction.from(nasProperties),
+                favoriteService.favoriteBookmarkIds()
+        );
     }
 
     @PostMapping("/directories")

@@ -5,13 +5,11 @@ import io.github.fourilla.endervault.bookmark.BookmarkItem;
 import io.github.fourilla.endervault.bookmark.BookmarkLogMetadata;
 import io.github.fourilla.endervault.bookmark.BookmarkService;
 import io.github.fourilla.endervault.bookmark.BookmarkService.BookmarkFavicon;
-import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.favorite.FavoriteService;
-import io.github.fourilla.endervault.web.support.BookmarkLinkClickAction;
 import io.github.fourilla.endervault.web.support.FlashNotifications;
+import io.github.fourilla.endervault.web.support.ViteAssetService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import org.springframework.core.io.PathResource;
 import org.springframework.core.io.Resource;
@@ -31,40 +29,25 @@ public class AdminBookmarkController {
     private final BookmarkService bookmarkService;
     private final FavoriteService favoriteService;
     private final ActivityLogService activityLogService;
-    private final NasProperties nasProperties;
+    private final ViteAssetService viteAssetService;
 
     public AdminBookmarkController(
             BookmarkService bookmarkService,
             FavoriteService favoriteService,
             ActivityLogService activityLogService,
-            NasProperties nasProperties
+            ViteAssetService viteAssetService
     ) {
         this.bookmarkService = bookmarkService;
         this.favoriteService = favoriteService;
         this.activityLogService = activityLogService;
-        this.nasProperties = nasProperties;
+        this.viteAssetService = viteAssetService;
     }
 
     @GetMapping("/files/bookmarks")
     public String bookmarks(
-            @RequestParam(value = "directory", required = false) String directoryId,
-            @RequestParam(value = "q", required = false) String query,
             Model model
-    ) throws IOException {
-        String currentDirectoryId = BookmarkRoutes.normalizeId(directoryId);
-        String normalizedQuery = BookmarkRoutes.normalizeQuery(query);
-        List<BookmarkItem> bookmarkItems = bookmarkService.list(currentDirectoryId, normalizedQuery);
-        model.addAttribute("bookmarkItems", bookmarkItems);
-        model.addAttribute("bookmarkDirectories", bookmarkItems.stream().filter(BookmarkItem::directory).toList());
-        model.addAttribute("bookmarkLinks", bookmarkItems.stream().filter(BookmarkItem::link).toList());
-        model.addAttribute("bookmarkBreadcrumbs", bookmarkService.breadcrumbs(currentDirectoryId));
-        model.addAttribute("currentBookmarkDirectory", bookmarkService.currentDirectory(currentDirectoryId));
-        model.addAttribute("currentBookmarkDirectoryId", BookmarkRoutes.normalizeId(currentDirectoryId));
-        model.addAttribute("bookmarkMetadataFetchEnabled", bookmarkService.metadataFetchEnabled());
-        model.addAttribute("bookmarkLinkClickAction", BookmarkLinkClickAction.from(nasProperties));
-        model.addAttribute("favoriteBookmarkIds", favoriteService.favoriteBookmarkIds());
-        model.addAttribute("query", normalizedQuery);
-        model.addAttribute("searchPerformed", !normalizedQuery.isBlank());
+    ) {
+        model.addAttribute("bookmarksFrontend", viteAssetService.entry("src/bookmarks/main.tsx"));
         return "bookmarks";
     }
 

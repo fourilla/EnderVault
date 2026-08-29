@@ -1581,12 +1581,22 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get("/files/bookmarks"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("/api/v1/bookmarks/directories")))
-                .andExpect(content().string(Matchers.containsString("/api/v1/bookmarks/links")))
-                .andExpect(content().string(Matchers.containsString("/api/v1/bookmarks/bulk")))
-                .andExpect(content().string(Matchers.containsString("/api/v1/bookmarks/delete-selected")))
-                .andExpect(content().string(Matchers.not(Matchers.containsString(
-                        "action=\"/files/bookmarks/directories\""))));
+                .andExpect(content().string(Matchers.containsString("id=\"bookmarks-root\"")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/bookmarks-")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("bookmark-actions.js"))))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("bookmark-context-menu.js"))));
+
+        mockMvc.perform(get("/api/v1/bookmarks").param("q", title))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.search.query").value(title))
+                .andExpect(jsonPath("$.search.performed").value(true))
+                .andExpect(jsonPath("$.directories[0].id").value(created.id()))
+                .andExpect(jsonPath("$.directories[0].type").value("directory"))
+                .andExpect(jsonPath("$.directories[0].primaryUrl").value(
+                        "/files/bookmarks?directory=" + created.id()))
+                .andExpect(jsonPath("$.directories[0].directory").doesNotExist())
+                .andExpect(jsonPath("$.directories[0].link").doesNotExist())
+                .andExpect(jsonPath("$.links").isEmpty());
 
         mockMvc.perform(post("/api/v1/bookmarks/delete")
                         .with(csrf())

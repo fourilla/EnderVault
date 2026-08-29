@@ -79,6 +79,24 @@ class ViteAssetServiceTest {
     }
 
     @Test
+    void resolvesBundledBookmarksEntryFromGeneratedManifest() {
+        ViteAssetService service = new ViteAssetService(
+                new ObjectMapper(),
+                new DefaultResourceLoader(),
+                "");
+
+        ViteAssetService.ViteEntry entry = service.entry("src/bookmarks/main.tsx");
+
+        assertThat(entry.available()).isTrue();
+        assertThat(entry.entryScript()).startsWith("/react/assets/bookmarks-").endsWith(".js");
+        assertThat(entry.styles())
+                .singleElement()
+                .asString()
+                .startsWith("/react/assets/bookmarks-")
+                .endsWith(".css");
+    }
+
+    @Test
     void resolvesBundledMarkdownRendererFromGeneratedManifest() {
         ViteAssetService service = new ViteAssetService(
                 new ObjectMapper(),
