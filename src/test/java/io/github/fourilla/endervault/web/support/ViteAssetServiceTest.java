@@ -133,6 +133,24 @@ class ViteAssetServiceTest {
     }
 
     @Test
+    void resolvesBundledActivityLogsEntryFromGeneratedManifest() {
+        ViteAssetService service = new ViteAssetService(
+                new ObjectMapper(),
+                new DefaultResourceLoader(),
+                "");
+
+        ViteAssetService.ViteEntry entry = service.entry("src/activity-logs/main.tsx");
+
+        assertThat(entry.available()).isTrue();
+        assertThat(entry.entryScript()).startsWith("/react/assets/activityLogs-").endsWith(".js");
+        assertThat(entry.styles())
+                .singleElement()
+                .asString()
+                .startsWith("/react/assets/activityLogs-")
+                .endsWith(".css");
+    }
+
+    @Test
     void resolvesBundledMarkdownRendererFromGeneratedManifest() {
         ViteAssetService service = new ViteAssetService(
                 new ObjectMapper(),

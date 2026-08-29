@@ -146,11 +146,9 @@ class AdminNotificationFlowTest {
 
     @Test
     void pagesWithCommonAjaxActionsLoadTheirFormBinder() throws Exception {
-        for (String path : List.of("/files/read-only", "/admin/trash", "/admin/logs")) {
-            mockMvc.perform(get(path))
-                    .andExpect(status().isOk())
-                    .andExpect(content().string(Matchers.containsString("/js/admin-actions.js")));
-        }
+        mockMvc.perform(get("/files/read-only"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("/js/admin-actions.js")));
 
         mockMvc.perform(get("/files"))
                 .andExpect(status().isOk())
@@ -160,6 +158,16 @@ class AdminNotificationFlowTest {
         mockMvc.perform(get("/files/recent"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("/react/assets/recent-")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/admin-actions.js"))));
+
+        mockMvc.perform(get("/admin/trash"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("/react/assets/trash-")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/admin-actions.js"))));
+
+        mockMvc.perform(get("/admin/logs"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("/react/assets/activityLogs-")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("/js/admin-actions.js"))));
     }
 
@@ -1404,7 +1412,15 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isNotFound());
 
         mockMvc.perform(get("/admin/logs"))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("id=\"activity-logs-root\"")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/activityLogs-")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("log-filter-form"))));
+        mockMvc.perform(get("/api/v1/activity-logs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.selectedFile").value("activity-log.jsonl"))
+                .andExpect(jsonPath("$.files").isArray())
+                .andExpect(jsonPath("$.entries").isArray());
         mockMvc.perform(post("/api/v1/activity-logs/delete")
                         .with(csrf())
                         .param("file", "activity-log.jsonl"))
@@ -1775,7 +1791,7 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void logsPageRendersActivityEntries() throws Exception {
+    void activityLogApiFiltersAndRendersActivityEntries() throws Exception {
         String directory = "log-dir-" + System.nanoTime();
 
         mockMvc.perform(post("/api/v1/files/directories")
@@ -1784,15 +1800,17 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true));
 
-        mockMvc.perform(get("/admin/logs")
+        mockMvc.perform(get("/api/v1/activity-logs")
                         .param("type", "CREATE_DIRECTORY")
                         .param("q", directory)
                         .param("order", "oldest"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("CREATE_DIRECTORY")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Apply filters")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("127.0.0.1")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(directory)));
+                .andExpect(jsonPath("$.query.type").value("CREATE_DIRECTORY"))
+                .andExpect(jsonPath("$.query.order").value("oldest"))
+                .andExpect(jsonPath("$.matchedCount").value(1))
+                .andExpect(jsonPath("$.entries[0].type").value("CREATE_DIRECTORY"))
+                .andExpect(jsonPath("$.entries[0].ipLabel").value("127.0.0.1"))
+                .andExpect(jsonPath("$.entries[0].pathLabel").value(directory));
     }
 
     @Test

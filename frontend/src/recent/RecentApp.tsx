@@ -165,20 +165,6 @@ export function RecentApp() {
       toastError(reason, 'View preferences could not be reset.');
     }
   };
-  const jumpToPage = async () => {
-    if (!payload || payload.page.totalPages <= 1) return;
-    const requested = await window.EnderVault?.askTextInput({
-      title: 'Go to page',
-      message: `Enter a page from 1 to ${payload.page.totalPages}. Larger values open the last page.`,
-      label: 'Page',
-      initialValue: String(payload.page.number),
-      confirmLabel: 'Go',
-    });
-    if (requested == null) return;
-    const parsed = Number.parseInt(requested, 10) || payload.page.number;
-    navigate({ ...effectiveState(), page: Math.max(1, Math.min(payload.page.totalPages, parsed)), scrollTop: 0 });
-  };
-
   const preferences = payload?.preferences;
   const current = effectiveState();
   return (
@@ -304,7 +290,7 @@ export function RecentApp() {
           )}
           <BrowserPagination page={payload.page}
             onPageChange={(page) => navigate({ ...effectiveState(), page, scrollTop: 0 })}
-            jumpToPage={jumpToPage} ariaLabel="Recent file pages" />
+            ariaLabel="Recent file pages" />
         </>
       )}
     </>
