@@ -23,6 +23,7 @@ export default defineConfig({
         files: 'src/files/main.tsx',
         recent: 'src/recent/main.tsx',
         bookmarks: 'src/bookmarks/main.tsx',
+        favorites: 'src/favorites/main.tsx',
         settings: 'src/settings/main.tsx',
       },
     },

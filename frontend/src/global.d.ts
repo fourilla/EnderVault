@@ -60,6 +60,8 @@ declare global {
     EnderVaultFavorites?: {
       togglePath: (path: string) => Promise<{ active?: boolean }>;
       toggleBookmark: (id: string) => Promise<{ active?: boolean }>;
+      remove: (path: string) => Promise<unknown>;
+      move: (path: string, direction: 'up' | 'down') => Promise<unknown>;
     };
     EnderVaultToasts?: {
       show: (notification: NotificationPayload) => void;
