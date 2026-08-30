@@ -10,21 +10,21 @@ import org.springframework.core.io.DefaultResourceLoader;
 class ViteAssetServiceTest {
 
     @Test
-    void resolvesProductionEntryFromGeneratedManifest() {
+    void resolvesProductionAdminAppEntryFromGeneratedManifest() {
         ViteAssetService service = new ViteAssetService(
                 new ObjectMapper(),
                 new DefaultResourceLoader(),
                 "");
 
-        ViteAssetService.ViteEntry entry = service.entry("src/settings/main.tsx");
+        ViteAssetService.ViteEntry entry = service.entry("src/app/main.tsx");
 
         assertThat(entry.available()).isTrue();
         assertThat(entry.development()).isFalse();
-        assertThat(entry.entryScript()).startsWith("/react/assets/settings-").endsWith(".js");
+        assertThat(entry.entryScript()).startsWith("/react/assets/adminApp-").endsWith(".js");
         assertThat(entry.styles())
                 .singleElement()
                 .asString()
-                .startsWith("/react/assets/settings-")
+                .startsWith("/react/assets/adminApp-")
                 .endsWith(".css");
     }
 
@@ -61,24 +61,6 @@ class ViteAssetServiceTest {
     }
 
     @Test
-    void resolvesBundledAdminAppEntryFromGeneratedManifest() {
-        ViteAssetService service = new ViteAssetService(
-                new ObjectMapper(),
-                new DefaultResourceLoader(),
-                "");
-
-        ViteAssetService.ViteEntry entry = service.entry("src/app/main.tsx");
-
-        assertThat(entry.available()).isTrue();
-        assertThat(entry.entryScript()).startsWith("/react/assets/adminApp-").endsWith(".js");
-        assertThat(entry.styles())
-                .singleElement()
-                .asString()
-                .startsWith("/react/assets/adminApp-")
-                .endsWith(".css");
-    }
-
-    @Test
     void resolvesBundledFileToolsFromGeneratedManifest() {
         ViteAssetService service = new ViteAssetService(
                 new ObjectMapper(),
@@ -93,78 +75,6 @@ class ViteAssetServiceTest {
                 .singleElement()
                 .asString()
                 .startsWith("/react/assets/fileTools-")
-                .endsWith(".css");
-    }
-
-    @Test
-    void resolvesBundledBookmarksEntryFromGeneratedManifest() {
-        ViteAssetService service = new ViteAssetService(
-                new ObjectMapper(),
-                new DefaultResourceLoader(),
-                "");
-
-        ViteAssetService.ViteEntry entry = service.entry("src/bookmarks/main.tsx");
-
-        assertThat(entry.available()).isTrue();
-        assertThat(entry.entryScript()).startsWith("/react/assets/bookmarks-").endsWith(".js");
-        assertThat(entry.styles())
-                .singleElement()
-                .asString()
-                .startsWith("/react/assets/bookmarks-")
-                .endsWith(".css");
-    }
-
-    @Test
-    void resolvesBundledFavoritesEntryFromGeneratedManifest() {
-        ViteAssetService service = new ViteAssetService(
-                new ObjectMapper(),
-                new DefaultResourceLoader(),
-                "");
-
-        ViteAssetService.ViteEntry entry = service.entry("src/favorites/main.tsx");
-
-        assertThat(entry.available()).isTrue();
-        assertThat(entry.entryScript()).startsWith("/react/assets/favorites-").endsWith(".js");
-        assertThat(entry.styles())
-                .singleElement()
-                .asString()
-                .startsWith("/react/assets/favorites-")
-                .endsWith(".css");
-    }
-
-    @Test
-    void resolvesBundledTrashEntryFromGeneratedManifest() {
-        ViteAssetService service = new ViteAssetService(
-                new ObjectMapper(),
-                new DefaultResourceLoader(),
-                "");
-
-        ViteAssetService.ViteEntry entry = service.entry("src/trash/main.tsx");
-
-        assertThat(entry.available()).isTrue();
-        assertThat(entry.entryScript()).startsWith("/react/assets/trash-").endsWith(".js");
-        assertThat(entry.styles())
-                .singleElement()
-                .asString()
-                .startsWith("/react/assets/trash-")
-                .endsWith(".css");
-    }
-
-    @Test
-    void resolvesBundledActivityLogsEntryFromGeneratedManifest() {
-        ViteAssetService service = new ViteAssetService(
-                new ObjectMapper(),
-                new DefaultResourceLoader(),
-                "");
-
-        ViteAssetService.ViteEntry entry = service.entry("src/activity-logs/main.tsx");
-
-        assertThat(entry.available()).isTrue();
-        assertThat(entry.entryScript()).startsWith("/react/assets/activityLogs-").endsWith(".js");
-        assertThat(entry.styles())
-                .singleElement()
-                .asString()
-                .startsWith("/react/assets/activityLogs-")
                 .endsWith(".css");
     }
 
@@ -193,12 +103,12 @@ class ViteAssetServiceTest {
                 new DefaultResourceLoader(),
                 "http://127.0.0.1:5173/");
 
-        ViteAssetService.ViteEntry entry = service.entry("src/settings/main.tsx");
+        ViteAssetService.ViteEntry entry = service.entry("src/app/main.tsx");
 
         assertThat(entry.available()).isTrue();
         assertThat(entry.development()).isTrue();
         assertThat(entry.clientScript()).isEqualTo("http://127.0.0.1:5173/@vite/client");
-        assertThat(entry.entryScript()).isEqualTo("http://127.0.0.1:5173/src/settings/main.tsx");
+        assertThat(entry.entryScript()).isEqualTo("http://127.0.0.1:5173/src/app/main.tsx");
         assertThat(entry.styles()).isEmpty();
     }
 

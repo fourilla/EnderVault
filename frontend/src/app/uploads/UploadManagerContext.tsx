@@ -308,6 +308,8 @@ export function UploadManagerProvider({ children }: PropsWithChildren) {
   return <UploadManagerContext.Provider value={value}>{children}</UploadManagerContext.Provider>;
 }
 
-export function useOptionalUploadManager() {
-  return useContext(UploadManagerContext);
+export function useUploadManager() {
+  const value = useContext(UploadManagerContext);
+  if (!value) throw new Error('useUploadManager must be used inside UploadManagerProvider.');
+  return value;
 }

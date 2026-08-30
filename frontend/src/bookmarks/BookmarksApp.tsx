@@ -13,6 +13,7 @@ import {
 import type { BookmarkEntry, BookmarkHistoryState, BookmarkPayload } from './types';
 import { useBookmarkActions } from './useBookmarkActions';
 import { useBookmarkContextMenu } from './useBookmarkContextMenu';
+import './bookmarks-app.css';
 
 const itemKey = (entry: BookmarkEntry) => entry.id;
 const requestKey = (state: BookmarkHistoryState) => state.directoryId + '\u0000' + state.query;

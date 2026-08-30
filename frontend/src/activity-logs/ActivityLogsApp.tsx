@@ -9,6 +9,7 @@ import type {
   ActivityLogPayload,
   ActivityLogQuery,
 } from './types';
+import './activity-logs-app.css';
 
 const filterDraft = (query: ActivityLogQuery): ActivityLogFilterDraft => ({
   text: query.text,

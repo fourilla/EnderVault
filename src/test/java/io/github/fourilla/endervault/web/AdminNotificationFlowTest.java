@@ -113,35 +113,22 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void filesPageRendersToastRegion() throws Exception {
+    void filesPageRendersAuthenticatedAppRootAndRuntime() throws Exception {
         mockMvc.perform(get("/files"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"_csrf\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"_csrf_header\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"files-root\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/files-")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/file-uploads.js")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/adminApp-")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/webjars/tus-js-client/")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/resumable-upload-client.js")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("/js/file-uploads.js"))))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"toastRegion\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-notification-center")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/styles-")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/shell-")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("/js/notification-center.js"))))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(
-                        "data-file-requests-enabled=\"true\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-outbound-route-form")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(
-                        "action=\"/api/v1/outbound-route\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-read-only-link")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Open read-only mode")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Recent")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Favorites")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Trash"))))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Shared links"))))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Remote download"))));
+                        org.hamcrest.Matchers.containsString("/js/notification-center.js"))));
     }
 
     @Test
@@ -173,22 +160,22 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get("/files"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("/react/assets/files-")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/adminApp-")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("/js/admin-actions.js"))));
 
         mockMvc.perform(get("/files/recent"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("/react/assets/recent-")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/adminApp-")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("/js/admin-actions.js"))));
 
         mockMvc.perform(get("/admin/trash"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("/react/assets/trash-")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/adminApp-")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("/js/admin-actions.js"))));
 
         mockMvc.perform(get("/admin/logs"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("/react/assets/activityLogs-")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/adminApp-")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("/js/admin-actions.js"))));
     }
 
@@ -1068,7 +1055,7 @@ class AdminNotificationFlowTest {
     void filesPageLoadsReactOwnedArchiveCreationUi() throws Exception {
         mockMvc.perform(get("/files"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("/react/assets/files-")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/adminApp-")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("/js/archive-create.js"))));
     }
 
@@ -1405,8 +1392,8 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get("/admin/trash"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("id=\"trash-root\"")))
-                .andExpect(content().string(Matchers.containsString("/react/assets/trash-")))
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/adminApp-")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("data-trash-item"))))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("/admin/trash/empty"))));
 
@@ -1434,8 +1421,8 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get("/admin/logs"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("id=\"activity-logs-root\"")))
-                .andExpect(content().string(Matchers.containsString("/react/assets/activityLogs-")))
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/adminApp-")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("log-filter-form"))));
         mockMvc.perform(get("/api/v1/activity-logs"))
                 .andExpect(status().isOk())
@@ -1457,16 +1444,15 @@ class AdminNotificationFlowTest {
     void settingsPageHostsTheReactSettingsEntryPoint() throws Exception {
         mockMvc.perform(get("/admin/settings"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Settings")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"settings-root\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"admin-app-root\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"_csrf\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/settings-")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/adminApp-")));
     }
 
     @Test
     @WithAnonymousUser
     void reactBuildAssetsUseThePublicStaticResourcePolicy() throws Exception {
-        String entryScript = viteAssetService.entry("src/settings/main.tsx").entryScript();
+        String entryScript = viteAssetService.entry("src/app/main.tsx").entryScript();
 
         mockMvc.perform(get(entryScript))
                 .andExpect(status().isOk())
@@ -1574,15 +1560,18 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void settingsPageRendersSidebarFavoritesAndSharedReactShell() throws Exception {
+    void authenticatedAppBootstrapRendersFavoritesForTheReactSidebar() throws Exception {
         String filename = "settings-favorite-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "favorite");
         favoriteService.toggle(filename);
 
+        mockMvc.perform(get("/api/v1/app/bootstrap"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.favorites[*].path").value(Matchers.hasItem(filename)));
+
         mockMvc.perform(get("/admin/settings"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-sidebar-favorites-list")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(filename)))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"admin-app-root\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/directory-tree.js")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/directory-picker.js")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
@@ -1595,8 +1584,8 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get("/files/recent"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"recent-root\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Loading recent items...")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Loading EnderVault...")));
 
         mockMvc.perform(get("/api/v1/recent").param("q", query))
                 .andExpect(status().isOk())
@@ -1624,8 +1613,8 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get("/files/bookmarks"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("id=\"bookmarks-root\"")))
-                .andExpect(content().string(Matchers.containsString("/react/assets/bookmarks-")))
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/adminApp-")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("bookmark-actions.js"))))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("bookmark-context-menu.js"))));
 
@@ -1709,8 +1698,8 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get("/files/favorites"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"favorites-root\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/favorites-")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/adminApp-")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("<table>"))));
 
         mockMvc.perform(get("/api/v1/favorites"))

@@ -1,11 +1,10 @@
 import { useEffect } from 'react';
-import type { useOptionalUploadManager } from '../app/uploads/UploadManagerContext';
+import type { useUploadManager } from '../app/uploads/UploadManagerContext';
 
-type UploadManager = ReturnType<typeof useOptionalUploadManager>;
+type UploadManager = ReturnType<typeof useUploadManager>;
 
 export function useAdminUploadDropzone(manager: UploadManager, destinationPath: string) {
   useEffect(() => {
-    if (!manager) return undefined;
     const dropZone = document.querySelector<HTMLElement>('[data-file-dropzone]');
     const overlay = document.getElementById('dropUploadOverlay');
     if (!dropZone) return undefined;

@@ -1,7 +1,10 @@
 import { navigationEntryAvailable, navigationFor, type NavigationEntry } from './navigation';
+import { NotificationCenterControl } from './NotificationCenterControl';
+import { OutboundRouteControl } from './OutboundRouteControl';
 import { RouteActionSlot } from './RouteActions';
 import { ShellNavigationLink } from './ShellNavigationLink';
 import { ShellPopover } from './ShellPopover';
+import { StickyNoteControl } from './StickyNoteControl';
 import { useAdminApp } from './AdminAppContext';
 
 const groupLabel: Record<string, string> = {
@@ -66,6 +69,9 @@ export function AdminTopbar() {
           <p>Sharing, transfers, operations, notes, and application settings.</p>
           <NavigationGroups entries={available('apps')} />
         </ShellPopover>
+        <NotificationCenterControl />
+        <OutboundRouteControl />
+        <StickyNoteControl />
         <ShellPopover icon="fas fa-circle-user" label="Account">
           <strong className="topbar-control-title">{bootstrap.username}</strong>
           <p>Account security, signed-in devices, and session controls.</p>

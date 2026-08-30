@@ -11,6 +11,20 @@ export function AppShell() {
   useEffect(() => {
     const entry = navigationEntries.find((candidate) => candidate.path === location.pathname);
     document.title = entry ? `EnderVault ${entry.label}` : 'EnderVault';
+    const frame = window.requestAnimationFrame(() => {
+      document.dispatchEvent(new CustomEvent('endervault:spa-shell-ready'));
+      if (entry?.surface === 'spa' && entry.id !== 'files' && entry.id !== 'bookmarks') {
+        document.dispatchEvent(new CustomEvent('endervault:sticky-context-changed', {
+          detail: {
+            targetType: 'PAGE',
+            targetKey: entry.id,
+            surface: 'PAGE',
+            label: entry.label,
+          },
+        }));
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [location.pathname]);
 
   return (
@@ -18,7 +32,6 @@ export function AppShell() {
       <AdminSidebar />
       <div className="app-main" data-file-dropzone>
         <AdminTopbar />
-        <div className="toast-region" id="toastRegion" aria-live="polite" aria-atomic="false" />
         <main className="workspace">
           <Outlet />
         </main>

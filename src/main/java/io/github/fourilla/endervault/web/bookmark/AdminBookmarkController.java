@@ -6,8 +6,8 @@ import io.github.fourilla.endervault.bookmark.BookmarkLogMetadata;
 import io.github.fourilla.endervault.bookmark.BookmarkService;
 import io.github.fourilla.endervault.bookmark.BookmarkService.BookmarkFavicon;
 import io.github.fourilla.endervault.favorite.FavoriteService;
+import io.github.fourilla.endervault.web.support.AdminSpaViewService;
 import io.github.fourilla.endervault.web.support.FlashNotifications;
-import io.github.fourilla.endervault.web.support.ViteAssetService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.util.Map;
@@ -29,26 +29,25 @@ public class AdminBookmarkController {
     private final BookmarkService bookmarkService;
     private final FavoriteService favoriteService;
     private final ActivityLogService activityLogService;
-    private final ViteAssetService viteAssetService;
+    private final AdminSpaViewService adminSpaViewService;
 
     public AdminBookmarkController(
             BookmarkService bookmarkService,
             FavoriteService favoriteService,
             ActivityLogService activityLogService,
-            ViteAssetService viteAssetService
+            AdminSpaViewService adminSpaViewService
     ) {
         this.bookmarkService = bookmarkService;
         this.favoriteService = favoriteService;
         this.activityLogService = activityLogService;
-        this.viteAssetService = viteAssetService;
+        this.adminSpaViewService = adminSpaViewService;
     }
 
     @GetMapping("/files/bookmarks")
     public String bookmarks(
             Model model
     ) {
-        model.addAttribute("bookmarksFrontend", viteAssetService.entry("src/bookmarks/main.tsx"));
-        return "bookmarks";
+        return adminSpaViewService.render(model);
     }
 
     @GetMapping("/files/bookmarks/detail")

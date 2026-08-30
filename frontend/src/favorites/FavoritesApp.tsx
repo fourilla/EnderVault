@@ -4,6 +4,7 @@ import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
 import { loadFavorites } from './favorite-api';
 import type { FavoriteEntry, FavoritesPayload } from './types';
+import './favorites-app.css';
 
 export function FavoritesApp() {
   const [payload, setPayload] = useState<FavoritesPayload | null>(null);

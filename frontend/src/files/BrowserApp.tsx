@@ -8,14 +8,14 @@ import { useBrowserNavigation } from './useBrowserNavigation';
 import { useEntrySelection } from '../shared/browser/useEntrySelection';
 import { useFileActions } from './useFileActions';
 import { useFileContextMenu } from './useFileContextMenu';
-import { useOptionalAdminApp } from '../app/AdminAppContext';
-import { useOptionalUploadManager } from '../app/uploads/UploadManagerContext';
+import { useAdminApp } from '../app/AdminAppContext';
+import { useUploadManager } from '../app/uploads/UploadManagerContext';
 import { useAdminUploadDropzone } from './useAdminUploadDropzone';
 import './files-app.css';
 
 export function BrowserApp() {
-  const adminApp = useOptionalAdminApp();
-  const uploadManager = useOptionalUploadManager();
+  const adminApp = useAdminApp();
+  const uploadManager = useUploadManager();
   const navigation = useBrowserNavigation();
   const {
     state,
@@ -65,8 +65,7 @@ export function BrowserApp() {
     setSelected: selection.setSelected,
     browse,
     actions,
-    fileRequestsEnabled: adminApp?.bootstrap.capabilities.fileRequests
-      ?? document.getElementById('files-root')?.dataset.fileRequestsEnabled === 'true',
+    fileRequestsEnabled: adminApp.bootstrap.capabilities.fileRequests,
   });
 
   return (

@@ -13,8 +13,8 @@
 
     const apiRoot = "/api/v1/sticky-notes";
     const hiddenPreferenceKey = "endervault.stickyNotes.hidden";
-    const controls = document.querySelector("[data-sticky-note-controls]");
-    const appMain = document.querySelector(".app-main") || document.body;
+    let controls = document.querySelector("[data-sticky-note-controls]");
+    let appMain = document.querySelector(".app-main") || document.body;
     const states = new Map();
     const minimumWidth = 220;
     const minimumHeight = 140;
@@ -24,6 +24,7 @@
     let layer;
     let activePointerInteractions = 0;
     let contextRevision = 0;
+    let initialized = false;
 
     const csrfHeaders = () => {
         const csrf = window.EnderVault?.csrfPair();
@@ -570,9 +571,15 @@
     });
 
     const initialize = async () => {
+        if (initialized) {
+            return;
+        }
+        controls = document.querySelector("[data-sticky-note-controls]");
         if (!window.EnderVault || !controls) {
             return;
         }
+        initialized = true;
+        appMain = document.querySelector(".app-main") || document.body;
         controls.hidden = false;
         layer = document.createElement("div");
         layer.className = "sticky-note-layer";
@@ -642,5 +649,11 @@
         });
     };
 
-    document.addEventListener("DOMContentLoaded", () => void initialize());
+    const initializeWhenReady = () => void initialize();
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initializeWhenReady, { once: true });
+    } else {
+        initializeWhenReady();
+    }
+    document.addEventListener("endervault:spa-shell-ready", initializeWhenReady);
 })();

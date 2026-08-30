@@ -2,7 +2,7 @@ package io.github.fourilla.endervault.web.file;
 
 import io.github.fourilla.endervault.web.file.browser.FileBrowserQueryService;
 import io.github.fourilla.endervault.web.file.browser.FileBrowserResult;
-import io.github.fourilla.endervault.web.support.ViteAssetService;
+import io.github.fourilla.endervault.web.support.AdminSpaViewService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -15,22 +15,21 @@ import org.springframework.web.bind.annotation.RequestParam;
 public class AdminFileController {
 
     private final FileBrowserQueryService queryService;
-    private final ViteAssetService viteAssetService;
+    private final AdminSpaViewService adminSpaViewService;
 
     public AdminFileController(
             FileBrowserQueryService queryService,
-            ViteAssetService viteAssetService
+            AdminSpaViewService adminSpaViewService
     ) {
         this.queryService = queryService;
-        this.viteAssetService = viteAssetService;
+        this.adminSpaViewService = adminSpaViewService;
     }
 
     @GetMapping("/files")
     public String files(
             Model model
     ) {
-        model.addAttribute("filesFrontend", viteAssetService.entry("src/files/main.tsx"));
-        return "files";
+        return adminSpaViewService.render(model);
     }
 
     @GetMapping("/files/read-only")

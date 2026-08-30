@@ -38,6 +38,12 @@ export function AdminAppProvider({ children }: PropsWithChildren) {
     return () => controller.abort();
   }, [load]);
 
+  useEffect(() => {
+    const refreshFavorites = () => void load();
+    document.addEventListener('endervault:favorites-changed', refreshFavorites);
+    return () => document.removeEventListener('endervault:favorites-changed', refreshFavorites);
+  }, [load]);
+
   const value = useMemo<AdminAppContextValue | null>(() => bootstrap ? ({
     bootstrap,
     refreshBootstrap: () => load(),
@@ -67,8 +73,4 @@ export function useAdminApp(): AdminAppContextValue {
   const value = useContext(AdminAppContext);
   if (!value) throw new Error('useAdminApp must be used inside AdminAppProvider.');
   return value;
-}
-
-export function useOptionalAdminApp(): AdminAppContextValue | null {
-  return useContext(AdminAppContext);
 }

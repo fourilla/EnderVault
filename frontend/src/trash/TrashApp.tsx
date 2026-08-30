@@ -3,6 +3,7 @@ import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
 import { deleteTrashItem, emptyTrash, loadTrash, restoreTrashItem } from './trash-api';
 import type { TrashItem, TrashPayload } from './types';
+import './trash-app.css';
 
 export function TrashApp() {
   const [payload, setPayload] = useState<TrashPayload | null>(null);
