@@ -1,11 +1,6 @@
 package io.github.fourilla.endervault.web.support;
 
-import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.favorite.FavoriteDisplayItem;
-import io.github.fourilla.endervault.favorite.FavoriteService;
-import io.github.fourilla.endervault.outbound.OutboundRouteStateService;
-import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthService;
-import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.storage.StorageUsage;
 import io.github.fourilla.endervault.web.dashboard.AdminDashboardController;
 import io.github.fourilla.endervault.web.dashboard.AdminLogController;
@@ -51,47 +46,31 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 })
 public class AdminShellModelAdvice {
 
-    private final StorageService storageService;
-    private final FavoriteService favoriteService;
+    private final AdminShellStateService shellStateService;
     private final FilePreviewSupport filePreviewSupport;
     private final FileActionViewSupport fileActionViewSupport;
-    private final NasProperties nasProperties;
-    private final OutboundRouteStateService outboundRouteStateService;
-    private final VpnProxyHealthService vpnProxyHealthService;
     private final StickyNoteContextResolver stickyNoteContextResolver;
 
     public AdminShellModelAdvice(
-            StorageService storageService,
-            FavoriteService favoriteService,
+            AdminShellStateService shellStateService,
             FilePreviewSupport filePreviewSupport,
             FileActionViewSupport fileActionViewSupport,
-            NasProperties nasProperties,
-            OutboundRouteStateService outboundRouteStateService,
-            VpnProxyHealthService vpnProxyHealthService,
             StickyNoteContextResolver stickyNoteContextResolver
     ) {
-        this.storageService = storageService;
-        this.favoriteService = favoriteService;
+        this.shellStateService = shellStateService;
         this.filePreviewSupport = filePreviewSupport;
         this.fileActionViewSupport = fileActionViewSupport;
-        this.nasProperties = nasProperties;
-        this.outboundRouteStateService = outboundRouteStateService;
-        this.vpnProxyHealthService = vpnProxyHealthService;
         this.stickyNoteContextResolver = stickyNoteContextResolver;
     }
 
     @ModelAttribute("storageUsage")
     public StorageUsage storageUsage() {
-        return storageService.storageUsage();
+        return shellStateService.storageUsage();
     }
 
     @ModelAttribute("favorites")
     public List<FavoriteDisplayItem> favorites(HttpServletRequest request) {
-        try {
-            return favoriteService.listExistingDisplay(showHiddenFavorites(request));
-        } catch (Exception ex) {
-            return List.of();
-        }
+        return shellStateService.favorites(request);
     }
 
     @ModelAttribute("filePreview")
@@ -105,39 +84,28 @@ public class AdminShellModelAdvice {
     }
 
     @ModelAttribute("taskUiConfig")
-    public TaskUiConfig taskUiConfig() {
-        NasProperties.Tasks tasks = nasProperties.getTasks();
-        return new TaskUiConfig(
-                tasks.isActivityPanelEnabled(),
-                tasks.getCompletedDisplayMs(),
-                tasks.getFailedDisplayMs()
-        );
+    public AdminShellStateService.TaskUiConfig taskUiConfig() {
+        return shellStateService.taskUiConfig();
     }
 
     @ModelAttribute("uploadUiConfig")
-    public UploadUiConfig uploadUiConfig() {
-        NasProperties.Upload upload = nasProperties.getUpload();
-        return new UploadUiConfig(
-                Math.min(upload.getMaxConcurrentChunks(), 8)
-        );
+    public AdminShellStateService.UploadUiConfig uploadUiConfig() {
+        return shellStateService.uploadUiConfig();
     }
 
     @ModelAttribute("bookmarkLinkClickAction")
     public String bookmarkLinkClickAction() {
-        return BookmarkLinkClickAction.from(nasProperties);
+        return shellStateService.bookmarkLinkClickAction();
     }
 
     @ModelAttribute("fileRequestsEnabled")
     public boolean fileRequestsEnabled() {
-        return nasProperties.getFileRequest().isEnabled();
+        return shellStateService.capabilities().fileRequests();
     }
 
     @ModelAttribute("outboundRoute")
     public OutboundRouteView outboundRoute() {
-        return OutboundRouteView.from(
-                outboundRouteStateService.currentRoute(),
-                vpnProxyHealthService.current()
-        );
+        return shellStateService.outboundRoute();
     }
 
     @ModelAttribute("stickyNoteContext")
@@ -146,50 +114,7 @@ public class AdminShellModelAdvice {
     }
 
     @ModelAttribute("stickyNoteTheme")
-    public StickyNoteThemeView stickyNoteTheme() {
-        NasProperties.StickyNotes stickyNotes = nasProperties.getStickyNotes();
-        return new StickyNoteThemeView(
-                stickyNotes.getBackgroundColor(),
-                stickyNotes.getBorderColor(),
-                stickyNotes.getTextColor()
-        );
-    }
-
-    private boolean showHiddenFavorites(HttpServletRequest request) {
-        String requestedHidden = request.getParameter("hidden");
-        String hidden = requestedHidden == null
-                ? BrowserPreferenceCookies.value(
-                        request,
-                        BrowserPreferenceCookies.FILES.hiddenCookie(),
-                        this::normalizeHiddenMode
-                )
-                : normalizeHiddenMode(requestedHidden);
-        return "show".equals(hidden);
-    }
-
-    private String normalizeHiddenMode(String hidden) {
-        if (hidden == null || hidden.isBlank()) {
-            return "hide";
-        }
-        return "show".equalsIgnoreCase(hidden) || "true".equalsIgnoreCase(hidden) ? "show" : "hide";
-    }
-
-    public record TaskUiConfig(
-            boolean activityPanelEnabled,
-            int completedDisplayMs,
-            int failedDisplayMs
-    ) {
-    }
-
-    public record UploadUiConfig(
-            int maxConcurrentUploads
-    ) {
-    }
-
-    public record StickyNoteThemeView(
-            String backgroundColor,
-            String borderColor,
-            String textColor
-    ) {
+    public AdminShellStateService.StickyNoteThemeView stickyNoteTheme() {
+        return shellStateService.stickyNoteTheme();
     }
 }

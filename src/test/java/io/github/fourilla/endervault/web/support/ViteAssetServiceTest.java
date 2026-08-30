@@ -61,6 +61,20 @@ class ViteAssetServiceTest {
     }
 
     @Test
+    void resolvesBundledAdminAppEntryFromGeneratedManifest() {
+        ViteAssetService service = new ViteAssetService(
+                new ObjectMapper(),
+                new DefaultResourceLoader(),
+                "");
+
+        ViteAssetService.ViteEntry entry = service.entry("src/app/main.tsx");
+
+        assertThat(entry.available()).isTrue();
+        assertThat(entry.entryScript()).startsWith("/react/assets/adminApp-").endsWith(".js");
+        assertThat(entry.styles()).isEmpty();
+    }
+
+    @Test
     void resolvesBundledFileToolsFromGeneratedManifest() {
         ViteAssetService service = new ViteAssetService(
                 new ObjectMapper(),

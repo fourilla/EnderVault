@@ -18,6 +18,7 @@ export default defineConfig({
       input: {
         styles: 'src/styles/main.ts',
         shell: 'src/shell/main.ts',
+        adminApp: 'src/app/main.tsx',
         fileTools: 'src/file-tools/main.ts',
         markdown: 'src/markdown/main.ts',
         files: 'src/files/main.tsx',

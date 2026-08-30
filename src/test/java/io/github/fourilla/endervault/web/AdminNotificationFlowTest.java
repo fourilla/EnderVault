@@ -145,6 +145,27 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void authenticatedAppBootstrapExposesShellStateWithoutSecrets() throws Exception {
+        mockMvc.perform(get("/api/v1/app/bootstrap"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.username").value("user"))
+                .andExpect(jsonPath("$.capabilities.remoteDownloads").isBoolean())
+                .andExpect(jsonPath("$.capabilities.fileRequests").isBoolean())
+                .andExpect(jsonPath("$.capabilities.vpn").isBoolean())
+                .andExpect(jsonPath("$.capabilities.metadataInspector").isBoolean())
+                .andExpect(jsonPath("$.storage.usedBytes").isNumber())
+                .andExpect(jsonPath("$.storage.totalLabel").isString())
+                .andExpect(jsonPath("$.favorites").isArray())
+                .andExpect(jsonPath("$.tasks.activityPanelEnabled").isBoolean())
+                .andExpect(jsonPath("$.uploads.maxConcurrentUploads").isNumber())
+                .andExpect(jsonPath("$.outboundRoute.route").isString())
+                .andExpect(jsonPath("$.stickyNoteTheme.backgroundColor").value("#1B3033"))
+                .andExpect(jsonPath("$.botToken").doesNotExist())
+                .andExpect(jsonPath("$.password").doesNotExist());
+    }
+
+    @Test
     void pagesWithCommonAjaxActionsLoadTheirFormBinder() throws Exception {
         mockMvc.perform(get("/files/read-only"))
                 .andExpect(status().isOk())
