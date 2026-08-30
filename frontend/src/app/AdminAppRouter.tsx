@@ -5,6 +5,7 @@ import {
   useRouteError,
   type RouteObject,
 } from 'react-router-dom';
+import { AppShell } from './AppShell';
 import { spaRoutes } from './navigation';
 
 function RouteLoading() {
@@ -40,7 +41,10 @@ const routeObjects: RouteObject[] = spaRoutes().map((entry) => {
   };
 });
 
-const router = createBrowserRouter(routeObjects);
+const router = createBrowserRouter([{
+  element: <AppShell />,
+  children: routeObjects,
+}]);
 
 export function AdminAppRouter() {
   return <RouterProvider router={router} />;

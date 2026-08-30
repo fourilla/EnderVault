@@ -1,0 +1,52 @@
+.admin-shell-route-actions {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 0;
+}
+
+.admin-shell-popover.is-open .topbar-control-popover {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.admin-shell-popover:not(.is-open):hover .topbar-control-popover,
+.admin-shell-popover:not(.is-open):focus-within .topbar-control-popover {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-2px);
+}
+
+.admin-shell-popover .topbar-control-popover {
+  width: min(340px, calc(100vw - 16px));
+}
+
+.admin-shell-navigation-groups {
+  display: grid;
+  gap: var(--space-lg);
+  margin-top: var(--space-lg);
+}
+
+.admin-shell-navigation-group > strong {
+  color: var(--muted);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+}
+
+.admin-shell-navigation-group .topbar-control-menu-actions {
+  margin-top: var(--space-xs);
+  padding-top: 0;
+  border-top: 0;
+}
+
+.admin-shell-logout form,
+.admin-shell-logout button {
+  width: 100%;
+}
+
+.admin-shell-logout button {
+  justify-content: flex-start;
+}

@@ -71,7 +71,11 @@ class ViteAssetServiceTest {
 
         assertThat(entry.available()).isTrue();
         assertThat(entry.entryScript()).startsWith("/react/assets/adminApp-").endsWith(".js");
-        assertThat(entry.styles()).isEmpty();
+        assertThat(entry.styles())
+                .singleElement()
+                .asString()
+                .startsWith("/react/assets/adminApp-")
+                .endsWith(".css");
     }
 
     @Test
