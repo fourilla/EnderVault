@@ -36,10 +36,16 @@
     user-select: none;
 }
 
-.page-status.is-page-jump-enabled:hover,
+.page-status.is-page-jump-enabled:hover {
+    border-color: var(--accent);
+    background: var(--panel);
+    color: var(--muted);
+}
+
 .page-status.is-page-jump-enabled:focus-visible {
     border-color: var(--accent);
-    color: var(--text);
+    background: var(--panel);
+    color: var(--muted);
     outline: none;
     box-shadow: 0 0 0 3px rgba(91, 189, 180, 0.16);
 }

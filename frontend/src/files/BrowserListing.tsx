@@ -14,7 +14,6 @@ export function BrowserListing({
   itemInteractionProps,
   effectiveState,
   navigate,
-  jumpToPage,
 }: {
   payload: BrowserPayload | null;
   currentState: BrowserHistoryState;
@@ -27,7 +26,6 @@ export function BrowserListing({
   itemInteractionProps: (entry: BrowserEntry) => Record<string, unknown>;
   effectiveState: () => BrowserHistoryState;
   navigate: (state: BrowserHistoryState) => void;
-  jumpToPage: () => Promise<void>;
 }) {
   const searchMode = currentState.mode === 'search';
   const searchQuery = payload?.mode === 'search' ? payload.search.query : currentState.query;
@@ -90,8 +88,7 @@ export function BrowserListing({
             </p>
           )}
           <BrowserPagination page={payload.page}
-            onPageChange={(page) => navigate({ ...effectiveState(), page, scrollTop: 0 })}
-            jumpToPage={jumpToPage} />
+            onPageChange={(page) => navigate({ ...effectiveState(), page, scrollTop: 0 })} />
         </>
       )}
     </>

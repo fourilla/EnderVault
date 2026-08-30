@@ -235,7 +235,6 @@ document.addEventListener("DOMContentLoaded", () => {
             "detail-hidden",
             "detail-delete",
             "session-revoke",
-            "activity-log-delete",
             "recent-clear",
             "bookmark-detail-mutation",
             "view-preferences-reset"

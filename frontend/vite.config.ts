@@ -25,6 +25,7 @@ export default defineConfig({
         bookmarks: 'src/bookmarks/main.tsx',
         favorites: 'src/favorites/main.tsx',
         trash: 'src/trash/main.tsx',
+        activityLogs: 'src/activity-logs/main.tsx',
         settings: 'src/settings/main.tsx',
       },
     },

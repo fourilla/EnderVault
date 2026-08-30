@@ -41,13 +41,6 @@
   text-overflow: ellipsis;
 }
 
-.files-page-status {
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-}
-
 @media (max-width: 760px) {
   .files-react-toolbar,
   .files-react-toolbar .toolbar-cluster {
