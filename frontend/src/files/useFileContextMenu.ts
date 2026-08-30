@@ -24,6 +24,7 @@ export function useFileContextMenu({
   setSelected,
   browse,
   actions,
+  fileRequestsEnabled,
 }: {
   payloadRef: React.RefObject<BrowserPayload | null>;
   stateRef: React.RefObject<BrowserHistoryState>;
@@ -32,6 +33,7 @@ export function useFileContextMenu({
   setSelected: React.Dispatch<React.SetStateAction<Set<string>>>;
   browse: (path: string) => void;
   actions: FileBrowserActions;
+  fileRequestsEnabled: boolean;
 }) {
   const actionsRef = useRef(actions);
   actionsRef.current = actions;
@@ -95,7 +97,7 @@ export function useFileContextMenu({
       run: (context: MenuContext) => handlers().shareAndCopy(context.item!) });
     registerAction({ id: 'create-file-request-for-directory', group: 'organize',
       label: 'Create file request here', icon: 'fas fa-inbox',
-      visible: (context: MenuContext) => document.getElementById('files-root')?.dataset.fileRequestsEnabled === 'true'
+      visible: (context: MenuContext) => fileRequestsEnabled
         && context.mode === 'single' && context.item?.directory,
       run: (context: MenuContext) => window.location.assign('/admin/file-requests?'
         + new URLSearchParams({ destinationPath: context.item!.path }).toString()) });
@@ -119,7 +121,7 @@ export function useFileContextMenu({
     registerAction({ id: 'create-file-request-here', group: 'background', label: 'Create file request here',
       icon: 'fas fa-inbox', visible: (context: MenuContext) => context.mode === 'background'
         && stateRef.current.mode === 'browse'
-        && document.getElementById('files-root')?.dataset.fileRequestsEnabled === 'true',
+        && fileRequestsEnabled,
       run: () => window.location.assign('/admin/file-requests?'
         + new URLSearchParams({ destinationPath: stateRef.current.path }).toString()) });
     registerAction({ id: 'move-here', group: 'background-transfer', label: 'Move here',
@@ -187,5 +189,5 @@ export function useFileContextMenu({
       menu?.close();
       delete window.EnderVaultContextMenu;
     };
-  }, [browse, payloadRef, selectedRef, setSelected, stateRef, transferBufferRef]);
+  }, [browse, fileRequestsEnabled, payloadRef, selectedRef, setSelected, stateRef, transferBufferRef]);
 }

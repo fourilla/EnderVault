@@ -1,13 +1,16 @@
 import { AdminAppProvider } from './AdminAppContext';
 import { AdminAppRouter } from './AdminAppRouter';
 import { RouteActionsProvider } from './RouteActions';
+import { UploadManagerProvider } from './uploads/UploadManagerContext';
 
 export function AdminApp() {
   return (
     <AdminAppProvider>
-      <RouteActionsProvider>
-        <AdminAppRouter />
-      </RouteActionsProvider>
+      <UploadManagerProvider>
+        <RouteActionsProvider>
+          <AdminAppRouter />
+        </RouteActionsProvider>
+      </UploadManagerProvider>
     </AdminAppProvider>
   );
 }

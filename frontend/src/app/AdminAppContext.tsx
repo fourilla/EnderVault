@@ -68,3 +68,7 @@ export function useAdminApp(): AdminAppContextValue {
   if (!value) throw new Error('useAdminApp must be used inside AdminAppProvider.');
   return value;
 }
+
+export function useOptionalAdminApp(): AdminAppContextValue | null {
+  return useContext(AdminAppContext);
+}

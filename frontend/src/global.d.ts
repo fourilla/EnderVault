@@ -24,6 +24,7 @@ declare global {
         confirmLabel: string;
         danger?: boolean;
       }) => Promise<boolean>;
+      askFileConflictPolicy?: (options: Record<string, unknown>) => Promise<string>;
       showNotification: (notification: unknown) => void;
       showToast: (type: string, message: string) => void;
       copyText: (text: string) => Promise<boolean>;
@@ -33,6 +34,17 @@ declare global {
       refreshListing: (url?: string) => Promise<void>;
       requestListingRefresh: (url?: string) => void;
       syncToolbarState: () => void;
+    };
+    EnderVaultActivity?: {
+      upsert: (item: Record<string, unknown>) => unknown;
+      remove: (id: string) => void;
+      scheduleRemoval: (id: string, delayMs?: number) => void;
+      render: () => void;
+      formatBytes: (bytes: number) => string;
+    };
+    EnderVaultResumableUpload?: {
+      create: (options: Record<string, unknown>) => EnderVaultUploadHandle;
+      fingerprint: (file: File, context: string) => Promise<string>;
     };
     EnderVaultStickyNotes?: {
       setContext: (context: {
@@ -66,5 +78,10 @@ declare global {
     EnderVaultToasts?: {
       show: (notification: NotificationPayload) => void;
     };
+  }
+
+  interface EnderVaultUploadHandle {
+    start: () => Promise<any>;
+    abort: () => Promise<void>;
   }
 }

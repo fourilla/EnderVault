@@ -1,4 +1,6 @@
-import type { FormEvent } from 'react';
+import { type FormEvent, useRef } from 'react';
+import { useOptionalAdminApp } from '../app/AdminAppContext';
+import { useOptionalUploadManager } from '../app/uploads/UploadManagerContext';
 import { icon } from '../shared/browser/BrowserEntries';
 import type { BrowserEntry, BrowserHistoryState, BrowserPayload, BrowserView } from './types';
 import type { FileBrowserActions } from './useFileActions';
@@ -26,6 +28,9 @@ export function BrowserToolbar({
   selectedEntries: BrowserEntry[];
   actions: FileBrowserActions;
 }) {
+  const adminApp = useOptionalAdminApp();
+  const uploadManager = useOptionalUploadManager();
+  const uploadInputRef = useRef<HTMLInputElement>(null);
   const preferences = payload?.preferences;
   const searchMode = currentState.mode === 'search';
   return (
@@ -56,7 +61,9 @@ export function BrowserToolbar({
             id="uploadForm"
             hidden={searchMode}
             data-max-concurrent-uploads={
-              document.getElementById('files-root')?.dataset.maxConcurrentUploads || '1'
+              adminApp?.bootstrap.uploads.maxConcurrentUploads
+                ?? document.getElementById('files-root')?.dataset.maxConcurrentUploads
+                ?? '1'
             }
             data-admission-url={
               '/api/v1/files/upload-sessions?path=' + encodeURIComponent(currentState.path)
@@ -69,6 +76,12 @@ export function BrowserToolbar({
               type="file"
               name="files"
               multiple
+              ref={uploadInputRef}
+              onChange={uploadManager ? (event) => {
+                const files = [...(event.currentTarget.files ?? [])];
+                if (files.length > 0) uploadManager.startFiles(files, currentState.path);
+                event.currentTarget.value = '';
+              } : undefined}
             />
             <button
               className="icon-button"
@@ -76,6 +89,7 @@ export function BrowserToolbar({
               type="button"
               title="Upload files"
               aria-label="Upload files"
+              onClick={uploadManager ? () => uploadInputRef.current?.click() : undefined}
             >
               {icon('fas fa-upload')}
             </button>

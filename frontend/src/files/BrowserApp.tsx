@@ -8,9 +8,14 @@ import { useBrowserNavigation } from './useBrowserNavigation';
 import { useEntrySelection } from '../shared/browser/useEntrySelection';
 import { useFileActions } from './useFileActions';
 import { useFileContextMenu } from './useFileContextMenu';
+import { useOptionalAdminApp } from '../app/AdminAppContext';
+import { useOptionalUploadManager } from '../app/uploads/UploadManagerContext';
+import { useAdminUploadDropzone } from './useAdminUploadDropzone';
 import './files-app.css';
 
 export function BrowserApp() {
+  const adminApp = useOptionalAdminApp();
+  const uploadManager = useOptionalUploadManager();
   const navigation = useBrowserNavigation();
   const {
     state,
@@ -44,6 +49,9 @@ export function BrowserApp() {
     navigate,
     reload,
   });
+  const currentState = effectiveState();
+
+  useAdminUploadDropzone(uploadManager, currentState.path);
 
   useEffect(() => {
     void actions.loadTransferBuffer();
@@ -57,9 +65,10 @@ export function BrowserApp() {
     setSelected: selection.setSelected,
     browse,
     actions,
+    fileRequestsEnabled: adminApp?.bootstrap.capabilities.fileRequests
+      ?? document.getElementById('files-root')?.dataset.fileRequestsEnabled === 'true',
   });
 
-  const currentState = effectiveState();
   return (
     <>
       <div className="drop-upload-overlay" id="dropUploadOverlay" aria-hidden="true">
