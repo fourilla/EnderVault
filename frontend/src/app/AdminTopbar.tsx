@@ -58,6 +58,7 @@ function LogoutForm() {
 
 export function AdminTopbar() {
   const { bootstrap } = useAdminApp();
+  const activeSessionCount = bootstrap.sessions.activeCount;
   const available = (placement: 'apps' | 'account') => navigationFor(placement)
     .filter((entry) => navigationEntryAvailable(entry, bootstrap.capabilities));
 
@@ -74,9 +75,19 @@ export function AdminTopbar() {
         <ActivityControl />
         <OutboundRouteControl />
         <StickyNoteControl />
-        <ShellPopover icon="fas fa-circle-user" label="Account">
+        <ShellPopover
+          icon={activeSessionCount > 1 ? 'fas fa-user-group' : 'fas fa-circle-user'}
+          label={`Account, ${activeSessionCount} active ${activeSessionCount === 1 ? 'session' : 'sessions'}`}
+          indicator={<span className="account-session-count" aria-hidden="true">
+            {activeSessionCount > 99 ? '99+' : activeSessionCount}
+          </span>}
+        >
           <strong className="topbar-control-title">{bootstrap.username}</strong>
           <p>Account security, signed-in devices, and session controls.</p>
+          <div className="topbar-control-status">
+            <span>Active sessions</span>
+            <strong>{activeSessionCount}</strong>
+          </div>
           <NavigationGroups entries={available('account')} />
           <div className="topbar-control-menu-actions admin-shell-logout">
             <LogoutForm />

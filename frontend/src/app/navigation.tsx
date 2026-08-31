@@ -90,7 +90,6 @@ export const navigationEntries: readonly NavigationEntry[] = [
     path: '/files/favorites',
     label: 'Favorites',
     icon: 'fas fa-star',
-    placement: 'sidebar',
     surface: 'spa',
     component: lazyNamed(() => import('../favorites/FavoritesApp'), 'FavoritesApp'),
   },

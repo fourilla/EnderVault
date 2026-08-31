@@ -201,9 +201,20 @@ select {
 
 input:focus,
 textarea:focus,
-select:focus,
+select:focus {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+}
+
 button:focus,
-a:focus {
+a:focus,
+summary:focus {
+    outline: none;
+}
+
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible {
     outline: 2px solid var(--focus);
     outline-offset: 2px;
 }

@@ -38,6 +38,9 @@ export interface AdminAppBootstrap {
   uploads: {
     maxConcurrentUploads: number;
   };
+  sessions: {
+    activeCount: number;
+  };
   outboundRoute: {
     route: string;
     label: string;

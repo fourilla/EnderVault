@@ -23,12 +23,22 @@
     </nav>
 
     <div class="sidebar-favorites-shell">
-        <details class="sidebar-favorites" open>
-            <summary>
-                <i class="fas fa-star" aria-hidden="true"></i>
-                <span>Favorites</span>
-            </summary>
-            <div class="sidebar-favorites-list" data-sidebar-favorites-list>
+        <section class="sidebar-favorites is-open" data-legacy-sidebar-favorites>
+            <div class="sidebar-favorites-header">
+                <a th:classappend="${active == 'favorites'} ? ' active' : ''" th:href="@{/files/favorites}">
+                    <i class="fas fa-star" aria-hidden="true"></i>
+                    <span>Favorites</span>
+                </a>
+                <button class="sidebar-favorites-toggle" type="button"
+                        data-legacy-sidebar-favorites-toggle
+                        aria-controls="sidebar-favorites-list"
+                        aria-expanded="true"
+                        title="Collapse favorites">
+                    <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                    <span class="visually-hidden">Collapse favorites</span>
+                </button>
+            </div>
+            <div id="sidebar-favorites-list" class="sidebar-favorites-list" data-sidebar-favorites-list>
                 <a th:each="favorite : ${favorites}"
                    th:classappend="${favorite.hidden()} ? 'is-hidden-item' : ''"
                    th:href="${favorite.openUrl(bookmarkLinkClickAction)}"
@@ -42,15 +52,9 @@
                     <i th:class="${favorite.iconClass()}" aria-hidden="true"></i>
                     <span th:text="${favorite.name()}">favorite</span>
                 </a>
+                <p th:if="${#lists.isEmpty(favorites)}" data-sidebar-favorites-empty>No favorites yet.</p>
             </div>
-            <p th:if="${#lists.isEmpty(favorites)}" data-sidebar-favorites-empty>No favorites yet.</p>
-        </details>
-        <a class="ghost icon-button action-icon sidebar-favorites-edit"
-           th:classappend="${active == 'favorites'} ? ' active' : ''"
-           th:href="@{/files/favorites}"
-           title="Manage favorites" aria-label="Manage favorites">
-            <i class="fas fa-pen-to-square" aria-hidden="true"></i>
-        </a>
+        </section>
     </div>
 
     <section class="sidebar-usage" th:if="${storageUsage != null}" aria-label="Disk usage">

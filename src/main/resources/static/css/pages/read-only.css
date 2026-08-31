@@ -172,7 +172,7 @@
     background: var(--panel);
 }
 
-.readonly-file-card:focus-within {
+.readonly-file-card:has(:focus-visible) {
     outline: 2px solid var(--focus);
     outline-offset: 2px;
 }

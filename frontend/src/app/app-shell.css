@@ -68,3 +68,22 @@
   border-radius: var(--radius-pill);
   background: var(--success);
 }
+
+.account-session-count {
+  position: absolute;
+  top: 2px;
+  right: 1px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  border: 1px solid var(--panel);
+  border-radius: var(--radius-pill);
+  background: var(--accent-strong);
+  color: var(--panel);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0 3px;
+}

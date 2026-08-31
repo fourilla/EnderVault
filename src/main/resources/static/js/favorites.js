@@ -59,6 +59,27 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const sidebarList = () => document.querySelector("[data-sidebar-favorites-list]");
 
+    const bindLegacySidebarFavoritesToggle = () => {
+        const section = document.querySelector("[data-legacy-sidebar-favorites]");
+        const toggle = section?.querySelector("[data-legacy-sidebar-favorites-toggle]");
+        const list = section?.querySelector("[data-sidebar-favorites-list]");
+        if (!section || !toggle || !list) {
+            return;
+        }
+
+        toggle.addEventListener("click", () => {
+            const open = !section.classList.contains("is-open");
+            section.classList.toggle("is-open", open);
+            list.hidden = !open;
+            toggle.setAttribute("aria-expanded", String(open));
+            toggle.title = open ? "Collapse favorites" : "Expand favorites";
+            const label = toggle.querySelector(".visually-hidden");
+            if (label) {
+                label.textContent = toggle.title;
+            }
+        });
+    };
+
     const sidebarFavoriteLinks = () =>
         Array.from(document.querySelectorAll("[data-sidebar-favorites-list] [data-favorite-sidebar-path]"));
 
@@ -126,7 +147,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const empty = document.createElement("p");
             empty.dataset.sidebarFavoritesEmpty = "";
             empty.textContent = "No favorites yet.";
-            list.after(empty);
+            list.append(empty);
         }
     };
 
@@ -443,4 +464,5 @@ document.addEventListener("DOMContentLoaded", () => {
         move,
         bind: bindFavoriteForms
     };
+    bindLegacySidebarFavoritesToggle();
 });

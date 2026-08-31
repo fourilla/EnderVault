@@ -14,6 +14,7 @@ public record AdminAppBootstrapPayload(
         List<FavoritePayload> favorites,
         AdminShellStateService.TaskUiConfig tasks,
         AdminShellStateService.UploadUiConfig uploads,
+        SessionPayload sessions,
         OutboundRoutePayload outboundRoute,
         AdminShellStateService.StickyNoteThemeView stickyNoteTheme
 ) {
@@ -37,6 +38,7 @@ public record AdminAppBootstrapPayload(
                         .toList(),
                 shellStateService.taskUiConfig(),
                 shellStateService.uploadUiConfig(),
+                new SessionPayload(shellStateService.activeSessionCount()),
                 OutboundRoutePayload.from(shellStateService.outboundRoute()),
                 shellStateService.stickyNoteTheme()
         );
@@ -56,6 +58,9 @@ public record AdminAppBootstrapPayload(
                     capabilities.metadataInspector()
             );
         }
+    }
+
+    public record SessionPayload(int activeCount) {
     }
 
     public record StoragePayload(

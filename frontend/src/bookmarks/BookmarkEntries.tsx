@@ -124,7 +124,10 @@ export function BookmarkTable({
                     + (entry.favorite ? ' is-favorite' : '')} type="button"
                     title={entry.favorite ? 'Remove from favorites' : 'Add to favorites'}
                     aria-label={entry.favorite ? 'Remove from favorites' : 'Add to favorites'}
-                    onClick={() => toggleFavorite(entry)}>{icon('fas fa-star')}</button>
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      toggleFavorite(entry);
+                    }}>{icon('fas fa-star')}</button>
                   {entry.type === 'directory' ? (
                     <button className="ghost icon-button action-icon" type="button" title="Open directory"
                       aria-label="Open directory" onClick={() => browse(entry.id)}>{icon('fas fa-folder-open')}</button>
@@ -139,7 +142,10 @@ export function BookmarkTable({
                   {entry.metadataRefreshable && (
                     <button className="ghost icon-button action-icon" type="button"
                       title="Fetch title and favicon" aria-label="Fetch title and favicon"
-                      onClick={() => refreshMetadata(entry)}>{icon('fas fa-wand-magic-sparkles')}</button>
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        refreshMetadata(entry);
+                      }}>{icon('fas fa-wand-magic-sparkles')}</button>
                   )}
                 </div></td>
               </tr>

@@ -5,6 +5,7 @@ import io.github.fourilla.endervault.favorite.FavoriteDisplayItem;
 import io.github.fourilla.endervault.favorite.FavoriteService;
 import io.github.fourilla.endervault.outbound.OutboundRouteStateService;
 import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthService;
+import io.github.fourilla.endervault.session.SessionManagementService;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.storage.StorageUsage;
 import jakarta.servlet.http.HttpServletRequest;
@@ -19,19 +20,22 @@ public class AdminShellStateService {
     private final NasProperties nasProperties;
     private final OutboundRouteStateService outboundRouteStateService;
     private final VpnProxyHealthService vpnProxyHealthService;
+    private final SessionManagementService sessionManagementService;
 
     public AdminShellStateService(
             StorageService storageService,
             FavoriteService favoriteService,
             NasProperties nasProperties,
             OutboundRouteStateService outboundRouteStateService,
-            VpnProxyHealthService vpnProxyHealthService
+            VpnProxyHealthService vpnProxyHealthService,
+            SessionManagementService sessionManagementService
     ) {
         this.storageService = storageService;
         this.favoriteService = favoriteService;
         this.nasProperties = nasProperties;
         this.outboundRouteStateService = outboundRouteStateService;
         this.vpnProxyHealthService = vpnProxyHealthService;
+        this.sessionManagementService = sessionManagementService;
     }
 
     public StorageUsage storageUsage() {
@@ -77,6 +81,10 @@ public class AdminShellStateService {
                 outboundRouteStateService.currentRoute(),
                 vpnProxyHealthService.current()
         );
+    }
+
+    public int activeSessionCount() {
+        return sessionManagementService.activeCount();
     }
 
     public StickyNoteThemeView stickyNoteTheme() {

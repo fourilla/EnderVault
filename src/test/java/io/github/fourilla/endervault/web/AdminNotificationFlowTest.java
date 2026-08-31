@@ -146,6 +146,7 @@ class AdminNotificationFlowTest {
                 .andExpect(jsonPath("$.favorites").isArray())
                 .andExpect(jsonPath("$.tasks.activityPanelEnabled").isBoolean())
                 .andExpect(jsonPath("$.uploads.maxConcurrentUploads").isNumber())
+                .andExpect(jsonPath("$.sessions.activeCount").isNumber())
                 .andExpect(jsonPath("$.outboundRoute.route").isString())
                 .andExpect(jsonPath("$.stickyNoteTheme.backgroundColor").value("#1B3033"))
                 .andExpect(jsonPath("$.botToken").doesNotExist())
