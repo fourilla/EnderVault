@@ -1517,21 +1517,19 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void vpnStatusPageRendersRuntimeDetailsInPanel() throws Exception {
+    void vpnStatusUsesAdminSpaAndExposesRuntimeDetailsThroughApi() throws Exception {
         mockMvc.perform(get("/admin/vpn"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("data-status-url=\"/api/v1/vpn/status\"")))
-                .andExpect(content().string(Matchers.containsString("action=\"/api/v1/vpn/refresh\"")))
-                .andExpect(content().string(Matchers.containsString("action=\"/api/v1/vpn/connect\"")))
-                .andExpect(content().string(Matchers.containsString("action=\"/api/v1/vpn/reconnect\"")))
-                .andExpect(content().string(Matchers.containsString("action=\"/api/v1/vpn/disconnect\"")))
-                .andExpect(content().string(Matchers.containsString("Connection Details")))
-                .andExpect(content().string(Matchers.containsString("VPN public IP")))
-                .andExpect(content().string(Matchers.containsString("Outbound route")))
-                .andExpect(content().string(Matchers.containsString("vpn-detail-wide vpn-active-tasks")))
-                .andExpect(content().string(Matchers.containsString("data-vpn-runtime=\"controlBadge\"")))
-                .andExpect(content().string(Matchers.not(Matchers.containsString("<dt>Profile</dt>"))))
-                .andExpect(content().string(Matchers.not(Matchers.containsString("vpn-status-metrics"))));
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/vpn-status.js"))));
+
+        mockMvc.perform(get("/api/v1/vpn/status"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.state").isString())
+                .andExpect(jsonPath("$.health.state").isString())
+                .andExpect(jsonPath("$.activeVpnTasks").isNumber())
+                .andExpect(jsonPath("$.controlApiKey").doesNotExist());
     }
 
     @Test

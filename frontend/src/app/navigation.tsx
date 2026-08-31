@@ -170,7 +170,8 @@ export const navigationEntries: readonly NavigationEntry[] = [
     icon: 'fas fa-shield-halved',
     placement: 'apps',
     group: 'operations',
-    surface: 'document',
+    surface: 'spa',
+    component: lazyNamed(() => import('../vpn/VpnStatusApp'), 'VpnStatusApp'),
   },
   {
     id: 'sticky-notes',
