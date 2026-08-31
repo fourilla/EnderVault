@@ -83,18 +83,12 @@ document.addEventListener("DOMContentLoaded", () => {
         showNotification(body.notification);
 
         switch (action) {
-            case "metadata-scan":
-                window.EnderVaultServerTasks?.track(body.task);
-                break;
             case "bookmark-bulk-add":
                 if (body.task) {
                     window.EnderVaultServerTasks?.track(body.task);
                 }
                 form.reset();
                 form.closest("details")?.removeAttribute("open");
-                break;
-            case "metadata-repair":
-                window.EnderVaultMetadata?.handleRepair(body, form);
                 break;
             default:
                 break;
@@ -128,7 +122,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 window.EnderVault.showToast("error", error.message || "The action failed.");
             } finally {
                 setBusy(form, false);
-                window.EnderVaultMetadata?.syncSelection?.();
                 if (successBody) {
                     form.dispatchEvent(new CustomEvent("endervault:ajax-success", {
                         bubbles: true,

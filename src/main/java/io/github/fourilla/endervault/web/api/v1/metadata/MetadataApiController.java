@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -26,15 +27,23 @@ public class MetadataApiController {
     private final MetadataMaintenanceService metadataMaintenanceService;
     private final MetadataInspectionTaskService metadataInspectionTaskService;
     private final MetadataInspectionReportStore reportStore;
+    private final MetadataQueryService metadataQueryService;
 
     public MetadataApiController(
             MetadataMaintenanceService metadataMaintenanceService,
             MetadataInspectionTaskService metadataInspectionTaskService,
-            MetadataInspectionReportStore reportStore
+            MetadataInspectionReportStore reportStore,
+            MetadataQueryService metadataQueryService
     ) {
         this.metadataMaintenanceService = metadataMaintenanceService;
         this.metadataInspectionTaskService = metadataInspectionTaskService;
         this.reportStore = reportStore;
+        this.metadataQueryService = metadataQueryService;
+    }
+
+    @GetMapping
+    public MetadataPagePayload metadata() throws IOException {
+        return metadataQueryService.load();
     }
 
     @PostMapping("/scan")

@@ -68,10 +68,6 @@
     <script type="module" th:if="${entry.available()}" th:src="${entry.entryScript()}"></script>
 </th:block>
 
-<th:block th:fragment="metadataScript">
-    <script defer th:src="@{/js/metadata.js}"></script>
-</th:block>
-
 <th:block th:fragment="resumableUploadScript">
     <script defer th:src="@{/webjars/tus-js-client/4.3.1/dist/tus.min.js}"></script>
     <script defer th:src="@{/js/resumable-upload-client.js}"></script>

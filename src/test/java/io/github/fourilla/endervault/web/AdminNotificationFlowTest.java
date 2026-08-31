@@ -1756,18 +1756,18 @@ class AdminNotificationFlowTest {
     void metadataInspectorRendersScanAreasAsCompactRows() throws Exception {
         mockMvc.perform(get("/admin/metadata"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Metadata Inspector")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/api/v1/metadata/scan")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"admin-app-root\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("/admin/metadata/scan"))))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("/admin/metadata/repair"))))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("metadata-area-list")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("metadata-area-row")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("File requests")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Pending decisions")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("metadata-area-grid"))));
+                        org.hamcrest.Matchers.containsString("/js/metadata.js"))));
+
+        mockMvc.perform(get("/api/v1/metadata"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.areas").isArray())
+                .andExpect(jsonPath("$.areas[*].name", org.hamcrest.Matchers.hasItem("FILE_REQUESTS")))
+                .andExpect(jsonPath("$.areas[*].name", org.hamcrest.Matchers.hasItem("PENDING_FILE_DECISIONS")))
+                .andExpect(jsonPath("$.areas[0].description").isString())
+                .andExpect(jsonPath("$.areas[0].ordinal").doesNotExist());
     }
 
     @Test

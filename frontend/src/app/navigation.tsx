@@ -160,7 +160,8 @@ export const navigationEntries: readonly NavigationEntry[] = [
     placement: 'apps',
     group: 'operations',
     requiredCapability: 'metadataInspector',
-    surface: 'document',
+    surface: 'spa',
+    component: lazyNamed(() => import('../metadata/MetadataInspectorApp'), 'MetadataInspectorApp'),
   },
   {
     id: 'vpn-status',
