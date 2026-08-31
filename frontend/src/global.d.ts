@@ -41,6 +41,7 @@ declare global {
       showToast: (type: string, message: string) => void;
       copyText: (text: string) => Promise<boolean>;
       csrfPair: () => { name: string; value: string } | null;
+      navigateWithNotification: (body: { notification?: unknown; redirectUrl?: string | null }) => boolean;
       navigate: (url: string) => boolean;
     };
     EnderVaultFileBrowser?: {

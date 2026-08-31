@@ -215,7 +215,8 @@ export const navigationEntries: readonly NavigationEntry[] = [
     icon: 'fas fa-laptop',
     placement: 'account',
     group: 'account',
-    surface: 'document',
+    surface: 'spa',
+    component: lazyNamed(() => import('../sessions/ActiveSessionsApp'), 'ActiveSessionsApp'),
   },
 ] as const;
 

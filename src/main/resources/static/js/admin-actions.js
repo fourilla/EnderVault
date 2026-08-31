@@ -66,73 +66,12 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     };
 
-    const removeRevokedSessionRow = (form) => {
-        form.closest("tr")?.remove();
-        const tbody = document.querySelector(".sessions-table tbody");
-        if (!tbody || tbody.querySelector("tr:not(.empty-row)")) {
-            return;
-        }
-        const row = document.createElement("tr");
-        row.className = "empty-row";
-        row.innerHTML = '<td colspan="6" class="empty">No active sessions.</td>';
-        tbody.append(row);
-    };
-
-    const bindSessionDetailDialog = () => {
-        const dialog = document.getElementById("sessionDetailModal");
-        const buttons = Array.from(document.querySelectorAll(".session-detail-open"));
-        if (!dialog || buttons.length === 0) {
-            return;
-        }
-
-        const setText = (id, value) => {
-            const element = document.getElementById(id);
-            if (element) {
-                element.textContent = value || "-";
-            }
-        };
-
-        buttons.forEach((button) => {
-            button.addEventListener("click", () => {
-                const session = button.dataset;
-                setText("sessionDetailSubtitle", `${session.sessionDevice || "-"} · ${session.sessionStatus || "-"}`);
-                setText("sessionDetailAccount", session.sessionAccount);
-                setText("sessionDetailStatus", session.sessionStatus);
-                setText("sessionDetailDevice", session.sessionDevice);
-                setText("sessionDetailIp", session.sessionIp);
-                setText("sessionDetailAuth", session.sessionAuth);
-                setText("sessionDetailSignedIn", session.sessionSignedIn);
-                setText("sessionDetailLastActive", session.sessionLastActive);
-                setText("sessionDetailExpires", session.sessionExpires);
-                setText("sessionDetailUserAgent", session.sessionUserAgent);
-
-                if (typeof dialog.showModal === "function") {
-                    dialog.showModal();
-                } else {
-                    dialog.setAttribute("open", "");
-                }
-            });
-        });
-
-        dialog.addEventListener("click", (event) => {
-            if (event.target !== dialog) {
-                return;
-            }
-            if (typeof dialog.close === "function") {
-                dialog.close();
-            } else {
-                dialog.removeAttribute("open");
-            }
-        });
-    };
-
     const handleSuccess = (form, body, action = ajaxAction(form)) => {
         if ([
             "detail-rename",
             "detail-move",
             "detail-hidden",
             "detail-delete",
-            "session-revoke",
             "recent-clear",
             "bookmark-detail-mutation",
             "view-preferences-reset"
@@ -144,9 +83,6 @@ document.addEventListener("DOMContentLoaded", () => {
         showNotification(body.notification);
 
         switch (action) {
-            case "session-revoke":
-                removeRevokedSessionRow(form);
-                break;
             case "metadata-scan":
                 window.EnderVaultServerTasks?.track(body.task);
                 break;
@@ -205,6 +141,5 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.querySelectorAll("form[data-ajax-action]").forEach(bindAjaxForm);
     bindCopyButtons();
-    bindSessionDetailDialog();
     window.EnderVaultActions = { submitJsonForm, showNotification };
 });
