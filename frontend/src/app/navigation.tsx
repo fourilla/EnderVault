@@ -38,7 +38,8 @@ export const navigationEntries: readonly NavigationEntry[] = [
     label: 'Dashboard',
     icon: 'fas fa-gauge-high',
     placement: 'sidebar',
-    surface: 'document',
+    surface: 'spa',
+    component: lazyNamed(() => import('../dashboard/DashboardApp'), 'DashboardApp'),
   },
   {
     id: 'files',

@@ -247,10 +247,6 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("value=\"" + destination + "\"")));
 
-        mockMvc.perform(get("/admin/dashboard"))
-                .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("/admin/file-requests")))
-                .andExpect(content().string(Matchers.containsString("File requests")));
     }
 
     @Test
@@ -1329,36 +1325,21 @@ class AdminNotificationFlowTest {
     void dashboardPageRendersSummaryPanels() throws Exception {
         mockMvc.perform(get("/admin/dashboard"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Dashboard")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Task Manager")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("System Health")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Management")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Utils")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Shared links")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Activity logs")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Trash")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Metadata inspector")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Settings")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote download")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("href=\"/admin/vpn\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Page archiving")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Storage remaining")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Outbound route")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("VPN Egress")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Proxy health")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Background tasks")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Register and remove trusted devices"))))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Configure activity notifications and test messages"))))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Enable Telegram alerts"))))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Quick Actions"))))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Activity Log"))))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Maintenance"))));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/adminApp-")));
+
+        mockMvc.perform(get("/api/v1/dashboard"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.storage.usedPercent").isNumber())
+                .andExpect(jsonPath("$.trash.count").isNumber())
+                .andExpect(jsonPath("$.shares.active").isNumber())
+                .andExpect(jsonPath("$.thumbnails.cachedFiles").isNumber())
+                .andExpect(jsonPath("$.remoteDownloads.total").isNumber())
+                .andExpect(jsonPath("$.remoteDownloads.recentTasks").doesNotExist())
+                .andExpect(jsonPath("$.appTasks.running").isNumber())
+                .andExpect(jsonPath("$.recentTasks").isArray())
+                .andExpect(jsonPath("$.activeSessions").isNumber())
+                .andExpect(jsonPath("$.vpn.routeLabel").isString());
     }
 
     @Test

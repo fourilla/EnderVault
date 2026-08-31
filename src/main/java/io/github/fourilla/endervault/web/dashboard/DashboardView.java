@@ -1,6 +1,5 @@
 package io.github.fourilla.endervault.web.dashboard;
 
-import io.github.fourilla.endervault.remote.RemoteDownloadSummary;
 import io.github.fourilla.endervault.storage.StorageUsage;
 import io.github.fourilla.endervault.task.TaskSummary;
 import io.github.fourilla.endervault.web.support.VpnRuntimeStatusView;
@@ -11,9 +10,7 @@ public record DashboardView(
         TrashSummary trash,
         ShareSummary shares,
         ThumbnailSummary thumbnails,
-        RemoteDownloadSummary remoteDownloads,
-        boolean remoteDownloadEnabled,
-        boolean fileRequestsEnabled,
+        RemoteSummary remoteDownloads,
         TaskSummary appTasks,
         List<DashboardTaskView> recentTasks,
         int activeSessions,
@@ -44,8 +41,13 @@ public record DashboardView(
             String sizeLabel,
             int inProgressCount
     ) {
-        public String enabledLabel() {
-            return videoEnabled || comicEnabled || pdfEnabled ? "Enabled" : "Disabled";
-        }
+    }
+
+    public record RemoteSummary(
+            long total,
+            long running,
+            long complete,
+            long failed
+    ) {
     }
 }
