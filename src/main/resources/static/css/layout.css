@@ -293,7 +293,7 @@
 
 .topbar-control-popover {
     position: absolute;
-    z-index: 60;
+    z-index: var(--z-topbar-popover);
     top: 100%;
     right: 0;
     left: auto;

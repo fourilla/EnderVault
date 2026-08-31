@@ -56,7 +56,7 @@ document.addEventListener("DOMContentLoaded", () => {
             window.open(link.href, "_blank", "noopener,noreferrer");
             return;
         }
-        window.location.href = link.href;
+        window.EnderVault?.navigate?.(link.href) || window.location.assign(link.href);
     };
 
     const isNativeControlTarget = (target) =>

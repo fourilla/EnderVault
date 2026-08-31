@@ -124,7 +124,7 @@ export function SettingsApp() {
   const openLegacy = useCallback(async (event: MouseEvent<HTMLAnchorElement>, href: string) => {
     if (!dirty) return;
     event.preventDefault();
-    if (await confirmNavigation()) window.location.assign(href);
+    if (await confirmNavigation()) window.EnderVault?.navigate(href) || window.location.assign(href);
   }, [confirmNavigation, dirty]);
 
   useEffect(() => {

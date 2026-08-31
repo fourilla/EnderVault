@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { notify, postForm, toastError } from '../shared/api/form-api';
 import { useAdminApp } from './AdminAppContext';
+import { ShellPopover } from './ShellPopover';
 import type { AdminAppBootstrap } from './types';
 
 type OutboundRoute = AdminAppBootstrap['outboundRoute'];
@@ -33,29 +34,22 @@ export function OutboundRouteControl() {
   };
 
   return (
-    <div className="topbar-control">
-      <button
-        className={`ghost icon-button topbar-control-trigger topbar-route-toggle route-${route.statusClass}`}
-        type="button"
-        title={route.title}
-        aria-label={route.title}
-        disabled={busy}
-        onClick={() => void toggle()}
-      >
-        <i className={route.iconClass} aria-hidden="true" />
-      </button>
-      <div className="topbar-control-popover">
-        <div className="topbar-control-menu" role="dialog" aria-label="Outbound VPN status">
-          <strong className="topbar-control-title">Outbound VPN</strong>
-          <p>Routes supported NAS outbound requests through the configured VPN proxy.</p>
-          <div className="topbar-control-status">
-            <span>Current route</span>
-            <strong className={route.vpnSelected ? (route.vpnReady ? 'is-active' : 'is-error') : undefined}>
-              {statusLabel(route)}
-            </strong>
-          </div>
-        </div>
+    <ShellPopover
+      id="outbound-route"
+      icon={route.iconClass}
+      label={route.title}
+      triggerClassName={`topbar-route-toggle route-${route.statusClass}`}
+      onTriggerClick={() => void toggle()}
+    >
+      <strong className="topbar-control-title">Outbound VPN</strong>
+      <p>Routes supported NAS outbound requests through the configured VPN proxy.</p>
+      <div className="topbar-control-status">
+        <span>Current route</span>
+        <strong className={route.vpnSelected ? (route.vpnReady ? 'is-active' : 'is-error') : undefined}>
+          {statusLabel(route)}
+        </strong>
       </div>
-    </div>
+      <small>{busy ? 'Changing route...' : 'Click the shield to switch routes.'}</small>
+    </ShellPopover>
   );
 }

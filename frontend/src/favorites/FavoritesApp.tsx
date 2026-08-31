@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { moveFavorite, removeFavorite } from '../shared/api/favorite-api';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
@@ -63,7 +64,7 @@ export function FavoritesApp() {
       <section className="breadcrumb-panel" aria-label="Favorites heading">
         <div className="breadcrumb-main">
           <p className="breadcrumb-label">Pinned locations</p>
-          <nav className="breadcrumbs"><a className="current" href="/files/favorites">Favorites</a></nav>
+          <nav className="breadcrumbs"><Link className="current" to="/files/favorites">Favorites</Link></nav>
         </div>
       </section>
 

@@ -66,7 +66,7 @@ export function AdminTopbar() {
     <header className="topbar app-topbar">
       <div className="admin-shell-route-actions"><RouteActionSlot /></div>
       <div className="topbar-actions">
-        <ShellPopover icon="fas fa-table-cells-large" label="Applications">
+        <ShellPopover id="applications" icon="fas fa-grip" label="Applications">
           <strong className="topbar-control-title">Applications</strong>
           <p>Sharing, transfers, operations, notes, and application settings.</p>
           <NavigationGroups entries={available('apps')} />
@@ -76,6 +76,7 @@ export function AdminTopbar() {
         <OutboundRouteControl />
         <StickyNoteControl />
         <ShellPopover
+          id="account"
           icon={activeSessionCount > 1 ? 'fas fa-user-group' : 'fas fa-circle-user'}
           label={`Account, ${activeSessionCount} active ${activeSessionCount === 1 ? 'session' : 'sessions'}`}
           indicator={<span className="account-session-count" aria-hidden="true">

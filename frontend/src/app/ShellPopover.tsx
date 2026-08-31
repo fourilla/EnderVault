@@ -1,35 +1,46 @@
 import {
   type PropsWithChildren,
+  type MouseEventHandler,
   type ReactNode,
   useEffect,
   useId,
   useRef,
-  useState,
 } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useTopbarPopover } from './TopbarPopoverContext';
 
 interface ShellPopoverProps extends PropsWithChildren {
+  id: string;
   icon: string;
   label: string;
   indicator?: ReactNode;
+  triggerClassName?: string;
+  triggerDataAttributes?: Record<string, string>;
+  onTriggerClick?: MouseEventHandler<HTMLButtonElement>;
 }
 
-export function ShellPopover({ icon, label, indicator, children }: ShellPopoverProps) {
-  const [open, setOpen] = useState(false);
+export function ShellPopover({
+  id,
+  icon,
+  label,
+  indicator,
+  triggerClassName,
+  triggerDataAttributes,
+  onTriggerClick,
+  children,
+}: ShellPopoverProps) {
+  const { activeId, show, hide, closeAll } = useTopbarPopover();
   const rootRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
-  const location = useLocation();
-
-  useEffect(() => setOpen(false), [location.pathname, location.search]);
+  const open = activeId === id;
 
   useEffect(() => {
     if (!open) return undefined;
 
     const closeOutside = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+      if (!rootRef.current?.contains(event.target as Node)) closeAll();
     };
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key === 'Escape') closeAll();
     };
 
     document.addEventListener('pointerdown', closeOutside);
@@ -38,19 +49,30 @@ export function ShellPopover({ icon, label, indicator, children }: ShellPopoverP
       document.removeEventListener('pointerdown', closeOutside);
       document.removeEventListener('keydown', closeOnEscape);
     };
-  }, [open]);
+  }, [closeAll, open]);
 
   return (
-    <div className={`topbar-control admin-shell-popover${open ? ' is-open' : ''}`} ref={rootRef}>
+    <div
+      className={`topbar-control admin-shell-popover${open ? ' is-open' : ''}`}
+      data-topbar-popover-id={id}
+      ref={rootRef}
+      onPointerEnter={() => show(id)}
+      onPointerLeave={() => hide(id)}
+      onFocus={() => show(id)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) hide(id);
+      }}
+    >
       <button
-        className="ghost icon-button topbar-control-trigger"
+        {...triggerDataAttributes}
+        className={`ghost icon-button topbar-control-trigger${triggerClassName ? ` ${triggerClassName}` : ''}`}
         type="button"
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-controls={menuId}
         aria-label={label}
         title={label}
-        onClick={() => setOpen((current) => !current)}
+        onClick={onTriggerClick}
       >
         <i className={icon} aria-hidden="true" />
         {indicator}

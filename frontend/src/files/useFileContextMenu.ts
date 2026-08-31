@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { BrowserEntry, BrowserHistoryState, BrowserPayload, TransferBufferPayload } from './types';
 import type { FileBrowserActions } from './useFileActions';
 
@@ -37,6 +38,7 @@ export function useFileContextMenu({
   actions: FileBrowserActions;
   fileRequestsEnabled: boolean;
 }) {
+  const navigate = useNavigate();
   const actionsRef = useRef(actions);
   actionsRef.current = actions;
 
@@ -101,7 +103,7 @@ export function useFileContextMenu({
       label: 'Create file request here', icon: 'fas fa-inbox',
       visible: (context: MenuContext) => fileRequestsEnabled
         && context.mode === 'single' && context.item?.directory,
-      run: (context: MenuContext) => window.location.assign('/admin/file-requests?'
+      run: (context: MenuContext) => navigate('/admin/file-requests?'
         + new URLSearchParams({ destinationPath: context.item!.path }).toString()) });
     registerAction({ id: 'rename', group: 'mutate', label: 'Rename', icon: 'fas fa-pen-to-square',
       visible: (context: MenuContext) => context.mode === 'single',
@@ -124,7 +126,7 @@ export function useFileContextMenu({
       icon: 'fas fa-inbox', visible: (context: MenuContext) => context.mode === 'background'
         && stateRef.current.mode === 'browse'
         && fileRequestsEnabled,
-      run: () => window.location.assign('/admin/file-requests?'
+      run: () => navigate('/admin/file-requests?'
         + new URLSearchParams({ destinationPath: stateRef.current.path }).toString()) });
     registerAction({ id: 'move-here', group: 'background-transfer', label: 'Move here',
       icon: 'fas fa-file-import', visible: (context: MenuContext) => context.mode === 'background'
@@ -191,5 +193,6 @@ export function useFileContextMenu({
       menu?.close();
       delete window.EnderVaultContextMenu;
     };
-  }, [browse, fileRequestsEnabled, openFile, payloadRef, selectedRef, setSelected, stateRef, transferBufferRef]);
+  }, [browse, fileRequestsEnabled, navigate, openFile, payloadRef, selectedRef, setSelected, stateRef,
+    transferBufferRef]);
 }

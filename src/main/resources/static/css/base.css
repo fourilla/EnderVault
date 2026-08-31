@@ -31,6 +31,11 @@
     --thumb-bg: #25313d;
     --media-canvas-bg: #0b0f14;
 
+    --z-toast: 1000;
+    --z-topbar-popover: 1100;
+    --z-context-menu: 1200;
+    --z-modal: 10000;
+
     --font-size-2xs: 11px;
     --font-size-xs: 12px;
     --font-size-sm: 13px;

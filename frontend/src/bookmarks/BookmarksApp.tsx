@@ -76,7 +76,7 @@ export function BookmarksApp() {
     } else if (entry.primaryNewTab) {
       window.open(entry.primaryUrl, '_blank', 'noopener,noreferrer');
     } else {
-      window.location.assign(entry.primaryUrl);
+      window.EnderVault?.navigate(entry.primaryUrl) || window.location.assign(entry.primaryUrl);
     }
   }, [browse]);
 

@@ -2,14 +2,16 @@ import { useEffect } from 'react';
 import { Outlet, ScrollRestoration, useLocation } from 'react-router-dom';
 import { AdminSidebar } from './AdminSidebar';
 import { AdminTopbar } from './AdminTopbar';
-import { navigationEntries } from './navigation';
+import { navigationEntryForPathname } from './navigation';
+import { SpaNavigationBridge } from './SpaNavigationBridge';
+import { TopbarPopoverProvider } from './TopbarPopoverContext';
 import './app-shell.css';
 
 export function AppShell() {
   const location = useLocation();
 
   useEffect(() => {
-    const entry = navigationEntries.find((candidate) => candidate.path === location.pathname);
+    const entry = navigationEntryForPathname(location.pathname);
     document.title = entry ? `EnderVault ${entry.label}` : 'EnderVault';
     const frame = window.requestAnimationFrame(() => {
       document.dispatchEvent(new CustomEvent('endervault:spa-shell-ready'));
@@ -20,7 +22,7 @@ export function AppShell() {
         document.dispatchEvent(new CustomEvent('endervault:sticky-context-changed', {
           detail: {
             targetType: 'PAGE',
-            targetKey: entry.id,
+            targetKey: entry.id === 'file-request-detail' ? location.pathname : entry.id,
             surface: 'PAGE',
             label: entry.label,
           },
@@ -32,9 +34,12 @@ export function AppShell() {
 
   return (
     <div className="app-shell admin-react-shell">
+      <SpaNavigationBridge />
       <AdminSidebar />
       <div className="app-main" data-file-dropzone>
-        <AdminTopbar />
+        <TopbarPopoverProvider>
+          <AdminTopbar />
+        </TopbarPopoverProvider>
         <main className="workspace">
           <Outlet />
         </main>

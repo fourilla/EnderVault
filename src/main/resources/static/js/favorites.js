@@ -330,7 +330,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 icon: "fas fa-circle-info",
                 label: "Details",
                 action: () => {
-                    window.location.href = link.dataset.favoriteDetailUrl || link.href;
+                    const url = link.dataset.favoriteDetailUrl || link.href;
+                    window.EnderVault?.navigate?.(url) || window.location.assign(url);
                 }
             }));
         } else {
@@ -342,7 +343,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         window.open(link.href, "_blank", "noopener,noreferrer");
                         return;
                     }
-                    window.location.href = link.href;
+                    window.EnderVault?.navigate?.(link.href) || window.location.assign(link.href);
                 }
             }));
         }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { AppNavigationLink } from './AppNavigationLink';
 import { ShellPopover } from './ShellPopover';
 
 interface NotificationCenterItem {
@@ -49,6 +50,7 @@ export function NotificationCenterControl() {
   const countLabel = available ? `${payload.actionableCount} pending` : 'Unavailable';
   return (
     <ShellPopover
+      id="notifications"
       icon="fas fa-bell"
       label={payload.actionableCount > 0
         ? `${payload.actionableCount} pending decision(s)`
@@ -65,14 +67,14 @@ export function NotificationCenterControl() {
       {payload.items.length > 0 ? (
         <div className="notification-center-list">
           {payload.items.map((item) => (
-            <a className="notification-center-item" href={item.href} key={item.id}>
+            <AppNavigationLink className="notification-center-item" href={item.href} key={item.id}>
               <i className="fas fa-file-circle-exclamation" aria-hidden="true" />
               <span>
                 <strong>{item.title}</strong>
                 <small>{item.detail}</small>
                 <time>{item.createdLabel}</time>
               </span>
-            </a>
+            </AppNavigationLink>
           ))}
         </div>
       ) : (
@@ -80,10 +82,10 @@ export function NotificationCenterControl() {
       )}
       {payload.reviewAllHref && (
         <div className="topbar-control-menu-actions">
-          <a className="ghost button-link icon-text-button" href={payload.reviewAllHref}>
+          <AppNavigationLink className="ghost button-link icon-text-button" href={payload.reviewAllHref}>
             <i className="fas fa-list-check" aria-hidden="true" />
             <span>Review all</span>
-          </a>
+          </AppNavigationLink>
         </div>
       )}
     </ShellPopover>

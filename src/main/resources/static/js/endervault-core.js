@@ -407,14 +407,28 @@
         }
     };
 
+    const navigate = (url) => {
+        if (!url) {
+            return false;
+        }
+
+        const event = new CustomEvent("endervault:navigate", {
+            cancelable: true,
+            detail: { url }
+        });
+        if (document.dispatchEvent(event)) {
+            window.location.assign(url);
+        }
+        return true;
+    };
+
     const navigateWithNotification = (body) => {
         if (!body?.redirectUrl) {
             return false;
         }
 
         rememberNotification(body.notification);
-        window.location.assign(body.redirectUrl);
-        return true;
+        return navigate(body.redirectUrl);
     };
 
     const contextMenus = (() => {
@@ -508,6 +522,7 @@
         cloneFormData,
         rememberNotification,
         navigateWithNotification,
+        navigate,
         contextMenus
     };
 })();

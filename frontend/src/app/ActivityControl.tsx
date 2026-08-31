@@ -36,8 +36,10 @@ export function ActivityControl() {
   const label = activeCount > 0 ? `${activeCount} active task(s)` : 'Activity';
   return (
     <ShellPopover
+      id="activity"
       icon="fas fa-list-check"
       label={label}
+      onTriggerClick={() => window.EnderVaultActivity?.toggle()}
       indicator={activeCount > 0
         ? <span className="activity-control-indicator" aria-hidden="true" />
         : undefined}
@@ -46,15 +48,9 @@ export function ActivityControl() {
       <p>Uploads and server tasks continue while you move through EnderVault.</p>
       <div className="topbar-control-status"><span>Active</span><strong>{activeCount}</strong></div>
       <div className="topbar-control-status"><span>Recently finished</span><strong>{activity.finishedCount}</strong></div>
-      <div className="topbar-control-menu-actions">
-        <button className="ghost icon-text-button" type="button" disabled={activity.totalCount === 0}
-          onClick={() => window.EnderVaultActivity?.toggle()}>
-          <i className={activity.minimized ? 'fas fa-chevron-up' : 'fas fa-minus'} aria-hidden="true" />
-          <span>{activity.totalCount === 0
-            ? 'No activity to show'
-            : activity.minimized ? 'Show activity dock' : 'Minimize activity dock'}</span>
-        </button>
-      </div>
+      <small>{activity.totalCount === 0
+        ? 'No activity to show.'
+        : `Click the icon to ${activity.minimized ? 'show' : 'minimize'} the activity dock.`}</small>
     </ShellPopover>
   );
 }

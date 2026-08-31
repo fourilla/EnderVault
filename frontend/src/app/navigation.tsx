@@ -1,4 +1,5 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
+import { matchPath } from 'react-router-dom';
 import type { AdminAppCapabilities } from './types';
 
 export type NavigationPlacement = 'sidebar' | 'apps' | 'account' | 'context';
@@ -100,7 +101,8 @@ export const navigationEntries: readonly NavigationEntry[] = [
     icon: 'fas fa-link',
     placement: 'apps',
     group: 'sharing',
-    surface: 'document',
+    surface: 'spa',
+    component: lazyNamed(() => import('../shares/SharedLinksApp'), 'SharedLinksApp'),
   },
   {
     id: 'file-requests',
@@ -110,7 +112,17 @@ export const navigationEntries: readonly NavigationEntry[] = [
     placement: 'apps',
     group: 'sharing',
     requiredCapability: 'fileRequests',
-    surface: 'document',
+    surface: 'spa',
+    component: lazyNamed(() => import('../file-requests/FileRequestsApp'), 'FileRequestsApp'),
+  },
+  {
+    id: 'file-request-detail',
+    path: '/admin/file-requests/:id',
+    label: 'File request details',
+    icon: 'fas fa-inbox',
+    requiredCapability: 'fileRequests',
+    surface: 'spa',
+    component: lazyNamed(() => import('../file-requests/FileRequestDetailApp'), 'FileRequestDetailApp'),
   },
   {
     id: 'remote-downloads',
@@ -214,11 +226,16 @@ export function spaRoutes(): SpaNavigationEntry[] {
   return navigationEntries.filter((entry): entry is SpaNavigationEntry => entry.surface === 'spa');
 }
 
+export function navigationEntryForPathname(pathname: string): NavigationEntry | undefined {
+  return navigationEntries.find((entry) => entry.surface === 'spa'
+    && Boolean(matchPath({ path: entry.path, end: true }, pathname)));
+}
+
 export function isSpaNavigationUrl(url: string): boolean {
   try {
     const target = new URL(url, window.location.origin);
     return target.origin === window.location.origin
-      && spaRoutes().some((entry) => entry.path === target.pathname);
+      && spaRoutes().some((entry) => Boolean(matchPath({ path: entry.path, end: true }, target.pathname)));
   } catch {
     return false;
   }

@@ -16,7 +16,9 @@ import java.io.IOException;
 import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -44,6 +46,16 @@ public class ShareApiController {
         this.publicLinkTokenService = publicLinkTokenService;
         this.shareUrlBuilder = shareUrlBuilder;
         this.shareProperties = nasProperties.getShare();
+    }
+
+    @GetMapping
+    public List<ShareLinkPayload> list() throws IOException {
+        String shareBaseUrl = shareUrlBuilder.shareBaseUrl();
+        boolean directDownloadEnabled = shareUrlBuilder.directDownloadLinkEnabled();
+        return shareLinkService.list().stream()
+                .map(shareLink -> ShareLinkView.from(shareLink, shareBaseUrl, directDownloadEnabled))
+                .map(ShareLinkPayload::from)
+                .toList();
     }
 
     @PostMapping

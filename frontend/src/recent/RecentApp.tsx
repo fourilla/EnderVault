@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { EntryGrid, EntryTable, icon } from '../shared/browser/BrowserEntries';
 import { BrowserPagination } from '../shared/browser/BrowserPagination';
 import type { BrowserEntry } from '../shared/browser/types';
@@ -175,7 +175,7 @@ export function RecentApp() {
       <section className="breadcrumb-panel" aria-label="Current path">
         <div className="breadcrumb-main">
           <p className="breadcrumb-label">Virtual location</p>
-          <nav className="breadcrumbs"><a className="current" href="/files/recent">Recent</a></nav>
+          <nav className="breadcrumbs"><Link className="current" to="/files/recent">Recent</Link></nav>
         </div>
       </section>
 

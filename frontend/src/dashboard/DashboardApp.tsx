@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { AppNavigationLink } from '../app/AppNavigationLink';
 import { useAdminApp } from '../app/AdminAppContext';
 import { useUploadManager } from '../app/uploads/UploadManagerContext';
 import { icon } from '../shared/browser/BrowserEntries';
@@ -80,10 +81,10 @@ export function DashboardApp() {
         <MetricContent iconClass="fas fa-trash-can" label="Trash" value={payload.trash.count}
           detail={<p>{payload.trash.sizeLabel}</p>} />
       </Link>
-      <a className="dashboard-metric dashboard-metric-link" href="/admin/shares">
+      <Link className="dashboard-metric dashboard-metric-link" to="/admin/shares">
         <MetricContent iconClass="fas fa-link" label="Shared links" value={payload.shares.active}
           detail={<p>{payload.shares.total} total</p>} />
-      </a>
+      </Link>
       <article className="dashboard-metric">
         <MetricContent iconClass="fas fa-image" label="Thumbnail cache" value={payload.thumbnails.cachedFiles}
           detail={<p>{payload.thumbnails.sizeLabel}</p>} />
@@ -123,7 +124,9 @@ export function DashboardApp() {
       <article className="dashboard-panel dashboard-panel-wide dashboard-panel-focus">
         <header className="section-heading"><div><h2>System Health</h2>
           <p>Storage, cache, sessions, and outbound connectivity</p></div>
-          <a className="ghost icon-text-button" href="/admin/vpn">{icon('fas fa-shield-halved')}<span>VPN status</span></a>
+          <AppNavigationLink className="ghost icon-text-button" href="/admin/vpn">
+            {icon('fas fa-shield-halved')}<span>VPN status</span>
+          </AppNavigationLink>
         </header>
         <div className="dashboard-health-layout">
           <ul className="dashboard-list">

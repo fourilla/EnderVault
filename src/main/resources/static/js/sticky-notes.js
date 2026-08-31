@@ -469,13 +469,23 @@
     const setAllHidden = (hidden) => {
         layer.hidden = hidden;
         const button = controls?.querySelector("[data-sticky-note-visibility]");
+        const trigger = controls?.querySelector("[data-sticky-note-trigger]");
+        const label = button?.querySelector("[data-sticky-note-visibility-label]");
         const icon = button?.querySelector("i");
         const status = controls?.querySelector("[data-sticky-note-visibility-status]");
         if (button && icon) {
             button.title = hidden ? "Show sticky notes" : "Hide sticky notes";
             button.setAttribute("aria-label", button.title);
             button.setAttribute("aria-pressed", String(!hidden));
-            button.classList.toggle("is-active", !hidden);
+            icon.className = hidden ? "fas fa-eye" : "fas fa-eye-slash";
+            if (label) {
+                label.textContent = button.title;
+            }
+        }
+        if (trigger) {
+            trigger.title = hidden ? "Sticky notes hidden" : "Sticky notes visible";
+            trigger.setAttribute("aria-label", trigger.title);
+            trigger.classList.toggle("is-active", !hidden);
         }
         if (status) {
             status.textContent = hidden ? "Hidden" : "Visible";
@@ -588,6 +598,7 @@
 
         controls.querySelector("[data-sticky-note-add]")?.addEventListener("click", () => void createNote());
         controls.querySelector("[data-sticky-note-visibility]")?.addEventListener("click", () => setAllHidden(!layer.hidden));
+        controls.querySelector("[data-sticky-note-trigger]")?.addEventListener("click", () => setAllHidden(!layer.hidden));
         document.querySelectorAll("[data-sticky-note-manager-delete]").forEach((button) => {
             button.addEventListener("click", async () => {
                 const confirmed = await window.EnderVault.askConfirmation({

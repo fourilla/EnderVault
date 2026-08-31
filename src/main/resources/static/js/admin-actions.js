@@ -45,8 +45,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
 
-    const csrfInput = () => window.EnderVault.csrfInput()?.cloneNode();
-
     const bindCopyButtons = (root = document) => {
         root.querySelectorAll("[data-copy-value]").forEach((button) => {
             if (button.dataset.copyBound === "true") {
@@ -66,106 +64,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
             });
         });
-    };
-
-    const appendShareRow = (form, shareLink) => {
-        const tableBody = document.querySelector(form.dataset.shareTable);
-        if (!tableBody || !shareLink) {
-            return;
-        }
-
-        tableBody.querySelector(".empty-row")?.remove();
-        const row = document.createElement("tr");
-        row.dataset.shareToken = shareLink.token;
-        row.dataset.shareStatus = shareLink.statusClass;
-
-        const csrf = csrfInput();
-        const path = form.querySelector('input[name="path"]')?.value || "";
-
-        row.innerHTML = `
-            <td><input readonly value=""></td>
-            <td></td>
-            <td></td>
-            <td><span class="status-badge"></span></td>
-            <td>
-                <div class="table-actions">
-                    <button class="ghost icon-button action-icon js-only" type="button"
-                            title="Copy link" aria-label="Copy link" data-copy-value="" data-copy-success="Share link copied.">
-                        <i class="fas fa-link" aria-hidden="true"></i>
-                    </button>
-                    <button class="ghost icon-button action-icon js-only" type="button"
-                            title="Copy direct download link" aria-label="Copy direct download link"
-                            data-direct-download-copy data-copy-value="" data-copy-success="Direct download link copied.">
-                        <i class="fas fa-file-arrow-down" aria-hidden="true"></i>
-                    </button>
-                    <form class="row-form" method="post" action="/api/v1/shares/revoke" data-ajax-action="share-revoke">
-                        <input type="hidden" name="path" value="">
-                        <input type="hidden" name="token" value="">
-                        <button class="danger icon-button action-icon" type="submit" title="Revoke" aria-label="Revoke">
-                            <i class="fas fa-link-slash" aria-hidden="true"></i>
-                        </button>
-                    </form>
-                    <form class="row-form" method="post" action="/api/v1/shares/delete" data-ajax-action="share-delete">
-                        <input type="hidden" name="path" value="">
-                        <input type="hidden" name="token" value="">
-                        <button class="ghost icon-button action-icon" type="submit" title="Delete" aria-label="Delete">
-                            <i class="fas fa-trash-can" aria-hidden="true"></i>
-                        </button>
-                    </form>
-                </div>
-            </td>
-        `;
-
-        row.querySelector("td input[readonly]").value = shareLink.url;
-        row.querySelector('button[aria-label="Copy link"]').dataset.copyValue = shareLink.url;
-        const directDownloadButton = row.querySelector("[data-direct-download-copy]");
-        if (shareLink.directDownloadUrl) {
-            directDownloadButton.dataset.copyValue = shareLink.directDownloadUrl;
-        } else {
-            directDownloadButton.remove();
-        }
-        row.children[1].textContent = shareLink.createdLabel;
-        row.children[2].textContent = shareLink.expiresLabel;
-        const status = row.querySelector(".status-badge");
-        status.className = `status-badge ${shareLink.statusClass}`;
-        status.textContent = shareLink.statusLabel;
-        row.querySelectorAll('input[name="path"]').forEach((input) => {
-            input.value = path;
-        });
-        row.querySelectorAll('input[name="token"]').forEach((input) => {
-            input.value = shareLink.token;
-        });
-        row.querySelectorAll("form").forEach((rowForm) => {
-            if (csrf) {
-                rowForm.prepend(csrf.cloneNode());
-            }
-            bindAjaxForm(rowForm);
-        });
-        bindCopyButtons(row);
-
-        tableBody.prepend(row);
-    };
-
-    const markShareRevoked = (form) => {
-        const row = form.closest("tr");
-        if (!row) {
-            return;
-        }
-        row.dataset.shareStatus = "revoked";
-        const status = row.querySelector(".status-badge");
-        if (status) {
-            status.className = "status-badge revoked";
-            status.textContent = "Revoked";
-        }
-        form.remove();
-    };
-
-    const removeShareRow = (form) => {
-        form.closest("tr")?.remove();
-    };
-
-    const removeExpiredShareRows = () => {
-        document.querySelectorAll('tr[data-share-status="expired"]').forEach((row) => row.remove());
     };
 
     const removeRevokedSessionRow = (form) => {
@@ -246,19 +144,6 @@ document.addEventListener("DOMContentLoaded", () => {
         showNotification(body.notification);
 
         switch (action) {
-            case "share-create":
-                appendShareRow(form, body.shareLink);
-                form.reset();
-                break;
-            case "share-revoke":
-                markShareRevoked(form);
-                break;
-            case "share-delete":
-                removeShareRow(form);
-                break;
-            case "share-delete-expired":
-                removeExpiredShareRows();
-                break;
             case "session-revoke":
                 removeRevokedSessionRow(form);
                 break;

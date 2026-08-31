@@ -52,7 +52,8 @@ export function useBookmarkContextMenu({
     });
     register({ id: 'details', group: 'primary', label: 'Details', icon: 'fas fa-circle-info',
       visible: (context: MenuContext) => context.mode === 'single',
-      run: (context: MenuContext) => window.location.assign(context.item!.detailUrl),
+      run: (context: MenuContext) => window.EnderVault?.navigate(context.item!.detailUrl)
+        || window.location.assign(context.item!.detailUrl),
     });
     register({ id: 'copy-url', group: 'organize', label: 'Copy URL', icon: 'fas fa-copy',
       visible: (context: MenuContext) => context.mode === 'single'

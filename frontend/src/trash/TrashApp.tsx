@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
 import { deleteTrashItem, emptyTrash, loadTrash, restoreTrashItem } from './trash-api';
@@ -85,10 +86,10 @@ export function TrashApp() {
   return (
     <>
       <section className="pathbar">
-        <a className="ghost icon-button" href="/admin/dashboard"
+        <Link className="ghost icon-button" to="/admin/dashboard"
           title="Back to dashboard" aria-label="Back to dashboard">
           {icon('fas fa-arrow-left')}
-        </a>
+        </Link>
         <div className="pathbar-title-group">
           <h1>Trash</h1>
           {items.length > 0 && (

@@ -230,28 +230,26 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void fileRequestManagementPageRendersCreationPolicy() throws Exception {
+    void fileRequestManagementUsesSpaShellAndVersionedQueryApi() throws Exception {
         String destination = "request-destination-" + System.nanoTime();
         Files.createDirectories(ROOT.resolve(destination));
 
         mockMvc.perform(get("/admin/file-requests"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("Create Request")))
-                .andExpect(content().string(Matchers.containsString("name=\"uploaderNamePolicy\"")))
-                .andExpect(content().string(Matchers.containsString("name=\"description\"")))
-                .andExpect(content().string(Matchers.containsString("name=\"maxFileSizeGb\"")))
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")))
                 .andExpect(content().string(Matchers.containsString("data-storage-directory-picker")))
-                .andExpect(content().string(Matchers.containsString("/js/file-requests.js")))
-                .andExpect(content().string(Matchers.containsString("/api/v1/file-requests")));
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/file-requests.js"))));
 
-        mockMvc.perform(get("/admin/file-requests").param("destinationPath", destination))
+        mockMvc.perform(get("/api/v1/file-requests").param("destinationPath", destination))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("value=\"" + destination + "\"")));
+                .andExpect(jsonPath("$.defaults.destinationPath").value(destination))
+                .andExpect(jsonPath("$.uploaderNamePolicies").isArray())
+                .andExpect(jsonPath("$.defaults.maxFileSizeGb").isString());
 
     }
 
     @Test
-    void fileRequestDetailRendersImmutablePolicyAndOperationalState() throws Exception {
+    void fileRequestDetailUsesSpaShellAndVersionedQueryApi() throws Exception {
         String token = "detail_request_" + java.util.UUID.randomUUID().toString().replace("-", "_");
         FileRequest request = fileRequestService.create(
                 "Review assets", "Upload final assets only.", "", UploaderNamePolicy.REQUIRED,
@@ -260,16 +258,18 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get("/admin/file-requests/{id}", request.id()))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("Request Policy")))
-                .andExpect(content().string(Matchers.containsString("<dt>Title</dt>")))
-                .andExpect(content().string(Matchers.containsString("<dt>Description</dt>")))
-                .andExpect(content().string(Matchers.containsString("Upload final assets only.")))
-                .andExpect(content().string(Matchers.containsString("Active Uploads")))
-                .andExpect(content().string(Matchers.containsString("Pending Files")))
-                .andExpect(content().string(Matchers.containsString(
-                        "/api/v1/file-requests/" + request.id() + "/revoke"
-                )))
-                .andExpect(content().string(Matchers.containsString("copyFrom=" + request.id())));
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")));
+
+        mockMvc.perform(get("/api/v1/file-requests/{id}", request.id()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.item.id").value(request.id()))
+                .andExpect(jsonPath("$.item.title").value("Review assets"))
+                .andExpect(jsonPath("$.item.description").value("Upload final assets only."))
+                .andExpect(jsonPath("$.item.uploaderNameLabel").value("Required"))
+                .andExpect(jsonPath("$.item.extensionsLabel").value("png"))
+                .andExpect(jsonPath("$.activeUploads").isArray())
+                .andExpect(jsonPath("$.pendingDecisions").isArray())
+                .andExpect(jsonPath("$.activityHistory").isArray());
     }
 
     @Test
@@ -1870,7 +1870,7 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void sharedLinksPageOffersCopyActionsForFileSharesOnly() throws Exception {
+    void sharedLinksUseSpaShellAndVersionedQueryApi() throws Exception {
         String filename = "copy-link-" + System.nanoTime() + ".txt";
         String directory = "copy-link-dir-" + System.nanoTime();
         Files.writeString(ROOT.resolve(filename), "share");
@@ -1880,15 +1880,16 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get("/admin/shares"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("Copy link")))
-                .andExpect(content().string(Matchers.containsString("Copy direct download link")))
-                .andExpect(content().string(Matchers.containsString("/api/v1/shares/revoke")))
-                .andExpect(content().string(Matchers.containsString("/api/v1/shares/delete")))
-                .andExpect(content().string(Matchers.not(Matchers.containsString("/admin/shares/revoke"))))
-                .andExpect(content().string(Matchers.containsString(
-                        "/s/" + fileShare.token() + "/download/" + filename)))
-                .andExpect(content().string(Matchers.not(Matchers.containsString(
-                         "/s/" + directoryShare.token() + "/download/" + directory))));
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")));
+
+        mockMvc.perform(get("/api/v1/shares"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.token == '%s')].path".formatted(fileShare.token()))
+                        .value(Matchers.hasItem(filename)))
+                .andExpect(jsonPath("$[?(@.token == '%s')].directDownloadUrl".formatted(fileShare.token()))
+                        .value(Matchers.hasItem("/s/" + fileShare.token() + "/download/" + filename)))
+                .andExpect(jsonPath("$[?(@.token == '%s')].directDownloadUrl".formatted(directoryShare.token()))
+                        .value(Matchers.hasItem(Matchers.nullValue())));
     }
 
     @Test

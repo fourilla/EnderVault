@@ -9,7 +9,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const navigate = (target) => {
         const primaryLink = primaryLinkFor(target);
         if (primaryLink) {
-            window.location.href = primaryLink.href;
+            window.EnderVault?.navigate?.(primaryLink.href) || window.location.assign(primaryLink.href);
         }
     };
 
