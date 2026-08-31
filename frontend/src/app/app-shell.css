@@ -50,3 +50,21 @@
 .admin-shell-logout button {
   justify-content: flex-start;
 }
+
+.browser-load-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-sm);
+}
+
+.activity-control-indicator {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--panel);
+  border-radius: var(--radius-pill);
+  background: var(--success);
+}

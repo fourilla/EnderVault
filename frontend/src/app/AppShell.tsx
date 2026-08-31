@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, ScrollRestoration, useLocation } from 'react-router-dom';
 import { AdminSidebar } from './AdminSidebar';
 import { AdminTopbar } from './AdminTopbar';
 import { navigationEntries } from './navigation';
@@ -38,6 +38,7 @@ export function AppShell() {
         <main className="workspace">
           <Outlet />
         </main>
+        <ScrollRestoration />
       </div>
     </div>
   );

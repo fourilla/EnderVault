@@ -36,6 +36,19 @@
     const terminalItems = () =>
         Array.from(state.items.values()).filter((item) => terminalStatuses.has(normalizeStatus(item.status)));
 
+    const snapshot = () => ({
+        activeCount: activeItems().length,
+        finishedCount: terminalItems().length,
+        totalCount: state.items.size,
+        minimized: state.minimized
+    });
+
+    const notifyChanged = () => {
+        document.dispatchEvent(new CustomEvent("endervault:activity-changed", {
+            detail: snapshot()
+        }));
+    };
+
     const ensurePanel = () => {
         if (state.panel) {
             state.panel.hidden = false;
@@ -205,6 +218,7 @@
         if (items.length === 0) {
             state.panel.hidden = true;
             updatePanelMetrics(false);
+            notifyChanged();
             return;
         }
 
@@ -226,7 +240,24 @@
             updateRow(item);
         });
         updatePanelMetrics(true);
+        notifyChanged();
     }
+
+    const show = () => {
+        if (state.items.size === 0) {
+            return;
+        }
+        state.minimized = false;
+        render();
+    };
+
+    const toggle = () => {
+        if (state.items.size === 0) {
+            return;
+        }
+        state.minimized = !state.minimized;
+        render();
+    };
 
     const scheduleRemoval = (id, delayMs = 6000) => {
         const item = state.items.get(id);
@@ -262,6 +293,9 @@
         remove,
         scheduleRemoval,
         render,
-        formatBytes
+        formatBytes,
+        snapshot,
+        show,
+        toggle
     };
 })();

@@ -1,5 +1,5 @@
-import { NavLink } from 'react-router-dom';
-import type { NavigationEntry } from './navigation';
+import { Link, NavLink } from 'react-router-dom';
+import { isSpaNavigationUrl, type NavigationEntry } from './navigation';
 
 interface ShellNavigationLinkProps {
   entry: NavigationEntry;
@@ -26,6 +26,10 @@ export function ShellNavigationLink({ entry, className, onNavigate }: ShellNavig
         {content}
       </NavLink>
     );
+  }
+
+  if (isSpaNavigationUrl(entry.path)) {
+    return <Link className={className} onClick={onNavigate} to={entry.path}>{content}</Link>;
   }
 
   return <a className={className} href={entry.path} onClick={onNavigate}>{content}</a>;

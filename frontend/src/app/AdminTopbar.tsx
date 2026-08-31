@@ -1,4 +1,5 @@
 import { navigationEntryAvailable, navigationFor, type NavigationEntry } from './navigation';
+import { ActivityControl } from './ActivityControl';
 import { NotificationCenterControl } from './NotificationCenterControl';
 import { OutboundRouteControl } from './OutboundRouteControl';
 import { RouteActionSlot } from './RouteActions';
@@ -70,6 +71,7 @@ export function AdminTopbar() {
           <NavigationGroups entries={available('apps')} />
         </ShellPopover>
         <NotificationCenterControl />
+        <ActivityControl />
         <OutboundRouteControl />
         <StickyNoteControl />
         <ShellPopover icon="fas fa-circle-user" label="Account">

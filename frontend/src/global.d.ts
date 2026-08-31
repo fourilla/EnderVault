@@ -53,6 +53,14 @@ declare global {
       scheduleRemoval: (id: string, delayMs?: number) => void;
       render: () => void;
       formatBytes: (bytes: number) => string;
+      snapshot: () => {
+        activeCount: number;
+        finishedCount: number;
+        totalCount: number;
+        minimized: boolean;
+      };
+      show: () => void;
+      toggle: () => void;
     };
     EnderVaultResumableUpload?: {
       create: (options: Record<string, unknown>) => EnderVaultUploadHandle;
