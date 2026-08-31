@@ -95,7 +95,3 @@
 .pending-decision-note {
     margin: 0 0 var(--space-xl);
 }
-
-.pending-decisions-table .table-actions form {
-    display: flex;
-}

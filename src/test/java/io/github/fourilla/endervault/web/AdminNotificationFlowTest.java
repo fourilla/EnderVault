@@ -198,8 +198,15 @@ class AdminNotificationFlowTest {
     void pendingDecisionPageAndNotificationApiRender() throws Exception {
         mockMvc.perform(get("/admin/pending-decisions"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("Files Awaiting Review")))
-                .andExpect(content().string(Matchers.containsString("/js/pending-decisions.js")));
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/pending-decisions.js"))));
+
+        mockMvc.perform(get("/api/v1/pending-decisions"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.decisions").isArray())
+                .andExpect(jsonPath("$.decisions[0].stagingFilename").doesNotExist())
+                .andExpect(jsonPath("$.decisions[0].targetSnapshot").doesNotExist());
 
         mockMvc.perform(get("/api/v1/notifications"))
                 .andExpect(status().isOk())

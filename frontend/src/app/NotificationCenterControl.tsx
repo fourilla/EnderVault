@@ -40,10 +40,13 @@ export function NotificationCenterControl() {
     void refresh();
     const interval = window.setInterval(() => void refresh(), 20_000);
     const onFocus = () => void refresh();
+    const onNotificationsChanged = () => void refresh();
     window.addEventListener('focus', onFocus);
+    window.addEventListener('endervault:notifications-changed', onNotificationsChanged);
     return () => {
       window.clearInterval(interval);
       window.removeEventListener('focus', onFocus);
+      window.removeEventListener('endervault:notifications-changed', onNotificationsChanged);
     };
   }, [refresh]);
 

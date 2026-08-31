@@ -145,6 +145,14 @@ export const navigationEntries: readonly NavigationEntry[] = [
     component: lazyNamed(() => import('../activity-logs/ActivityLogsApp'), 'ActivityLogsApp'),
   },
   {
+    id: 'pending-decisions',
+    path: '/admin/pending-decisions',
+    label: 'Pending decisions',
+    icon: 'fas fa-list-check',
+    surface: 'spa',
+    component: lazyNamed(() => import('../pending-decisions/PendingDecisionsApp'), 'PendingDecisionsApp'),
+  },
+  {
     id: 'metadata-inspector',
     path: '/admin/metadata',
     label: 'Metadata inspector',
