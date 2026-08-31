@@ -30,3 +30,11 @@ import 'codemirror/addon/search/search';
 import '../../../src/main/resources/static/js/file-tools.js';
 
 window.CodeMirror = CodeMirror;
+
+export const initializeFileTools = (root: ParentNode = document) => {
+  window.EnderVaultFileTools?.init(root);
+};
+
+export const destroyFileTools = (root: ParentNode = document) => {
+  window.EnderVaultFileTools?.destroy(root);
+};

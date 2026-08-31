@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { BrowserBreadcrumbs } from './BrowserBreadcrumbs';
 import { icon } from '../shared/browser/BrowserEntries';
 import { BrowserListing } from './BrowserListing';
@@ -14,6 +15,8 @@ import { useAdminUploadDropzone } from './useAdminUploadDropzone';
 import './files-app.css';
 
 export function BrowserApp() {
+  const routeNavigate = useNavigate();
+  const openFile = useCallback((detailUrl: string) => routeNavigate(detailUrl), [routeNavigate]);
   const adminApp = useAdminApp();
   const uploadManager = useUploadManager();
   const navigation = useBrowserNavigation();
@@ -40,6 +43,7 @@ export function BrowserApp() {
     Boolean(payload),
     browse,
     [state.mode, state.path, state.query, state.page].join('\u0000'),
+    openFile,
   );
   const actions = useFileActions({
     selectedEntries: selection.selectedEntries,
@@ -64,6 +68,7 @@ export function BrowserApp() {
     transferBufferRef: actions.transferBufferRef,
     setSelected: selection.setSelected,
     browse,
+    openFile,
     actions,
     fileRequestsEnabled: adminApp.bootstrap.capabilities.fileRequests,
   });

@@ -1,5 +1,12 @@
-document.addEventListener("DOMContentLoaded", () => {
-    document.querySelectorAll("[data-image-viewer]").forEach((root) => {
+const initializeImageViewers = (scope = document) => {
+    const roots = scope.matches?.("[data-image-viewer]")
+        ? [scope]
+        : scope.querySelectorAll("[data-image-viewer]");
+    roots.forEach((root) => {
+        if (root.dataset.imageViewerBound === "true") {
+            return;
+        }
+        root.dataset.imageViewerBound = "true";
         const source = root.querySelector("[data-image-viewer-source]");
         const dimensions = root.querySelector("[data-image-dimensions]");
         const zoomStatus = root.querySelector("[data-image-zoom]");
@@ -146,10 +153,34 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         }
 
-        document.addEventListener("keydown", (event) => {
+        const handleKeydown = (event) => {
             if (event.key === "Escape" && root.classList.contains("is-image-fullscreen")) {
                 setFullscreen(false);
             }
-        });
+        };
+        document.addEventListener("keydown", handleKeydown);
+        root._endervaultImageViewerCleanup = () => {
+            document.removeEventListener("keydown", handleKeydown);
+            viewer?.destroy?.();
+            document.body.classList.remove("is-image-viewer-fullscreen");
+            delete root.dataset.imageViewerBound;
+        };
     });
-});
+};
+
+const destroyImageViewers = (scope = document) => {
+    const roots = scope.matches?.("[data-image-viewer]")
+        ? [scope]
+        : scope.querySelectorAll("[data-image-viewer]");
+    roots.forEach((root) => {
+        root._endervaultImageViewerCleanup?.();
+        delete root._endervaultImageViewerCleanup;
+    });
+};
+
+window.EnderVaultImageViewers = {
+    init: initializeImageViewers,
+    destroy: destroyImageViewers
+};
+
+document.addEventListener("DOMContentLoaded", () => initializeImageViewers());

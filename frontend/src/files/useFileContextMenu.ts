@@ -23,6 +23,7 @@ export function useFileContextMenu({
   transferBufferRef,
   setSelected,
   browse,
+  openFile,
   actions,
   fileRequestsEnabled,
 }: {
@@ -32,6 +33,7 @@ export function useFileContextMenu({
   transferBufferRef: React.RefObject<TransferBufferPayload | null>;
   setSelected: React.Dispatch<React.SetStateAction<Set<string>>>;
   browse: (path: string) => void;
+  openFile: (detailUrl: string) => void;
   actions: FileBrowserActions;
   fileRequestsEnabled: boolean;
 }) {
@@ -62,7 +64,7 @@ export function useFileContextMenu({
     const handlers = () => actionsRef.current;
     const open = (entry: BrowserEntry) => {
       if (entry.type === 'directory') browse(entry.path);
-      else window.location.assign(entry.detailUrl);
+      else openFile(entry.detailUrl);
     };
 
     registerAction({ id: 'open', group: 'primary', label: (context: MenuContext) =>
@@ -189,5 +191,5 @@ export function useFileContextMenu({
       menu?.close();
       delete window.EnderVaultContextMenu;
     };
-  }, [browse, fileRequestsEnabled, payloadRef, selectedRef, setSelected, stateRef, transferBufferRef]);
+  }, [browse, fileRequestsEnabled, openFile, payloadRef, selectedRef, setSelected, stateRef, transferBufferRef]);
 }

@@ -34,7 +34,7 @@ public record TransferBufferActionResponse(
             int count,
             List<TransferBufferItemPayload> items
     ) {
-        static TransferBufferPayload from(TransferBuffer buffer) {
+        public static TransferBufferPayload from(TransferBuffer buffer) {
             return new TransferBufferPayload(
                     buffer.active(),
                     buffer.count(),
@@ -46,7 +46,7 @@ public record TransferBufferActionResponse(
     }
 
     public record TransferBufferItemPayload(String path, String name, String iconClass) {
-        static TransferBufferItemPayload from(TransferBufferItem item) {
+        public static TransferBufferItemPayload from(TransferBufferItem item) {
             return new TransferBufferItemPayload(item.path(), item.name(), item.iconClass());
         }
     }

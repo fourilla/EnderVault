@@ -13,7 +13,10 @@ export function AppShell() {
     document.title = entry ? `EnderVault ${entry.label}` : 'EnderVault';
     const frame = window.requestAnimationFrame(() => {
       document.dispatchEvent(new CustomEvent('endervault:spa-shell-ready'));
-      if (entry?.surface === 'spa' && entry.id !== 'files' && entry.id !== 'bookmarks') {
+      if (entry?.surface === 'spa'
+          && entry.id !== 'files'
+          && entry.id !== 'file-detail'
+          && entry.id !== 'bookmarks') {
         document.dispatchEvent(new CustomEvent('endervault:sticky-context-changed', {
           detail: {
             targetType: 'PAGE',

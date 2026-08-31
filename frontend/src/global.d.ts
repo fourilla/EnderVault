@@ -14,6 +14,18 @@ declare global {
     MathJax?: any;
     EnderVaultMarkdownMermaidLoader?: () => Promise<any>;
     EnderVaultMarkdownMathLoader?: () => Promise<any>;
+    EnderVaultMarkdown?: {
+      renderInto: (target: Element, source: string, sourcePath?: string) => Promise<void>;
+    };
+    EnderVaultFileTools?: {
+      init: (root?: ParentNode) => void;
+      destroy: (root?: ParentNode) => void;
+    };
+    Viewer?: new (image: HTMLImageElement, options: Record<string, unknown>) => any;
+    EnderVaultImageViewers?: {
+      init: (root?: ParentNode) => void;
+      destroy: (root?: ParentNode) => void;
+    };
     EnderVault?: {
       requestJson: (url: string, options?: RequestInit) => Promise<any>;
       requestJsonResolvingConflicts: (url: string, options?: RequestInit) => Promise<any>;

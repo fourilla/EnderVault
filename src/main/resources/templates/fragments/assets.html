@@ -76,18 +76,6 @@
     <script defer th:src="@{/js/metadata.js}"></script>
 </th:block>
 
-<th:block th:fragment="fileToolbarScript">
-    <script defer th:src="@{/js/file-browser-refresh.js}"></script>
-    <script defer th:src="@{/webjars/tus-js-client/4.3.1/dist/tus.min.js}"></script>
-    <script defer th:src="@{/js/resumable-upload-client.js}"></script>
-    <script defer th:src="@{/js/file-uploads.js}"></script>
-    <script defer th:src="@{/js/file-selection.js}"></script>
-    <script defer th:src="@{/js/file-actions.js}"></script>
-    <script defer th:src="@{/js/file-transfer-buffer.js}"></script>
-    <script defer th:src="@{/js/archive-create.js}"></script>
-    <script defer th:src="@{/js/file-context-menu.js}"></script>
-</th:block>
-
 <th:block th:fragment="resumableUploadScript">
     <script defer th:src="@{/webjars/tus-js-client/4.3.1/dist/tus.min.js}"></script>
     <script defer th:src="@{/js/resumable-upload-client.js}"></script>
@@ -95,10 +83,6 @@
 
 <th:block th:fragment="selectionScript">
     <script defer th:src="@{/js/file-selection.js}"></script>
-</th:block>
-
-<th:block th:fragment="transferBufferScript">
-    <script defer th:src="@{/js/file-transfer-buffer.js}"></script>
 </th:block>
 
 <th:block th:fragment="markdownRendererScript">
@@ -109,22 +93,6 @@
 <th:block th:fragment="fileToolsScript">
     <th:block th:if="${fileToolsFrontend.available()}"
               th:replace="~{fragments/assets :: viteEntry(${fileToolsFrontend})}"></th:block>
-</th:block>
-
-<th:block th:fragment="imageViewerScript">
-    <link rel="stylesheet" th:href="@{/webjars/viewerjs/1.11.7/dist/viewer.min.css}">
-    <script defer th:src="@{/webjars/viewerjs/1.11.7/dist/viewer.min.js}"></script>
-    <script defer th:src="@{/js/image-viewer.js}"></script>
-</th:block>
-
-<th:block th:fragment="comicViewerScript">
-    <script defer th:src="@{/js/comic-viewer.js}"></script>
-</th:block>
-
-<th:block th:fragment="archiveToolScript">
-    <script defer th:src="@{/js/directory-tree.js}"></script>
-    <script defer th:src="@{/js/directory-picker.js}"></script>
-    <script defer th:src="@{/js/archive-tool.js}"></script>
 </th:block>
 
 <th:block th:fragment="remoteDownloadScript">

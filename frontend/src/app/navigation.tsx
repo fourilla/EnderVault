@@ -50,6 +50,14 @@ export const navigationEntries: readonly NavigationEntry[] = [
     component: lazyNamed(() => import('../files/BrowserApp'), 'BrowserApp'),
   },
   {
+    id: 'file-detail',
+    path: '/files/detail',
+    label: 'File details',
+    icon: 'fas fa-circle-info',
+    surface: 'spa',
+    component: lazyNamed(() => import('../file-detail/FileDetailApp'), 'FileDetailApp'),
+  },
+  {
     id: 'recent',
     path: '/files/recent',
     label: 'Recent',
@@ -204,4 +212,14 @@ export function navigationEntryAvailable(
 
 export function spaRoutes(): SpaNavigationEntry[] {
   return navigationEntries.filter((entry): entry is SpaNavigationEntry => entry.surface === 'spa');
+}
+
+export function isSpaNavigationUrl(url: string): boolean {
+  try {
+    const target = new URL(url, window.location.origin);
+    return target.origin === window.location.origin
+      && spaRoutes().some((entry) => entry.path === target.pathname);
+  } catch {
+    return false;
+  }
 }

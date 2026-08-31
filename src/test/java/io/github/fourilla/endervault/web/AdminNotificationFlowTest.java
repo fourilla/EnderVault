@@ -1659,8 +1659,9 @@ class AdminNotificationFlowTest {
         String filename = "recent-ui-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "recent");
 
-        mockMvc.perform(get("/files/detail").param("path", filename))
-                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/fs/detail").param("path", filename))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.detail.path").value(filename));
 
         mockMvc.perform(get("/api/v1/recent").param("q", "recent-ui"))
                 .andExpect(status().isOk())
@@ -1981,16 +1982,12 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get("/files/detail").param("path", filename))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("data-image-viewer")))
-                .andExpect(content().string(Matchers.containsString("data-image-viewer-source")))
-                .andExpect(content().string(Matchers.containsString("data-image-action=\"zoom-in\"")))
-                .andExpect(content().string(Matchers.containsString(
-                        "/webjars/viewerjs/1.11.7/dist/viewer.min.css"
-                )))
-                .andExpect(content().string(Matchers.containsString(
-                        "/webjars/viewerjs/1.11.7/dist/viewer.min.js"
-                )))
-                .andExpect(content().string(Matchers.containsString("/js/image-viewer.js")));
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")));
+
+        mockMvc.perform(get("/api/v1/fs/detail").param("path", filename))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tool.type").value("image"))
+                .andExpect(jsonPath("$.urls.previewContent", Matchers.containsString("/files/preview")));
     }
 
     @Test
@@ -1999,12 +1996,10 @@ class AdminNotificationFlowTest {
         Files.write(ROOT.resolve(filename), new byte[] {0x49, 0x44, 0x33, 0x04});
         ShareLink shareLink = shareLinkService.create("", filename, null);
 
-        mockMvc.perform(get("/files/detail").param("path", filename))
+        mockMvc.perform(get("/api/v1/fs/detail").param("path", filename))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("Audio Player")))
-                .andExpect(content().string(Matchers.containsString("class=\"audio-tool-player\"")))
-                .andExpect(content().string(Matchers.containsString("preload=\"metadata\"")))
-                .andExpect(content().string(Matchers.containsString("/files/preview?item=")));
+                .andExpect(jsonPath("$.tool.type").value("audio"))
+                .andExpect(jsonPath("$.urls.previewContent", Matchers.containsString("/files/preview?item=")));
 
         mockMvc.perform(get("/s/{token}", shareLink.token()))
                 .andExpect(status().isOk())
@@ -2086,13 +2081,11 @@ class AdminNotificationFlowTest {
         String filename = "text-editor-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "before", StandardCharsets.UTF_8);
 
-        mockMvc.perform(get("/files/detail").param("path", filename))
+        mockMvc.perform(get("/api/v1/fs/detail").param("path", filename))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("File Tools")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Text Editor")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"content\"")))
-                .andExpect(content().string(Matchers.containsString("action=\"/api/v1/files/text/save\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("before")));
+                .andExpect(jsonPath("$.tool.type").value("text"))
+                .andExpect(jsonPath("$.text.loaded").value(true))
+                .andExpect(jsonPath("$.text.content").value("before"));
 
         mockMvc.perform(post("/api/v1/files/text/save")
                         .with(csrf())
@@ -2112,11 +2105,11 @@ class AdminNotificationFlowTest {
         String largeContent = "large-text-" + "x".repeat(1024 * 1024);
         Files.writeString(ROOT.resolve(filename), largeContent, StandardCharsets.UTF_8);
 
-        mockMvc.perform(get("/files/detail").param("path", filename))
+        mockMvc.perform(get("/api/v1/fs/detail").param("path", filename))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("Load text")))
-                .andExpect(content().string(Matchers.containsString("Download original")))
-                .andExpect(content().string(Matchers.not(Matchers.containsString("name=\"content\""))));
+                .andExpect(jsonPath("$.tool.type").value("text"))
+                .andExpect(jsonPath("$.text.loaded").value(false))
+                .andExpect(jsonPath("$.text.manualLoadAvailable").value(true));
 
         mockMvc.perform(get("/api/v1/files/text/load")
                         .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
@@ -2150,12 +2143,11 @@ class AdminNotificationFlowTest {
         String filename = "comic-detail-" + System.nanoTime() + ".cbz";
         writeComicStub(ROOT.resolve(filename));
 
-        mockMvc.perform(get("/files/detail").param("path", filename))
+        mockMvc.perform(get("/api/v1/fs/detail").param("path", filename))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("data-comic-page-url")))
-                .andExpect(content().string(Matchers.containsString("/js/comic-viewer.js")))
-                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/file-tools.js"))))
-                .andExpect(content().string(Matchers.not(Matchers.containsString("/webjars/codemirror/"))));
+                .andExpect(jsonPath("$.tool.type").value("comic"))
+                .andExpect(jsonPath("$.comic.manifest.pageCount").value(1))
+                .andExpect(jsonPath("$.comic.pageUrl", Matchers.containsString("/files/detail/comic/page")));
     }
 
     @Test
@@ -2309,15 +2301,12 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get("/files/detail").param("path", filename))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Add to transfer buffer")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Move to trash")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/file-transfer-buffer.js")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(
-                        "/api/v1/files/transfer-buffer/detail")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Danger zone"))))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("name=\"targetPath\""))));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"admin-app-root\"")));
+
+        mockMvc.perform(get("/api/v1/fs/detail").param("path", filename))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.detail.path").value(filename))
+                .andExpect(jsonPath("$.transferBuffer.active").value(false));
     }
 
     @Test
@@ -2335,14 +2324,13 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.transferBuffer.active").value(true));
 
-        mockMvc.perform(get("/files/detail")
+        mockMvc.perform(get("/api/v1/fs/detail")
                         .session(session)
                         .param("path", filename))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Transfer buffer")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(filename)))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Move here"))));
+                .andExpect(jsonPath("$.transferBuffer.active").value(true))
+                .andExpect(jsonPath("$.transferBuffer.items[0].name").value(filename))
+                .andExpect(jsonPath("$.detail.directory").value(false));
 
         mockMvc.perform(post("/api/v1/files/transfer-buffer/paste")
                         .session(session)
@@ -2373,13 +2361,12 @@ class AdminNotificationFlowTest {
                         .param("path", filename))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/files/detail")
+        mockMvc.perform(get("/api/v1/fs/detail")
                         .session(session)
                         .param("path", target))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Transfer buffer")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Move here")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Copy here")));
+                .andExpect(jsonPath("$.transferBuffer.active").value(true))
+                .andExpect(jsonPath("$.detail.directory").value(true));
     }
 
     private static Path createTempRoot() {
