@@ -9,12 +9,18 @@
         return contentType.includes("application/json") ? response.json() : null;
     };
 
-    const requestJson = async (url, { method = "GET", body = null, headers = {} } = {}) => {
+    const requestJson = async (url, {
+        method = "GET",
+        body = null,
+        headers = {},
+        signal
+    } = {}) => {
         const response = await fetch(url, {
             method,
             body,
             headers: { ...jsonHeaders, ...headers },
-            credentials: "same-origin"
+            credentials: "same-origin",
+            signal
         });
         const payload = await parseJsonBody(response);
         const redirectedToLogin = response.redirected

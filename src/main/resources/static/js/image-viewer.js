@@ -6,7 +6,6 @@ const initializeImageViewers = (scope = document) => {
         if (root.dataset.imageViewerBound === "true") {
             return;
         }
-        root.dataset.imageViewerBound = "true";
         const source = root.querySelector("[data-image-viewer-source]");
         const dimensions = root.querySelector("[data-image-dimensions]");
         const zoomStatus = root.querySelector("[data-image-zoom]");
@@ -15,10 +14,12 @@ const initializeImageViewers = (scope = document) => {
         if (!source || !dimensions || !zoomStatus) {
             return;
         }
+        root.dataset.imageViewerBound = "true";
 
         let viewer;
         let flippedHorizontally = false;
         let flippedVertically = false;
+        let fullscreen = false;
         const fullscreenButton = root.querySelector("[data-image-action='fullscreen']");
 
         const setButtonsEnabled = (enabled) => {
@@ -49,6 +50,60 @@ const initializeImageViewers = (scope = document) => {
             setButtonsEnabled(false);
         };
 
+        const handleReady = () => {
+            root.classList.add("is-viewer-ready");
+            setButtonsEnabled(true);
+            updateDimensions();
+        };
+
+        const handleViewed = (event) => {
+            updateZoom(event.detail?.image?.ratio ?? viewer?.imageData?.ratio);
+        };
+
+        const handleZoom = (event) => {
+            updateZoom(event.detail?.ratio);
+        };
+
+        const setFullscreen = (enabled) => {
+            fullscreen = enabled;
+            root.classList.toggle("is-image-fullscreen", enabled);
+            document.body.classList.toggle("is-image-viewer-fullscreen", enabled);
+            if (fullscreenButton) {
+                fullscreenButton.classList.toggle("is-active", enabled);
+                fullscreenButton.setAttribute("aria-pressed", enabled ? "true" : "false");
+                fullscreenButton.title = enabled ? "Exit fullscreen viewer" : "Open fullscreen viewer";
+                fullscreenButton.setAttribute("aria-label", fullscreenButton.title);
+                fullscreenButton.innerHTML = enabled
+                    ? '<i class="fas fa-compress" aria-hidden="true"></i>'
+                    : '<i class="fas fa-expand" aria-hidden="true"></i>';
+            }
+            window.setTimeout(() => window.dispatchEvent(new Event("resize")), 0);
+        };
+
+        const handleKeydown = (event) => {
+            if (event.key === "Escape" && fullscreen) {
+                setFullscreen(false);
+            }
+        };
+
+        const buttonHandlers = new Map();
+        const cleanup = () => {
+            source.removeEventListener("load", updateDimensions);
+            source.removeEventListener("error", handleLoadFailure);
+            source.removeEventListener("ready", handleReady);
+            source.removeEventListener("viewed", handleViewed);
+            source.removeEventListener("zoom", handleZoom);
+            buttonHandlers.forEach((handler, button) => button.removeEventListener("click", handler));
+            document.removeEventListener("keydown", handleKeydown);
+            if (fullscreen) {
+                setFullscreen(false);
+            }
+            viewer?.destroy?.();
+            root.classList.remove("is-viewer-ready", "is-load-failed");
+            delete root.dataset.imageViewerBound;
+        };
+        root._endervaultImageViewerCleanup = cleanup;
+
         source.addEventListener("load", updateDimensions);
         source.addEventListener("error", handleLoadFailure);
 
@@ -58,19 +113,9 @@ const initializeImageViewers = (scope = document) => {
             return;
         }
 
-        source.addEventListener("ready", () => {
-            root.classList.add("is-viewer-ready");
-            setButtonsEnabled(true);
-            updateDimensions();
-        });
-
-        source.addEventListener("viewed", (event) => {
-            updateZoom(event.detail?.image?.ratio ?? viewer?.imageData?.ratio);
-        });
-
-        source.addEventListener("zoom", (event) => {
-            updateZoom(event.detail?.ratio);
-        });
+        source.addEventListener("ready", handleReady);
+        source.addEventListener("viewed", handleViewed);
+        source.addEventListener("zoom", handleZoom);
 
         try {
             viewer = new window.Viewer(source, {
@@ -100,21 +145,6 @@ const initializeImageViewers = (scope = document) => {
             return;
         }
 
-        const setFullscreen = (enabled) => {
-            root.classList.toggle("is-image-fullscreen", enabled);
-            document.body.classList.toggle("is-image-viewer-fullscreen", enabled);
-            if (fullscreenButton) {
-                fullscreenButton.classList.toggle("is-active", enabled);
-                fullscreenButton.setAttribute("aria-pressed", enabled ? "true" : "false");
-                fullscreenButton.title = enabled ? "Exit fullscreen viewer" : "Open fullscreen viewer";
-                fullscreenButton.setAttribute("aria-label", fullscreenButton.title);
-                fullscreenButton.innerHTML = enabled
-                    ? '<i class="fas fa-compress" aria-hidden="true"></i>'
-                    : '<i class="fas fa-expand" aria-hidden="true"></i>';
-            }
-            window.setTimeout(() => window.dispatchEvent(new Event("resize")), 0);
-        };
-
         const reset = () => {
             flippedHorizontally = false;
             flippedVertically = false;
@@ -140,9 +170,11 @@ const initializeImageViewers = (scope = document) => {
         };
 
         buttons.forEach((button) => {
-            button.addEventListener("click", () => {
+            const handler = () => {
                 actions[button.dataset.imageAction]?.();
-            });
+            };
+            buttonHandlers.set(button, handler);
+            button.addEventListener("click", handler);
         });
 
         if (source.complete) {
@@ -153,18 +185,7 @@ const initializeImageViewers = (scope = document) => {
             }
         }
 
-        const handleKeydown = (event) => {
-            if (event.key === "Escape" && root.classList.contains("is-image-fullscreen")) {
-                setFullscreen(false);
-            }
-        };
         document.addEventListener("keydown", handleKeydown);
-        root._endervaultImageViewerCleanup = () => {
-            document.removeEventListener("keydown", handleKeydown);
-            viewer?.destroy?.();
-            document.body.classList.remove("is-image-viewer-fullscreen");
-            delete root.dataset.imageViewerBound;
-        };
     });
 };
 
