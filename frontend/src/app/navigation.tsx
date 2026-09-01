@@ -21,11 +21,11 @@ export interface SpaNavigationEntry extends NavigationEntryBase {
   component: LazyExoticComponent<ComponentType>;
 }
 
-export interface DocumentNavigationEntry extends NavigationEntryBase {
-  surface: 'document';
+export interface SpaAliasNavigationEntry extends NavigationEntryBase {
+  surface: 'spa-alias';
 }
 
-export type NavigationEntry = SpaNavigationEntry | DocumentNavigationEntry;
+export type NavigationEntry = SpaNavigationEntry | SpaAliasNavigationEntry;
 
 const lazyNamed = <TModule, TName extends keyof TModule>(
   loader: () => Promise<TModule>,
@@ -209,7 +209,7 @@ export const navigationEntries: readonly NavigationEntry[] = [
     icon: 'fas fa-user-gear',
     placement: 'account',
     group: 'account',
-    surface: 'document',
+    surface: 'spa-alias',
   },
   {
     id: 'passkeys',
@@ -218,7 +218,7 @@ export const navigationEntries: readonly NavigationEntry[] = [
     icon: 'fas fa-key',
     placement: 'account',
     group: 'account',
-    surface: 'document',
+    surface: 'spa-alias',
   },
   {
     id: 'active-sessions',
