@@ -1614,6 +1614,21 @@ class AdminNotificationFlowTest {
                 .andExpect(jsonPath("$.directories[0].link").doesNotExist())
                 .andExpect(jsonPath("$.links").isEmpty());
 
+        mockMvc.perform(get("/files/bookmarks/detail").param("id", created.id()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/admin-actions.js"))));
+
+        mockMvc.perform(get("/api/v1/bookmarks/{id}", created.id()))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.id").value(created.id()))
+                .andExpect(jsonPath("$.type").value("directory"))
+                .andExpect(jsonPath("$.title").value(title))
+                .andExpect(jsonPath("$.parentUrl").value("/files/bookmarks"))
+                .andExpect(jsonPath("$.directoryUrl").value(
+                        "/files/bookmarks?directory=" + created.id()));
+
         mockMvc.perform(post("/api/v1/bookmarks/delete")
                         .with(csrf())
                         .param("id", created.id()))

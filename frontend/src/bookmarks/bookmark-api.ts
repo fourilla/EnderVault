@@ -1,4 +1,4 @@
-import type { BookmarkHistoryState, BookmarkPayload } from './types';
+import type { BookmarkDetailPayload, BookmarkHistoryState, BookmarkPayload } from './types';
 
 export const loadBookmarks = async (state: BookmarkHistoryState, signal: AbortSignal) => {
   const query = new URLSearchParams();
@@ -12,4 +12,12 @@ export const loadBookmarks = async (state: BookmarkHistoryState, signal: AbortSi
   const body = await response.json() as BookmarkPayload & { message?: string };
   if (!response.ok) throw new Error(body.message || 'Bookmarks could not be loaded.');
   return body;
+};
+
+export const loadBookmarkDetail = async (id: string, signal?: AbortSignal) => {
+  if (!window.EnderVault) throw new Error('EnderVault client services are unavailable.');
+  return window.EnderVault.requestJson(
+    `/api/v1/bookmarks/${encodeURIComponent(id)}`,
+    { signal },
+  ) as Promise<BookmarkDetailPayload>;
 };

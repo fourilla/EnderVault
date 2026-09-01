@@ -78,6 +78,14 @@ export const navigationEntries: readonly NavigationEntry[] = [
     component: lazyNamed(() => import('../bookmarks/BookmarksApp'), 'BookmarksApp'),
   },
   {
+    id: 'bookmark-detail',
+    path: '/files/bookmarks/detail',
+    label: 'Bookmark details',
+    icon: 'fas fa-circle-info',
+    surface: 'spa',
+    component: lazyNamed(() => import('../bookmarks/BookmarkDetailApp'), 'BookmarkDetailApp'),
+  },
+  {
     id: 'trash',
     path: '/admin/trash',
     label: 'Trash',

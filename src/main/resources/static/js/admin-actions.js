@@ -73,7 +73,6 @@ document.addEventListener("DOMContentLoaded", () => {
             "detail-hidden",
             "detail-delete",
             "recent-clear",
-            "bookmark-detail-mutation",
             "view-preferences-reset"
         ].includes(action)
                 && navigateWithNotification(body)) {

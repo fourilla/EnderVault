@@ -18,7 +18,8 @@ export function AppShell() {
       if (entry?.surface === 'spa'
           && entry.id !== 'files'
           && entry.id !== 'file-detail'
-          && entry.id !== 'bookmarks') {
+          && entry.id !== 'bookmarks'
+          && entry.id !== 'bookmark-detail') {
         document.dispatchEvent(new CustomEvent('endervault:sticky-context-changed', {
           detail: {
             targetType: 'PAGE',
