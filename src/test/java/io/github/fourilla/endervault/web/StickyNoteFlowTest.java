@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.web;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -55,14 +56,9 @@ class StickyNoteFlowTest {
         mockMvc.perform(get("/files"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("endervault-sticky-target-type")))
-                .andExpect(content().string(containsString("data-sticky-note-controls")))
-                .andExpect(content().string(containsString("data-sticky-note-visibility")))
-                .andExpect(content().string(containsString("data-sticky-note-add")))
-                .andExpect(content().string(containsString("/admin/settings?section=appearance#sticky-note-theme")))
-                .andExpect(content().string(containsString("Note appearance")))
-                .andExpect(content().string(containsString("href=\"/admin/sticky-notes\"")))
-                .andExpect(content().string(containsString("Note list")))
-                .andExpect(content().string(not(containsString("data-sticky-note-collapse-all"))))
+                .andExpect(content().string(containsString("endervault-sticky-target-key")))
+                .andExpect(content().string(containsString("endervault-sticky-surface")))
+                .andExpect(content().string(containsString("id=\"admin-app-root\"")))
                 .andExpect(content().string(containsString("/react/assets/shell-")))
                 .andExpect(content().string(not(containsString("/js/topbar-controls.js"))))
                 .andExpect(content().string(not(containsString("/js/sticky-notes.js"))))
@@ -131,11 +127,15 @@ class StickyNoteFlowTest {
 
         mockMvc.perform(get("/admin/sticky-notes"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("MockMvc sticky note")))
-                .andExpect(content().string(containsString("class=\"search-form\"")))
-                .andExpect(content().string(containsString("class=\"button-link ghost icon-button action-icon\"")))
-                .andExpect(content().string(containsString("data-sticky-note-manager-delete=\"" + id + "\"")))
-                .andExpect(content().string(containsString(updatedLabel)));
+                .andExpect(content().string(containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(not(containsString("data-sticky-note-manager-delete"))));
+
+        mockMvc.perform(get("/api/v1/sticky-notes/catalog"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.notes[*].id", hasItem(id)))
+                .andExpect(jsonPath("$.notes[*].content", hasItem("MockMvc sticky note")))
+                .andExpect(jsonPath("$.notes[*].updatedLabel", hasItem(updatedLabel)))
+                .andExpect(jsonPath("$.notes[0].context.targetKey").doesNotExist());
 
         mockMvc.perform(delete("/api/v1/sticky-notes/{id}", id)
                         .with(csrf())

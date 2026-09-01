@@ -1,24 +1,3 @@
-.page-heading-row {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: var(--space-3xl);
-}
-
-.page-heading-row h1,
-.page-heading-row p {
-    margin: 0;
-}
-
-.page-heading-row p {
-    margin-top: var(--space-xs);
-    color: var(--muted);
-}
-
-.page-heading-row > .ghost {
-    background: transparent;
-}
-
 .vpn-public-ip {
     overflow-wrap: anywhere;
 }
@@ -133,15 +112,6 @@
 }
 
 @media (max-width: 600px) {
-    .page-heading-row {
-        align-items: stretch;
-        flex-direction: column;
-    }
-
-    .page-heading-row > a {
-        align-self: flex-start;
-    }
-
     .vpn-detail-list > div {
         grid-template-columns: 1fr;
         gap: var(--space-xs);

@@ -113,61 +113,71 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void filesPageRendersToastRegion() throws Exception {
+    void filesPageRendersAuthenticatedAppRootAndRuntime() throws Exception {
         mockMvc.perform(get("/files"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"_csrf\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"_csrf_header\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"files-root\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/files-")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/file-uploads.js")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/adminApp-")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/webjars/tus-js-client/")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/resumable-upload-client.js")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("/js/file-uploads.js"))))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"toastRegion\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-notification-center")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/styles-")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/shell-")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("/js/notification-center.js"))))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(
-                        "data-file-requests-enabled=\"true\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-outbound-route-form")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(
-                        "action=\"/api/v1/outbound-route\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-read-only-link")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Open read-only mode")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Recent")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Favorites")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Trash"))))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Shared links"))))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Remote download"))));
+                        org.hamcrest.Matchers.containsString("/js/notification-center.js"))));
     }
 
     @Test
-    void pagesWithCommonAjaxActionsLoadTheirFormBinder() throws Exception {
+    void authenticatedAppBootstrapExposesShellStateWithoutSecrets() throws Exception {
+        mockMvc.perform(get("/api/v1/app/bootstrap"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.username").value("user"))
+                .andExpect(jsonPath("$.capabilities.remoteDownloads").isBoolean())
+                .andExpect(jsonPath("$.capabilities.fileRequests").isBoolean())
+                .andExpect(jsonPath("$.capabilities.vpn").isBoolean())
+                .andExpect(jsonPath("$.capabilities.metadataInspector").isBoolean())
+                .andExpect(jsonPath("$.storage.usedBytes").isNumber())
+                .andExpect(jsonPath("$.storage.totalLabel").isString())
+                .andExpect(jsonPath("$.favorites").isArray())
+                .andExpect(jsonPath("$.tasks.activityPanelEnabled").isBoolean())
+                .andExpect(jsonPath("$.uploads.maxConcurrentUploads").isNumber())
+                .andExpect(jsonPath("$.sessions.activeCount").isNumber())
+                .andExpect(jsonPath("$.outboundRoute.route").isString())
+                .andExpect(jsonPath("$.stickyNoteTheme.backgroundColor").value("#1B3033"))
+                .andExpect(jsonPath("$.botToken").doesNotExist())
+                .andExpect(jsonPath("$.password").doesNotExist());
+    }
+
+    @Test
+    void pagesLoadTheirOwningFrontendInsteadOfLegacyAdminActions() throws Exception {
         mockMvc.perform(get("/files/read-only"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("/js/admin-actions.js")));
+                .andExpect(content().string(Matchers.containsString("/js/read-only.js")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/admin-actions.js"))));
 
         mockMvc.perform(get("/files"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("/react/assets/files-")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/adminApp-")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("/js/admin-actions.js"))));
 
         mockMvc.perform(get("/files/recent"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("/react/assets/recent-")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/adminApp-")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("/js/admin-actions.js"))));
 
         mockMvc.perform(get("/admin/trash"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("/react/assets/trash-")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/adminApp-")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("/js/admin-actions.js"))));
 
         mockMvc.perform(get("/admin/logs"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("/react/assets/activityLogs-")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/adminApp-")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("/js/admin-actions.js"))));
     }
 
@@ -189,8 +199,15 @@ class AdminNotificationFlowTest {
     void pendingDecisionPageAndNotificationApiRender() throws Exception {
         mockMvc.perform(get("/admin/pending-decisions"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("Files Awaiting Review")))
-                .andExpect(content().string(Matchers.containsString("/js/pending-decisions.js")));
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/pending-decisions.js"))));
+
+        mockMvc.perform(get("/api/v1/pending-decisions"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.decisions").isArray())
+                .andExpect(jsonPath("$.decisions[0].stagingFilename").doesNotExist())
+                .andExpect(jsonPath("$.decisions[0].targetSnapshot").doesNotExist());
 
         mockMvc.perform(get("/api/v1/notifications"))
                 .andExpect(status().isOk())
@@ -221,32 +238,26 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void fileRequestManagementPageRendersCreationPolicy() throws Exception {
+    void fileRequestManagementUsesSpaShellAndVersionedQueryApi() throws Exception {
         String destination = "request-destination-" + System.nanoTime();
         Files.createDirectories(ROOT.resolve(destination));
 
         mockMvc.perform(get("/admin/file-requests"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("Create Request")))
-                .andExpect(content().string(Matchers.containsString("name=\"uploaderNamePolicy\"")))
-                .andExpect(content().string(Matchers.containsString("name=\"description\"")))
-                .andExpect(content().string(Matchers.containsString("name=\"maxFileSizeGb\"")))
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")))
                 .andExpect(content().string(Matchers.containsString("data-storage-directory-picker")))
-                .andExpect(content().string(Matchers.containsString("/js/file-requests.js")))
-                .andExpect(content().string(Matchers.containsString("/api/v1/file-requests")));
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/file-requests.js"))));
 
-        mockMvc.perform(get("/admin/file-requests").param("destinationPath", destination))
+        mockMvc.perform(get("/api/v1/file-requests").param("destinationPath", destination))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("value=\"" + destination + "\"")));
+                .andExpect(jsonPath("$.defaults.destinationPath").value(destination))
+                .andExpect(jsonPath("$.uploaderNamePolicies").isArray())
+                .andExpect(jsonPath("$.defaults.maxFileSizeGb").isString());
 
-        mockMvc.perform(get("/admin/dashboard"))
-                .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("/admin/file-requests")))
-                .andExpect(content().string(Matchers.containsString("File requests")));
     }
 
     @Test
-    void fileRequestDetailRendersImmutablePolicyAndOperationalState() throws Exception {
+    void fileRequestDetailUsesSpaShellAndVersionedQueryApi() throws Exception {
         String token = "detail_request_" + java.util.UUID.randomUUID().toString().replace("-", "_");
         FileRequest request = fileRequestService.create(
                 "Review assets", "Upload final assets only.", "", UploaderNamePolicy.REQUIRED,
@@ -255,16 +266,18 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get("/admin/file-requests/{id}", request.id()))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("Request Policy")))
-                .andExpect(content().string(Matchers.containsString("<dt>Title</dt>")))
-                .andExpect(content().string(Matchers.containsString("<dt>Description</dt>")))
-                .andExpect(content().string(Matchers.containsString("Upload final assets only.")))
-                .andExpect(content().string(Matchers.containsString("Active Uploads")))
-                .andExpect(content().string(Matchers.containsString("Pending Files")))
-                .andExpect(content().string(Matchers.containsString(
-                        "/api/v1/file-requests/" + request.id() + "/revoke"
-                )))
-                .andExpect(content().string(Matchers.containsString("copyFrom=" + request.id())));
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")));
+
+        mockMvc.perform(get("/api/v1/file-requests/{id}", request.id()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.item.id").value(request.id()))
+                .andExpect(jsonPath("$.item.title").value("Review assets"))
+                .andExpect(jsonPath("$.item.description").value("Upload final assets only."))
+                .andExpect(jsonPath("$.item.uploaderNameLabel").value("Required"))
+                .andExpect(jsonPath("$.item.extensionsLabel").value("png"))
+                .andExpect(jsonPath("$.activeUploads").isArray())
+                .andExpect(jsonPath("$.pendingDecisions").isArray())
+                .andExpect(jsonPath("$.activityHistory").isArray());
     }
 
     @Test
@@ -922,24 +935,21 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void remoteDownloadPageRendersRouteSelectionAndTaskRouteColumn() throws Exception {
+    void remoteDownloadPageUsesSpaShellAndExposesPagePayload() throws Exception {
         mockMvc.perform(get("/admin/utils/remote-download"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("name=\"networkRoute\"")))
-                .andExpect(content().string(Matchers.containsString("Use global (Direct)")))
-                .andExpect(content().string(Matchers.containsString("action=\"/api/v1/remote-downloads/inspect\"")))
-                .andExpect(content().string(Matchers.containsString("data-start-url=\"/api/v1/remote-downloads\"")))
-                .andExpect(content().string(Matchers.containsString("data-discard-url=\"/api/v1/remote-downloads/inspect/discard\"")))
-                .andExpect(content().string(Matchers.containsString("data-tasks-url=\"/api/v1/remote-downloads/tasks\"")))
-                .andExpect(content().string(Matchers.containsString("id=\"remoteCurlDialog\"")))
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")))
                 .andExpect(content().string(Matchers.containsString("data-storage-directory-picker")))
                 .andExpect(content().string(Matchers.containsString("/js/directory-tree.js")))
-                .andExpect(content().string(Matchers.containsString("class=\"input-action-field\"")))
-                .andExpect(content().string(Matchers.containsString("data-remote-remember-destination")))
-                .andExpect(content().string(Matchers.containsString("remote-custom-headers")))
-                .andExpect(content().string(Matchers.containsString("id=\"remoteCustomHeaders\"")))
-                .andExpect(content().string(Matchers.not(Matchers.containsString("/admin/utils/remote-download/inspect"))))
-                .andExpect(content().string(Matchers.containsString("<th>Route</th>")));
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/remote-download.js"))))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/remote-download-curl.js"))));
+
+        mockMvc.perform(get("/api/v1/remote-downloads"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.tasks").doesNotExist())
+                .andExpect(jsonPath("$.skipInspectByDefault").isBoolean())
+                .andExpect(jsonPath("$.defaultTargetDirectory").isString());
     }
 
     @Test
@@ -1047,7 +1057,7 @@ class AdminNotificationFlowTest {
     void filesPageLoadsReactOwnedArchiveCreationUi() throws Exception {
         mockMvc.perform(get("/files"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("/react/assets/files-")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/adminApp-")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("/js/archive-create.js"))));
     }
 
@@ -1321,36 +1331,21 @@ class AdminNotificationFlowTest {
     void dashboardPageRendersSummaryPanels() throws Exception {
         mockMvc.perform(get("/admin/dashboard"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Dashboard")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Task Manager")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("System Health")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Management")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Utils")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Shared links")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Activity logs")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Trash")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Metadata inspector")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Settings")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote download")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("href=\"/admin/vpn\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Page archiving")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Storage remaining")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Outbound route")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("VPN Egress")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Proxy health")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Background tasks")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Register and remove trusted devices"))))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Configure activity notifications and test messages"))))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Enable Telegram alerts"))))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Quick Actions"))))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Activity Log"))))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Maintenance"))));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/adminApp-")));
+
+        mockMvc.perform(get("/api/v1/dashboard"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.storage.usedPercent").isNumber())
+                .andExpect(jsonPath("$.trash.count").isNumber())
+                .andExpect(jsonPath("$.shares.active").isNumber())
+                .andExpect(jsonPath("$.thumbnails.cachedFiles").isNumber())
+                .andExpect(jsonPath("$.remoteDownloads.total").isNumber())
+                .andExpect(jsonPath("$.remoteDownloads.recentTasks").doesNotExist())
+                .andExpect(jsonPath("$.appTasks.running").isNumber())
+                .andExpect(jsonPath("$.recentTasks").isArray())
+                .andExpect(jsonPath("$.activeSessions").isNumber())
+                .andExpect(jsonPath("$.vpn.routeLabel").isString());
     }
 
     @Test
@@ -1384,8 +1379,8 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get("/admin/trash"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("id=\"trash-root\"")))
-                .andExpect(content().string(Matchers.containsString("/react/assets/trash-")))
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/adminApp-")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("data-trash-item"))))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("/admin/trash/empty"))));
 
@@ -1413,8 +1408,8 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get("/admin/logs"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("id=\"activity-logs-root\"")))
-                .andExpect(content().string(Matchers.containsString("/react/assets/activityLogs-")))
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/adminApp-")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("log-filter-form"))));
         mockMvc.perform(get("/api/v1/activity-logs"))
                 .andExpect(status().isOk())
@@ -1436,16 +1431,15 @@ class AdminNotificationFlowTest {
     void settingsPageHostsTheReactSettingsEntryPoint() throws Exception {
         mockMvc.perform(get("/admin/settings"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Settings")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"settings-root\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"admin-app-root\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"_csrf\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/settings-")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/adminApp-")));
     }
 
     @Test
     @WithAnonymousUser
     void reactBuildAssetsUseThePublicStaticResourcePolicy() throws Exception {
-        String entryScript = viteAssetService.entry("src/settings/main.tsx").entryScript();
+        String entryScript = viteAssetService.entry("src/app/main.tsx").entryScript();
 
         mockMvc.perform(get(entryScript))
                 .andExpect(status().isOk())
@@ -1521,21 +1515,19 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void vpnStatusPageRendersRuntimeDetailsInPanel() throws Exception {
+    void vpnStatusUsesAdminSpaAndExposesRuntimeDetailsThroughApi() throws Exception {
         mockMvc.perform(get("/admin/vpn"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("data-status-url=\"/api/v1/vpn/status\"")))
-                .andExpect(content().string(Matchers.containsString("action=\"/api/v1/vpn/refresh\"")))
-                .andExpect(content().string(Matchers.containsString("action=\"/api/v1/vpn/connect\"")))
-                .andExpect(content().string(Matchers.containsString("action=\"/api/v1/vpn/reconnect\"")))
-                .andExpect(content().string(Matchers.containsString("action=\"/api/v1/vpn/disconnect\"")))
-                .andExpect(content().string(Matchers.containsString("Connection Details")))
-                .andExpect(content().string(Matchers.containsString("VPN public IP")))
-                .andExpect(content().string(Matchers.containsString("Outbound route")))
-                .andExpect(content().string(Matchers.containsString("vpn-detail-wide vpn-active-tasks")))
-                .andExpect(content().string(Matchers.containsString("data-vpn-runtime=\"controlBadge\"")))
-                .andExpect(content().string(Matchers.not(Matchers.containsString("<dt>Profile</dt>"))))
-                .andExpect(content().string(Matchers.not(Matchers.containsString("vpn-status-metrics"))));
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/vpn-status.js"))));
+
+        mockMvc.perform(get("/api/v1/vpn/status"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.state").isString())
+                .andExpect(jsonPath("$.health.state").isString())
+                .andExpect(jsonPath("$.activeVpnTasks").isNumber())
+                .andExpect(jsonPath("$.controlApiKey").doesNotExist());
     }
 
     @Test
@@ -1553,15 +1545,18 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void settingsPageRendersSidebarFavoritesAndSharedReactShell() throws Exception {
+    void authenticatedAppBootstrapRendersFavoritesForTheReactSidebar() throws Exception {
         String filename = "settings-favorite-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "favorite");
         favoriteService.toggle(filename);
 
+        mockMvc.perform(get("/api/v1/app/bootstrap"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.favorites[*].path").value(Matchers.hasItem(filename)));
+
         mockMvc.perform(get("/admin/settings"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-sidebar-favorites-list")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(filename)))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"admin-app-root\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/directory-tree.js")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/directory-picker.js")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
@@ -1574,8 +1569,8 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get("/files/recent"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"recent-root\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Loading recent items...")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Loading EnderVault...")));
 
         mockMvc.perform(get("/api/v1/recent").param("q", query))
                 .andExpect(status().isOk())
@@ -1603,8 +1598,8 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get("/files/bookmarks"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("id=\"bookmarks-root\"")))
-                .andExpect(content().string(Matchers.containsString("/react/assets/bookmarks-")))
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/adminApp-")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("bookmark-actions.js"))))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("bookmark-context-menu.js"))));
 
@@ -1619,6 +1614,21 @@ class AdminNotificationFlowTest {
                 .andExpect(jsonPath("$.directories[0].directory").doesNotExist())
                 .andExpect(jsonPath("$.directories[0].link").doesNotExist())
                 .andExpect(jsonPath("$.links").isEmpty());
+
+        mockMvc.perform(get("/files/bookmarks/detail").param("id", created.id()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/admin-actions.js"))));
+
+        mockMvc.perform(get("/api/v1/bookmarks/{id}", created.id()))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.id").value(created.id()))
+                .andExpect(jsonPath("$.type").value("directory"))
+                .andExpect(jsonPath("$.title").value(title))
+                .andExpect(jsonPath("$.parentUrl").value("/files/bookmarks"))
+                .andExpect(jsonPath("$.directoryUrl").value(
+                        "/files/bookmarks?directory=" + created.id()));
 
         mockMvc.perform(post("/api/v1/bookmarks/delete")
                         .with(csrf())
@@ -1649,8 +1659,9 @@ class AdminNotificationFlowTest {
         String filename = "recent-ui-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "recent");
 
-        mockMvc.perform(get("/files/detail").param("path", filename))
-                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/fs/detail").param("path", filename))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.detail.path").value(filename));
 
         mockMvc.perform(get("/api/v1/recent").param("q", "recent-ui"))
                 .andExpect(status().isOk())
@@ -1688,8 +1699,8 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get("/files/favorites"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"favorites-root\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/favorites-")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/adminApp-")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("<table>"))));
 
         mockMvc.perform(get("/api/v1/favorites"))
@@ -1736,38 +1747,32 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void remoteDownloadPageRendersForm() throws Exception {
+    void remoteDownloadPageDoesNotRenderLegacyForm() throws Exception {
         mockMvc.perform(get("/admin/utils/remote-download"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote Download")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"url\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"path\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"admin-app-root\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("name=\"conflictPolicy\""))))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"skipInspection\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-remote-import-curl")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/remote-download-curl.js")))
+                        org.hamcrest.Matchers.containsString("id=\"remoteDownloadForm\""))))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("name=\"curlCommand\""))))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote download")));
+                        org.hamcrest.Matchers.containsString("/js/remote-download-curl.js"))));
     }
 
     @Test
     void metadataInspectorRendersScanAreasAsCompactRows() throws Exception {
         mockMvc.perform(get("/admin/metadata"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Metadata Inspector")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/api/v1/metadata/scan")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"admin-app-root\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("/admin/metadata/scan"))))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("/admin/metadata/repair"))))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("metadata-area-list")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("metadata-area-row")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("File requests")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Pending decisions")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("metadata-area-grid"))));
+                        org.hamcrest.Matchers.containsString("/js/metadata.js"))));
+
+        mockMvc.perform(get("/api/v1/metadata"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.areas").isArray())
+                .andExpect(jsonPath("$.areas[*].name", org.hamcrest.Matchers.hasItem("FILE_REQUESTS")))
+                .andExpect(jsonPath("$.areas[*].name", org.hamcrest.Matchers.hasItem("PENDING_FILE_DECISIONS")))
+                .andExpect(jsonPath("$.areas[0].description").isString())
+                .andExpect(jsonPath("$.areas[0].ordinal").doesNotExist());
     }
 
     @Test
@@ -1877,7 +1882,7 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void sharedLinksPageOffersCopyActionsForFileSharesOnly() throws Exception {
+    void sharedLinksUseSpaShellAndVersionedQueryApi() throws Exception {
         String filename = "copy-link-" + System.nanoTime() + ".txt";
         String directory = "copy-link-dir-" + System.nanoTime();
         Files.writeString(ROOT.resolve(filename), "share");
@@ -1887,15 +1892,17 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get("/admin/shares"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("Copy link")))
-                .andExpect(content().string(Matchers.containsString("Copy direct download link")))
-                .andExpect(content().string(Matchers.containsString("/api/v1/shares/revoke")))
-                .andExpect(content().string(Matchers.containsString("/api/v1/shares/delete")))
-                .andExpect(content().string(Matchers.not(Matchers.containsString("/admin/shares/revoke"))))
-                .andExpect(content().string(Matchers.containsString(
-                        "/s/" + fileShare.token() + "/download/" + filename)))
-                .andExpect(content().string(Matchers.not(Matchers.containsString(
-                         "/s/" + directoryShare.token() + "/download/" + directory))));
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")));
+
+        mockMvc.perform(get("/api/v1/shares"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.token == '%s')].path".formatted(fileShare.token()))
+                        .value(Matchers.hasItem(filename)))
+                .andExpect(jsonPath("$[?(@.token == '%s')].directDownloadUrl".formatted(fileShare.token()))
+                        .value(Matchers.hasItem(
+                                "http://localhost/s/" + fileShare.token() + "/download/" + filename)))
+                .andExpect(jsonPath("$[?(@.token == '%s')].directDownloadUrl".formatted(directoryShare.token()))
+                        .value(Matchers.hasItem(Matchers.nullValue())));
     }
 
     @Test
@@ -1971,16 +1978,12 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get("/files/detail").param("path", filename))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("data-image-viewer")))
-                .andExpect(content().string(Matchers.containsString("data-image-viewer-source")))
-                .andExpect(content().string(Matchers.containsString("data-image-action=\"zoom-in\"")))
-                .andExpect(content().string(Matchers.containsString(
-                        "/webjars/viewerjs/1.11.7/dist/viewer.min.css"
-                )))
-                .andExpect(content().string(Matchers.containsString(
-                        "/webjars/viewerjs/1.11.7/dist/viewer.min.js"
-                )))
-                .andExpect(content().string(Matchers.containsString("/js/image-viewer.js")));
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")));
+
+        mockMvc.perform(get("/api/v1/fs/detail").param("path", filename))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tool.type").value("image"))
+                .andExpect(jsonPath("$.urls.previewContent", Matchers.containsString("/files/preview")));
     }
 
     @Test
@@ -1989,12 +1992,10 @@ class AdminNotificationFlowTest {
         Files.write(ROOT.resolve(filename), new byte[] {0x49, 0x44, 0x33, 0x04});
         ShareLink shareLink = shareLinkService.create("", filename, null);
 
-        mockMvc.perform(get("/files/detail").param("path", filename))
+        mockMvc.perform(get("/api/v1/fs/detail").param("path", filename))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("Audio Player")))
-                .andExpect(content().string(Matchers.containsString("class=\"audio-tool-player\"")))
-                .andExpect(content().string(Matchers.containsString("preload=\"metadata\"")))
-                .andExpect(content().string(Matchers.containsString("/files/preview?item=")));
+                .andExpect(jsonPath("$.tool.type").value("audio"))
+                .andExpect(jsonPath("$.urls.previewContent", Matchers.containsString("/files/preview?item=")));
 
         mockMvc.perform(get("/s/{token}", shareLink.token()))
                 .andExpect(status().isOk())
@@ -2076,13 +2077,11 @@ class AdminNotificationFlowTest {
         String filename = "text-editor-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "before", StandardCharsets.UTF_8);
 
-        mockMvc.perform(get("/files/detail").param("path", filename))
+        mockMvc.perform(get("/api/v1/fs/detail").param("path", filename))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("File Tools")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Text Editor")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"content\"")))
-                .andExpect(content().string(Matchers.containsString("action=\"/api/v1/files/text/save\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("before")));
+                .andExpect(jsonPath("$.tool.type").value("text"))
+                .andExpect(jsonPath("$.text.loaded").value(true))
+                .andExpect(jsonPath("$.text.content").value("before"));
 
         mockMvc.perform(post("/api/v1/files/text/save")
                         .with(csrf())
@@ -2102,11 +2101,11 @@ class AdminNotificationFlowTest {
         String largeContent = "large-text-" + "x".repeat(1024 * 1024);
         Files.writeString(ROOT.resolve(filename), largeContent, StandardCharsets.UTF_8);
 
-        mockMvc.perform(get("/files/detail").param("path", filename))
+        mockMvc.perform(get("/api/v1/fs/detail").param("path", filename))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("Load text")))
-                .andExpect(content().string(Matchers.containsString("Download original")))
-                .andExpect(content().string(Matchers.not(Matchers.containsString("name=\"content\""))));
+                .andExpect(jsonPath("$.tool.type").value("text"))
+                .andExpect(jsonPath("$.text.loaded").value(false))
+                .andExpect(jsonPath("$.text.manualLoadAvailable").value(true));
 
         mockMvc.perform(get("/api/v1/files/text/load")
                         .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
@@ -2140,12 +2139,11 @@ class AdminNotificationFlowTest {
         String filename = "comic-detail-" + System.nanoTime() + ".cbz";
         writeComicStub(ROOT.resolve(filename));
 
-        mockMvc.perform(get("/files/detail").param("path", filename))
+        mockMvc.perform(get("/api/v1/fs/detail").param("path", filename))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("data-comic-page-url")))
-                .andExpect(content().string(Matchers.containsString("/js/comic-viewer.js")))
-                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/file-tools.js"))))
-                .andExpect(content().string(Matchers.not(Matchers.containsString("/webjars/codemirror/"))));
+                .andExpect(jsonPath("$.tool.type").value("comic"))
+                .andExpect(jsonPath("$.comic.manifest.pageCount").value(1))
+                .andExpect(jsonPath("$.comic.pageUrl", Matchers.containsString("/files/detail/comic/page")));
     }
 
     @Test
@@ -2299,15 +2297,12 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get("/files/detail").param("path", filename))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Add to transfer buffer")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Move to trash")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/file-transfer-buffer.js")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(
-                        "/api/v1/files/transfer-buffer/detail")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Danger zone"))))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("name=\"targetPath\""))));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"admin-app-root\"")));
+
+        mockMvc.perform(get("/api/v1/fs/detail").param("path", filename))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.detail.path").value(filename))
+                .andExpect(jsonPath("$.transferBuffer.active").value(false));
     }
 
     @Test
@@ -2325,14 +2320,13 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.transferBuffer.active").value(true));
 
-        mockMvc.perform(get("/files/detail")
+        mockMvc.perform(get("/api/v1/fs/detail")
                         .session(session)
                         .param("path", filename))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Transfer buffer")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(filename)))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Move here"))));
+                .andExpect(jsonPath("$.transferBuffer.active").value(true))
+                .andExpect(jsonPath("$.transferBuffer.items[0].name").value(filename))
+                .andExpect(jsonPath("$.detail.directory").value(false));
 
         mockMvc.perform(post("/api/v1/files/transfer-buffer/paste")
                         .session(session)
@@ -2363,13 +2357,12 @@ class AdminNotificationFlowTest {
                         .param("path", filename))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/files/detail")
+        mockMvc.perform(get("/api/v1/fs/detail")
                         .session(session)
                         .param("path", target))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Transfer buffer")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Move here")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Copy here")));
+                .andExpect(jsonPath("$.transferBuffer.active").value(true))
+                .andExpect(jsonPath("$.detail.directory").value(true));
     }
 
     private static Path createTempRoot() {

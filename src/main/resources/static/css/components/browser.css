@@ -254,7 +254,7 @@ td input[readonly] {
 }
 
 .is-hidden-item:hover,
-.is-hidden-item:focus-within,
+.is-hidden-item:has(:focus-visible),
 .is-hidden-item.is-selected,
 .is-hidden-item.is-context-target {
     opacity: 1;
@@ -284,7 +284,7 @@ td input[readonly] {
     background: var(--panel);
 }
 
-.browser-card:focus-within {
+.browser-card:has(:focus-visible) {
     outline: 2px solid var(--focus);
     outline-offset: 2px;
 }

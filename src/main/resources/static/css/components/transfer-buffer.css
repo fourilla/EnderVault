@@ -167,7 +167,4 @@
         width: auto;
     }
 
-    .activity-panel-visible.transfer-buffer-dock-enabled [data-transfer-buffer-region] {
-        bottom: calc(var(--space-xl) + var(--activity-panel-height, 180px) + var(--space-lg));
-    }
 }

@@ -24,6 +24,7 @@ import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -41,19 +42,35 @@ public class FileRequestApiController {
     private final FileRequestUrlBuilder fileRequestUrlBuilder;
     private final PublicLinkTokenService publicLinkTokenService;
     private final ActivityLogService activityLogService;
+    private final FileRequestAdminQueryService adminQueryService;
 
     public FileRequestApiController(
             FileRequestService fileRequestService,
             FileRequestOperationsService operationsService,
             FileRequestUrlBuilder fileRequestUrlBuilder,
             PublicLinkTokenService publicLinkTokenService,
-            ActivityLogService activityLogService
+            ActivityLogService activityLogService,
+            FileRequestAdminQueryService adminQueryService
     ) {
         this.fileRequestService = fileRequestService;
         this.operationsService = operationsService;
         this.fileRequestUrlBuilder = fileRequestUrlBuilder;
         this.publicLinkTokenService = publicLinkTokenService;
         this.activityLogService = activityLogService;
+        this.adminQueryService = adminQueryService;
+    }
+
+    @GetMapping
+    public FileRequestAdminPayloads.ListPayload list(
+            @RequestParam(value = "destinationPath", required = false) String destinationPath,
+            @RequestParam(value = "copyFrom", required = false) String copyFrom
+    ) throws IOException {
+        return adminQueryService.list(destinationPath, copyFrom);
+    }
+
+    @GetMapping("/{id}")
+    public FileRequestAdminPayloads.DetailPayload detail(@PathVariable String id) throws IOException {
+        return adminQueryService.detail(id);
     }
 
     @PostMapping

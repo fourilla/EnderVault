@@ -22,7 +22,7 @@ export function TransferBufferPanel({
   transferBuffer: TransferBufferPayload | null;
   mode: BrowserMode | undefined;
   path: string;
-  actions: FileBrowserActions;
+  actions: Pick<FileBrowserActions, 'updateTransferBuffer'>;
 }) {
   const [minimized, setMinimized] = useState(initialMinimized);
   const active = Boolean(transferBuffer?.active);

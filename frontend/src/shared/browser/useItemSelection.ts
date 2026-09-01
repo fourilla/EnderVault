@@ -124,7 +124,7 @@ export function useItemSelection<T>({
     const clearSelectionFromBackground = (event: globalThis.MouseEvent) => {
       if (selectedRef.current.size === 0) return;
       const target = event.target as HTMLElement;
-      if (target.closest('[data-context-item="true"], .toolbar, .transfer-buffer-panel, .upload-activity, .toast-region, .context-menu')) {
+      if (target.closest('[data-context-item="true"], .toolbar, .transfer-buffer-panel, .toast-region, .context-menu')) {
         return;
       }
       setSelected(new Set());

@@ -57,35 +57,11 @@
     </th:block>
 </th:block>
 
-<th:block th:fragment="pendingDecisionsScript">
-    <script defer th:src="@{/js/pending-decisions.js}"></script>
-</th:block>
-
-<th:block th:fragment="adminActionsScript">
-    <script defer th:src="@{/js/admin-actions.js}"></script>
-</th:block>
-
 <th:block th:fragment="viteEntry(entry)">
     <link rel="stylesheet" th:each="style : ${entry.styles()}" th:href="${style}">
     <link rel="modulepreload" th:each="preload : ${entry.modulePreloads()}" th:href="${preload}">
     <script type="module" th:if="${entry.development()}" th:src="${entry.clientScript()}"></script>
     <script type="module" th:if="${entry.available()}" th:src="${entry.entryScript()}"></script>
-</th:block>
-
-<th:block th:fragment="metadataScript">
-    <script defer th:src="@{/js/metadata.js}"></script>
-</th:block>
-
-<th:block th:fragment="fileToolbarScript">
-    <script defer th:src="@{/js/file-browser-refresh.js}"></script>
-    <script defer th:src="@{/webjars/tus-js-client/4.3.1/dist/tus.min.js}"></script>
-    <script defer th:src="@{/js/resumable-upload-client.js}"></script>
-    <script defer th:src="@{/js/file-uploads.js}"></script>
-    <script defer th:src="@{/js/file-selection.js}"></script>
-    <script defer th:src="@{/js/file-actions.js}"></script>
-    <script defer th:src="@{/js/file-transfer-buffer.js}"></script>
-    <script defer th:src="@{/js/archive-create.js}"></script>
-    <script defer th:src="@{/js/file-context-menu.js}"></script>
 </th:block>
 
 <th:block th:fragment="resumableUploadScript">
@@ -95,10 +71,6 @@
 
 <th:block th:fragment="selectionScript">
     <script defer th:src="@{/js/file-selection.js}"></script>
-</th:block>
-
-<th:block th:fragment="transferBufferScript">
-    <script defer th:src="@{/js/file-transfer-buffer.js}"></script>
 </th:block>
 
 <th:block th:fragment="markdownRendererScript">
@@ -111,40 +83,9 @@
               th:replace="~{fragments/assets :: viteEntry(${fileToolsFrontend})}"></th:block>
 </th:block>
 
-<th:block th:fragment="imageViewerScript">
-    <link rel="stylesheet" th:href="@{/webjars/viewerjs/1.11.7/dist/viewer.min.css}">
-    <script defer th:src="@{/webjars/viewerjs/1.11.7/dist/viewer.min.js}"></script>
-    <script defer th:src="@{/js/image-viewer.js}"></script>
-</th:block>
-
-<th:block th:fragment="comicViewerScript">
-    <script defer th:src="@{/js/comic-viewer.js}"></script>
-</th:block>
-
-<th:block th:fragment="archiveToolScript">
-    <script defer th:src="@{/js/directory-tree.js}"></script>
-    <script defer th:src="@{/js/directory-picker.js}"></script>
-    <script defer th:src="@{/js/archive-tool.js}"></script>
-</th:block>
-
-<th:block th:fragment="remoteDownloadScript">
-    <script defer th:src="@{/js/directory-tree.js}"></script>
-    <script defer th:src="@{/js/directory-picker.js}"></script>
-    <script defer th:src="@{/js/remote-download-curl.js}"></script>
-    <script defer th:src="@{/js/remote-download.js}"></script>
-</th:block>
-
 <th:block th:fragment="directoryPickerScript">
     <script defer th:src="@{/js/directory-tree.js}"></script>
     <script defer th:src="@{/js/directory-picker.js}"></script>
-</th:block>
-
-<th:block th:fragment="fileRequestsScript">
-    <script defer th:src="@{/js/file-requests.js}"></script>
-</th:block>
-
-<th:block th:fragment="vpnStatusScript">
-    <script defer th:src="@{/js/vpn-status.js}"></script>
 </th:block>
 
 <th:block th:fragment="passkeyScript">

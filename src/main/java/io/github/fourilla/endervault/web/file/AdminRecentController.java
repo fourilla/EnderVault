@@ -6,8 +6,8 @@ import io.github.fourilla.endervault.recent.RecentService;
 import io.github.fourilla.endervault.recent.RecentSort;
 import io.github.fourilla.endervault.storage.SortDirection;
 import io.github.fourilla.endervault.storage.StorageService;
+import io.github.fourilla.endervault.web.support.AdminSpaViewService;
 import io.github.fourilla.endervault.web.support.FileResponseService;
-import io.github.fourilla.endervault.web.support.ViteAssetService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -31,26 +31,25 @@ public class AdminRecentController {
     private final StorageService storageService;
     private final ActivityLogService activityLogService;
     private final FileResponseService fileResponseService;
-    private final ViteAssetService viteAssetService;
+    private final AdminSpaViewService adminSpaViewService;
 
     public AdminRecentController(
             RecentService recentService,
             StorageService storageService,
             ActivityLogService activityLogService,
             FileResponseService fileResponseService,
-            ViteAssetService viteAssetService
+            AdminSpaViewService adminSpaViewService
     ) {
         this.recentService = recentService;
         this.storageService = storageService;
         this.activityLogService = activityLogService;
         this.fileResponseService = fileResponseService;
-        this.viteAssetService = viteAssetService;
+        this.adminSpaViewService = adminSpaViewService;
     }
 
     @GetMapping("/files/recent")
     public String recent(Model model) {
-        model.addAttribute("recentFrontend", viteAssetService.entry("src/recent/main.tsx"));
-        return "recent";
+        return adminSpaViewService.render(model);
     }
 
     @GetMapping("/files/recent/download.zip")

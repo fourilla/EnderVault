@@ -1,6 +1,6 @@
 package io.github.fourilla.endervault.web.trash;
 
-import io.github.fourilla.endervault.web.support.ViteAssetService;
+import io.github.fourilla.endervault.web.support.AdminSpaViewService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -8,16 +8,15 @@ import org.springframework.web.bind.annotation.GetMapping;
 @Controller
 public class AdminTrashController {
 
-    private final ViteAssetService viteAssetService;
+    private final AdminSpaViewService adminSpaViewService;
 
-    public AdminTrashController(ViteAssetService viteAssetService) {
-        this.viteAssetService = viteAssetService;
+    public AdminTrashController(AdminSpaViewService adminSpaViewService) {
+        this.adminSpaViewService = adminSpaViewService;
     }
 
     @GetMapping("/admin/trash")
     public String trash(Model model) {
-        model.addAttribute("trashFrontend", viteAssetService.entry("src/trash/main.tsx"));
-        return "trash";
+        return adminSpaViewService.render(model);
     }
 
 }

@@ -56,7 +56,7 @@ document.addEventListener("DOMContentLoaded", () => {
             window.open(link.href, "_blank", "noopener,noreferrer");
             return;
         }
-        window.location.href = link.href;
+        window.EnderVault?.navigate?.(link.href) || window.location.assign(link.href);
     };
 
     const isNativeControlTarget = (target) =>
@@ -228,7 +228,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (
             selectionState.active
             && !isSelectionControlTarget(event.target)
-            && !event.target.closest(".toolbar, .upload-activity, .toast-region")
+            && !event.target.closest(".toolbar, .toast-region")
         ) {
             exitSelectionMode();
         }

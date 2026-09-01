@@ -36,3 +36,33 @@ export interface BookmarkHistoryState {
   query: string;
   scrollTop: number;
 }
+
+export interface BookmarkDetailPayload {
+  id: string;
+  type: BookmarkEntryType;
+  typeLabel: string;
+  title: string;
+  url: string;
+  note: string;
+  directory: boolean;
+  link: boolean;
+  external: boolean;
+  favorite: boolean;
+  metadataRefreshable: boolean;
+  titleSource: string;
+  metadataFetchAttempted: boolean;
+  metadataFetchStatus: string;
+  metadataFetchedLabel: string;
+  faviconAvailable: boolean;
+  faviconContentType: string;
+  faviconUrl: string | null;
+  iconClass: string;
+  createdLabel: string;
+  updatedLabel: string;
+  lastOpenedLabel: string;
+  parentId: string | null;
+  parentLabel: string;
+  parentUrl: string;
+  openUrl: string | null;
+  directoryUrl: string | null;
+}

@@ -1,6 +1,6 @@
 .toast-region {
     position: fixed;
-    z-index: 1000;
+    z-index: var(--z-toast);
     top: 74px;
     right: var(--space-5xl);
     display: grid;

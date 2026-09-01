@@ -1,5 +1,6 @@
 package io.github.fourilla.endervault.web.vpn;
 
+import io.github.fourilla.endervault.web.support.AdminSpaViewService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -7,15 +8,14 @@ import org.springframework.web.bind.annotation.GetMapping;
 @Controller
 public class AdminVpnController {
 
-    private final VpnRuntimeViewService vpnRuntimeViewService;
+    private final AdminSpaViewService adminSpaViewService;
 
-    public AdminVpnController(VpnRuntimeViewService vpnRuntimeViewService) {
-        this.vpnRuntimeViewService = vpnRuntimeViewService;
+    public AdminVpnController(AdminSpaViewService adminSpaViewService) {
+        this.adminSpaViewService = adminSpaViewService;
     }
 
     @GetMapping("/admin/vpn")
     public String vpnStatus(Model model) {
-        model.addAttribute("vpnRuntime", vpnRuntimeViewService.refresh());
-        return "vpn-status";
+        return adminSpaViewService.render(model);
     }
 }

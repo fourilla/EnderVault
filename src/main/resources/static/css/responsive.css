@@ -41,6 +41,18 @@
         text-align: left;
     }
 
+    .page-header-copy {
+        justify-items: start;
+    }
+
+    .page-header-copy p {
+        text-align: left;
+    }
+
+    .page-header-actions {
+        justify-content: flex-start;
+    }
+
     .workspace {
         width: min(100% - var(--space-5xl), var(--workspace-max-width));
         margin-top: 12px;
@@ -59,25 +71,21 @@
 
     .dashboard-metrics,
     .dashboard-grid,
-    .dashboard-action-grid,
     .logs-layout {
         grid-template-columns: 1fr;
     }
 
-    .telegram-settings-grid,
     .settings-field-grid,
     .sticky-note-theme-editor {
         grid-template-columns: 1fr;
     }
 
-    .telegram-subsection-heading,
     .settings-subsection-heading {
         align-items: start;
         flex-direction: column;
         gap: var(--space-xs);
     }
 
-    .telegram-subsection-heading p,
     .settings-subsection-heading p {
         text-align: left;
     }
@@ -112,13 +120,6 @@
 
     .log-filter-actions {
         justify-self: stretch;
-    }
-
-    .upload-activity {
-        right: 10px;
-        bottom: 10px;
-        left: 10px;
-        width: auto;
     }
 
     .toolbar-cluster {
@@ -196,10 +197,6 @@
         bottom: 10px;
         left: 10px;
         width: auto;
-    }
-
-    .activity-panel-visible.transfer-buffer-dock-enabled [data-transfer-buffer-region] {
-        bottom: calc(10px + var(--activity-panel-height, 180px) + var(--space-md));
     }
 
     .transfer-buffer-remove {

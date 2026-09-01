@@ -61,6 +61,10 @@
 
 .sidebar-favorites-shell {
     position: relative;
+    display: flex;
+    flex: 0 1 auto;
+    min-height: var(--nav-row-height);
+    max-height: calc(var(--nav-row-height) + min(260px, 34vh));
     overflow: hidden;
     border: 1px solid var(--line);
     border-radius: var(--radius-panel);
@@ -68,45 +72,114 @@
 }
 
 .sidebar-favorites {
-    display: grid;
-    gap: 0;
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    width: 100%;
+    min-height: 0;
+    overflow: hidden;
 }
 
-.sidebar-favorites summary {
+.sidebar-favorites-header {
     display: flex;
+    flex: 0 0 var(--nav-row-height);
     align-items: center;
-    gap: var(--space-lg);
+    height: var(--nav-row-height);
     min-height: var(--nav-row-height);
     border: 0;
     border-bottom: 1px solid var(--line);
     border-radius: 0;
     background: var(--panel-muted);
-    color: var(--text);
-    cursor: pointer;
-    list-style: none;
-    padding: 0 var(--icon-button-size) 0 var(--space-lg);
 }
 
-.sidebar-favorites summary::-webkit-details-marker {
-    display: none;
+.sidebar-favorites:not(.is-open) .sidebar-favorites-header {
+    border-bottom-color: transparent;
 }
 
-.sidebar-favorites summary:hover,
-.sidebar-favorites[open] summary {
+.sidebar-favorites-header:hover,
+.sidebar-favorites-header:has(a.active) {
     background: var(--panel-elevated);
 }
 
-.sidebar-favorites summary i {
+.sidebar-favorites-header > a {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    align-self: stretch;
+    gap: var(--space-lg);
+    min-width: 0;
+    color: var(--text);
+    padding: 0 var(--space-lg);
+}
+
+.sidebar-favorites-header > a:hover {
+    text-decoration: none;
+}
+
+.sidebar-favorites-header > a:focus {
+    outline: none;
+}
+
+.sidebar-favorites-header > a:focus-visible {
+    border-radius: var(--radius-subtle);
+    box-shadow: inset 0 0 0 2px var(--focus);
+}
+
+.sidebar-favorites-header > a.active {
+    color: var(--accent-strong);
+}
+
+.sidebar-favorites-header > a i {
     width: var(--sidebar-icon-width);
     color: var(--focus);
     text-align: center;
 }
 
+.sidebar button.sidebar-favorites-toggle {
+    flex: 0 0 var(--sidebar-edit-size);
+    width: var(--sidebar-edit-size);
+    min-width: var(--sidebar-edit-size);
+    height: var(--sidebar-edit-size);
+    min-height: var(--sidebar-edit-size);
+    margin-right: var(--space-sm);
+    border: 0;
+    border-radius: var(--radius-subtle);
+    background: transparent;
+    color: var(--muted);
+    padding: 0;
+}
+
+.sidebar button.sidebar-favorites-toggle:hover {
+    border: 0;
+    background: transparent;
+    color: var(--accent-strong);
+}
+
+.sidebar button.sidebar-favorites-toggle:focus {
+    outline: none;
+}
+
+.sidebar button.sidebar-favorites-toggle:focus-visible {
+    box-shadow: inset 0 0 0 1px var(--accent);
+    color: var(--accent-strong);
+}
+
+.sidebar-favorites-toggle i {
+    transition: transform 120ms ease;
+}
+
+.sidebar-favorites:not(.is-open) .sidebar-favorites-toggle i {
+    transform: rotate(-90deg);
+}
+
 .sidebar-favorites-list {
     display: grid;
+    flex: 1 1 auto;
+    align-content: start;
     gap: var(--space-xs);
-    max-height: min(260px, 34vh);
+    min-height: 0;
     overflow-y: auto;
+    overscroll-behavior: contain;
     padding: var(--space-md);
     scrollbar-gutter: stable;
 }
@@ -142,41 +215,17 @@
 }
 
 .sidebar-favorites-list span {
+    flex: 1 1 auto;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.sidebar-favorites p {
-    margin: var(--space-md) var(--space-lg);
+.sidebar-favorites-list p {
+    margin: var(--space-sm) var(--space-md);
     color: var(--muted);
     font-size: var(--font-size-xs);
-}
-
-.sidebar .sidebar-favorites-edit {
-    position: absolute;
-    top: 6px;
-    right: 7px;
-    width: var(--sidebar-edit-size);
-    min-width: var(--sidebar-edit-size);
-    height: var(--sidebar-edit-size);
-    min-height: var(--sidebar-edit-size);
-    border-color: transparent;
-    border-radius: var(--radius-subtle);
-    background: transparent;
-    color: var(--muted);
-}
-
-.sidebar .sidebar-favorites-edit i {
-    font-size: var(--font-size-sm);
-    transform: translateY(-3px);
-}
-
-.sidebar .sidebar-favorites-edit.active,
-.sidebar .sidebar-favorites-edit:hover {
-    border-color: transparent;
-    background: transparent;
-    color: var(--accent-strong);
 }
 
 .sidebar-nav-bottom {
@@ -244,7 +293,7 @@
 
 .topbar-control-popover {
     position: absolute;
-    z-index: 60;
+    z-index: var(--z-topbar-popover);
     top: 100%;
     right: 0;
     left: auto;

@@ -196,7 +196,6 @@ button.shared-download-button:disabled:hover {
     padding-top: var(--space-xl);
 }
 
-.manage-delete .row-form,
 .manage-delete button {
     width: 100%;
 }

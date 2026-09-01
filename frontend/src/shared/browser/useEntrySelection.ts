@@ -6,6 +6,7 @@ export function useEntrySelection(
   selectionEnabled: boolean,
   browse: (path: string) => void,
   locationKey: string,
+  openFile: (detailUrl: string) => void,
 ) {
   const selection = useItemSelection({
     items: selectableEntries,
@@ -14,7 +15,7 @@ export function useEntrySelection(
     itemKey: (entry) => entry.path,
     openItem: (entry) => {
       if (entry.type === 'directory') browse(entry.path);
-      else window.location.assign(entry.detailUrl);
+      else openFile(entry.detailUrl);
     },
   });
   return {

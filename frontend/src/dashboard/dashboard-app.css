@@ -1,0 +1,16 @@
+.admin-react-shell .dashboard-heading {
+  justify-content: space-between;
+}
+
+.admin-react-shell .dashboard-metric-link {
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.admin-react-shell .dashboard-metric-link:hover,
+.admin-react-shell .dashboard-metric-link:focus-visible {
+  border-color: var(--item-hover-line);
+  background: var(--item-hover-bg);
+  outline: none;
+}

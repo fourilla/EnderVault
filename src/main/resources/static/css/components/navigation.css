@@ -25,6 +25,44 @@
     overflow-wrap: anywhere;
 }
 
+.page-header-copy {
+    display: grid;
+    justify-items: end;
+    gap: var(--space-xs);
+    min-width: 0;
+}
+
+.page-header-copy p {
+    max-width: 720px;
+    margin: 0;
+    color: var(--muted);
+    font-size: var(--font-size-sm);
+    text-align: right;
+}
+
+.page-header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--space-md);
+}
+
+.page-location {
+    justify-content: flex-start;
+}
+
+.page-location .breadcrumbs {
+    min-width: 0;
+}
+
+.breadcrumb-current {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .pathbar-title-group .row-form {
     flex: 0 0 auto;
 }

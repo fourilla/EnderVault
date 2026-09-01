@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { EntryGrid, EntryTable, icon } from '../shared/browser/BrowserEntries';
 import { BrowserPagination } from '../shared/browser/BrowserPagination';
 import type { BrowserEntry } from '../shared/browser/types';
@@ -16,6 +17,8 @@ import type { RecentHistoryState, RecentPayload, RecentSort } from './types';
 import './recent-app.css';
 
 export function RecentApp() {
+  const routeNavigate = useNavigate();
+  const openFile = useCallback((detailUrl: string) => routeNavigate(detailUrl), [routeNavigate]);
   const [state, setState] = useState<RecentHistoryState>(() => initialRecentState());
   const [payload, setPayload] = useState<RecentPayload | null>(null);
   const [searchText, setSearchText] = useState(state.query);
@@ -88,10 +91,10 @@ export function RecentApp() {
     [payload],
   );
   const openDirectory = useCallback((path: string) => {
-    window.location.assign('/files?path=' + encodeURIComponent(path));
-  }, []);
+    routeNavigate('/files?path=' + encodeURIComponent(path));
+  }, [routeNavigate]);
   const selection = useEntrySelection(entries, true, openDirectory,
-    [state.query, state.page].join('\u0000'));
+    [state.query, state.page].join('\u0000'), openFile);
   const reload = () => setRefreshToken((current) => current + 1);
 
   const toggleFavorite = async (entry: BrowserEntry) => {
@@ -172,7 +175,7 @@ export function RecentApp() {
       <section className="breadcrumb-panel" aria-label="Current path">
         <div className="breadcrumb-main">
           <p className="breadcrumb-label">Virtual location</p>
-          <nav className="breadcrumbs"><a className="current" href="/files/recent">Recent</a></nav>
+          <nav className="breadcrumbs"><Link className="current" to="/files/recent">Recent</Link></nav>
         </div>
       </section>
 

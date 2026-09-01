@@ -22,6 +22,7 @@ import java.util.Map;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -37,19 +38,22 @@ public class BookmarkApiController {
     private final ActivityLogService activityLogService;
     private final FavoriteService favoriteService;
     private final NasProperties nasProperties;
+    private final BookmarkDetailQueryService bookmarkDetailQueryService;
 
     public BookmarkApiController(
             BookmarkService bookmarkService,
             BookmarkBulkTaskService bookmarkBulkTaskService,
             ActivityLogService activityLogService,
             FavoriteService favoriteService,
-            NasProperties nasProperties
+            NasProperties nasProperties,
+            BookmarkDetailQueryService bookmarkDetailQueryService
     ) {
         this.bookmarkService = bookmarkService;
         this.bookmarkBulkTaskService = bookmarkBulkTaskService;
         this.activityLogService = activityLogService;
         this.favoriteService = favoriteService;
         this.nasProperties = nasProperties;
+        this.bookmarkDetailQueryService = bookmarkDetailQueryService;
     }
 
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
@@ -70,6 +74,12 @@ public class BookmarkApiController {
                 BookmarkLinkClickAction.from(nasProperties),
                 favoriteService.favoriteBookmarkIds()
         );
+    }
+
+    @GetMapping(value = "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
+    public BookmarkDetailPayload detail(@PathVariable("id") String id)
+            throws IOException {
+        return bookmarkDetailQueryService.load(id);
     }
 
     @PostMapping("/directories")

@@ -13,8 +13,8 @@
 
     const apiRoot = "/api/v1/sticky-notes";
     const hiddenPreferenceKey = "endervault.stickyNotes.hidden";
-    const controls = document.querySelector("[data-sticky-note-controls]");
-    const appMain = document.querySelector(".app-main") || document.body;
+    let controls = document.querySelector("[data-sticky-note-controls]");
+    let appMain = document.querySelector(".app-main") || document.body;
     const states = new Map();
     const minimumWidth = 220;
     const minimumHeight = 140;
@@ -24,6 +24,7 @@
     let layer;
     let activePointerInteractions = 0;
     let contextRevision = 0;
+    let initialized = false;
 
     const csrfHeaders = () => {
         const csrf = window.EnderVault?.csrfPair();
@@ -224,6 +225,9 @@
             state.resizeObserver?.disconnect();
             state.card.remove();
             states.delete(state.id);
+            document.dispatchEvent(new CustomEvent("endervault:sticky-note-deleted", {
+                detail: { id: state.id }
+            }));
             window.EnderVault.showNotification(body.notification);
         } catch (error) {
             showToast("error", error.message || "Sticky note could not be deleted.");
@@ -468,13 +472,23 @@
     const setAllHidden = (hidden) => {
         layer.hidden = hidden;
         const button = controls?.querySelector("[data-sticky-note-visibility]");
+        const trigger = controls?.querySelector("[data-sticky-note-trigger]");
+        const label = button?.querySelector("[data-sticky-note-visibility-label]");
         const icon = button?.querySelector("i");
         const status = controls?.querySelector("[data-sticky-note-visibility-status]");
         if (button && icon) {
             button.title = hidden ? "Show sticky notes" : "Hide sticky notes";
             button.setAttribute("aria-label", button.title);
             button.setAttribute("aria-pressed", String(!hidden));
-            button.classList.toggle("is-active", !hidden);
+            icon.className = hidden ? "fas fa-eye" : "fas fa-eye-slash";
+            if (label) {
+                label.textContent = button.title;
+            }
+        }
+        if (trigger) {
+            trigger.title = hidden ? "Sticky notes hidden" : "Sticky notes visible";
+            trigger.setAttribute("aria-label", trigger.title);
+            trigger.classList.toggle("is-active", !hidden);
         }
         if (status) {
             status.textContent = hidden ? "Hidden" : "Visible";
@@ -568,11 +582,28 @@
     document.addEventListener("endervault:sticky-context-changed", (event) => {
         void setContext(event.detail);
     });
+    document.addEventListener("endervault:sticky-note-deleted", (event) => {
+        const id = String(event.detail?.id || "");
+        const state = states.get(id);
+        if (!state) {
+            return;
+        }
+        clearLocalBackup(state);
+        state.resizeObserver?.disconnect();
+        state.card.remove();
+        states.delete(id);
+    });
 
     const initialize = async () => {
+        if (initialized) {
+            return;
+        }
+        controls = document.querySelector("[data-sticky-note-controls]");
         if (!window.EnderVault || !controls) {
             return;
         }
+        initialized = true;
+        appMain = document.querySelector(".app-main") || document.body;
         controls.hidden = false;
         layer = document.createElement("div");
         layer.className = "sticky-note-layer";
@@ -581,37 +612,7 @@
 
         controls.querySelector("[data-sticky-note-add]")?.addEventListener("click", () => void createNote());
         controls.querySelector("[data-sticky-note-visibility]")?.addEventListener("click", () => setAllHidden(!layer.hidden));
-        document.querySelectorAll("[data-sticky-note-manager-delete]").forEach((button) => {
-            button.addEventListener("click", async () => {
-                const confirmed = await window.EnderVault.askConfirmation({
-                    title: "Delete sticky note",
-                    message: "Delete this sticky note? This cannot be undone.",
-                    confirmLabel: "Delete",
-                    danger: true
-                });
-                if (!confirmed) {
-                    return;
-                }
-                button.disabled = true;
-                try {
-                    const body = await requestDelete(button.dataset.stickyNoteManagerDelete);
-                    button.closest("tr")?.remove();
-                    const remaining = document.querySelectorAll("[data-sticky-note-manager-delete]").length;
-                    const count = document.querySelector("[data-sticky-note-manager-count]");
-                    if (count) {
-                        count.textContent = `${remaining} note(s)`;
-                    }
-                    const empty = document.querySelector("[data-sticky-note-manager-empty]");
-                    if (empty) {
-                        empty.hidden = remaining > 0;
-                    }
-                    window.EnderVault.showNotification(body.notification);
-                } catch (error) {
-                    button.disabled = false;
-                    showToast("error", error.message || "Sticky note could not be deleted.");
-                }
-            });
-        });
+        controls.querySelector("[data-sticky-note-trigger]")?.addEventListener("click", () => setAllHidden(!layer.hidden));
         window.EnderVaultContextMenus?.registerGlobalAction({
             id: "new-sticky-note",
             group: "sticky-note",
@@ -642,5 +643,11 @@
         });
     };
 
-    document.addEventListener("DOMContentLoaded", () => void initialize());
+    const initializeWhenReady = () => void initialize();
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initializeWhenReady, { once: true });
+    } else {
+        initializeWhenReady();
+    }
+    document.addEventListener("endervault:spa-shell-ready", initializeWhenReady);
 })();

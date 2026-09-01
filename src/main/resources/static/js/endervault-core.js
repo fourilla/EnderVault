@@ -9,12 +9,18 @@
         return contentType.includes("application/json") ? response.json() : null;
     };
 
-    const requestJson = async (url, { method = "GET", body = null, headers = {} } = {}) => {
+    const requestJson = async (url, {
+        method = "GET",
+        body = null,
+        headers = {},
+        signal
+    } = {}) => {
         const response = await fetch(url, {
             method,
             body,
             headers: { ...jsonHeaders, ...headers },
-            credentials: "same-origin"
+            credentials: "same-origin",
+            signal
         });
         const payload = await parseJsonBody(response);
         const redirectedToLogin = response.redirected
@@ -135,7 +141,8 @@
                         <h2>File name conflict</h2>
                         <p data-conflict-message></p>
                     </div>
-                    <button class="ghost icon-button action-icon" value="default" type="submit" title="Use default policy" aria-label="Use default policy">
+                    <button class="ghost icon-button action-icon" value="default" type="submit"
+                            data-conflict-close title="Use default policy" aria-label="Use default policy">
                         <i class="fas fa-xmark" aria-hidden="true"></i>
                     </button>
                 </header>
@@ -160,14 +167,25 @@
         const dialog = ensureFileConflictDialog();
         const message = dialog.querySelector("[data-conflict-message]");
         const defaultPolicy = conflict?.defaultPolicy || "cancel";
+        const closeValue = conflict?.closeValue || "default";
+        const deferOnClose = closeValue === "defer";
+        const closeButton = dialog.querySelector("[data-conflict-close]");
+        if (closeButton) {
+            closeButton.value = closeValue;
+            closeButton.title = deferOnClose ? "Decide later" : "Use default policy";
+            closeButton.setAttribute("aria-label", closeButton.title);
+        }
+        const closeMessage = deferOnClose
+                ? "Closing keeps the staged file in Pending Decisions."
+                : `Closing uses the default policy: ${defaultPolicy}.`;
         message.textContent = conflict?.message
-                ? `${conflict.message} Closing uses the default policy: ${defaultPolicy}.`
-                : `Choose how to handle this conflict. Closing uses the default policy: ${defaultPolicy}.`;
-        dialog.returnValue = "default";
+                ? `${conflict.message} ${closeMessage}`
+                : `Choose how to handle this conflict. ${closeMessage}`;
+        dialog.returnValue = closeValue;
 
         const onClose = () => {
             dialog.removeEventListener("close", onClose);
-            resolve(dialog.returnValue || "default");
+            resolve(dialog.returnValue || closeValue);
         };
         dialog.addEventListener("close", onClose);
 
@@ -175,7 +193,7 @@
             dialog.showModal();
             return;
         }
-        resolve("default");
+        resolve(closeValue);
     });
 
     const ensureTextInputDialog = () => {
@@ -401,14 +419,28 @@
         }
     };
 
+    const navigate = (url) => {
+        if (!url) {
+            return false;
+        }
+
+        const event = new CustomEvent("endervault:navigate", {
+            cancelable: true,
+            detail: { url }
+        });
+        if (document.dispatchEvent(event)) {
+            window.location.assign(url);
+        }
+        return true;
+    };
+
     const navigateWithNotification = (body) => {
         if (!body?.redirectUrl) {
             return false;
         }
 
         rememberNotification(body.notification);
-        window.location.assign(body.redirectUrl);
-        return true;
+        return navigate(body.redirectUrl);
     };
 
     const contextMenus = (() => {
@@ -502,6 +534,7 @@
         cloneFormData,
         rememberNotification,
         navigateWithNotification,
+        navigate,
         contextMenus
     };
 })();

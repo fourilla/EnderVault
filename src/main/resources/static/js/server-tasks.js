@@ -3,6 +3,7 @@
     const pollIntervalMs = 1400;
     const refreshUrls = new Map();
     const terminalNotifications = new Set();
+    const terminalEvents = new Set();
     let pollTimer = null;
 
     const metaContent = (name) =>
@@ -136,6 +137,10 @@
         });
 
         if (terminal(task)) {
+            if (!terminalEvents.has(task.id)) {
+                terminalEvents.add(task.id);
+                document.dispatchEvent(new CustomEvent("endervault:task-terminal", { detail: task }));
+            }
             maybeRefreshPage(task);
             maybeNotifyTerminalTask(task);
             removeTrackedId(task.id);

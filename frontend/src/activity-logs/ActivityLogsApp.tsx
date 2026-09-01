@@ -2,6 +2,7 @@ import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
 import { BrowserPagination } from '../shared/browser/BrowserPagination';
+import { PageHeader } from '../shared/layout/PageHeader';
 import { deleteActivityLog, loadActivityLogs } from './activity-log-api';
 import type {
   ActivityLogEntry,
@@ -9,6 +10,7 @@ import type {
   ActivityLogPayload,
   ActivityLogQuery,
 } from './types';
+import './activity-logs-app.css';
 
 const filterDraft = (query: ActivityLogQuery): ActivityLogFilterDraft => ({
   text: query.text,
@@ -159,13 +161,7 @@ export function ActivityLogsApp() {
 
   return (
     <>
-      <section className="pathbar">
-        <a className="ghost icon-button" href="/admin/dashboard"
-          title="Back to dashboard" aria-label="Back to dashboard">
-          {icon('fas fa-arrow-left')}
-        </a>
-        <div className="pathbar-title-group"><h1>Logs</h1></div>
-      </section>
+      <PageHeader title="Logs" />
 
       {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
       {loading && !payload && (

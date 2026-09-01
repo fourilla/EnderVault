@@ -31,13 +31,22 @@ public class StickyNoteApiController {
 
     private final StickyNoteService stickyNoteService;
     private final ActivityLogService activityLogService;
+    private final StickyNoteCatalogService stickyNoteCatalogService;
 
     public StickyNoteApiController(
             StickyNoteService stickyNoteService,
-            ActivityLogService activityLogService
+            ActivityLogService activityLogService,
+            StickyNoteCatalogService stickyNoteCatalogService
     ) {
         this.stickyNoteService = stickyNoteService;
         this.activityLogService = activityLogService;
+        this.stickyNoteCatalogService = stickyNoteCatalogService;
+    }
+
+    @GetMapping("/catalog")
+    public StickyNoteCatalogPayload catalog(@RequestParam(name = "q", required = false) String query)
+            throws IOException {
+        return stickyNoteCatalogService.load(query);
     }
 
     @GetMapping

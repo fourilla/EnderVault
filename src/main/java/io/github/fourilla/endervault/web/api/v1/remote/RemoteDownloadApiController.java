@@ -7,7 +7,9 @@ import io.github.fourilla.endervault.remote.RemoteDownloadService;
 import io.github.fourilla.endervault.remote.RemoteDownloadTask;
 import io.github.fourilla.endervault.web.remote.RemoteDownloadActionResponse;
 import io.github.fourilla.endervault.web.remote.RemoteDownloadInspectResponse;
+import io.github.fourilla.endervault.web.remote.RemoteDownloadPagePayload;
 import io.github.fourilla.endervault.web.remote.RemoteDownloadProbePayload;
+import io.github.fourilla.endervault.web.remote.RemoteDownloadQueryService;
 import io.github.fourilla.endervault.web.remote.RemoteDownloadTaskPayload;
 import io.github.fourilla.endervault.web.support.FlashNotification;
 import jakarta.servlet.http.HttpServletRequest;
@@ -27,13 +29,21 @@ public class RemoteDownloadApiController {
 
     private final RemoteDownloadService remoteDownloadService;
     private final OutboundRouteStateService outboundRouteStateService;
+    private final RemoteDownloadQueryService remoteDownloadQueryService;
 
     public RemoteDownloadApiController(
             RemoteDownloadService remoteDownloadService,
-            OutboundRouteStateService outboundRouteStateService
+            OutboundRouteStateService outboundRouteStateService,
+            RemoteDownloadQueryService remoteDownloadQueryService
     ) {
         this.remoteDownloadService = remoteDownloadService;
         this.outboundRouteStateService = outboundRouteStateService;
+        this.remoteDownloadQueryService = remoteDownloadQueryService;
+    }
+
+    @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
+    public RemoteDownloadPagePayload page() {
+        return remoteDownloadQueryService.load();
     }
 
     @PostMapping("/inspect")

@@ -1,4 +1,5 @@
 import { MouseEvent, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import type { BrowserEntry } from './types';
 
 export const icon = (className: string) => <i className={className} aria-hidden="true" />;
@@ -16,6 +17,11 @@ function EntryName({
     onBrowse(entry.path);
   };
   const href = entry.type === 'directory' ? '/files' : entry.detailUrl;
+  if (entry.type === 'file') {
+    return <Link className="item-name" to={entry.detailUrl} title={entry.name}>
+      <span>{entry.name}</span>
+    </Link>;
+  }
   return (
     <a
       className={'item-name' + (entry.type === 'directory' ? ' directory' : '')}
@@ -54,14 +60,14 @@ function EntryActions({ entry }: { entry: BrowserEntry }) {
           {icon('fas fa-download')}
         </a>
       )}
-      <a
+      <Link
         className="button-link ghost icon-button action-icon"
-        href={entry.detailUrl}
+        to={entry.detailUrl}
         title="Details"
         aria-label="Details"
       >
         {icon('fas fa-circle-info')}
-      </a>
+      </Link>
     </>
   );
 }
@@ -257,30 +263,18 @@ export function EntryGrid({
             {entry.hidden && (
               <span className="status-badge expired hidden-badge card-hidden-badge">Hidden</span>
             )}
-            <a className="card-thumb" href={href} onClick={handleClick}>
-              {entry.type === 'directory' ? (
-                <span className="files-directory-thumb">{icon('fas fa-folder')}</span>
-              ) : entry.thumbnailUrl ? (
-                <img
-                  className="thumb-media"
-                  loading="lazy"
-                  src={entry.thumbnailUrl}
-                  alt={entry.name}
-                />
-              ) : null}
-              {entry.type === 'file' && (
-                <span
-                  className={'thumb-extension '
-                    + (entry.thumbnailUrl ? 'thumb-extension-overlay' : 'thumb-extension-center')}
-                >
-                  {entry.extensionLabel}
-                </span>
-              )}
-            </a>
+            {entry.type === 'directory' ? <a className="card-thumb" href={href} onClick={handleClick}>
+              <span className="files-directory-thumb">{icon('fas fa-folder')}</span>
+            </a> : <Link className="card-thumb" to={entry.detailUrl}>
+              {entry.thumbnailUrl ? <img className="thumb-media" loading="lazy" src={entry.thumbnailUrl} alt={entry.name} /> : null}
+              <span className={'thumb-extension ' + (entry.thumbnailUrl ? 'thumb-extension-overlay' : 'thumb-extension-center')}>
+                {entry.extensionLabel}
+              </span>
+            </Link>}
             <div className="card-body">
-              <a className="card-name" href={href} onClick={handleClick} title={entry.name}>
-                {entry.name}
-              </a>
+              {entry.type === 'directory'
+                ? <a className="card-name" href={href} onClick={handleClick} title={entry.name}>{entry.name}</a>
+                : <Link className="card-name" to={entry.detailUrl} title={entry.name}>{entry.name}</Link>}
               <p className="card-meta">
                 <span>{entry.typeLabel}</span>
                 <span>{entry.sizeLabel}</span>

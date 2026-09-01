@@ -14,6 +14,18 @@ declare global {
     MathJax?: any;
     EnderVaultMarkdownMermaidLoader?: () => Promise<any>;
     EnderVaultMarkdownMathLoader?: () => Promise<any>;
+    EnderVaultMarkdown?: {
+      renderInto: (target: Element, source: string, sourcePath?: string) => Promise<void>;
+    };
+    EnderVaultFileTools?: {
+      init: (root?: ParentNode) => void;
+      destroy: (root?: ParentNode) => void;
+    };
+    Viewer?: new (image: HTMLImageElement, options: Record<string, unknown>) => any;
+    EnderVaultImageViewers?: {
+      init: (root?: ParentNode) => void;
+      destroy: (root?: ParentNode) => void;
+    };
     EnderVault?: {
       requestJson: (url: string, options?: RequestInit) => Promise<any>;
       requestJsonResolvingConflicts: (url: string, options?: RequestInit) => Promise<any>;
@@ -24,15 +36,45 @@ declare global {
         confirmLabel: string;
         danger?: boolean;
       }) => Promise<boolean>;
+      askFileConflictPolicy?: (options: Record<string, unknown>) => Promise<string>;
       showNotification: (notification: unknown) => void;
       showToast: (type: string, message: string) => void;
       copyText: (text: string) => Promise<boolean>;
       csrfPair: () => { name: string; value: string } | null;
+      navigateWithNotification: (body: { notification?: unknown; redirectUrl?: string | null }) => boolean;
+      navigate: (url: string) => boolean;
     };
     EnderVaultFileBrowser?: {
       refreshListing: (url?: string) => Promise<void>;
       requestListingRefresh: (url?: string) => void;
       syncToolbarState: () => void;
+    };
+    EnderVaultActivity?: {
+      upsert: (item: Record<string, unknown>) => unknown;
+      remove: (id: string) => void;
+      scheduleRemoval: (id: string, delayMs?: number) => void;
+      cancel: (id: string) => Promise<void>;
+      formatBytes: (bytes: number) => string;
+      snapshot: () => {
+        activeCount: number;
+        finishedCount: number;
+        totalCount: number;
+        items: Array<{
+          id: string;
+          title: string;
+          type: string;
+          typeLabel: string;
+          status: string;
+          percent: number;
+          message: string;
+          cancelRequested: boolean;
+          cancelable: boolean;
+        }>;
+      };
+    };
+    EnderVaultResumableUpload?: {
+      create: (options: Record<string, unknown>) => EnderVaultUploadHandle;
+      fingerprint: (file: File, context: string) => Promise<string>;
     };
     EnderVaultStickyNotes?: {
       setContext: (context: {
@@ -57,14 +99,13 @@ declare global {
     EnderVaultServerTasks?: {
       track: (task: unknown, options?: Record<string, unknown>) => void;
     };
-    EnderVaultFavorites?: {
-      togglePath: (path: string) => Promise<{ active?: boolean }>;
-      toggleBookmark: (id: string) => Promise<{ active?: boolean }>;
-      remove: (path: string) => Promise<unknown>;
-      move: (path: string, direction: 'up' | 'down') => Promise<unknown>;
-    };
     EnderVaultToasts?: {
       show: (notification: NotificationPayload) => void;
     };
+  }
+
+  interface EnderVaultUploadHandle {
+    start: () => Promise<any>;
+    abort: () => Promise<void>;
   }
 }

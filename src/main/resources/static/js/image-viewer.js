@@ -1,5 +1,11 @@
-document.addEventListener("DOMContentLoaded", () => {
-    document.querySelectorAll("[data-image-viewer]").forEach((root) => {
+const initializeImageViewers = (scope = document) => {
+    const roots = scope.matches?.("[data-image-viewer]")
+        ? [scope]
+        : scope.querySelectorAll("[data-image-viewer]");
+    roots.forEach((root) => {
+        if (root.dataset.imageViewerBound === "true") {
+            return;
+        }
         const source = root.querySelector("[data-image-viewer-source]");
         const dimensions = root.querySelector("[data-image-dimensions]");
         const zoomStatus = root.querySelector("[data-image-zoom]");
@@ -8,10 +14,12 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!source || !dimensions || !zoomStatus) {
             return;
         }
+        root.dataset.imageViewerBound = "true";
 
         let viewer;
         let flippedHorizontally = false;
         let flippedVertically = false;
+        let fullscreen = false;
         const fullscreenButton = root.querySelector("[data-image-action='fullscreen']");
 
         const setButtonsEnabled = (enabled) => {
@@ -42,6 +50,60 @@ document.addEventListener("DOMContentLoaded", () => {
             setButtonsEnabled(false);
         };
 
+        const handleReady = () => {
+            root.classList.add("is-viewer-ready");
+            setButtonsEnabled(true);
+            updateDimensions();
+        };
+
+        const handleViewed = (event) => {
+            updateZoom(event.detail?.image?.ratio ?? viewer?.imageData?.ratio);
+        };
+
+        const handleZoom = (event) => {
+            updateZoom(event.detail?.ratio);
+        };
+
+        const setFullscreen = (enabled) => {
+            fullscreen = enabled;
+            root.classList.toggle("is-image-fullscreen", enabled);
+            document.body.classList.toggle("is-image-viewer-fullscreen", enabled);
+            if (fullscreenButton) {
+                fullscreenButton.classList.toggle("is-active", enabled);
+                fullscreenButton.setAttribute("aria-pressed", enabled ? "true" : "false");
+                fullscreenButton.title = enabled ? "Exit fullscreen viewer" : "Open fullscreen viewer";
+                fullscreenButton.setAttribute("aria-label", fullscreenButton.title);
+                fullscreenButton.innerHTML = enabled
+                    ? '<i class="fas fa-compress" aria-hidden="true"></i>'
+                    : '<i class="fas fa-expand" aria-hidden="true"></i>';
+            }
+            window.setTimeout(() => window.dispatchEvent(new Event("resize")), 0);
+        };
+
+        const handleKeydown = (event) => {
+            if (event.key === "Escape" && fullscreen) {
+                setFullscreen(false);
+            }
+        };
+
+        const buttonHandlers = new Map();
+        const cleanup = () => {
+            source.removeEventListener("load", updateDimensions);
+            source.removeEventListener("error", handleLoadFailure);
+            source.removeEventListener("ready", handleReady);
+            source.removeEventListener("viewed", handleViewed);
+            source.removeEventListener("zoom", handleZoom);
+            buttonHandlers.forEach((handler, button) => button.removeEventListener("click", handler));
+            document.removeEventListener("keydown", handleKeydown);
+            if (fullscreen) {
+                setFullscreen(false);
+            }
+            viewer?.destroy?.();
+            root.classList.remove("is-viewer-ready", "is-load-failed");
+            delete root.dataset.imageViewerBound;
+        };
+        root._endervaultImageViewerCleanup = cleanup;
+
         source.addEventListener("load", updateDimensions);
         source.addEventListener("error", handleLoadFailure);
 
@@ -51,19 +113,9 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        source.addEventListener("ready", () => {
-            root.classList.add("is-viewer-ready");
-            setButtonsEnabled(true);
-            updateDimensions();
-        });
-
-        source.addEventListener("viewed", (event) => {
-            updateZoom(event.detail?.image?.ratio ?? viewer?.imageData?.ratio);
-        });
-
-        source.addEventListener("zoom", (event) => {
-            updateZoom(event.detail?.ratio);
-        });
+        source.addEventListener("ready", handleReady);
+        source.addEventListener("viewed", handleViewed);
+        source.addEventListener("zoom", handleZoom);
 
         try {
             viewer = new window.Viewer(source, {
@@ -93,21 +145,6 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        const setFullscreen = (enabled) => {
-            root.classList.toggle("is-image-fullscreen", enabled);
-            document.body.classList.toggle("is-image-viewer-fullscreen", enabled);
-            if (fullscreenButton) {
-                fullscreenButton.classList.toggle("is-active", enabled);
-                fullscreenButton.setAttribute("aria-pressed", enabled ? "true" : "false");
-                fullscreenButton.title = enabled ? "Exit fullscreen viewer" : "Open fullscreen viewer";
-                fullscreenButton.setAttribute("aria-label", fullscreenButton.title);
-                fullscreenButton.innerHTML = enabled
-                    ? '<i class="fas fa-compress" aria-hidden="true"></i>'
-                    : '<i class="fas fa-expand" aria-hidden="true"></i>';
-            }
-            window.setTimeout(() => window.dispatchEvent(new Event("resize")), 0);
-        };
-
         const reset = () => {
             flippedHorizontally = false;
             flippedVertically = false;
@@ -133,9 +170,11 @@ document.addEventListener("DOMContentLoaded", () => {
         };
 
         buttons.forEach((button) => {
-            button.addEventListener("click", () => {
+            const handler = () => {
                 actions[button.dataset.imageAction]?.();
-            });
+            };
+            buttonHandlers.set(button, handler);
+            button.addEventListener("click", handler);
         });
 
         if (source.complete) {
@@ -146,10 +185,23 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         }
 
-        document.addEventListener("keydown", (event) => {
-            if (event.key === "Escape" && root.classList.contains("is-image-fullscreen")) {
-                setFullscreen(false);
-            }
-        });
+        document.addEventListener("keydown", handleKeydown);
     });
-});
+};
+
+const destroyImageViewers = (scope = document) => {
+    const roots = scope.matches?.("[data-image-viewer]")
+        ? [scope]
+        : scope.querySelectorAll("[data-image-viewer]");
+    roots.forEach((root) => {
+        root._endervaultImageViewerCleanup?.();
+        delete root._endervaultImageViewerCleanup;
+    });
+};
+
+window.EnderVaultImageViewers = {
+    init: initializeImageViewers,
+    destroy: destroyImageViewers
+};
+
+document.addEventListener("DOMContentLoaded", () => initializeImageViewers());
