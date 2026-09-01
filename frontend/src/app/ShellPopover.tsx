@@ -13,6 +13,7 @@ interface ShellPopoverProps extends PropsWithChildren {
   icon: string;
   label: string;
   indicator?: ReactNode;
+  rootClassName?: string;
   triggerClassName?: string;
   triggerDataAttributes?: Record<string, string>;
   onTriggerClick?: MouseEventHandler<HTMLButtonElement>;
@@ -23,6 +24,7 @@ export function ShellPopover({
   icon,
   label,
   indicator,
+  rootClassName,
   triggerClassName,
   triggerDataAttributes,
   onTriggerClick,
@@ -53,7 +55,7 @@ export function ShellPopover({
 
   return (
     <div
-      className={`topbar-control admin-shell-popover${open ? ' is-open' : ''}`}
+      className={`topbar-control admin-shell-popover${rootClassName ? ` ${rootClassName}` : ''}${open ? ' is-open' : ''}`}
       data-topbar-popover-id={id}
       ref={rootRef}
       onPointerEnter={() => show(id)}

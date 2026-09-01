@@ -51,6 +51,12 @@ export function BookmarksApp() {
     return current;
   }, [effectiveState]);
 
+  const reload = useCallback(() => {
+    const current = persistCurrentScroll();
+    restoreScrollRef.current = current.scrollTop;
+    setRefreshToken((value) => value + 1);
+  }, [persistCurrentScroll]);
+
   const navigate = useCallback((next: BookmarkHistoryState, replace = false) => {
     persistCurrentScroll();
     const normalized = { ...next, surface: 'bookmarks' as const, version: 1 as const };
@@ -94,7 +100,7 @@ export function BookmarksApp() {
     setSelected: selection.setSelected,
     setPayload,
     effectiveState,
-    reload: () => setRefreshToken((value) => value + 1),
+    reload,
   });
 
   const openLinkDialog = useCallback(() => setDialog('link'), []);
@@ -184,7 +190,7 @@ export function BookmarksApp() {
           return;
         }
       }
-      setRefreshToken((value) => value + 1);
+      reload();
     };
     window.EnderVaultFileBrowser = {
       refreshListing,
@@ -193,7 +199,7 @@ export function BookmarksApp() {
     };
     document.dispatchEvent(new CustomEvent('endervault:files-ready'));
     return () => { delete window.EnderVaultFileBrowser; };
-  }, [effectiveState, navigate]);
+  }, [effectiveState, navigate, reload]);
 
   const submitSearch = (event: FormEvent) => {
     event.preventDefault();

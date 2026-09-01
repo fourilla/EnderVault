@@ -110,13 +110,6 @@
         justify-self: stretch;
     }
 
-    .upload-activity {
-        right: 10px;
-        bottom: 10px;
-        left: 10px;
-        width: auto;
-    }
-
     .toolbar-cluster {
         justify-content: flex-end;
         width: 100%;
@@ -192,10 +185,6 @@
         bottom: 10px;
         left: 10px;
         width: auto;
-    }
-
-    .activity-panel-visible.transfer-buffer-dock-enabled [data-transfer-buffer-region] {
-        bottom: calc(10px + var(--activity-panel-height, 180px) + var(--space-md));
     }
 
     .transfer-buffer-remove {

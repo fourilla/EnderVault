@@ -68,7 +68,7 @@ export function AdminTopbar() {
       <div className="topbar-actions">
         <ShellPopover id="applications" icon="fas fa-grip" label="Applications">
           <strong className="topbar-control-title">Applications</strong>
-          <p>Sharing, transfers, operations, notes, and application settings.</p>
+          <p>Sharing, transfers, operations, and application settings.</p>
           <NavigationGroups entries={available('apps')} />
         </ShellPopover>
         <NotificationCenterControl />

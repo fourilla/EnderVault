@@ -69,6 +69,25 @@
   background: var(--success);
 }
 
+.activity-control .topbar-control-popover {
+  width: min(430px, calc(100vw - 16px));
+}
+
+.activity-popover-list {
+  display: grid;
+  gap: 9px;
+  max-height: min(420px, 65vh);
+  margin-top: var(--space-lg);
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.activity-popover-empty {
+  margin-bottom: 0;
+  color: var(--muted);
+  font-size: var(--font-size-sm);
+}
+
 .account-session-count {
   position: absolute;
   top: 2px;

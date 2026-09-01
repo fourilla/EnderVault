@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { notify, postForm, toastError } from '../shared/api/form-api';
+import { AppNavigationLink } from './AppNavigationLink';
 import { useAdminApp } from './AdminAppContext';
 import { ShellPopover } from './ShellPopover';
 import type { AdminAppBootstrap } from './types';
@@ -39,7 +40,6 @@ export function OutboundRouteControl() {
       icon={route.iconClass}
       label={route.title}
       triggerClassName={`topbar-route-toggle route-${route.statusClass}`}
-      onTriggerClick={() => void toggle()}
     >
       <strong className="topbar-control-title">Outbound VPN</strong>
       <p>Routes supported NAS outbound requests through the configured VPN proxy.</p>
@@ -49,7 +49,18 @@ export function OutboundRouteControl() {
           {statusLabel(route)}
         </strong>
       </div>
-      <small>{busy ? 'Changing route...' : 'Click the shield to switch routes.'}</small>
+      <small>{busy ? 'Changing route...' : 'Choose a route below or open the full VPN status page.'}</small>
+      <div className="topbar-control-menu-actions">
+        <AppNavigationLink className="ghost button-link icon-text-button" href="/admin/vpn">
+          <i className="fas fa-chart-line" aria-hidden="true" />
+          <span>VPN status</span>
+        </AppNavigationLink>
+        <button className="ghost icon-text-button" type="button" disabled={busy}
+          onClick={() => void toggle()}>
+          <i className={route.vpnSelected ? 'fas fa-globe' : 'fas fa-shield-halved'} aria-hidden="true" />
+          <span>{route.vpnSelected ? 'Use direct route' : 'Use VPN route'}</span>
+        </button>
+      </div>
     </ShellPopover>
   );
 }

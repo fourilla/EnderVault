@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { AdvancedSettings } from './sections/AdvancedSettings';
 import { AccountSettings } from './sections/AccountSettings';
 import { BookmarkSettings } from './sections/BookmarkSettings';
@@ -89,13 +90,15 @@ const internalSections = Object.fromEntries(
     .map((link) => [link.internal, link]),
 ) as Record<InternalSectionId, SettingsLink>;
 
-const sectionFromLocation = (): InternalSectionId => {
-  const requested = new URLSearchParams(window.location.search).get('section');
+const sectionFromSearch = (search: string): InternalSectionId => {
+  const requested = new URLSearchParams(search).get('section');
   return requested && requested in internalSections ? requested as InternalSectionId : 'appearance';
 };
 
 export function SettingsApp() {
-  const [section, setSection] = useState<InternalSectionId>(sectionFromLocation);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [section, setSection] = useState<InternalSectionId>(() => sectionFromSearch(location.search));
   const [dirty, setDirty] = useState(false);
   const active = internalSections[section];
 
@@ -113,50 +116,46 @@ export function SettingsApp() {
     if (next === section || !(await confirmNavigation())) return;
     setDirty(false);
     setSection(next);
-    const url = new URL(window.location.href);
-    url.searchParams.set('section', next);
-    url.hash = '';
-    window.history.pushState({ settingsSection: next }, '', url);
-  }, [confirmNavigation, section]);
+    const search = new URLSearchParams(location.search);
+    search.set('section', next);
+    navigate({ pathname: location.pathname, search: `?${search.toString()}` }, {
+      state: { settingsSection: next },
+    });
+  }, [confirmNavigation, location.pathname, location.search, navigate, section]);
 
   useEffect(() => {
-    const url = new URL(window.location.href);
-    if (url.searchParams.get('section') !== section) {
-      url.searchParams.set('section', section);
-      window.history.replaceState({ settingsSection: section }, '', url);
-    }
-  }, [section]);
-
-  useEffect(() => {
-    if (!window.location.hash) return;
-    const targetId = decodeURIComponent(window.location.hash.slice(1));
+    if (!location.hash) return;
+    const targetId = decodeURIComponent(location.hash.slice(1));
     const frame = window.requestAnimationFrame(() => {
       document.getElementById(targetId)?.scrollIntoView({ block: 'start' });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [section]);
+  }, [location.hash, section]);
 
   useEffect(() => {
-    const onPopState = () => {
-      const next = sectionFromLocation();
-      if (!dirty) {
+    const next = sectionFromSearch(location.search);
+    if (next === section) return undefined;
+    let current = true;
+    if (!dirty) {
+      setSection(next);
+      return undefined;
+    }
+    void confirmNavigation().then((confirmed) => {
+      if (!current) return;
+      if (confirmed) {
+        setDirty(false);
         setSection(next);
         return;
       }
-      void confirmNavigation().then((confirmed) => {
-        if (confirmed) {
-          setDirty(false);
-          setSection(next);
-        } else {
-          const url = new URL(window.location.href);
-          url.searchParams.set('section', section);
-          window.history.pushState({ settingsSection: section }, '', url);
-        }
+      const search = new URLSearchParams(location.search);
+      search.set('section', section);
+      navigate({ pathname: location.pathname, search: `?${search.toString()}` }, {
+        replace: true,
+        state: { settingsSection: section },
       });
-    };
-    window.addEventListener('popstate', onPopState);
-    return () => window.removeEventListener('popstate', onPopState);
-  }, [confirmNavigation, dirty, section]);
+    });
+    return () => { current = false; };
+  }, [confirmNavigation, dirty, location.pathname, location.search, navigate, section]);
 
   const editor = useMemo(() => {
     const props = { onDirtyChange: setDirty };

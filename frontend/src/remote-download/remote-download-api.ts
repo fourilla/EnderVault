@@ -12,6 +12,11 @@ const requestJson = <T>(url: string, options?: RequestInit) => {
   return window.EnderVault.requestJson(url, options) as Promise<T>;
 };
 
+const notifyTasksChanged = <T>(result: T) => {
+  window.dispatchEvent(new CustomEvent('endervault:remote-downloads-changed'));
+  return result;
+};
+
 export const loadRemoteDownloadPage = (signal?: AbortSignal) => requestJson<RemoteDownloadPagePayload>(
   '/api/v1/remote-downloads',
   { signal },
@@ -41,7 +46,7 @@ export const inspectRemoteDownload = (values: {
 export const startRemoteDownload = (requestId: string) => requestJson<RemoteDownloadActionResponse>(
   '/api/v1/remote-downloads',
   { method: 'POST', body: formData({ requestId }) },
-);
+).then(notifyTasksChanged);
 
 export const discardRemoteDownloadInspection = (requestId: string) => requestJson<{ discarded: boolean }>(
   '/api/v1/remote-downloads/inspect/discard',
@@ -51,9 +56,9 @@ export const discardRemoteDownloadInspection = (requestId: string) => requestJso
 export const cancelRemoteDownload = (id: string) => requestJson<RemoteDownloadActionResponse>(
   '/api/v1/remote-downloads/cancel',
   { method: 'POST', body: formData({ id }) },
-);
+).then(notifyTasksChanged);
 
 export const deleteRemoteDownloadTask = (id: string) => requestJson<RemoteDownloadActionResponse>(
   '/api/v1/remote-downloads/delete',
   { method: 'POST', body: formData({ id }) },
-);
+).then(notifyTasksChanged);

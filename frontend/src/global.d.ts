@@ -53,16 +53,24 @@ declare global {
       upsert: (item: Record<string, unknown>) => unknown;
       remove: (id: string) => void;
       scheduleRemoval: (id: string, delayMs?: number) => void;
-      render: () => void;
+      cancel: (id: string) => Promise<void>;
       formatBytes: (bytes: number) => string;
       snapshot: () => {
         activeCount: number;
         finishedCount: number;
         totalCount: number;
-        minimized: boolean;
+        items: Array<{
+          id: string;
+          title: string;
+          type: string;
+          typeLabel: string;
+          status: string;
+          percent: number;
+          message: string;
+          cancelRequested: boolean;
+          cancelable: boolean;
+        }>;
       };
-      show: () => void;
-      toggle: () => void;
     };
     EnderVaultResumableUpload?: {
       create: (options: Record<string, unknown>) => EnderVaultUploadHandle;
