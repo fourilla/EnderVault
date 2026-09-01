@@ -154,10 +154,11 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void pagesWithCommonAjaxActionsLoadTheirFormBinder() throws Exception {
+    void pagesLoadTheirOwningFrontendInsteadOfLegacyAdminActions() throws Exception {
         mockMvc.perform(get("/files/read-only"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("/js/admin-actions.js")));
+                .andExpect(content().string(Matchers.containsString("/js/read-only.js")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/admin-actions.js"))));
 
         mockMvc.perform(get("/files"))
                 .andExpect(status().isOk())
