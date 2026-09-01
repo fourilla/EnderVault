@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AppNavigationLink } from '../app/AppNavigationLink';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
+import { PageHeader } from '../shared/layout/PageHeader';
 import {
   cancelFileRequestUploads,
   deleteFileRequest,
@@ -81,12 +82,7 @@ export function FileRequestDetailApp() {
   const { item } = payload;
   return (
     <div className="dashboard-workspace file-request-detail-workspace">
-      <section className="pathbar">
-        <Link className="ghost icon-button" to="/admin/file-requests" title="Back to file requests" aria-label="Back to file requests">
-          {icon('fas fa-arrow-left')}
-        </Link>
-        <div className="pathbar-title-group"><h1>{item.title}</h1></div>
-      </section>
+      <PageHeader title={item.title} />
 
       <section className="dashboard-panel">
         <header className="section-heading">

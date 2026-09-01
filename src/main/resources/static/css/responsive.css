@@ -41,6 +41,18 @@
         text-align: left;
     }
 
+    .page-header-copy {
+        justify-items: start;
+    }
+
+    .page-header-copy p {
+        text-align: left;
+    }
+
+    .page-header-actions {
+        justify-content: flex-start;
+    }
+
     .workspace {
         width: min(100% - var(--space-5xl), var(--workspace-max-width));
         margin-top: 12px;

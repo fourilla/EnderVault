@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
+import { PageHeader } from '../shared/layout/PageHeader';
 import { loadPendingDecisions, resolvePendingDecision } from './pending-decision-api';
 import type { PendingFileDecision, PendingFileDecisionAction } from './types';
 
@@ -75,9 +76,7 @@ export function PendingDecisionsApp() {
 
   return (
     <>
-      <section className="pathbar">
-        <div className="pathbar-title-group"><h1>Pending Decisions</h1></div>
-      </section>
+      <PageHeader title="Pending Decisions" />
 
       {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
       {!decisions && !error && (

@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AppNavigationLink } from '../app/AppNavigationLink';
 import { toggleBookmarkFavorite } from '../shared/api/favorite-api';
 import { notify, postForm, toastError } from '../shared/api/form-api';
+import { PageBreadcrumbs } from '../shared/layout/PageHeader';
 import { loadBookmarkDetail } from './bookmark-api';
 import type { BookmarkDetailPayload } from './types';
 
@@ -135,13 +136,11 @@ export function BookmarkDetailApp() {
 
   return (
     <>
-      <section className="pathbar" aria-label="Bookmark detail location">
-        <AppNavigationLink className="button-link ghost icon-button" href={payload.parentUrl}
-          title="Back to bookmarks" aria-label="Back to bookmarks">
-          <i className="fas fa-arrow-left" aria-hidden="true" />
-        </AppNavigationLink>
-        <span className="muted">{payload.parentLabel}</span>
-      </section>
+      <PageBreadcrumbs
+        label="Bookmark detail location"
+        parent={<AppNavigationLink href={payload.parentUrl}>{payload.parentLabel}</AppNavigationLink>}
+        current={payload.title}
+      />
 
       <section className="detail-layout bookmark-detail-layout">
         <article className="detail-panel detail-main">

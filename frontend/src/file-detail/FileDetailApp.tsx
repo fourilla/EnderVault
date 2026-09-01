@@ -5,6 +5,7 @@ import type { TransferBufferPayload } from '../files/types';
 import { togglePathFavorite } from '../shared/api/favorite-api';
 import { notify, postForm, toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
+import { PageBreadcrumbs } from '../shared/layout/PageHeader';
 import { FileTools } from './FileTools';
 import type { FileDetailPayload, SharePayload } from './types';
 import './file-detail-app.css';
@@ -181,11 +182,11 @@ export function FileDetailApp() {
     }
   };
   return <>
-    <section className="pathbar" aria-label="Current path">
-      <Link className="button-link ghost icon-button" to={payload.urls.parentDirectory}
-        title="Back to directory" aria-label="Back to directory">{icon('fas fa-arrow-left')}</Link>
-      <span className="muted">{payload.detail.path}</span>
-    </section>
+    <PageBreadcrumbs
+      label="Current file location"
+      parent={<Link to={payload.urls.parentDirectory}>{payload.detail.parentPath || 'Files'}</Link>}
+      current={payload.detail.name}
+    />
     <FileTools payload={payload} />
     <section className="detail-layout">
       <DetailMetadata payload={payload} onToggleFavorite={() => void toggleFavorite()} />

@@ -1,6 +1,8 @@
-import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { useAdminApp } from '../app/AdminAppContext';
+import { useRemoteDownloadTasks } from '../app/remote-downloads/RemoteDownloadTasksContext';
 import { toastError } from '../shared/api/form-api';
+import { PageHeader } from '../shared/layout/PageHeader';
 import { CurlImportDialog, RemoteDownloadConfirmDialog, RemoteDownloadTaskDialog } from './RemoteDownloadDialogs';
 import { RemoteDownloadTasks } from './RemoteDownloadTasks';
 import {
@@ -9,15 +11,12 @@ import {
   discardRemoteDownloadInspection,
   inspectRemoteDownload,
   loadRemoteDownloadPage,
-  loadRemoteDownloadTasks,
   startRemoteDownload,
 } from './remote-download-api';
 import type { RemoteDownloadInspection, RemoteDownloadTask, RemoteNetworkRoute } from './types';
 
 const REMEMBER_DESTINATION_KEY = 'endervault.remoteDownload.rememberDestination';
 const LAST_DESTINATION_KEY = 'endervault.remoteDownload.lastDestination';
-const POLL_INTERVAL_MS = 1400;
-
 const localValue = (key: string) => {
   try { return window.localStorage.getItem(key); } catch { return null; }
 };
@@ -33,6 +32,7 @@ const rememberLocalValue = (key: string, value: string | null) => {
 
 export function RemoteDownloadApp() {
   const { bootstrap } = useAdminApp();
+  const { tasks, error: taskError } = useRemoteDownloadTasks();
   const [url, setUrl] = useState('');
   const [destination, setDestination] = useState('');
   const [networkRoute, setNetworkRoute] = useState<RemoteNetworkRoute>('global');
@@ -41,7 +41,6 @@ export function RemoteDownloadApp() {
   const [skipInspectDefault, setSkipInspectDefault] = useState(false);
   const [rememberDestination, setRememberDestination] = useState(true);
   const [customHeaders, setCustomHeaders] = useState('');
-  const [tasks, setTasks] = useState<RemoteDownloadTask[] | null>(null);
   const [inspection, setInspection] = useState<RemoteDownloadInspection | null>(null);
   const [selectedTask, setSelectedTask] = useState<RemoteDownloadTask | null>(null);
   const [curlDialogOpen, setCurlDialogOpen] = useState(false);
@@ -50,12 +49,6 @@ export function RemoteDownloadApp() {
   const [error, setError] = useState('');
   const pendingRequestId = useRef<string | null>(null);
   const rememberedConnections = useRef(1);
-
-  const refreshTasks = useCallback(async () => {
-    const next = await loadRemoteDownloadTasks();
-    setTasks(next);
-    setSelectedTask((current) => current ? next.find((task) => task.id === current.id) ?? current : null);
-  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -70,7 +63,6 @@ export function RemoteDownloadApp() {
         setSkipInspection(payload.skipInspectByDefault);
         setSkipInspectDefault(payload.skipInspectByDefault);
         setConnections(1);
-        setTasks(payload.tasks);
       })
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Remote downloads could not be loaded.');
@@ -85,12 +77,10 @@ export function RemoteDownloadApp() {
   }, []);
 
   useEffect(() => {
-    if (!tasks?.some((task) => task.active)) return undefined;
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void refreshTasks().catch(() => undefined);
-    }, POLL_INTERVAL_MS);
-    return () => window.clearInterval(timer);
-  }, [tasks, refreshTasks]);
+    setSelectedTask((current) => current
+      ? tasks?.find((task) => task.id === current.id) ?? current
+      : null);
+  }, [tasks]);
 
   const toggleSkipInspection = (checked: boolean) => {
     if (checked) {
@@ -148,7 +138,6 @@ export function RemoteDownloadApp() {
       if (payload.notification) window.EnderVault?.showNotification(payload.notification);
       rememberLocalValue(REMEMBER_DESTINATION_KEY, String(rememberDestination));
       rememberLocalValue(LAST_DESTINATION_KEY, rememberDestination ? destination.trim() : null);
-      await refreshTasks();
       setUrl('');
       setNetworkRoute('global');
       setConnections(1);
@@ -169,7 +158,6 @@ export function RemoteDownloadApp() {
         ? await cancelRemoteDownload(task.id)
         : await deleteRemoteDownloadTask(task.id);
       if (payload.notification) window.EnderVault?.showNotification(payload.notification);
-      await refreshTasks();
     } catch (reason) {
       toastError(reason, 'The remote download task action failed.');
     } finally {
@@ -179,18 +167,12 @@ export function RemoteDownloadApp() {
 
   return (
     <div className="dashboard-workspace">
-      <section className="pathbar">
-        <div className="pathbar-title-group">
-          <h1>Remote Download</h1>
-          <button className="ghost icon-button" type="button" title="Refresh tasks" aria-label="Refresh tasks"
-            onClick={() => void refreshTasks().catch((reason) => toastError(reason, 'Remote download tasks could not be refreshed.'))}>
-            <i className="fas fa-rotate" aria-hidden="true" />
-          </button>
-        </div>
-      </section>
+      <PageHeader title="Remote Download" />
 
-      {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
-      {!tasks && !error && (
+      {(error || taskError) && (
+        <section className="dashboard-panel browser-load-error" role="alert">{error || taskError}</section>
+      )}
+      {!tasks && !error && !taskError && (
         <section className="browser-load-progress" role="status" aria-live="polite">
           <i className="fas fa-spinner fa-spin" aria-hidden="true" /><span>Loading remote downloads...</span>
         </section>

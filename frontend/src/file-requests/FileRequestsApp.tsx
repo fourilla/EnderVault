@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
+import { PageHeader } from '../shared/layout/PageHeader';
 import {
   createFileRequest,
   deleteExpiredFileRequests,
@@ -117,7 +118,7 @@ export function FileRequestsApp() {
 
   return (
     <div className="dashboard-workspace file-requests-workspace">
-      <section className="pathbar"><div className="pathbar-title-group"><h1>File Requests</h1></div></section>
+      <PageHeader title="File Requests" />
       {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
       {!payload && !error && (
         <section className="browser-load-progress" role="status" aria-live="polite">

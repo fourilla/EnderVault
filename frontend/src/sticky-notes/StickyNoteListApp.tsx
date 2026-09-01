@@ -2,6 +2,7 @@ import { type FormEvent, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { AppNavigationLink } from '../app/AppNavigationLink';
 import { toastError } from '../shared/api/form-api';
+import { PageHeader } from '../shared/layout/PageHeader';
 import { deleteStickyNote, loadStickyNoteCatalog } from './sticky-note-catalog-api';
 import type { StickyNoteCatalogItem } from './types';
 
@@ -69,7 +70,7 @@ export function StickyNoteListApp() {
 
   return (
     <div className="dashboard-workspace">
-      <section className="pathbar"><div className="pathbar-title-group"><h1>Sticky Notes</h1></div></section>
+      <PageHeader title="Sticky Notes" />
 
       <section className="dashboard-panel" aria-label="Sticky note manager">
         <header className="section-heading">

@@ -49,7 +49,6 @@ export interface RemoteDownloadProbe {
 }
 
 export interface RemoteDownloadPagePayload {
-  tasks: RemoteDownloadTask[];
   skipInspectByDefault: boolean;
   defaultTargetDirectory: string;
 }

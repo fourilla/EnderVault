@@ -4,6 +4,7 @@ import { AppNavigationLink } from '../app/AppNavigationLink';
 import { useAdminApp } from '../app/AdminAppContext';
 import { useUploadManager } from '../app/uploads/UploadManagerContext';
 import { icon } from '../shared/browser/BrowserEntries';
+import { PageHeader } from '../shared/layout/PageHeader';
 import type { DashboardPayload } from './types';
 import './dashboard-app.css';
 
@@ -60,13 +61,12 @@ export function DashboardApp() {
     || payload.thumbnails.comicEnabled
     || payload.thumbnails.pdfEnabled;
   return <div className="dashboard-workspace">
-    <section className="pathbar dashboard-heading">
-      <h1>Dashboard</h1>
+    <PageHeader title="Dashboard" className="dashboard-heading" actions={(
       <button className="ghost icon-button action-icon" type="button" disabled={loading}
         onClick={() => refresh()} title="Refresh dashboard" aria-label="Refresh dashboard">
         {icon(`fas fa-arrows-rotate${loading ? ' fa-spin' : ''}`)}
       </button>
-    </section>
+    )} />
 
     <section className="dashboard-metrics" aria-label="Dashboard metrics">
       <Link className="dashboard-metric dashboard-metric-link" to="/files">

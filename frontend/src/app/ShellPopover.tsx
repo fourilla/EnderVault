@@ -17,6 +17,7 @@ interface ShellPopoverProps extends PropsWithChildren {
   triggerClassName?: string;
   triggerDataAttributes?: Record<string, string>;
   onTriggerClick?: MouseEventHandler<HTMLButtonElement>;
+  onOpen?: () => void;
 }
 
 export function ShellPopover({
@@ -28,12 +29,17 @@ export function ShellPopover({
   triggerClassName,
   triggerDataAttributes,
   onTriggerClick,
+  onOpen,
   children,
 }: ShellPopoverProps) {
   const { activeId, show, hide, closeAll } = useTopbarPopover();
   const rootRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
   const open = activeId === id;
+
+  useEffect(() => {
+    if (open) onOpen?.();
+  }, [onOpen, open]);
 
   useEffect(() => {
     if (!open) return undefined;

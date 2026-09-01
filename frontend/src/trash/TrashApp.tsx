@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
+import { PageHeader } from '../shared/layout/PageHeader';
 import { deleteTrashItem, emptyTrash, loadTrash, restoreTrashItem } from './trash-api';
 import type { TrashItem, TrashPayload } from './types';
 import './trash-app.css';
@@ -85,21 +85,15 @@ export function TrashApp() {
   const items = payload?.items ?? [];
   return (
     <>
-      <section className="pathbar">
-        <Link className="ghost icon-button" to="/admin/dashboard"
-          title="Back to dashboard" aria-label="Back to dashboard">
-          {icon('fas fa-arrow-left')}
-        </Link>
-        <div className="pathbar-title-group">
-          <h1>Trash</h1>
-          {items.length > 0 && (
+      <PageHeader
+        title="Trash"
+        actions={items.length > 0 ? (
             <button className="danger icon-button" type="button" disabled={Boolean(busyAction)}
               title="Empty trash" aria-label="Empty trash" onClick={() => void empty()}>
               {icon('fas fa-broom')}
             </button>
-          )}
-        </div>
-      </section>
+        ) : undefined}
+      />
 
       {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
       {loading && !payload && (

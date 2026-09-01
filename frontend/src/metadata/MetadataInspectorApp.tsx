@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { toastError } from '../shared/api/form-api';
+import { PageHeader } from '../shared/layout/PageHeader';
 import { loadMetadataInspector, repairMetadataIssues, startMetadataScan } from './metadata-api';
 import { MetadataIssueTable } from './MetadataIssueTable';
 import type { MetadataPagePayload, MetadataTask } from './types';
@@ -95,9 +96,7 @@ export function MetadataInspectorApp() {
 
   return (
     <div className="dashboard-workspace settings-workspace metadata-workspace metadata-selection-enhanced">
-      <section className="pathbar">
-        <div className="pathbar-title-group"><h1>Metadata Inspector</h1></div>
-      </section>
+      <PageHeader title="Metadata Inspector" />
 
       {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
       {!payload && !error && (

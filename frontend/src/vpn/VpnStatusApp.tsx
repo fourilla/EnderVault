@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { AppNavigationLink } from '../app/AppNavigationLink';
 import { useAdminApp } from '../app/AdminAppContext';
 import { toastError } from '../shared/api/form-api';
+import { PageHeader } from '../shared/layout/PageHeader';
 import type { VpnCommand, VpnRuntimeStatus } from './types';
 import { loadVpnStatus, runVpnCommand } from './vpn-api';
 
@@ -66,16 +67,13 @@ export function VpnStatusApp() {
 
   return (
     <div className="dashboard-workspace vpn-status-workspace">
-      <section className="pathbar">
-        <div className="pathbar-title-group"><h1>VPN Status</h1></div>
-      </section>
-
-      <header className="page-heading-row">
-        <div><h1>VPN Status</h1><p>Monitor and control the private Gluetun outbound tunnel.</p></div>
-        <AppNavigationLink className="ghost icon-text-button" href="/admin/settings?section=vpn">
+      <PageHeader
+        title="VPN Status"
+        description="Monitor and control the private Gluetun outbound tunnel."
+        actions={<AppNavigationLink className="ghost icon-text-button" href="/admin/settings?section=vpn">
           <i className="fas fa-gear" aria-hidden="true" /><span>Settings</span>
-        </AppNavigationLink>
-      </header>
+        </AppNavigationLink>}
+      />
 
       {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
       {!vpn && !error && (

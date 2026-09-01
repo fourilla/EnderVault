@@ -3,6 +3,7 @@ import { AppNavigationLink } from '../app/AppNavigationLink';
 import { useAdminApp } from '../app/AdminAppContext';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
+import { PageHeader } from '../shared/layout/PageHeader';
 import { loadActiveSessions, revokeActiveSession } from './session-api';
 import type { ActiveSession } from './types';
 
@@ -56,9 +57,7 @@ export function ActiveSessionsApp() {
 
   return (
     <>
-      <section className="pathbar">
-        <div className="pathbar-title-group"><h1>Active Sessions</h1></div>
-      </section>
+      <PageHeader title="Active Sessions" />
 
       {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
       {!sessions && !error && (

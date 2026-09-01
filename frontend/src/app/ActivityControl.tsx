@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useRemoteDownloadTasks } from './remote-downloads/RemoteDownloadTasksContext';
 import { useUploadManager } from './uploads/UploadManagerContext';
 import { ShellPopover } from './ShellPopover';
-import { useRemoteDownloadActivity } from './useRemoteDownloadActivity';
 
 interface ActivityItem {
   id: string;
@@ -68,8 +68,8 @@ function ActivityRow({ item }: { item: ActivityItem }) {
 
 export function ActivityControl() {
   const { activeCount: activeUploads } = useUploadManager();
+  const { refresh: refreshRemoteDownloads } = useRemoteDownloadTasks();
   const [activity, setActivity] = useState<ActivitySnapshot>(readSnapshot);
-  useRemoteDownloadActivity();
 
   useEffect(() => {
     const onChanged = (event: Event) => {
@@ -89,6 +89,7 @@ export function ActivityControl() {
       icon="fas fa-list-check"
       label={label}
       rootClassName="activity-control"
+      onOpen={refreshRemoteDownloads}
       indicator={activeCount > 0
         ? <span className="activity-control-indicator" aria-hidden="true" />
         : undefined}

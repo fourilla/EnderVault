@@ -947,7 +947,7 @@ class AdminNotificationFlowTest {
         mockMvc.perform(get("/api/v1/remote-downloads"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.tasks").isArray())
+                .andExpect(jsonPath("$.tasks").doesNotExist())
                 .andExpect(jsonPath("$.skipInspectByDefault").isBoolean())
                 .andExpect(jsonPath("$.defaultTargetDirectory").isString());
     }
@@ -1899,7 +1899,8 @@ class AdminNotificationFlowTest {
                 .andExpect(jsonPath("$[?(@.token == '%s')].path".formatted(fileShare.token()))
                         .value(Matchers.hasItem(filename)))
                 .andExpect(jsonPath("$[?(@.token == '%s')].directDownloadUrl".formatted(fileShare.token()))
-                        .value(Matchers.hasItem("/s/" + fileShare.token() + "/download/" + filename)))
+                        .value(Matchers.hasItem(
+                                "http://localhost/s/" + fileShare.token() + "/download/" + filename)))
                 .andExpect(jsonPath("$[?(@.token == '%s')].directDownloadUrl".formatted(directoryShare.token()))
                         .value(Matchers.hasItem(Matchers.nullValue())));
     }
