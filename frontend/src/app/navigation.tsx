@@ -180,7 +180,8 @@ export const navigationEntries: readonly NavigationEntry[] = [
     icon: 'fas fa-note-sticky',
     placement: 'apps',
     group: 'notes',
-    surface: 'document',
+    surface: 'spa',
+    component: lazyNamed(() => import('../sticky-notes/StickyNoteListApp'), 'StickyNoteListApp'),
   },
   {
     id: 'settings',

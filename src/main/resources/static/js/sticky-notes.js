@@ -225,6 +225,9 @@
             state.resizeObserver?.disconnect();
             state.card.remove();
             states.delete(state.id);
+            document.dispatchEvent(new CustomEvent("endervault:sticky-note-deleted", {
+                detail: { id: state.id }
+            }));
             window.EnderVault.showNotification(body.notification);
         } catch (error) {
             showToast("error", error.message || "Sticky note could not be deleted.");
@@ -579,6 +582,17 @@
     document.addEventListener("endervault:sticky-context-changed", (event) => {
         void setContext(event.detail);
     });
+    document.addEventListener("endervault:sticky-note-deleted", (event) => {
+        const id = String(event.detail?.id || "");
+        const state = states.get(id);
+        if (!state) {
+            return;
+        }
+        clearLocalBackup(state);
+        state.resizeObserver?.disconnect();
+        state.card.remove();
+        states.delete(id);
+    });
 
     const initialize = async () => {
         if (initialized) {
@@ -599,37 +613,6 @@
         controls.querySelector("[data-sticky-note-add]")?.addEventListener("click", () => void createNote());
         controls.querySelector("[data-sticky-note-visibility]")?.addEventListener("click", () => setAllHidden(!layer.hidden));
         controls.querySelector("[data-sticky-note-trigger]")?.addEventListener("click", () => setAllHidden(!layer.hidden));
-        document.querySelectorAll("[data-sticky-note-manager-delete]").forEach((button) => {
-            button.addEventListener("click", async () => {
-                const confirmed = await window.EnderVault.askConfirmation({
-                    title: "Delete sticky note",
-                    message: "Delete this sticky note? This cannot be undone.",
-                    confirmLabel: "Delete",
-                    danger: true
-                });
-                if (!confirmed) {
-                    return;
-                }
-                button.disabled = true;
-                try {
-                    const body = await requestDelete(button.dataset.stickyNoteManagerDelete);
-                    button.closest("tr")?.remove();
-                    const remaining = document.querySelectorAll("[data-sticky-note-manager-delete]").length;
-                    const count = document.querySelector("[data-sticky-note-manager-count]");
-                    if (count) {
-                        count.textContent = `${remaining} note(s)`;
-                    }
-                    const empty = document.querySelector("[data-sticky-note-manager-empty]");
-                    if (empty) {
-                        empty.hidden = remaining > 0;
-                    }
-                    window.EnderVault.showNotification(body.notification);
-                } catch (error) {
-                    button.disabled = false;
-                    showToast("error", error.message || "Sticky note could not be deleted.");
-                }
-            });
-        });
         window.EnderVaultContextMenus?.registerGlobalAction({
             id: "new-sticky-note",
             group: "sticky-note",
