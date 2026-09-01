@@ -19,11 +19,12 @@ export function AppShell() {
           && entry.id !== 'files'
           && entry.id !== 'file-detail'
           && entry.id !== 'bookmarks'
-          && entry.id !== 'bookmark-detail') {
+          && entry.id !== 'bookmark-detail'
+          && entry.id !== 'file-request-detail') {
         document.dispatchEvent(new CustomEvent('endervault:sticky-context-changed', {
           detail: {
             targetType: 'PAGE',
-            targetKey: entry.id === 'file-request-detail' ? location.pathname : entry.id,
+            targetKey: entry.stickyNotePageKey || entry.id,
             surface: 'PAGE',
             label: entry.label,
           },

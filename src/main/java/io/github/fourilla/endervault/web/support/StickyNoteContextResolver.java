@@ -74,6 +74,7 @@ public class StickyNoteContextResolver {
         return switch (context.targetType()) {
             case STORAGE -> context.targetKey().isBlank() ? "Files /" : context.targetKey();
             case BOOKMARK -> "Bookmark " + context.targetKey();
+            case FILE_REQUEST -> "File Request " + context.targetKey();
             case PAGE -> {
                 StickyNotePageCatalog.PageDefinition page = pageCatalog.byKey(context.targetKey());
                 yield page == null ? context.targetKey() : page.label();

@@ -33,7 +33,18 @@ export function FileRequestDetailApp() {
   }, [id, refreshToken]);
 
   useEffect(() => {
-    if (payload) document.title = `${payload.item.title} - EnderVault File Request`;
+    if (!payload) return;
+    document.title = `${payload.item.title} - EnderVault File Request`;
+    const stickyContext = {
+      targetType: 'FILE_REQUEST',
+      targetKey: payload.item.id,
+      surface: 'DETAIL',
+      label: payload.item.title,
+    };
+    void window.EnderVaultStickyNotes?.setContext(stickyContext);
+    document.dispatchEvent(new CustomEvent('endervault:sticky-context-changed', {
+      detail: stickyContext,
+    }));
   }, [payload]);
 
   const reload = () => setRefreshToken((value) => value + 1);

@@ -14,6 +14,7 @@ interface NavigationEntryBase {
   placement?: NavigationPlacement;
   group?: NavigationGroup;
   requiredCapability?: NavigationCapability;
+  stickyNotePageKey?: string;
 }
 
 export interface SpaNavigationEntry extends NavigationEntryBase {
@@ -140,6 +141,7 @@ export const navigationEntries: readonly NavigationEntry[] = [
     placement: 'apps',
     group: 'transfers',
     requiredCapability: 'remoteDownloads',
+    stickyNotePageKey: 'remote-download',
     surface: 'spa',
     component: lazyNamed(() => import('../remote-download/RemoteDownloadApp'), 'RemoteDownloadApp'),
   },

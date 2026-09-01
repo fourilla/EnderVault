@@ -18,6 +18,7 @@ type UploadStatus =
   | 'canceling'
   | 'conflict'
   | 'resolving'
+  | 'pending'
   | 'complete'
   | 'failed'
   | 'canceled';
@@ -118,7 +119,7 @@ class AdminUploadManager {
   }
 
   private percent(upload: ManagedUpload) {
-    if (['complete', 'conflict', 'resolving'].includes(upload.status)) return 100;
+    if (['complete', 'conflict', 'resolving', 'pending'].includes(upload.status)) return 100;
     if (!upload.total) return 0;
     return Math.max(0, Math.min(100, Math.round((upload.loaded / upload.total) * 100)));
   }
@@ -131,6 +132,7 @@ class AdminUploadManager {
     if (upload.status === 'canceled') return 'Canceled';
     if (upload.status === 'conflict') return 'Waiting for conflict choice';
     if (upload.status === 'resolving') return 'Applying conflict choice...';
+    if (upload.status === 'pending') return upload.message || 'Waiting in Pending Decisions';
     const format = window.EnderVaultActivity?.formatBytes ?? ((bytes: number) => `${bytes} B`);
     return upload.message || `${format(upload.loaded)} / ${format(upload.total)}`;
   }
@@ -234,6 +236,7 @@ class AdminUploadManager {
     upload.loaded = upload.total;
     this.conflictQueue.push(upload);
     this.render();
+    window.dispatchEvent(new CustomEvent('endervault:notifications-changed'));
     this.showNextConflict();
   }
 
@@ -245,14 +248,23 @@ class AdminUploadManager {
     const ask = window.EnderVault?.askFileConflictPolicy?.({
       ...upload.conflict,
       message: `"${upload.conflict.fileName}" already exists. Choose how to finish this upload.`,
-    }) ?? Promise.resolve('default');
+      closeValue: 'defer',
+    }) ?? Promise.resolve('defer');
     void ask
-      .then((policy) => this.resolveConflict(upload, policy))
-      .catch(() => this.resolveConflict(upload, 'default'))
+      .then((policy) => policy === 'defer'
+        ? this.deferConflict(upload)
+        : this.resolveConflict(upload, policy))
+      .catch(() => this.deferConflict(upload))
       .finally(() => {
         this.conflictDialogOpen = false;
         this.showNextConflict();
       });
+  }
+
+  private deferConflict(upload: ManagedUpload) {
+    if (!upload.conflict || upload.status !== 'conflict') return;
+    window.EnderVault?.showToast('info', `"${upload.file.name}" is waiting in Pending Decisions.`);
+    this.finish(upload, 'pending', 'Waiting in Pending Decisions');
   }
 
   private async resolveConflict(upload: ManagedUpload, policy: string) {
@@ -271,6 +283,7 @@ class AdminUploadManager {
       });
       upload.redirectUrl = response.redirectUrl;
       window.EnderVault?.showNotification(response.notification);
+      window.dispatchEvent(new CustomEvent('endervault:notifications-changed'));
       this.finish(upload, response.uploadedFile ? 'complete' : 'canceled');
     } catch (reason) {
       this.finish(upload, 'failed', reason instanceof Error ? reason.message : 'Conflict resolution failed.');
