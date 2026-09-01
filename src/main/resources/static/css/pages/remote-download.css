@@ -107,8 +107,7 @@
     min-width: 0;
 }
 
-.remote-source,
-.remote-message {
+.remote-source {
     max-width: 360px;
     overflow-wrap: anywhere;
 }
@@ -143,11 +142,6 @@
     justify-self: start;
 }
 
-.remote-task-actions {
-    display: flex;
-    gap: var(--space-sm);
-}
-
 .remote-confirm-dialog {
     width: min(620px, calc(100vw - 32px));
     border: 1px solid var(--line);
@@ -162,8 +156,7 @@
     background: rgba(0, 0, 0, 0.58);
 }
 
-.remote-confirm-card,
-.remote-confirm-page {
+.remote-confirm-card {
     display: grid;
     gap: var(--space-3xl);
 }

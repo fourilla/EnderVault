@@ -2,30 +2,6 @@
     gap: var(--space-sm);
 }
 
-.bookmark-form-panel {
-    width: 320px;
-}
-
-.bookmark-noscript-panel {
-    width: min(520px, calc(100vw - 48px));
-}
-
-.bookmark-noscript-panel .bookmark-create-form + .bookmark-create-form {
-    margin-top: var(--space-xl);
-    padding-top: var(--space-xl);
-    border-top: 1px solid var(--line);
-}
-
-.bookmark-create-form label {
-    display: grid;
-    gap: var(--space-xs);
-    min-width: 0;
-    color: var(--muted);
-    font-size: var(--font-size-xs);
-    font-weight: 700;
-}
-
-.bookmark-create-form textarea,
 .bookmark-form-dialog textarea {
     width: 100%;
     min-height: 220px;

@@ -4,13 +4,6 @@
     gap: var(--space-3xl);
 }
 
-.metadata-status-stack {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: var(--space-sm);
-}
-
 .metadata-running-note {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);

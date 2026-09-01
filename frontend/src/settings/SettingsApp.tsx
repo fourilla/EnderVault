@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AdvancedSettings } from './sections/AdvancedSettings';
 import { AccountSettings } from './sections/AccountSettings';
 import { BookmarkSettings } from './sections/BookmarkSettings';
@@ -34,11 +34,10 @@ type InternalSectionId =
 
 type SettingsLink = {
   id: string;
-  href: string;
   icon: string;
   title: string;
   description: string;
-  internal?: InternalSectionId;
+  internal: InternalSectionId;
 };
 
 type SettingsGroup = { id: string; title: string; links: SettingsLink[] };
@@ -46,48 +45,47 @@ type SettingsGroup = { id: string; title: string; links: SettingsLink[] };
 const settingsGroups: SettingsGroup[] = [
   {
     id: 'application', title: 'Application', links: [
-      { id: 'appearance', internal: 'appearance', href: '/admin/settings?section=appearance', icon: 'fas fa-display', title: 'Appearance & Browser', description: 'Browser defaults and sticky note appearance' },
-      { id: 'files', internal: 'files', href: '/admin/settings?section=files', icon: 'fas fa-folder-tree', title: 'Files & Storage', description: 'Conflicts, recent items, and trash retention' },
-      { id: 'file-tools', internal: 'file-tools', href: '/admin/settings?section=file-tools', icon: 'fas fa-screwdriver-wrench', title: 'File Tools', description: 'Text, comic, and draft limits' },
-      { id: 'archive-safety', internal: 'archive-safety', href: '/admin/settings?section=archive-safety', icon: 'fas fa-file-zipper', title: 'Archive Safety', description: 'Extraction limits and archive manifest caching' },
-      { id: 'thumbnails', internal: 'thumbnails', href: '/admin/settings?section=thumbnails', icon: 'fas fa-images', title: 'Thumbnails', description: 'Enabled formats, cache, and generator workers' },
-      { id: 'bookmarks', internal: 'bookmarks', href: '/admin/settings?section=bookmarks', icon: 'fas fa-bookmark', title: 'Bookmarks', description: 'Link behavior, metadata fetching, and favicon cache' },
+      { id: 'appearance', internal: 'appearance', icon: 'fas fa-display', title: 'Appearance & Browser', description: 'Browser defaults and sticky note appearance' },
+      { id: 'files', internal: 'files', icon: 'fas fa-folder-tree', title: 'Files & Storage', description: 'Conflicts, recent items, and trash retention' },
+      { id: 'file-tools', internal: 'file-tools', icon: 'fas fa-screwdriver-wrench', title: 'File Tools', description: 'Text, comic, and draft limits' },
+      { id: 'archive-safety', internal: 'archive-safety', icon: 'fas fa-file-zipper', title: 'Archive Safety', description: 'Extraction limits and archive manifest caching' },
+      { id: 'thumbnails', internal: 'thumbnails', icon: 'fas fa-images', title: 'Thumbnails', description: 'Enabled formats, cache, and generator workers' },
+      { id: 'bookmarks', internal: 'bookmarks', icon: 'fas fa-bookmark', title: 'Bookmarks', description: 'Link behavior, metadata fetching, and favicon cache' },
     ],
   },
   {
     id: 'sharing', title: 'Sharing', links: [
-      { id: 'share-links', internal: 'share-links', href: '/admin/settings?section=share-links', icon: 'fas fa-share-nodes', title: 'Share Links', description: 'Public read-only links, tokens, and expiration' },
-      { id: 'file-requests', internal: 'file-requests', href: '/admin/settings?section=file-requests', icon: 'fas fa-inbox', title: 'File Requests', description: 'Upload link defaults, admission limits, and access logs' },
+      { id: 'share-links', internal: 'share-links', icon: 'fas fa-share-nodes', title: 'Share Links', description: 'Public read-only links, tokens, and expiration' },
+      { id: 'file-requests', internal: 'file-requests', icon: 'fas fa-inbox', title: 'File Requests', description: 'Upload link defaults, admission limits, and access logs' },
     ],
   },
   {
     id: 'transfer', title: 'Transfers & Network', links: [
-      { id: 'uploads', internal: 'uploads', href: '/admin/settings?section=uploads', icon: 'fas fa-cloud-arrow-up', title: 'Uploads', description: 'Resumable chunks, concurrency, retention, and cleanup' },
-      { id: 'remote-downloads', internal: 'remote-downloads', href: '/admin/settings?section=remote-downloads', icon: 'fas fa-cloud-arrow-down', title: 'Remote Downloads', description: 'Direct URL policy, workers, retries, and history' },
-      { id: 'vpn', internal: 'vpn', href: '/admin/settings?section=vpn', icon: 'fas fa-shield-halved', title: 'VPN Egress', description: 'Startup route, private proxy, and tunnel health policy' },
+      { id: 'uploads', internal: 'uploads', icon: 'fas fa-cloud-arrow-up', title: 'Uploads', description: 'Resumable chunks, concurrency, retention, and cleanup' },
+      { id: 'remote-downloads', internal: 'remote-downloads', icon: 'fas fa-cloud-arrow-down', title: 'Remote Downloads', description: 'Direct URL policy, workers, retries, and history' },
+      { id: 'vpn', internal: 'vpn', icon: 'fas fa-shield-halved', title: 'VPN Egress', description: 'Startup route, private proxy, and tunnel health policy' },
     ],
   },
   {
     id: 'security', title: 'Security', links: [
-      { id: 'account', internal: 'account', href: '/admin/settings?section=account', icon: 'fas fa-user-lock', title: 'Admin Account', description: 'Admin ID, password, and password login policy' },
-      { id: 'passkeys', internal: 'passkeys', href: '/admin/settings?section=passkeys', icon: 'fas fa-key', title: 'Passkey Devices', description: 'Trusted devices and passkey registration' },
-      { id: 'sessions', internal: 'sessions', href: '/admin/settings?section=sessions', icon: 'fas fa-laptop', title: 'Sessions', description: 'Concurrent login and idle expiration policy' },
-      { id: 'access-identity', internal: 'access-identity', href: '/admin/settings?section=access-identity', icon: 'fas fa-fingerprint', title: 'Access & Identity', description: 'Public URL, reverse proxies, and passkey identity' },
+      { id: 'account', internal: 'account', icon: 'fas fa-user-lock', title: 'Admin Account', description: 'Admin ID, password, and password login policy' },
+      { id: 'passkeys', internal: 'passkeys', icon: 'fas fa-key', title: 'Passkey Devices', description: 'Trusted devices and passkey registration' },
+      { id: 'sessions', internal: 'sessions', icon: 'fas fa-laptop', title: 'Sessions', description: 'Concurrent login and idle expiration policy' },
+      { id: 'access-identity', internal: 'access-identity', icon: 'fas fa-fingerprint', title: 'Access & Identity', description: 'Public URL, reverse proxies, and passkey identity' },
     ],
   },
   {
     id: 'operations', title: 'Operations', links: [
-      { id: 'tasks-staging', internal: 'tasks-staging', href: '/admin/settings?section=tasks-staging', icon: 'fas fa-list-check', title: 'Tasks & Staging', description: 'Pending decisions, temporary artifacts, and task workers' },
-      { id: 'metadata-activity', internal: 'metadata-activity', href: '/admin/settings?section=metadata-activity', icon: 'fas fa-clipboard-list', title: 'Metadata & Activity Logs', description: 'Inspector limits and activity log retention' },
-      { id: 'telegram-alerts', internal: 'telegram-alerts', href: '/admin/settings?section=telegram-alerts', icon: 'fab fa-telegram', title: 'Telegram Alerts', description: 'Bot connection and activity notification types' },
-      { id: 'deployment', internal: 'deployment', href: '/admin/settings?section=deployment', icon: 'fas fa-server', title: 'Deployment', description: 'Read-only storage, metadata, and VPN control topology' },
+      { id: 'tasks-staging', internal: 'tasks-staging', icon: 'fas fa-list-check', title: 'Tasks & Staging', description: 'Pending decisions, temporary artifacts, and task workers' },
+      { id: 'metadata-activity', internal: 'metadata-activity', icon: 'fas fa-clipboard-list', title: 'Metadata & Activity Logs', description: 'Inspector limits and activity log retention' },
+      { id: 'telegram-alerts', internal: 'telegram-alerts', icon: 'fab fa-telegram', title: 'Telegram Alerts', description: 'Bot connection and activity notification types' },
+      { id: 'deployment', internal: 'deployment', icon: 'fas fa-server', title: 'Deployment', description: 'Read-only storage, metadata, and VPN control topology' },
     ],
   },
 ];
 
 const internalSections = Object.fromEntries(
   settingsGroups.flatMap((group) => group.links)
-    .filter((link): link is SettingsLink & { internal: InternalSectionId } => Boolean(link.internal))
     .map((link) => [link.internal, link]),
 ) as Record<InternalSectionId, SettingsLink>;
 
@@ -120,12 +118,6 @@ export function SettingsApp() {
     url.hash = '';
     window.history.pushState({ settingsSection: next }, '', url);
   }, [confirmNavigation, section]);
-
-  const openLegacy = useCallback(async (event: MouseEvent<HTMLAnchorElement>, href: string) => {
-    if (!dirty) return;
-    event.preventDefault();
-    if (await confirmNavigation()) window.EnderVault?.navigate(href) || window.location.assign(href);
-  }, [confirmNavigation, dirty]);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -202,7 +194,7 @@ export function SettingsApp() {
           {settingsGroups.map((group) => (
             <section key={group.id} className="settings-spa-nav-group" aria-labelledby={`settings-nav-${group.id}`}>
               <h3 id={`settings-nav-${group.id}`}>{group.title}</h3>
-              {group.links.map((link) => link.internal ? (
+              {group.links.map((link) => (
                 <button
                   key={link.id}
                   type="button"
@@ -213,12 +205,6 @@ export function SettingsApp() {
                   <i className={link.icon} aria-hidden="true" />
                   <span><strong>{link.title}</strong><small><OverflowMarquee text={link.description} /></small></span>
                 </button>
-              ) : (
-                <a key={link.id} className="settings-spa-nav-item" href={link.href} onClick={(event) => void openLegacy(event, link.href)}>
-                  <i className={link.icon} aria-hidden="true" />
-                  <span><strong>{link.title}</strong><small><OverflowMarquee text={link.description} /></small></span>
-                  <i className="fas fa-arrow-up-right-from-square settings-spa-nav-external" aria-hidden="true" />
-                </a>
               ))}
             </section>
           ))}

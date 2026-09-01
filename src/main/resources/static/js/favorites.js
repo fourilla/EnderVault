@@ -1,7 +1,6 @@
 document.addEventListener("DOMContentLoaded", () => {
     const {
         requestJson,
-        submitJsonForm,
         showNotification,
         showToast,
         csrfPair,
@@ -13,71 +12,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const dispatchFavoritesChanged = (detail) => {
         document.dispatchEvent(new CustomEvent("endervault:favorites-changed", { detail }));
-    };
-
-    const favoriteUrl = (favorite) => {
-        if (favorite.openUrl) {
-            return favorite.openUrl;
-        }
-        const query = new URLSearchParams({ path: favorite.path }).toString();
-        return favorite.directory ? `/files?${query}` : `/files/detail?${query}`;
-    };
-
-    const setButtonState = (button, active) => {
-        if (!button) {
-            return;
-        }
-
-        const label = active ? "Remove from favorites" : "Add to favorites";
-        button.classList.toggle("is-favorite", active);
-        button.title = label;
-        button.setAttribute("aria-label", label);
-    };
-
-    const updateMatchingButtons = (path, active) => {
-        document.querySelectorAll("form[data-favorite-path]").forEach((form) => {
-            if (form.dataset.favoritePath !== path) {
-                return;
-            }
-            setButtonState(form.querySelector(".favorite-toggle"), active);
-        });
-        document.querySelectorAll("[data-context-item]").forEach((item) => {
-            if (item.dataset.itemPath === path) {
-                item.dataset.itemFavorite = String(active);
-            }
-        });
-        document.querySelectorAll("[data-bookmark-context-item]").forEach((item) => {
-            if (`bookmark:${item.dataset.bookmarkId}` === path) {
-                item.dataset.bookmarkFavorite = String(active);
-            }
-        });
-    };
-
-    const favoriteElement = (root, attribute, path) =>
-        Array.from(root.querySelectorAll(`[${attribute}]`))
-                .find((element) => element.getAttribute(attribute) === path);
-
-    const sidebarList = () => document.querySelector("[data-sidebar-favorites-list]");
-
-    const bindLegacySidebarFavoritesToggle = () => {
-        const section = document.querySelector("[data-legacy-sidebar-favorites]");
-        const toggle = section?.querySelector("[data-legacy-sidebar-favorites-toggle]");
-        const list = section?.querySelector("[data-sidebar-favorites-list]");
-        if (!section || !toggle || !list) {
-            return;
-        }
-
-        toggle.addEventListener("click", () => {
-            const open = !section.classList.contains("is-open");
-            section.classList.toggle("is-open", open);
-            list.hidden = !open;
-            toggle.setAttribute("aria-expanded", String(open));
-            toggle.title = open ? "Collapse favorites" : "Expand favorites";
-            const label = toggle.querySelector(".visually-hidden");
-            if (label) {
-                label.textContent = toggle.title;
-            }
-        });
     };
 
     const sidebarFavoriteLinks = () =>
@@ -101,120 +35,6 @@ document.addEventListener("DOMContentLoaded", () => {
         return formData;
     };
 
-    const addSidebarFavorite = (favorite) => {
-        const list = sidebarList();
-        if (!list || !favorite) {
-            return;
-        }
-
-        favoriteElement(list, "data-favorite-sidebar-path", favorite.path)?.remove();
-        document.querySelector("[data-sidebar-favorites-empty]")?.remove();
-
-        const link = document.createElement("a");
-        link.href = favoriteUrl(favorite);
-        link.title = favorite.path;
-        link.classList.toggle("is-hidden-item", Boolean(favorite.hidden));
-        link.dataset.favoriteSidebarPath = favorite.path;
-        link.dataset.favoriteDirectOpenUrl = favorite.directOpenUrl || favorite.openUrl || link.href;
-        link.dataset.favoriteDetailUrl = favorite.detailUrl || favorite.openUrl || link.href;
-        link.dataset.favoriteBookmarkLink = String((favorite.path || "").startsWith("bookmark:") && Boolean(favorite.directOpenUrl));
-        if (favorite.openInNewTab) {
-            link.target = "_blank";
-            link.rel = "noopener noreferrer";
-        }
-        link.innerHTML = `
-            <i aria-hidden="true"></i>
-            <span></span>
-        `;
-        link.querySelector("i").className = favorite.iconClass;
-        link.querySelector("span").textContent = favorite.name;
-        list.append(link);
-    };
-
-    const removeSidebarFavorite = (path) => {
-        const list = sidebarList();
-        if (!list) {
-            return;
-        }
-
-        const link = favoriteElement(list, "data-favorite-sidebar-path", path);
-        if (link === activeSidebarFavorite) {
-            closeSidebarFavoriteMenu();
-        }
-        link?.remove();
-
-        if (!list.querySelector("a") && !document.querySelector("[data-sidebar-favorites-empty]")) {
-            const empty = document.createElement("p");
-            empty.dataset.sidebarFavoritesEmpty = "";
-            empty.textContent = "No favorites yet.";
-            list.append(empty);
-        }
-    };
-
-    const moveElement = (element, direction, candidates) => {
-        const index = candidates.indexOf(element);
-        const sibling = direction === "up" ? candidates[index - 1] : candidates[index + 1];
-        if (!element || index < 0 || !sibling) {
-            return;
-        }
-        if (direction === "up") {
-            sibling.before(element);
-        } else {
-            sibling.after(element);
-        }
-    };
-
-    const reorderSidebarFavorite = (path, direction) => {
-        const link = favoriteElement(document, "data-favorite-sidebar-path", path);
-        moveElement(link, direction, sidebarFavoriteLinks());
-    };
-
-    const handleFavoriteResponse = (form, body) => {
-        const path = body.path || form.dataset.favoritePath || new FormData(form).get("path");
-        showNotification(body.notification);
-        updateMatchingButtons(path, body.active);
-
-        if (body.active) {
-            addSidebarFavorite(body.favorite);
-        } else {
-            removeSidebarFavorite(path);
-        }
-        dispatchFavoritesChanged({ action: body.active ? "add" : "remove", path, active: body.active });
-    };
-
-    const togglePath = async (path) => {
-        const formData = formDataWithCsrf();
-        formData.append("path", path);
-        const body = await requestJson("/api/v1/favorites/toggle", {
-            method: "POST",
-            body: formData
-        });
-        handleFavoriteResponse({
-            dataset: {
-                favoriteAction: "toggle",
-                favoritePath: path
-            }
-        }, body);
-        return body;
-    };
-
-    const toggleBookmark = async (id) => {
-        const path = `bookmark:${id}`;
-        const formData = formDataWithCsrf();
-        formData.append("id", id);
-        const body = await requestJson("/api/v1/favorites/toggle-bookmark", {
-            method: "POST",
-            body: formData
-        });
-        handleFavoriteResponse({
-            dataset: {
-                favoriteAction: "toggle",
-                favoritePath: path
-            }
-        }, body);
-        return body;
-    };
-
     const remove = async (path) => {
         const formData = formDataWithCsrf();
         formData.append("path", path);
@@ -222,12 +42,8 @@ document.addEventListener("DOMContentLoaded", () => {
             method: "POST",
             body: formData
         });
-        handleFavoriteResponse({
-            dataset: {
-                favoriteAction: "remove",
-                favoritePath: path
-            }
-        }, body);
+        showNotification(body.notification);
+        dispatchFavoritesChanged({ action: "remove", path, active: false });
         return body;
     };
 
@@ -239,7 +55,6 @@ document.addEventListener("DOMContentLoaded", () => {
             method: "POST",
             body: formData
         });
-        reorderSidebarFavorite(path, direction);
         showNotification(body.notification);
         dispatchFavoritesChanged({ action: "move", path, direction });
         return body;
@@ -431,39 +246,5 @@ document.addEventListener("DOMContentLoaded", () => {
         document.addEventListener("scroll", closeSidebarFavoriteMenu, true);
     };
 
-    const bindFavoriteForms = (root = document) => {
-        root.querySelectorAll("form[data-favorite-action]").forEach((form) => {
-            if (form.dataset.favoriteBound === "true") {
-                return;
-            }
-            form.dataset.favoriteBound = "true";
-
-            form.addEventListener("submit", async (event) => {
-                event.preventDefault();
-                const button = form.querySelector("button");
-                button.disabled = true;
-                try {
-                    const body = await submitJsonForm(form);
-                    handleFavoriteResponse(form, body);
-                } catch (error) {
-                    showToast("error", error.message || "Favorite update failed.");
-                } finally {
-                    button.disabled = false;
-                }
-            });
-        });
-    };
-
-    bindFavoriteForms();
     bindSidebarFavoriteContextMenu();
-    document.addEventListener("endervault:listing-refreshed", () => bindFavoriteForms());
-
-    window.EnderVaultFavorites = {
-        togglePath,
-        toggleBookmark,
-        remove,
-        move,
-        bind: bindFavoriteForms
-    };
-    bindLegacySidebarFavoritesToggle();
 });
