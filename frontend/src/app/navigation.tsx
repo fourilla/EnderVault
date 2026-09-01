@@ -132,7 +132,8 @@ export const navigationEntries: readonly NavigationEntry[] = [
     placement: 'apps',
     group: 'transfers',
     requiredCapability: 'remoteDownloads',
-    surface: 'document',
+    surface: 'spa',
+    component: lazyNamed(() => import('../remote-download/RemoteDownloadApp'), 'RemoteDownloadApp'),
   },
   {
     id: 'activity-logs',

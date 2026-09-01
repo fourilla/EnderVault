@@ -934,24 +934,21 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void remoteDownloadPageRendersRouteSelectionAndTaskRouteColumn() throws Exception {
+    void remoteDownloadPageUsesSpaShellAndExposesPagePayload() throws Exception {
         mockMvc.perform(get("/admin/utils/remote-download"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("name=\"networkRoute\"")))
-                .andExpect(content().string(Matchers.containsString("Use global (Direct)")))
-                .andExpect(content().string(Matchers.containsString("action=\"/api/v1/remote-downloads/inspect\"")))
-                .andExpect(content().string(Matchers.containsString("data-start-url=\"/api/v1/remote-downloads\"")))
-                .andExpect(content().string(Matchers.containsString("data-discard-url=\"/api/v1/remote-downloads/inspect/discard\"")))
-                .andExpect(content().string(Matchers.containsString("data-tasks-url=\"/api/v1/remote-downloads/tasks\"")))
-                .andExpect(content().string(Matchers.containsString("id=\"remoteCurlDialog\"")))
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")))
                 .andExpect(content().string(Matchers.containsString("data-storage-directory-picker")))
                 .andExpect(content().string(Matchers.containsString("/js/directory-tree.js")))
-                .andExpect(content().string(Matchers.containsString("class=\"input-action-field\"")))
-                .andExpect(content().string(Matchers.containsString("data-remote-remember-destination")))
-                .andExpect(content().string(Matchers.containsString("remote-custom-headers")))
-                .andExpect(content().string(Matchers.containsString("id=\"remoteCustomHeaders\"")))
-                .andExpect(content().string(Matchers.not(Matchers.containsString("/admin/utils/remote-download/inspect"))))
-                .andExpect(content().string(Matchers.containsString("<th>Route</th>")));
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/remote-download.js"))))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/remote-download-curl.js"))));
+
+        mockMvc.perform(get("/api/v1/remote-downloads"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.tasks").isArray())
+                .andExpect(jsonPath("$.skipInspectByDefault").isBoolean())
+                .andExpect(jsonPath("$.defaultTargetDirectory").isString());
     }
 
     @Test
@@ -1734,20 +1731,14 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void remoteDownloadPageRendersForm() throws Exception {
+    void remoteDownloadPageDoesNotRenderLegacyForm() throws Exception {
         mockMvc.perform(get("/admin/utils/remote-download"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote Download")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"url\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"path\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"admin-app-root\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("name=\"conflictPolicy\""))))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"skipInspection\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-remote-import-curl")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/remote-download-curl.js")))
+                        org.hamcrest.Matchers.containsString("id=\"remoteDownloadForm\""))))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("name=\"curlCommand\""))))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote download")));
+                        org.hamcrest.Matchers.containsString("/js/remote-download-curl.js"))));
     }
 
     @Test
