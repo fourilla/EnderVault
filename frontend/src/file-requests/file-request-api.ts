@@ -6,14 +6,7 @@ import type {
 } from './types';
 
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(url, {
-    credentials: 'same-origin',
-    headers: { Accept: 'application/json' },
-    signal,
-  });
-  const body = await response.json() as T & { message?: string };
-  if (!response.ok) throw new Error(body.message || 'File request data could not be loaded.');
-  return body;
+  return window.EnderVault!.requestJson(url, { signal });
 }
 
 export const loadFileRequests = (search: string, signal: AbortSignal) =>

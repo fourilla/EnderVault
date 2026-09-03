@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AppNavigationLink } from '../app/AppNavigationLink';
 import { toastError } from '../shared/api/form-api';
+import { canRetainSnapshot } from '../shared/api/snapshot-errors';
 import { icon } from '../shared/browser/BrowserEntries';
 import { PageHeader } from '../shared/layout/PageHeader';
 import {
@@ -15,19 +16,22 @@ import type { FileRequestDetailPayload } from './types';
 export function FileRequestDetailApp() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
-  const [payload, setPayload] = useState<FileRequestDetailPayload | null>(null);
-  const [error, setError] = useState('');
+  const [snapshot, setPayload] = useState<FileRequestDetailPayload | null>(null);
+  const [failure, setFailure] = useState<{ id: string; message: string } | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
   const [busy, setBusy] = useState('');
+  const payload = snapshot?.item.id === id ? snapshot : null;
+  const error = failure?.id === id ? failure.message : '';
 
   useEffect(() => {
     const controller = new AbortController();
-    setError('');
+    setFailure(null);
     void loadFileRequest(id, controller.signal)
-      .then(setPayload)
+      .then((next) => { if (!controller.signal.aborted) setPayload(next); })
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
-          setError(reason instanceof Error ? reason.message : 'File request could not be loaded.');
+          if (!canRetainSnapshot(reason)) setPayload(null);
+          setFailure({ id, message: reason instanceof Error ? reason.message : 'File request could not be loaded.' });
         }
       });
     return () => controller.abort();
@@ -74,7 +78,7 @@ export function FileRequestDetailApp() {
     if (confirmed) await run(options.key, options.action, options.fallback, options.after);
   };
 
-  if (error) return <section className="dashboard-panel browser-load-error" role="alert">{error}</section>;
+  if (error && !payload) return <section className="dashboard-panel browser-load-error" role="alert">{error}</section>;
   if (!payload) return <section className="browser-load-progress" role="status" aria-live="polite">
     <i className="fas fa-spinner fa-spin" aria-hidden="true" /><span>Loading file request...</span>
   </section>;
@@ -83,6 +87,9 @@ export function FileRequestDetailApp() {
   return (
     <div className="dashboard-workspace file-request-detail-workspace">
       <PageHeader title={item.title} />
+      {error && <section className="browser-load-error" role="alert">{error} Showing the last loaded values.
+        <button className="ghost" type="button" onClick={reload}>Retry</button>
+      </section>}
 
       <section className="dashboard-panel">
         <header className="section-heading">

@@ -4,6 +4,7 @@ import { EntryGrid, EntryTable, icon } from '../shared/browser/BrowserEntries';
 import { BrowserPagination } from '../shared/browser/BrowserPagination';
 import type { BrowserEntry } from '../shared/browser/types';
 import { useEntrySelection } from '../shared/browser/useEntrySelection';
+import { useNavigationScroll } from '../shared/browser/useNavigationScroll';
 import { togglePathFavorite } from '../shared/api/favorite-api';
 import { notify, postForm, toastError } from '../shared/api/form-api';
 import { canonicalRecentState, loadRecentPayload } from './recent-api';
@@ -27,7 +28,7 @@ export function RecentApp() {
   const [refreshToken, setRefreshToken] = useState(0);
   const stateRef = useRef(state);
   const payloadRef = useRef(payload);
-  const restoreScrollRef = useRef(state.scrollTop);
+  const requestScroll = useNavigationScroll(payload, loading, state.scrollTop);
   stateRef.current = state;
   payloadRef.current = payload;
 
@@ -39,10 +40,10 @@ export function RecentApp() {
     const current = { ...effectiveState(), scrollTop: Math.max(0, Math.round(window.scrollY)) };
     rememberRecentState(current, true);
     const normalized = { ...next, scrollTop: next.scrollTop || 0 };
-    restoreScrollRef.current = normalized.scrollTop;
+    requestScroll(normalized.scrollTop);
     rememberRecentState(normalized, replace);
     setState(normalized);
-  }, [effectiveState]);
+  }, [effectiveState, requestScroll]);
 
   useEffect(() => {
     rememberRecentState(state, true);
@@ -51,11 +52,11 @@ export function RecentApp() {
     setError('');
     void loadRecentPayload(state, controller.signal)
       .then((next) => {
+        if (controller.signal.aborted) return;
         setPayload(next);
         const canonical = canonicalRecentState(state, next);
         stateRef.current = canonical;
         rememberRecentState(canonical, true);
-        window.requestAnimationFrame(() => window.scrollTo({ top: restoreScrollRef.current, behavior: 'auto' }));
       })
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
@@ -71,7 +72,7 @@ export function RecentApp() {
   useEffect(() => {
     const onPopState = (event: PopStateEvent) => {
       const restored = parseRecentState(event.state) || defaultRecentState();
-      restoreScrollRef.current = restored.scrollTop;
+      requestScroll(restored.scrollTop);
       setSearchText(restored.query);
       setState(restored);
     };
@@ -84,7 +85,7 @@ export function RecentApp() {
       window.removeEventListener('popstate', onPopState);
       window.removeEventListener('pagehide', onPageHide);
     };
-  }, [effectiveState]);
+  }, [effectiveState, requestScroll]);
 
   const entries = useMemo(
     () => payload ? [...payload.directories, ...payload.entries] : [],

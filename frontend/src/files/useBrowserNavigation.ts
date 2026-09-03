@@ -8,6 +8,8 @@ import {
 } from './browser-history';
 import { postForm, toastError } from '../shared/api/form-api';
 import type { BrowserHistoryState, BrowserPayload, BrowserView } from './types';
+import { useNavigationScroll } from '../shared/browser/useNavigationScroll';
+import { useListingRefresh } from '../shared/browser/useListingRefresh';
 
 const listingRequestKeyFor = (state: BrowserHistoryState) => [
   state.mode,
@@ -29,7 +31,7 @@ export function useBrowserNavigation() {
   const [refreshToken, setRefreshToken] = useState(0);
   const stateRef = useRef(state);
   const payloadRef = useRef(payload);
-  const restoreScrollRef = useRef(state.scrollTop);
+  const requestScroll = useNavigationScroll(payload, loading, state.scrollTop);
   const requestGenerationRef = useRef(0);
 
   stateRef.current = state;
@@ -56,13 +58,13 @@ export function useBrowserNavigation() {
     payloadRef.current = null;
     setPayload(null);
     setLoading(true);
-    restoreScrollRef.current = normalized.scrollTop;
+    requestScroll(normalized.scrollTop);
     rememberBrowserState(normalized, replace || sameRequest);
     setState(normalized);
     if (sameRequest) {
       setRefreshToken((current) => current + 1);
     }
-  }, [persistCurrentScroll]);
+  }, [persistCurrentScroll, requestScroll]);
 
   const browse = useCallback((path: string) => {
     const current = effectiveState();
@@ -77,35 +79,8 @@ export function useBrowserNavigation() {
     });
   }, [effectiveState, navigate]);
 
-  useEffect(() => {
-    const refreshListing = async (url?: string) => {
-      if (url) {
-        const target = new URL(url, window.location.href);
-        const targetPath = target.searchParams.get('path');
-        if (targetPath != null && targetPath !== effectiveState().path) {
-          navigate({
-            ...effectiveState(),
-            mode: 'browse',
-            path: targetPath,
-            query: '',
-            page: 1,
-            scrollTop: 0,
-          });
-          return;
-        }
-      }
-      setRefreshToken((current) => current + 1);
-    };
-    window.EnderVaultFileBrowser = {
-      refreshListing,
-      requestListingRefresh: (url?: string) => void refreshListing(url),
-      syncToolbarState: () => undefined,
-    };
-    document.dispatchEvent(new CustomEvent('endervault:files-ready'));
-    return () => {
-      delete window.EnderVaultFileBrowser;
-    };
-  }, [effectiveState, navigate]);
+  const reload = useCallback(() => setRefreshToken((current) => current + 1), []);
+  useListingRefresh(reload);
 
   const listingRequestKey = listingRequestKeyFor(state);
 
@@ -139,9 +114,6 @@ export function useBrowserNavigation() {
             : '';
           readOnlyLink.href = '/files/read-only' + query;
         }
-        window.requestAnimationFrame(() => {
-          window.scrollTo({ top: restoreScrollRef.current, behavior: 'auto' });
-        });
       })
       .catch((reason: unknown) => {
         if (controller.signal.aborted || requestGeneration !== requestGenerationRef.current) return;
@@ -162,7 +134,7 @@ export function useBrowserNavigation() {
       payloadRef.current = null;
       setPayload(null);
       setLoading(true);
-      restoreScrollRef.current = restored.scrollTop;
+      requestScroll(restored.scrollTop);
       setSearchText(restored.query);
       setState(restored);
     };
@@ -173,7 +145,7 @@ export function useBrowserNavigation() {
       window.removeEventListener('popstate', onPopState);
       window.removeEventListener('pagehide', onPageHide);
     };
-  }, [persistCurrentScroll]);
+  }, [persistCurrentScroll, requestScroll]);
 
   const applyPreferences = (updates: Partial<BrowserHistoryState>) => {
     navigate({ ...effectiveState(), ...updates, page: 1, scrollTop: 0 });
@@ -246,6 +218,6 @@ export function useBrowserNavigation() {
     applyView,
     applyPreferences,
     submitSearch,
-    reload: () => setRefreshToken((current) => current + 1),
+    reload,
   };
 }

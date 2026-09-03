@@ -28,9 +28,12 @@ export const getSettings = async <T,>(endpoint: string): Promise<T> => {
   });
   const payload = await parseJson<T>(response);
   if (!response.ok || payload === null) {
-    throw new Error(sessionExpired(response, payload)
+    throw Object.assign(new Error(sessionExpired(response, payload)
       ? 'Your session expired. Log in again before continuing.'
-      : 'Settings could not be loaded.');
+      : 'Settings could not be loaded.'), {
+        status: response.status,
+        sessionExpired: sessionExpired(response, payload),
+      });
   }
   return payload;
 };
