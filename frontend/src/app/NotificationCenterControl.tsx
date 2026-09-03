@@ -1,20 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useShellStatus, type NotificationCenterPayload } from './ShellStatusContext';
 import { AppNavigationLink } from './AppNavigationLink';
 import { ShellPopover } from './ShellPopover';
-
-interface NotificationCenterItem {
-  id: string;
-  title: string;
-  detail: string;
-  createdLabel: string;
-  href: string;
-}
-
-interface NotificationCenterPayload {
-  actionableCount: number;
-  items: NotificationCenterItem[];
-  reviewAllHref: string;
-}
 
 const emptyPayload: NotificationCenterPayload = {
   actionableCount: 0,
@@ -23,32 +9,9 @@ const emptyPayload: NotificationCenterPayload = {
 };
 
 export function NotificationCenterControl() {
-  const [payload, setPayload] = useState(emptyPayload);
-  const [available, setAvailable] = useState(true);
-
-  const refresh = useCallback(async () => {
-    try {
-      const next = await window.EnderVault!.requestJson('/api/v1/notifications');
-      setPayload(next as NotificationCenterPayload);
-      setAvailable(true);
-    } catch {
-      setAvailable(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void refresh();
-    const interval = window.setInterval(() => void refresh(), 20_000);
-    const onFocus = () => void refresh();
-    const onNotificationsChanged = () => void refresh();
-    window.addEventListener('focus', onFocus);
-    window.addEventListener('endervault:notifications-changed', onNotificationsChanged);
-    return () => {
-      window.clearInterval(interval);
-      window.removeEventListener('focus', onFocus);
-      window.removeEventListener('endervault:notifications-changed', onNotificationsChanged);
-    };
-  }, [refresh]);
+  const { notifications } = useShellStatus();
+  const payload = notifications.data ?? emptyPayload;
+  const available = Boolean(notifications.data) && !notifications.error;
 
   const countLabel = available ? `${payload.actionableCount} pending` : 'Unavailable';
   return (
@@ -81,7 +44,7 @@ export function NotificationCenterControl() {
           ))}
         </div>
       ) : (
-        <p className="notification-center-empty">No pending notifications.</p>
+        <p className="notification-center-empty">{available ? 'No pending notifications.' : 'Notification status unavailable.'}</p>
       )}
       {payload.reviewAllHref && (
         <div className="topbar-control-menu-actions">

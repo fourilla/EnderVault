@@ -48,6 +48,8 @@ class OutboundRouteApiControllerTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().route().vpnReady()).isTrue();
         assertThat(response.getBody().route().nextRoute()).isEqualTo("direct");
+        assertThat(controller.currentRoute().getBody()).isEqualTo(response.getBody().route());
+        assertThat(controller.currentRoute().getHeaders().getCacheControl()).isEqualTo("no-store");
     }
 
     @Test

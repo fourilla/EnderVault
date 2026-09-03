@@ -1,65 +1,40 @@
+import type { AdminAppBootstrap } from '../app/types';
+
 export interface DashboardPayload {
-  storage: {
-    usedBytes: number;
-    totalBytes: number;
-    usableBytes: number;
-    usedLabel: string;
-    totalLabel: string;
-    usableLabel: string;
-    usedPercent: number;
-  };
+  storage: AdminAppBootstrap['storage'];
   trash: { count: number; sizeBytes: number; sizeLabel: string };
   shares: { total: number; active: number; expired: number; revoked: number };
   thumbnails: {
-    videoEnabled: boolean;
-    comicEnabled: boolean;
-    pdfEnabled: boolean;
-    cachedFiles: number;
-    sizeBytes: number;
-    sizeLabel: string;
-    inProgressCount: number;
+    videoEnabled: boolean; comicEnabled: boolean; pdfEnabled: boolean;
+    cachedFiles: number; sizeBytes: number; sizeLabel: string; inProgressCount: number;
   };
-  remoteDownloads: { total: number; running: number; complete: number; failed: number };
-  appTasks: { total: number; running: number; complete: number; failed: number };
-  recentTasks: DashboardTask[];
+  fileRequests: { total: number; active: number };
+  inspection: { present: boolean; issues: number; scannedAt: string | null };
+  serverTasks: DashboardTask[];
   activeSessions: number;
-  vpn: {
-    state: string;
-    label: string;
-    statusClass: string;
-    controllable: boolean;
-    running: boolean;
-    publicIp: string;
-    checkedAtLabel: string;
-    latencyLabel: string;
-    detail: string;
-    profileName: string;
-    routeLabel: string;
-    vpnRouteSelected: boolean;
-    activeVpnTasks: number;
-    health: {
-      state: string;
-      label: string;
-      statusClass: string;
-      proxyReachable: boolean;
-      routeReady: boolean;
-      checkedAtLabel: string;
-      latencyLabel: string;
-      detail: string;
-    };
-  };
+  updatedAt: string;
 }
 
 export interface DashboardTask {
+  id: string;
+  active: boolean;
+  status: string;
   title: string;
   detail: string;
-  iconClass: string;
-  statusLabel: string;
-  statusClass: string;
   progressPercent: number;
   progressLabel: string;
-  routeLabel: string;
-  routeClass: string;
-  target: string;
   createdAt: string;
+}
+
+export interface RuntimeResources {
+  cpuPercent: number | null;
+  processCpuPercent: number | null;
+  memoryTotalBytes: number | null;
+  memoryUsedBytes: number | null;
+  heapUsedBytes: number;
+  heapMaxBytes: number | null;
+  processors: number;
+  threads: number;
+  uptimeMs: number;
+  sampledAt: string;
 }

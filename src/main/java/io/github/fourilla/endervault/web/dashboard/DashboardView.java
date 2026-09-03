@@ -1,8 +1,7 @@
 package io.github.fourilla.endervault.web.dashboard;
 
 import io.github.fourilla.endervault.storage.StorageUsage;
-import io.github.fourilla.endervault.task.TaskSummary;
-import io.github.fourilla.endervault.web.support.VpnRuntimeStatusView;
+import java.time.Instant;
 import java.util.List;
 
 public record DashboardView(
@@ -10,11 +9,11 @@ public record DashboardView(
         TrashSummary trash,
         ShareSummary shares,
         ThumbnailSummary thumbnails,
-        RemoteSummary remoteDownloads,
-        TaskSummary appTasks,
-        List<DashboardTaskView> recentTasks,
+        FileRequestSummary fileRequests,
+        InspectionSummary inspection,
+        List<DashboardTaskView> serverTasks,
         int activeSessions,
-        VpnRuntimeStatusView vpn
+        Instant updatedAt
 ) {
 
     public record TrashSummary(
@@ -43,11 +42,13 @@ public record DashboardView(
     ) {
     }
 
-    public record RemoteSummary(
-            long total,
-            long running,
-            long complete,
-            long failed
+    public record FileRequestSummary(int total, long active) {
+    }
+
+    public record InspectionSummary(
+            boolean present,
+            int issues,
+            Instant scannedAt
     ) {
     }
 }

@@ -19,5 +19,6 @@ export async function runVpnCommand(command: VpnCommand, force = false): Promise
     force: force ? 'true' : undefined,
   }) as VpnControlPayload;
   notify(body);
+  window.dispatchEvent(new CustomEvent('endervault:outbound-route-changed'));
   return body;
 }

@@ -8,7 +8,9 @@ import io.github.fourilla.endervault.web.support.FlashNotification;
 import io.github.fourilla.endervault.web.support.OutboundRouteView;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Map;
+import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -30,6 +32,12 @@ public class OutboundRouteApiController {
         this.outboundRouteStateService = outboundRouteStateService;
         this.vpnProxyHealthService = vpnProxyHealthService;
         this.activityLogService = activityLogService;
+    }
+
+    @GetMapping
+    public ResponseEntity<OutboundRouteView> currentRoute() {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(
+                OutboundRouteView.from(outboundRouteStateService.currentRoute(), vpnProxyHealthService.current()));
     }
 
     @PostMapping

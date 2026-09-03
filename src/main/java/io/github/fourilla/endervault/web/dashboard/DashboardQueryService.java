@@ -1,8 +1,10 @@
 package io.github.fourilla.endervault.web.dashboard;
 
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
-import io.github.fourilla.endervault.remote.RemoteDownloadService;
-import io.github.fourilla.endervault.remote.RemoteDownloadSummary;
+import io.github.fourilla.endervault.filerequest.FileRequest;
+import io.github.fourilla.endervault.filerequest.FileRequestService;
+import io.github.fourilla.endervault.metadata.MetadataInspectionReport;
+import io.github.fourilla.endervault.metadata.MetadataInspectionReportStore;
 import io.github.fourilla.endervault.session.SessionManagementService;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
@@ -13,12 +15,10 @@ import io.github.fourilla.endervault.thumbnail.ThumbnailCacheStats;
 import io.github.fourilla.endervault.thumbnail.ThumbnailService;
 import io.github.fourilla.endervault.trash.TrashRecord;
 import io.github.fourilla.endervault.trash.TrashService;
-import io.github.fourilla.endervault.web.vpn.VpnRuntimeViewService;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Stream;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -28,53 +28,54 @@ public class DashboardQueryService {
     private final TrashService trashService;
     private final ShareLinkService shareLinkService;
     private final ThumbnailService thumbnailService;
-    private final RemoteDownloadService remoteDownloadService;
+    private final FileRequestService fileRequestService;
+    private final MetadataInspectionReportStore reportStore;
     private final TaskManagerService taskManagerService;
     private final SessionManagementService sessionManagementService;
-    private final VpnRuntimeViewService vpnRuntimeViewService;
+    private ThumbnailCacheStats cachedThumbnailStats;
+    private long thumbnailSampleNanos;
 
     public DashboardQueryService(
             StorageService storageService,
             TrashService trashService,
             ShareLinkService shareLinkService,
             ThumbnailService thumbnailService,
-            RemoteDownloadService remoteDownloadService,
+            FileRequestService fileRequestService,
+            MetadataInspectionReportStore reportStore,
             TaskManagerService taskManagerService,
-            SessionManagementService sessionManagementService,
-            VpnRuntimeViewService vpnRuntimeViewService
+            SessionManagementService sessionManagementService
     ) {
         this.storageService = storageService;
         this.trashService = trashService;
         this.shareLinkService = shareLinkService;
         this.thumbnailService = thumbnailService;
-        this.remoteDownloadService = remoteDownloadService;
+        this.fileRequestService = fileRequestService;
+        this.reportStore = reportStore;
         this.taskManagerService = taskManagerService;
         this.sessionManagementService = sessionManagementService;
-        this.vpnRuntimeViewService = vpnRuntimeViewService;
     }
 
     public DashboardView query() throws IOException {
         StorageUsage storageUsage = storageService.storageUsage();
         List<TrashRecord> trashRecords = trashService.list();
         List<ShareLink> shareLinks = shareLinkService.list();
-        ThumbnailCacheStats thumbnailStats = thumbnailService.cacheStats();
-        RemoteDownloadSummary remoteSummary = remoteDownloadService.summary(0);
+        List<FileRequest> fileRequests = fileRequestService.list();
+        MetadataInspectionReport report = reportStore.latest();
+        Instant now = Instant.now();
 
         return new DashboardView(
                 storageUsage,
                 trashSummary(trashRecords),
                 shareSummary(shareLinks),
-                thumbnailSummary(thumbnailStats),
-                new DashboardView.RemoteSummary(
-                        remoteSummary.total(),
-                        remoteSummary.running(),
-                        remoteSummary.complete(),
-                        remoteSummary.failed()
-                ),
-                taskManagerService.summary(),
-                recentTasks(6),
+                thumbnailSummary(thumbnailStats()),
+                new DashboardView.FileRequestSummary(fileRequests.size(),
+                        fileRequests.stream().filter(item -> item.usable(now)).count()),
+                new DashboardView.InspectionSummary(report.present(),
+                        report.present() ? report.scanReport().issueCount() : 0,
+                        report.present() ? report.scanReport().scannedAt() : null),
+                serverTasks(),
                 sessionManagementService.activeCount(),
-                vpnRuntimeViewService.current()
+                now
         );
     }
 
@@ -117,14 +118,21 @@ public class DashboardQueryService {
         );
     }
 
-    private List<DashboardTaskView> recentTasks(int limit) {
-        Stream<DashboardTaskView> appTasks = taskManagerService.listTasks().stream()
-                .map(DashboardTaskView::from);
-        Stream<DashboardTaskView> remoteTasks = remoteDownloadService.listTasks().stream()
-                .map(DashboardTaskView::from);
-        return Stream.concat(appTasks, remoteTasks)
+    private List<DashboardTaskView> serverTasks() {
+        List<DashboardTaskView> tasks = taskManagerService.listTasks().stream()
+                .map(DashboardTaskView::from)
                 .sorted(Comparator.comparing(DashboardTaskView::createdAt).reversed())
-                .limit(Math.max(0, limit))
                 .toList();
+        return java.util.stream.Stream.concat(tasks.stream().filter(DashboardTaskView::active),
+                tasks.stream().filter(task -> !task.active()).limit(6)).toList();
+    }
+
+    private synchronized ThumbnailCacheStats thumbnailStats() throws IOException {
+        long now = System.nanoTime();
+        if (cachedThumbnailStats == null || now - thumbnailSampleNanos >= 60_000_000_000L) {
+            cachedThumbnailStats = thumbnailService.cacheStats();
+            thumbnailSampleNanos = now;
+        }
+        return cachedThumbnailStats;
     }
 }

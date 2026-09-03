@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { notify, postForm, toastError } from '../shared/api/form-api';
 import { AppNavigationLink } from './AppNavigationLink';
-import { useAdminApp } from './AdminAppContext';
+import { useShellStatus } from './ShellStatusContext';
 import { ShellPopover } from './ShellPopover';
 import type { AdminAppBootstrap } from './types';
 
@@ -14,18 +14,17 @@ const statusLabel = (route: OutboundRoute) => {
 };
 
 export function OutboundRouteControl() {
-  const { bootstrap } = useAdminApp();
-  const [route, setRoute] = useState(bootstrap.outboundRoute);
+  const { outbound } = useShellStatus();
+  const route = outbound.data!;
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => setRoute(bootstrap.outboundRoute), [bootstrap.outboundRoute]);
 
   const toggle = async () => {
     if (busy) return;
     setBusy(true);
     try {
       const body = await postForm('/api/v1/outbound-route', { route: route.nextRoute });
-      if (body.route) setRoute(body.route as OutboundRoute);
+      if (body.route) outbound.accept(body.route as OutboundRoute);
+      void outbound.refresh();
       notify(body);
     } catch (reason) {
       toastError(reason, 'The outbound route could not be changed.');
@@ -46,7 +45,7 @@ export function OutboundRouteControl() {
       <div className="topbar-control-status">
         <span>Current route</span>
         <strong className={route.vpnSelected ? (route.vpnReady ? 'is-active' : 'is-error') : undefined}>
-          {statusLabel(route)}
+          {outbound.error ? 'Status unavailable' : statusLabel(route)}
         </strong>
       </div>
       <small>{busy ? 'Changing route...' : 'Choose a route below or open the full VPN status page.'}</small>
