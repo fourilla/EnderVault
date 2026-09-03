@@ -43,7 +43,7 @@ export function RemoteDownloadTasksProvider({ children }: PropsWithChildren) {
   const shouldPoll = useRef(false);
   const remoteEnabled = bootstrap.capabilities.remoteDownloads;
   const activityEnabled = bootstrap.tasks.activityPanelEnabled && Boolean(window.EnderVaultActivity);
-  const routeNeedsTasks = location.pathname === REMOTE_DOWNLOAD_PATH;
+  const routeNeedsTasks = location.pathname === REMOTE_DOWNLOAD_PATH || location.pathname === '/admin/dashboard';
   const synchronizationEnabled = remoteEnabled && (activityEnabled || routeNeedsTasks);
   const synchronizationEnabledRef = useRef(synchronizationEnabled);
   synchronizationEnabledRef.current = synchronizationEnabled;

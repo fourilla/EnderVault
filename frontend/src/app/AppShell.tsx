@@ -6,6 +6,7 @@ import { navigationEntryForPathname } from './navigation';
 import { SpaNavigationBridge } from './SpaNavigationBridge';
 import { TopbarPopoverProvider } from './TopbarPopoverContext';
 import { RemoteDownloadTasksProvider } from './remote-downloads/RemoteDownloadTasksContext';
+import { ShellStatusProvider } from './ShellStatusContext';
 import './app-shell.css';
 
 export function AppShell() {
@@ -37,19 +38,21 @@ export function AppShell() {
 
   return (
     <RemoteDownloadTasksProvider>
-      <div className="app-shell admin-react-shell">
-        <SpaNavigationBridge />
-        <AdminSidebar />
-        <div className="app-main" data-file-dropzone>
-          <TopbarPopoverProvider>
-            <AdminTopbar />
-          </TopbarPopoverProvider>
-          <main className="workspace">
-            <Outlet />
-          </main>
-          <ScrollRestoration />
+      <ShellStatusProvider>
+        <div className="app-shell admin-react-shell">
+          <SpaNavigationBridge />
+          <AdminSidebar />
+          <div className="app-main" data-file-dropzone>
+            <TopbarPopoverProvider>
+              <AdminTopbar />
+            </TopbarPopoverProvider>
+            <main className="workspace">
+              <Outlet />
+            </main>
+            <ScrollRestoration />
+          </div>
         </div>
-      </div>
+      </ShellStatusProvider>
     </RemoteDownloadTasksProvider>
   );
 }

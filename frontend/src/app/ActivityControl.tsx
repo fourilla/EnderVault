@@ -1,35 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useActivitySnapshot, type ActivityItem } from './useActivitySnapshot';
 import { useRemoteDownloadTasks } from './remote-downloads/RemoteDownloadTasksContext';
 import { useUploadManager } from './uploads/UploadManagerContext';
 import { ShellPopover } from './ShellPopover';
-
-interface ActivityItem {
-  id: string;
-  title: string;
-  type: string;
-  typeLabel: string;
-  status: string;
-  percent: number;
-  message: string;
-  cancelRequested: boolean;
-  cancelable: boolean;
-}
-
-interface ActivitySnapshot {
-  activeCount: number;
-  finishedCount: number;
-  totalCount: number;
-  items: ActivityItem[];
-}
-
-const emptySnapshot: ActivitySnapshot = {
-  activeCount: 0,
-  finishedCount: 0,
-  totalCount: 0,
-  items: [],
-};
-
-const readSnapshot = (): ActivitySnapshot => window.EnderVaultActivity?.snapshot() ?? emptySnapshot;
 
 const rowClass = (status: string) => {
   if (status === 'complete' || status === 'partial') return 'upload-complete';
@@ -69,17 +41,7 @@ function ActivityRow({ item }: { item: ActivityItem }) {
 export function ActivityControl() {
   const { activeCount: activeUploads } = useUploadManager();
   const { refresh: refreshRemoteDownloads } = useRemoteDownloadTasks();
-  const [activity, setActivity] = useState<ActivitySnapshot>(readSnapshot);
-
-  useEffect(() => {
-    const onChanged = (event: Event) => {
-      const next = (event as CustomEvent<ActivitySnapshot>).detail;
-      setActivity(next ?? readSnapshot());
-    };
-    document.addEventListener('endervault:activity-changed', onChanged);
-    setActivity(readSnapshot());
-    return () => document.removeEventListener('endervault:activity-changed', onChanged);
-  }, []);
+  const activity = useActivitySnapshot();
 
   const activeCount = Math.max(activity.activeCount, activeUploads);
   const label = activeCount > 0 ? `${activeCount} active task(s)` : 'Tasks and uploads';

@@ -1340,12 +1340,36 @@ class AdminNotificationFlowTest {
                 .andExpect(jsonPath("$.trash.count").isNumber())
                 .andExpect(jsonPath("$.shares.active").isNumber())
                 .andExpect(jsonPath("$.thumbnails.cachedFiles").isNumber())
-                .andExpect(jsonPath("$.remoteDownloads.total").isNumber())
-                .andExpect(jsonPath("$.remoteDownloads.recentTasks").doesNotExist())
-                .andExpect(jsonPath("$.appTasks.running").isNumber())
-                .andExpect(jsonPath("$.recentTasks").isArray())
+                .andExpect(jsonPath("$.fileRequests.active").isNumber())
+                .andExpect(jsonPath("$.inspection.issues").isNumber())
+                .andExpect(jsonPath("$.serverTasks").isArray())
                 .andExpect(jsonPath("$.activeSessions").isNumber())
-                .andExpect(jsonPath("$.vpn.routeLabel").isString());
+                .andExpect(jsonPath("$.updatedAt").isString())
+                .andExpect(header().string("Cache-Control", "no-store"));
+
+        mockMvc.perform(get("/api/v1/dashboard/runtime"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.heapUsedBytes").isNumber())
+                .andExpect(jsonPath("$.uptimeMs").isNumber())
+                .andExpect(jsonPath("$.processors").isNumber())
+                .andExpect(jsonPath("$.sampledAt").isString())
+                .andExpect(header().string("Cache-Control", "no-store"));
+
+        mockMvc.perform(get("/api/v1/outbound-route"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.route").isString())
+                .andExpect(jsonPath("$.vpnReady").isBoolean())
+                .andExpect(header().string("Cache-Control", "no-store"));
+    }
+
+    @Test
+    @WithAnonymousUser
+    void dashboardMetricsAreNotPublic() throws Exception {
+        for (String path : List.of("/api/v1/dashboard", "/api/v1/dashboard/runtime", "/api/v1/outbound-route")) {
+            mockMvc.perform(get(path))
+                    .andExpect(status().is3xxRedirection())
+                    .andExpect(redirectedUrl("http://localhost/login"));
+        }
     }
 
     @Test

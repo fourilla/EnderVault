@@ -1,158 +1,199 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { AppNavigationLink } from '../app/AppNavigationLink';
 import { useAdminApp } from '../app/AdminAppContext';
+import { useShellStatus } from '../app/ShellStatusContext';
+import { useActivitySnapshot } from '../app/useActivitySnapshot';
 import { useUploadManager } from '../app/uploads/UploadManagerContext';
-import { icon } from '../shared/browser/BrowserEntries';
+import { useRemoteDownloadTasks } from '../app/remote-downloads/RemoteDownloadTasksContext';
+import { usePolledJson } from '../shared/api/usePolledJson';
 import { PageHeader } from '../shared/layout/PageHeader';
-import type { DashboardPayload } from './types';
+import { formatBytes, mergeOperations, uptimeLabel, usagePercent } from './dashboard-model';
+import type { DashboardPayload, RuntimeResources } from './types';
 import './dashboard-app.css';
 
-function MetricContent({ iconClass, label, value, detail }: {
-  iconClass: string;
-  label: string;
-  value: string | number;
-  detail: React.ReactNode;
+const timeLabel = (value?: string | null) => value
+  ? new Date(value).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  : 'Not yet checked';
+const percentLabel = (value?: number | null) => value == null ? 'Unavailable' : `${value}%`;
+const statusClass = (status: string) => status === 'failed' ? 'error' : status === 'pending' || status === 'partial'
+  ? 'warning' : status === 'complete' ? 'active' : 'info';
+const statusLabel = (status: string) => status === 'pending' ? 'Needs review'
+  : status.charAt(0).toUpperCase() + status.slice(1);
+
+function Gauge({ label, value, detail, tone = '' }: {
+  label: string; value: number | null | undefined; detail?: ReactNode; tone?: string;
 }) {
-  return <>{icon(iconClass)}<div><span>{label}</span><strong>{value}</strong>{detail}</div></>;
+  return <div className={`overview-gauge ${tone}`}>
+    <span>{label}</span>
+    <div className="overview-gauge-meter">
+      <progress max={100} value={value ?? 0} aria-label={label} aria-valuetext={percentLabel(value)} />
+      {detail && <small>{detail}</small>}
+    </div>
+    <strong>{percentLabel(value)}</strong>
+  </div>;
+}
+
+function Metric({ label, value, detail, icon, href, tone = '' }: {
+  label: string; value: ReactNode; detail: ReactNode; icon: string; href?: string; tone?: string;
+}) {
+  const content = <><div className="overview-metric-label"><i className={`fas ${icon}`} aria-hidden="true" />{label}</div>
+    <strong>{value}</strong><div className="overview-metric-detail">{detail}</div></>;
+  return href ? <Link className={`dashboard-panel overview-metric ${tone}`} to={href}>{content}</Link>
+    : <article className={`dashboard-panel overview-metric ${tone}`}>{content}</article>;
+}
+
+function Service({ label, value, detail, href, icon }: {
+  label: string; value: ReactNode; detail: string; href?: string; icon: string;
+}) {
+  const content = <><i className={`fas ${icon}`} aria-hidden="true" />
+    <span>{label}<small>{detail}</small></span><strong>{value}</strong></>;
+  return href ? <Link className="dashboard-panel overview-service" to={href} title={detail}>{content}</Link>
+    : <div className="dashboard-panel overview-service" title={detail}>{content}</div>;
 }
 
 export function DashboardApp() {
   const { bootstrap } = useAdminApp();
+  const { notifications, outbound } = useShellStatus();
   const { activeCount: activeUploads } = useUploadManager();
-  const [payload, setPayload] = useState<DashboardPayload | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const requestVersion = useRef(0);
-
-  const refresh = useCallback((signal?: AbortSignal) => {
-    const version = ++requestVersion.current;
-    setLoading(true);
-    setError('');
-    void window.EnderVault?.requestJson('/api/v1/dashboard', { signal }).then((body) => {
-      if (signal?.aborted || version !== requestVersion.current) return;
-      setPayload(body);
-    }).catch((reason) => {
-      if (signal?.aborted || version !== requestVersion.current
-          || (reason instanceof DOMException && reason.name === 'AbortError')) return;
-      setError(reason instanceof Error ? reason.message : 'Dashboard status could not be loaded.');
-    }).finally(() => {
-      if (!signal?.aborted && version === requestVersion.current) setLoading(false);
-    });
-  }, []);
+  const remote = useRemoteDownloadTasks();
+  const activity = useActivitySnapshot();
+  const summary = usePolledJson<DashboardPayload>('/api/v1/dashboard', 60_000);
+  const runtime = usePolledJson<RuntimeResources>('/api/v1/dashboard/runtime', 10_000);
+  const payload = summary.data;
+  const resources = runtime.error ? undefined : runtime.data;
+  const route = outbound.data!;
 
   useEffect(() => {
-    const controller = new AbortController();
-    refresh(controller.signal);
-    return () => controller.abort();
-  }, [refresh]);
+    void remote.refresh();
+  }, [remote.refresh]);
 
-  if (loading && !payload) return <main className="browser-load-state" aria-live="polite">
-    {icon('fas fa-spinner fa-spin')}<span>Loading dashboard...</span>
-  </main>;
-  if (error || !payload) return <main className="browser-load-state browser-load-error" role="alert">
-    <strong>Dashboard unavailable</strong><span>{error}</span>
-    <button type="button" onClick={() => refresh()}>Try again</button>
-  </main>;
+  useEffect(() => {
+    const refresh = () => void summary.refresh();
+    document.addEventListener('endervault:task-terminal', refresh);
+    return () => document.removeEventListener('endervault:task-terminal', refresh);
+  }, [summary.refresh]);
 
-  const activeWork = payload.thumbnails.inProgressCount + payload.remoteDownloads.running
-    + payload.appTasks.running + activeUploads;
-  const thumbnailsEnabled = payload.thumbnails.videoEnabled
-    || payload.thumbnails.comicEnabled
-    || payload.thumbnails.pdfEnabled;
-  return <div className="dashboard-workspace">
-    <PageHeader title="Dashboard" className="dashboard-heading" actions={(
-      <button className="ghost icon-button action-icon" type="button" disabled={loading}
-        onClick={() => refresh()} title="Refresh dashboard" aria-label="Refresh dashboard">
-        {icon(`fas fa-arrows-rotate${loading ? ' fa-spin' : ''}`)}
-      </button>
-    )} />
+  const refreshAll = () => {
+    void summary.refresh(); void runtime.refresh(); void notifications.refresh();
+    void outbound.refresh(); void remote.refresh();
+  };
+  if (!payload) return <div className="browser-load-state" role={summary.error ? 'alert' : 'status'}>
+    <i className={`fas ${summary.error ? 'fa-triangle-exclamation' : 'fa-spinner fa-spin'}`} aria-hidden="true" />
+    <span>{summary.error || 'Loading dashboard...'}</span>
+    {summary.error && <button type="button" onClick={refreshAll} disabled={summary.loading}>Retry</button>}
+  </div>;
 
-    <section className="dashboard-metrics" aria-label="Dashboard metrics">
-      <Link className="dashboard-metric dashboard-metric-link" to="/files">
-        <MetricContent iconClass="fas fa-hard-drive" label="Storage" value={`${payload.storage.usedPercent}%`}
-          detail={<ul className="dashboard-metric-breakdown">
-            <li><span>Used</span><b>{payload.storage.usedLabel}</b></li>
-            <li><span>Total</span><b>{payload.storage.totalLabel}</b></li>
-            <li><span>Free</span><b>{payload.storage.usableLabel}</b></li>
-          </ul>} />
-      </Link>
-      <Link className="dashboard-metric dashboard-metric-link" to="/admin/trash">
-        <MetricContent iconClass="fas fa-trash-can" label="Trash" value={payload.trash.count}
-          detail={<p>{payload.trash.sizeLabel}</p>} />
-      </Link>
-      <Link className="dashboard-metric dashboard-metric-link" to="/admin/shares">
-        <MetricContent iconClass="fas fa-link" label="Shared links" value={payload.shares.active}
-          detail={<p>{payload.shares.total} total</p>} />
-      </Link>
-      <article className="dashboard-metric">
-        <MetricContent iconClass="fas fa-image" label="Thumbnail cache" value={payload.thumbnails.cachedFiles}
-          detail={<p>{payload.thumbnails.sizeLabel}</p>} />
-      </article>
+  const operations = mergeOperations(payload.serverTasks, remote.tasks ?? [], activity.items);
+  const uploadItems = operations.filter((item) => item.source === 'upload' && item.active).length;
+  const activeCount = operations.filter((item) => item.active).length + Math.max(0, activeUploads - uploadItems);
+  const failedCount = operations.filter((item) => item.status === 'failed').length;
+  const pending = notifications.data?.actionableCount;
+  const warnings: { text: string; href?: string }[] = [];
+  if (summary.error) warnings.push({ text: 'Summary refresh failed; showing last known values' });
+  if (runtime.error) warnings.push({ text: 'Runtime resources unavailable' });
+  if (outbound.error) warnings.push({ text: 'Outbound status unavailable', href: '/admin/vpn' });
+  if (notifications.error) warnings.push({ text: 'Notification status unavailable', href: '/admin/pending-decisions' });
+  if (remote.error) warnings.push({ text: 'Remote task status unavailable', href: '/admin/utils/remote-download' });
+  if (!outbound.error && route.vpnSelected && !route.vpnReady) {
+    warnings.push({ text: 'VPN unavailable; outbound requests are blocked', href: '/admin/vpn' });
+  }
+  if (payload.storage.usedPercent >= 90) warnings.push({ text: 'Storage is nearly full', href: '/files' });
+  if (pending) warnings.push({ text: `${pending} decision(s) need review`, href: notifications.data?.reviewAllHref });
+  if (failedCount) warnings.push({ text: `${failedCount} failed task(s) in recent history`, href: '/admin/logs' });
+  if (bootstrap.capabilities.metadataInspector && payload.inspection.issues > 0) {
+    warnings.push({ text: `${payload.inspection.issues} issue(s) in last inspection`, href: '/admin/metadata' });
+  }
+  const thumbnailEnabled = payload.thumbnails.videoEnabled || payload.thumbnails.comicEnabled || payload.thumbnails.pdfEnabled;
+  const refreshFailed = Boolean(summary.error || runtime.error || outbound.error || notifications.error || remote.error);
+  return <div className="dashboard-overview">
+    <PageHeader title="Dashboard" />
+
+    <section className="overview-metrics" aria-label="Status overview">
+      <Metric label="Storage" icon="fa-hard-drive" value={`${payload.storage.usedPercent}%`} href="/files"
+        tone={payload.storage.usedPercent >= 90 ? 'is-warning' : ''}
+        detail={<><progress max={100} value={payload.storage.usedPercent} aria-label="Storage usage" />
+          <span>{payload.storage.usableLabel} free / {payload.storage.totalLabel}</span></>} />
+      <Metric label="Running tasks" icon="fa-list-check" value={activeCount}
+        detail={`${activeUploads} upload(s) in this browser`} />
+      <Metric label="Action required" icon="fa-bell" value={notifications.error || pending == null ? 'Unavailable' : pending}
+        href={notifications.data?.reviewAllHref || '/admin/pending-decisions'}
+        tone={pending ? 'is-warning' : ''} detail="Pending decisions and recovery reviews" />
+      <Metric label="Outbound route" icon="fa-shield-halved" href="/admin/vpn"
+        value={outbound.error ? 'Unavailable' : route.label}
+        tone={route.vpnSelected ? route.vpnReady ? 'is-success' : 'is-warning' : ''}
+        detail={outbound.error ? 'Status could not be refreshed' : route.vpnSelected
+          ? route.vpnReady ? 'VPN ready' : 'VPN unavailable' : 'Direct connection'} />
     </section>
 
-    <section className="dashboard-grid" aria-label="Dashboard panels">
-      <article className="dashboard-panel dashboard-panel-wide dashboard-panel-focus">
-        <header className="section-heading"><div><h2>Task Manager</h2>
-          <p>Recent server-side work and remote transfers</p></div>
-          <span className={`status-badge ${activeWork > 0 ? 'active' : 'expired'}`}>
-            {activeWork > 0 ? 'Active' : 'Idle'}
-          </span></header>
-        <div className="dashboard-task-summary" aria-label="Task counts">
-          <div><span>Background tasks</span><strong>{payload.appTasks.running}</strong>
-            <small>{payload.appTasks.total} tracked</small></div>
-          <div><span>Remote downloads</span><strong>{payload.remoteDownloads.running}</strong>
-            <small>{bootstrap.capabilities.remoteDownloads ? `${payload.remoteDownloads.total} tracked` : 'Disabled'}</small></div>
-          <div><span>Thumbnail queue</span><strong>{payload.thumbnails.inProgressCount}</strong>
-            <small>Generating now</small></div>
-          <div><span>Uploads</span><strong>{activeUploads}</strong><small>Active in this browser</small></div>
-        </div>
-        {payload.recentTasks.length === 0 ? <p className="dashboard-empty">No background tasks are tracked yet.</p>
-          : <div className="dashboard-task-table-wrap"><table className="dashboard-task-table">
-            <thead><tr><th>Work</th><th>Status</th><th>Progress</th><th>Route</th></tr></thead>
-            <tbody>{payload.recentTasks.map((task, index) => <tr key={`${task.createdAt}-${task.detail}-${index}`}>
-              <td><div className="dashboard-task-name" title={task.target}>{icon(task.iconClass)}<span>
-                <strong>{task.title}</strong><small>{task.detail}</small></span></div></td>
-              <td><span className={`status-badge ${task.statusClass}`}>{task.statusLabel}</span></td>
-              <td><div className="dashboard-task-progress"><progress max="100" value={task.progressPercent} />
-                <small>{task.progressLabel}</small></div></td>
-              <td><span className={`status-badge ${task.routeClass}`}>{task.routeLabel}</span></td>
-            </tr>)}</tbody>
-          </table></div>}
-      </article>
+    <section className={`overview-attention${warnings.length ? ' has-warnings' : ''}`} aria-label="Attention">
+      <i className={`fas ${warnings.length ? 'fa-triangle-exclamation' : 'fa-circle-check'}`} aria-hidden="true" />
+      <div>{warnings.length ? warnings.map((warning) => warning.href
+        ? <Link to={warning.href} key={warning.text}>{warning.text}</Link>
+        : <span key={warning.text}>{warning.text}</span>)
+        : <span>{!notifications.data || !runtime.data ? 'Checking status...' : 'No issues reported by current checks'}</span>}</div>
+      {refreshFailed && <button className="ghost icon-button action-icon" type="button" onClick={refreshAll}
+        disabled={summary.loading || runtime.loading} title="Retry status checks" aria-label="Retry status checks">
+        <i className="fas fa-arrows-rotate" aria-hidden="true" />
+      </button>}
+    </section>
 
-      <article className="dashboard-panel dashboard-panel-wide dashboard-panel-focus">
-        <header className="section-heading"><div><h2>System Health</h2>
-          <p>Storage, cache, sessions, and outbound connectivity</p></div>
-          <AppNavigationLink className="ghost icon-text-button" href="/admin/vpn">
-            {icon('fas fa-shield-halved')}<span>VPN status</span>
-          </AppNavigationLink>
-        </header>
-        <div className="dashboard-health-layout">
-          <ul className="dashboard-list">
-            <li><span>Storage remaining</span><strong>{payload.storage.usableLabel} free</strong></li>
-            <li><span>Storage usage</span><strong>{payload.storage.usedLabel} / {payload.storage.totalLabel}
-              {' '}({payload.storage.usedPercent}%)</strong></li>
-            <li><span>Trash footprint</span><strong>{payload.trash.count} items / {payload.trash.sizeLabel}</strong></li>
-            <li><span>Thumbnails</span><strong>{thumbnailsEnabled ? 'Enabled' : 'Disabled'} / {payload.thumbnails.cachedFiles}
-              {' '}cached / {payload.thumbnails.sizeLabel}</strong></li>
-            <li><span>Remote download results</span><strong>{payload.remoteDownloads.complete} complete /
-              {' '}{payload.remoteDownloads.failed} failed</strong></li>
-            <li><span>Signed-in sessions</span><strong>{payload.activeSessions} active</strong></li>
-          </ul>
-          <section className="dashboard-vpn-overview" aria-labelledby="dashboardVpnHeading">
-            <header><div><h3 id="dashboardVpnHeading">VPN Egress</h3><p>{payload.vpn.detail}</p></div>
-              <span className={`status-badge ${payload.vpn.statusClass}`}>{payload.vpn.label}</span></header>
-            <dl><div><dt>Outbound route</dt><dd><span className={`status-badge ${payload.vpn.vpnRouteSelected ? 'active' : 'info'}`}>
-              {payload.vpn.routeLabel}</span></dd></div>
-            <div><dt>Proxy health</dt><dd><span className={`status-badge ${payload.vpn.health.statusClass}`}>
-              {payload.vpn.health.label}</span></dd></div>
-            <div><dt>VPN public IP</dt><dd>{payload.vpn.publicIp}</dd></div>
-            <div><dt>Last checked</dt><dd>{payload.vpn.checkedAtLabel} · {payload.vpn.latencyLabel}</dd></div>
-            <div><dt>Active VPN tasks</dt><dd>{payload.vpn.activeVpnTasks}</dd></div></dl>
-          </section>
+    <div className="overview-main">
+      <section className="overview-section" aria-labelledby="runtimeHeading">
+        <header><h2 id="runtimeHeading">Runtime Resources</h2>
+          <span title="Resources visible to the JVM; Docker may report container limits rather than the physical host.">
+            <i className="fas fa-circle-info" aria-hidden="true" /> JVM environment</span></header>
+        <div className="dashboard-panel overview-runtime-panel">
+          <div className="overview-resource-gauges">
+            <Gauge label="CPU" value={resources?.cpuPercent} detail={`EnderVault process: ${percentLabel(resources?.processCpuPercent)}`} />
+            <Gauge label="Memory" value={usagePercent(resources?.memoryUsedBytes, resources?.memoryTotalBytes)} tone="memory"
+              detail={`${formatBytes(resources?.memoryUsedBytes)} / ${formatBytes(resources?.memoryTotalBytes)}`} />
+            <Gauge label="JVM heap" value={usagePercent(resources?.heapUsedBytes, resources?.heapMaxBytes)} tone="heap"
+              detail={`${formatBytes(resources?.heapUsedBytes)} / ${formatBytes(resources?.heapMaxBytes)}`} />
+          </div>
+          <dl className="overview-runtime-facts">
+            <div><dt>Uptime</dt><dd>{uptimeLabel(resources?.uptimeMs)}</dd></div>
+            <div><dt>Logical CPUs</dt><dd>{resources?.processors ?? '-'}</dd></div>
+            <div><dt>Threads</dt><dd>{resources?.threads ?? '-'}</dd></div>
+          </dl>
         </div>
-      </article>
+      </section>
+      <section className="overview-section" aria-labelledby="operationsHeading">
+        <header><h2 id="operationsHeading">Operations</h2><span>{activeCount ? `${activeCount} active` : 'Idle'}</span></header>
+        <ul className="overview-operations">
+          {operations.slice(0, 4).map((item) => <li key={item.id}>
+            <div className="overview-operation-copy"><strong title={item.title}>{item.title}</strong>
+              <small title={item.detail}>{item.detail}</small></div>
+            <div className="overview-operation-state"><span className={`status-badge ${statusClass(item.status)}`}>
+              {statusLabel(item.status)}</span>
+              {item.active && <progress max={100} value={item.percent} aria-label={`${item.title} progress`} />}</div>
+          </li>)}
+          {operations.length === 0 && <li className="overview-empty">No recent activity</li>}
+        </ul>
+        {operations.length > 4 && <small className="overview-more">{operations.length - 4} more in task history</small>}
+      </section>
+    </div>
+
+    <section className="overview-section" aria-labelledby="servicesHeading">
+      <header><h2 id="servicesHeading">Services & Maintenance</h2>
+        <time className="overview-updated" dateTime={payload.updatedAt} title="Summary updated">{timeLabel(payload.updatedAt)}</time>
+      </header>
+      <div className="overview-services">
+        <Service label="Shared links" icon="fa-link" value={payload.shares.active} href="/admin/shares"
+          detail={`${payload.shares.total} total / ${payload.shares.expired} expired`} />
+        <Service label="File requests" icon="fa-inbox" href={bootstrap.capabilities.fileRequests ? '/admin/file-requests' : undefined}
+          value={bootstrap.capabilities.fileRequests ? payload.fileRequests.active : 'Disabled'}
+          detail={`${payload.fileRequests.total} total`} />
+        <Service label="Sessions" icon="fa-laptop" value={payload.activeSessions} href="/admin/sessions" detail="Signed-in devices" />
+        <Service label="Trash" icon="fa-trash-can" value={payload.trash.sizeLabel} href="/admin/trash"
+          detail={`${payload.trash.count} item(s)`} />
+        <Service label="Thumbnail cache" icon="fa-image" value={payload.thumbnails.sizeLabel}
+          href={bootstrap.capabilities.metadataInspector ? '/admin/metadata' : undefined}
+          detail={`${payload.thumbnails.cachedFiles} cached / ${thumbnailEnabled ? 'Enabled' : 'Disabled'}`} />
+        <Service label="Metadata inspection" icon="fa-magnifying-glass-chart"
+          href={bootstrap.capabilities.metadataInspector ? '/admin/metadata' : undefined}
+          value={!bootstrap.capabilities.metadataInspector ? 'Disabled' : payload.inspection.present ? `${payload.inspection.issues} issues` : 'Not run'}
+          detail={timeLabel(payload.inspection.scannedAt)} />
+      </div>
     </section>
   </div>;
 }

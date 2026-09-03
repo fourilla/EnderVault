@@ -69,7 +69,6 @@
         inset: 0;
     }
 
-    .dashboard-metrics,
     .dashboard-grid,
     .logs-layout {
         grid-template-columns: 1fr;
