@@ -1,6 +1,5 @@
-import { useEffect, useRef } from 'react';
-import { loadScript, loadStyle } from './external-assets';
-import type { FileDetailPayload } from './types';
+import { useEffect, useRef, useState } from 'react';
+import { loadScript, loadStyle } from '../browser/external-assets';
 
 const action = (name: string, icon: string, title: string, label = title) => (
   <button className="ghost icon-button action-icon" type="button" disabled
@@ -9,25 +8,27 @@ const action = (name: string, icon: string, title: string, label = title) => (
   </button>
 );
 
-export function ImageTool({ payload }: { payload: FileDetailPayload }) {
+export function ImageViewer({ sourceUrl, name }: { sourceUrl: string; name: string }) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const [loadError, setLoadError] = useState(false);
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
     let disposed = false;
+    setLoadError(false);
     loadStyle('/webjars/viewerjs/1.11.7/dist/viewer.min.css');
     void (async () => {
       await loadScript('/webjars/viewerjs/1.11.7/dist/viewer.min.js');
       await loadScript('/js/image-viewer.js');
       if (!disposed) window.EnderVaultImageViewers?.init(root);
-    })().catch((reason) => window.EnderVault?.showToast(
-      'error', reason instanceof Error ? reason.message : 'Enhanced image viewer unavailable.',
-    ));
+    })().catch(() => {
+      if (!disposed) setLoadError(true);
+    });
     return () => {
       disposed = true;
       window.EnderVaultImageViewers?.destroy(root);
     };
-  }, [payload.detail.path]);
+  }, [sourceUrl, name]);
 
   return (
     <div className="image-viewer" data-image-viewer ref={rootRef}>
@@ -46,11 +47,12 @@ export function ImageTool({ payload }: { payload: FileDetailPayload }) {
         {action('fullscreen', 'fas fa-expand', 'Open fullscreen viewer')}
       </div>
       <div className="image-viewer-stage" data-image-viewer-stage>
-        <img className="image-viewer-source" src={payload.urls.previewContent || ''}
-          alt={payload.detail.name} draggable="false" data-image-viewer-source />
+        <img className="image-viewer-source" src={sourceUrl}
+          alt={name} draggable="false" data-image-viewer-source />
       </div>
       <div className="image-viewer-statusbar" aria-live="polite">
-        <span data-image-dimensions>Loading image...</span><span data-image-zoom>Fit</span>
+        <span data-image-dimensions>{loadError ? 'Enhanced image viewer unavailable.' : 'Loading image...'}</span>
+        <span data-image-zoom>{loadError ? 'Fallback' : 'Fit'}</span>
       </div>
     </div>
   );

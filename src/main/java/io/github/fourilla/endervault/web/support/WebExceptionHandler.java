@@ -17,6 +17,12 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 @ControllerAdvice
 public class WebExceptionHandler {
 
+    private final FrontendAssetModelAdvice frontendAssets;
+
+    public WebExceptionHandler(FrontendAssetModelAdvice frontendAssets) {
+        this.frontendAssets = frontendAssets;
+    }
+
     @ExceptionHandler(StorageAccessException.class)
     public Object storageAccess(
             StorageAccessException exception,
@@ -94,6 +100,7 @@ public class WebExceptionHandler {
         }
 
         response.setStatus(status.value());
+        model.addAttribute("stylesFrontend", frontendAssets.stylesFrontend());
         model.addAttribute("title", title);
         model.addAttribute("message", cleanMessage);
         return "error";

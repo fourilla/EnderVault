@@ -79,6 +79,20 @@ class ViteAssetServiceTest {
     }
 
     @Test
+    void resolvesSharedImageEntryWithoutAdminRuntime() {
+        ViteAssetService service = new ViteAssetService(
+                new ObjectMapper(),
+                new DefaultResourceLoader(),
+                "");
+
+        ViteAssetService.ViteEntry entry = service.entry("src/shared-file/image.tsx");
+
+        assertThat(entry.available()).isTrue();
+        assertThat(entry.entryScript()).startsWith("/react/assets/sharedImage-").endsWith(".js");
+        assertThat(entry.modulePreloads()).noneMatch(url -> url.contains("adminApp-") || url.contains("shell-"));
+    }
+
+    @Test
     void resolvesBundledMarkdownRendererFromGeneratedManifest() {
         ViteAssetService service = new ViteAssetService(
                 new ObjectMapper(),

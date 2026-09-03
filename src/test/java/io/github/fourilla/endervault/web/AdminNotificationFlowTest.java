@@ -1981,7 +1981,8 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void sharedFileLandingRendersImagePreviewInline() throws Exception {
+    @WithAnonymousUser
+    void sharedFileLandingMountsReadOnlyImageViewerWithoutAdminRuntime() throws Exception {
         String filename = "shared-image-" + System.nanoTime() + ".jpg";
         Files.write(ROOT.resolve(filename), new byte[] {(byte) 0xff, (byte) 0xd8, (byte) 0xff, (byte) 0xd9});
         ShareLink shareLink = shareLinkService.create("", filename, null);
@@ -1989,10 +1990,47 @@ class AdminNotificationFlowTest {
         mockMvc.perform(get("/s/{token}", shareLink.token()))
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("shared-preview-panel")))
+                .andExpect(content().string(Matchers.containsString("id=\"shared-image-root\"")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/sharedImage-")))
                 .andExpect(content().string(Matchers.containsString("<img class=\"preview-media\"")))
+                .andExpect(content().string(Matchers.containsString("data-shared-image-source")))
                 .andExpect(content().string(Matchers.containsString("/s/" + shareLink.token() + "/preview")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/react/assets/adminApp-"))))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/react/assets/shell-"))))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/api/v1/"))))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("fa-eye"))))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("target=\"_blank\""))));
+    }
+
+    @Test
+    @WithAnonymousUser
+    void sharedDirectoryImageViewerKeepsTokenScopeAndRevokeChecks() throws Exception {
+        String directory = "shared-viewer-" + System.nanoTime();
+        String nested = "nested images";
+        String filename = "picture & 01.jpg";
+        byte[] image = new byte[] {(byte) 0xff, (byte) 0xd8, (byte) 0xff, (byte) 0xd9};
+        Files.createDirectories(ROOT.resolve(directory).resolve(nested));
+        Files.write(ROOT.resolve(directory).resolve(nested).resolve(filename), image);
+        ShareLink shareLink = shareLinkService.create("", directory, null);
+
+        mockMvc.perform(get("/s/{token}/file", shareLink.token()).param("path", nested).param("item", filename))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("id=\"shared-image-root\"")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/sharedImage-")))
+                .andExpect(content().string(Matchers.containsString("/s/" + shareLink.token()
+                        + "/preview?path=nested%20images&amp;item=picture%20%26%2001.jpg")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/files/preview"))));
+
+        mockMvc.perform(get("/s/{token}/preview", shareLink.token()).param("path", nested).param("item", filename)
+                        .header(HttpHeaders.RANGE, "bytes=0-1"))
+                .andExpect(status().isPartialContent())
+                .andExpect(content().bytes(new byte[] {(byte) 0xff, (byte) 0xd8}));
+
+        shareLinkService.revoke(shareLink.token());
+        mockMvc.perform(get("/s/{token}/preview", shareLink.token()).param("path", nested).param("item", filename))
+                .andExpect(status().isNotFound())
+                .andExpect(content().string(Matchers.containsString("/react/assets/styles-")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("shared-image-root"))));
     }
 
     @Test
@@ -2024,6 +2062,7 @@ class AdminNotificationFlowTest {
         mockMvc.perform(get("/s/{token}", shareLink.token()))
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("Audio Player")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/react/assets/sharedImage-"))))
                 .andExpect(content().string(Matchers.containsString("class=\"audio-tool-player\"")))
                 .andExpect(content().string(Matchers.containsString("/s/" + shareLink.token() + "/preview")));
     }
@@ -2040,6 +2079,7 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(Matchers.not(Matchers.containsString("/webjars/codemirror/"))))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("/js/file-tools.js"))))
                 .andExpect(content().string(Matchers.containsString("data-shared-text-preview")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/react/assets/sharedImage-"))))
                 .andExpect(content().string(Matchers.containsString("data-text-extension=\"html\"")))
                 .andExpect(content().string(Matchers.containsString("Text Preview")))
                 .andExpect(content().string(Matchers.containsString("shared-download-button")))

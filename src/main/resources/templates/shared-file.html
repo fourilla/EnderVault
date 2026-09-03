@@ -8,6 +8,9 @@
     <th:block th:if="${fileTool.text()}">
         <th:block th:replace="~{fragments/assets :: fileToolsScript}"></th:block>
     </th:block>
+    <th:block th:if="${fileTool.image()}">
+        <th:block th:replace="~{fragments/assets :: sharedImageScript}"></th:block>
+    </th:block>
 </head>
 <body>
 <header class="topbar">
@@ -34,11 +37,14 @@
                 <span class="status-badge" th:text="${fileTool.text() ? 'Text Preview' : fileTool.label()}">Preview</span>
             </header>
 
-            <div class="preview-surface" th:if="${fileTool.image() or fileTool.video()}">
-                <img class="preview-media" th:if="${fileTool.image()}"
+            <div id="shared-image-root" th:if="${fileTool.image()}">
+                <img class="preview-media" data-shared-image-source
                      th:src="${sharedPreviewUrl}"
                      th:alt="${item.name()}">
-                <video class="preview-media" th:if="${fileTool.video()}" controls
+            </div>
+
+            <div class="preview-surface" th:if="${fileTool.video()}">
+                <video class="preview-media" controls
                        th:src="${sharedPreviewUrl}"></video>
             </div>
 
