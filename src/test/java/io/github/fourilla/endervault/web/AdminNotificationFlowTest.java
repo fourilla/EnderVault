@@ -1990,6 +1990,8 @@ class AdminNotificationFlowTest {
         mockMvc.perform(get("/s/{token}", shareLink.token()))
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("shared-preview-panel")))
+                .andExpect(content().string(Matchers.containsString("data-shared-preview")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("data-shared-preview open"))))
                 .andExpect(content().string(Matchers.containsString("id=\"shared-image-root\"")))
                 .andExpect(content().string(Matchers.containsString("/react/assets/sharedImage-")))
                 .andExpect(content().string(Matchers.containsString("<img class=\"preview-media\"")))

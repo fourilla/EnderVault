@@ -1,4 +1,5 @@
 import type { TransferBufferPayload } from '../files/types';
+import type { ComicManifest } from '../shared/file-tools/comic-types';
 
 export interface FileDetailPayload {
   detail: {
@@ -72,8 +73,7 @@ export interface SharePayload {
 }
 
 export interface ComicPayload {
-  manifest: {
-    pageCount: number;
+  manifest: ComicManifest & {
     pages: Array<{
       index: number;
       entryName: string;
@@ -82,13 +82,6 @@ export interface ComicPayload {
       size: number;
       number: number;
     }>;
-    metadata: {
-      present: boolean;
-      truncated: boolean;
-      rawText: string;
-      entries: Array<{ name: string; value: string }>;
-      hasEntries: boolean;
-    };
     empty: boolean;
   };
   pageIndex: number;

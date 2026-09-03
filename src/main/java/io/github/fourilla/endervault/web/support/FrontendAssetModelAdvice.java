@@ -10,12 +10,14 @@ public class FrontendAssetModelAdvice {
     private static final String SHELL_ENTRY = "src/shell/main.ts";
     private static final String FILE_TOOLS_ENTRY = "src/file-tools/main.ts";
     private static final String SHARED_IMAGE_ENTRY = "src/shared-file/image.tsx";
+    private static final String SHARED_COMIC_ENTRY = "src/shared-file/comic.tsx";
     private static final String MARKDOWN_ENTRY = "src/markdown/main.ts";
 
     private final ViteAssetService.ViteEntry stylesEntry;
     private final ViteAssetService.ViteEntry shellEntry;
     private final ViteAssetService.ViteEntry fileToolsEntry;
     private final ViteAssetService.ViteEntry sharedImageEntry;
+    private final ViteAssetService.ViteEntry sharedComicEntry;
     private final ViteAssetService.ViteEntry markdownEntry;
 
     public FrontendAssetModelAdvice(ViteAssetService viteAssetService) {
@@ -23,6 +25,7 @@ public class FrontendAssetModelAdvice {
         this.shellEntry = viteAssetService.entry(SHELL_ENTRY);
         this.fileToolsEntry = viteAssetService.entry(FILE_TOOLS_ENTRY);
         this.sharedImageEntry = viteAssetService.entry(SHARED_IMAGE_ENTRY);
+        this.sharedComicEntry = viteAssetService.entry(SHARED_COMIC_ENTRY);
         this.markdownEntry = viteAssetService.entry(MARKDOWN_ENTRY);
     }
 
@@ -49,5 +52,10 @@ public class FrontendAssetModelAdvice {
     @ModelAttribute("markdownFrontend")
     public ViteAssetService.ViteEntry markdownFrontend() {
         return markdownEntry;
+    }
+
+    @ModelAttribute("sharedComicFrontend")
+    public ViteAssetService.ViteEntry sharedComicFrontend() {
+        return sharedComicEntry;
     }
 }

@@ -127,6 +127,15 @@ class ViteAssetServiceTest {
     }
 
     @Test
+    void resolvesSharedComicEntryWithoutAdminRuntime() {
+        ViteAssetService service = new ViteAssetService(new ObjectMapper(), new DefaultResourceLoader(), "");
+        ViteAssetService.ViteEntry entry = service.entry("src/shared-file/comic.tsx");
+        assertThat(entry.available()).isTrue();
+        assertThat(entry.entryScript()).startsWith("/react/assets/sharedComic-").endsWith(".js");
+        assertThat(entry.modulePreloads()).noneMatch(url -> url.contains("adminApp-") || url.contains("shell-"));
+    }
+
+    @Test
     void rejectsNonLoopbackDevelopmentServer() {
         assertThatIllegalArgumentException().isThrownBy(() -> new ViteAssetService(
                 new ObjectMapper(),

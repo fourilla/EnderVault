@@ -860,6 +860,24 @@ const initializeSharedTextPreview = (preview) => {
         return;
     }
 
+    const disclosure = preview.closest("details[data-shared-preview]");
+    if (disclosure && !disclosure.open) {
+        if (preview.dataset.sharedTextPreviewPending === "true") {
+            return;
+        }
+        preview.dataset.sharedTextPreviewPending = "true";
+        const initializeWhenOpened = () => {
+            if (!disclosure.open) {
+                return;
+            }
+            disclosure.removeEventListener("toggle", initializeWhenOpened);
+            delete preview.dataset.sharedTextPreviewPending;
+            initializeSharedTextPreview(preview);
+        };
+        disclosure.addEventListener("toggle", initializeWhenOpened);
+        return;
+    }
+
     const textarea = preview.querySelector("textarea[data-shared-text-source]");
     if (!textarea) {
         return;

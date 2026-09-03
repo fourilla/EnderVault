@@ -20,6 +20,7 @@ async function compile(file) {
 const componentCode = await compile('shared/file-tools/ImageViewer.tsx');
 const adminCode = await compile('file-detail/FileTools.tsx');
 const publicCode = await compile('shared-file/image.tsx');
+const disclosureCode = await compile('shared-file/preview-disclosure.ts');
 
 function load(code, modules, globals = {}) {
   const module = { exports: {} };
@@ -64,6 +65,7 @@ test('admin and public entry points render the same ImageViewer component', () =
   let publicElement;
   load(publicCode, {
     'react/jsx-runtime': jsx, '../shared/file-tools/ImageViewer': { ImageViewer },
+    './preview-disclosure': { mountWhenPreviewOpened: (_container, mount) => mount() },
     'react-dom/client': { createRoot(root) {
       assert.equal(root, container);
       return { render(element) { publicElement = element; } };
@@ -78,9 +80,31 @@ test('public bootstrap leaves non-image or missing-source pages alone', () => {
   for (const container of [null, { querySelector: () => null },
     { querySelector: () => ({ getAttribute: () => '', alt: '' }) }]) {
     load(publicCode, { 'react/jsx-runtime': jsx, '../shared/file-tools/ImageViewer': { ImageViewer },
+      './preview-disclosure': { mountWhenPreviewOpened: (_container, mount) => mount() },
       'react-dom/client': { createRoot() { assert.fail('must not mount without an image source'); } },
     }, { document: { getElementById: () => container } });
   }
+});
+
+test('shared preview enhancement mounts once when its collapsed disclosure is opened', () => {
+  const { mountWhenPreviewOpened } = load(disclosureCode, {});
+  const disclosure = Object.assign(new EventTarget(), { open: false });
+  const container = { closest(selector) {
+    assert.equal(selector, 'details[data-shared-preview]');
+    return disclosure;
+  } };
+  let mounts = 0;
+
+  mountWhenPreviewOpened(container, () => { mounts += 1; });
+  disclosure.dispatchEvent(new Event('toggle'));
+  assert.equal(mounts, 0);
+  disclosure.open = true;
+  disclosure.dispatchEvent(new Event('toggle'));
+  disclosure.open = false;
+  disclosure.dispatchEvent(new Event('toggle'));
+  disclosure.open = true;
+  disclosure.dispatchEvent(new Event('toggle'));
+  assert.equal(mounts, 1);
 });
 
 test('image enhancement waits for assets, initializes its own root and cleans up on departure', async () => {

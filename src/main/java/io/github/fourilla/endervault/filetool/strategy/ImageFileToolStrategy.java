@@ -25,7 +25,8 @@ public class ImageFileToolStrategy implements FileToolStrategy {
         return FileToolDescriptor.of(
                 FileToolType.IMAGE,
                 FileToolCapability.INLINE_PREVIEW,
-                FileToolCapability.PREVIEW_PAGE
+                FileToolCapability.PREVIEW_PAGE,
+                FileToolCapability.SHARED_PREVIEW
         );
     }
 }

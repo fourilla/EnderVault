@@ -88,6 +88,11 @@
               th:replace="~{fragments/assets :: viteEntry(${sharedImageFrontend})}"></th:block>
 </th:block>
 
+<th:block th:fragment="sharedComicScript">
+    <th:block th:if="${sharedComicFrontend.available()}"
+              th:replace="~{fragments/assets :: viteEntry(${sharedComicFrontend})}"></th:block>
+</th:block>
+
 <th:block th:fragment="directoryPickerScript">
     <script defer th:src="@{/js/directory-tree.js}"></script>
     <script defer th:src="@{/js/directory-picker.js}"></script>

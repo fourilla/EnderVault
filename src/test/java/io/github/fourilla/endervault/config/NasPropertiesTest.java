@@ -54,6 +54,7 @@ class NasPropertiesTest {
                 .withProperty("nas.share.max-expiration-days", "30")
                 .withProperty("nas.share.custom-token-min-length", "4")
                 .withProperty("nas.share.direct-download-link-enabled", "false")
+                .withProperty("nas.share.default-preview-enabled", "false")
                 .withProperty("nas.file-request.default-expiration-days", "14")
                 .withProperty("nas.file-request.default-max-files", "75")
                 .withProperty("nas.file-request.max-concurrent-uploads-per-request", "2")
@@ -98,6 +99,7 @@ class NasPropertiesTest {
         assertThat(properties.getShare().getMaxExpirationDays()).isEqualTo(30);
         assertThat(properties.getShare().getCustomTokenMinLength()).isEqualTo(4);
         assertThat(properties.getShare().isDirectDownloadLinkEnabled()).isFalse();
+        assertThat(properties.getShare().isDefaultPreviewEnabled()).isFalse();
         assertThat(properties.getFileRequest().getDefaultExpirationDays()).isEqualTo(14);
         assertThat(properties.getFileRequest().getDefaultMaxFiles()).isEqualTo(75);
         assertThat(properties.getFileRequest().getMaxConcurrentUploadsPerRequest()).isEqualTo(2);
