@@ -5,7 +5,11 @@ import { BrowserPagination } from '../shared/browser/BrowserPagination';
 import type { BrowserEntry } from '../shared/browser/types';
 import { useEntrySelection } from '../shared/browser/useEntrySelection';
 import { useNavigationScroll } from '../shared/browser/useNavigationScroll';
-import { togglePathFavorite } from '../shared/api/favorite-api';
+import { createFileEntryActions } from '../shared/browser/file-entry-actions';
+import { fileEntryMenuActions } from '../shared/browser/file-entry-menu-actions';
+import { useBrowserContextMenu } from '../shared/browser/useBrowserContextMenu';
+import { useListingRefresh } from '../shared/browser/useListingRefresh';
+import { useAdminApp } from '../app/AdminAppContext';
 import { notify, postForm, toastError } from '../shared/api/form-api';
 import { canonicalRecentState, loadRecentPayload } from './recent-api';
 import {
@@ -19,6 +23,7 @@ import './recent-app.css';
 
 export function RecentApp() {
   const routeNavigate = useNavigate();
+  const adminApp = useAdminApp();
   const openFile = useCallback((detailUrl: string) => routeNavigate(detailUrl), [routeNavigate]);
   const [state, setState] = useState<RecentHistoryState>(() => initialRecentState());
   const [payload, setPayload] = useState<RecentPayload | null>(null);
@@ -96,34 +101,18 @@ export function RecentApp() {
   }, [routeNavigate]);
   const selection = useEntrySelection(entries, true, openDirectory,
     [state.query, state.page].join('\u0000'), openFile);
-  const reload = () => setRefreshToken((current) => current + 1);
+  const reload = useCallback(() => setRefreshToken((current) => current + 1), []);
+  useListingRefresh(reload);
+  const actions = createFileEntryActions({
+    selectedEntries: selection.selectedEntries, setSelected: selection.setSelected, setPayload, reload,
+    zipDownloadUrl: '/files/recent/download.zip',
+  });
 
-  const toggleFavorite = async (entry: BrowserEntry) => {
-    try {
-      const body = await togglePathFavorite(entry.path);
-      const active = Boolean(body.active);
-      setPayload((current) => current ? {
-        ...current,
-        directories: current.directories.map((item) => item.path === entry.path ? { ...item, favorite: active } : item),
-        entries: current.entries.map((item) => item.path === entry.path ? { ...item, favorite: active } : item),
-      } : current);
-    } catch (reason) {
-      toastError(reason, 'Favorite could not be updated.');
-    }
-  };
-
-  const downloadSelected = () => {
-    if (selection.selectedEntries.length === 0) return;
-    const query = new URLSearchParams();
-    selection.selectedEntries.forEach((entry) => query.append('paths', entry.path));
-    window.location.assign('/files/recent/download.zip?' + query.toString());
-  };
-
-  const removeSelected = async () => {
-    if (selection.selectedEntries.length === 0) return;
+  const removeEntries = async (entries: BrowserEntry[]) => {
+    if (entries.length === 0) return;
     try {
       const body = await postForm('/api/v1/recent/remove', {
-        paths: selection.selectedEntries.map((entry) => entry.path),
+        paths: entries.map((entry) => entry.path),
         q: state.query,
         page: state.page,
       });
@@ -134,6 +123,19 @@ export function RecentApp() {
       toastError(reason, 'Recent items could not be removed.');
     }
   };
+
+  const menuActions = fileEntryMenuActions({ actions, browse: openDirectory, openFile,
+    createFileRequest: adminApp.bootstrap.capabilities.fileRequests ? (path) => routeNavigate('/admin/file-requests?'
+      + new URLSearchParams({ destinationPath: path }).toString()) : undefined });
+  menuActions.push({ id: 'remove-from-recent', group: 'history', icon: 'fas fa-clock-rotate-left',
+    label: ({ mode, items }) => mode === 'selection' ? `Remove ${items.length} selected from recent` : 'Remove from recent',
+    visible: ({ mode }) => mode !== 'background', run: ({ items }) => removeEntries(items) });
+  useBrowserContextMenu({
+    menuId: 'recentContextMenu', pageScope: 'recent-react', entries: () => entries,
+    itemKey: (entry) => entry.path, keyAttribute: 'data-entry-path',
+    selectedRef: selection.selectedRef, setSelected: selection.setSelected,
+    actions: () => menuActions, contentKey: payload, errorMessage: 'The file action failed.',
+  });
 
   const clearRecent = async () => {
     const confirmed = await window.EnderVault?.askConfirmation({
@@ -195,12 +197,12 @@ export function RecentApp() {
         <div className="toolbar-cluster" aria-label="Recent browser controls">
           <div className="toolbar-actions file-actions" aria-label="Recent actions">
             <button className="icon-button" type="button" disabled={selection.selectedEntries.length === 0}
-              title="Download selected" aria-label="Download selected" onClick={downloadSelected}>
+              title="Download selected" aria-label="Download selected" onClick={() => actions.downloadEntries()}>
               {icon('fas fa-file-zipper')}
             </button>
             <button className="icon-button danger" type="button" disabled={selection.selectedEntries.length === 0}
               title="Remove selected from recent" aria-label="Remove selected from recent"
-              onClick={() => void removeSelected()}>
+              onClick={() => void removeEntries(selection.selectedEntries)}>
               {icon('fas fa-clock-rotate-left')}
             </button>
             <button className="ghost icon-button" type="button" disabled={!payload || payload.totalItems === 0}
@@ -267,7 +269,7 @@ export function RecentApp() {
               <header className="section-heading"><h2>Directories ({payload.directories.length})</h2></header>
               <EntryTable entries={payload.directories} showAccessed onBrowse={openDirectory}
                 selected={selection.selected} onSelect={selection.selectEntry}
-                onFavorite={toggleFavorite} itemInteractionProps={selection.itemInteractionProps} />
+                onFavorite={actions.toggleFavorite} itemInteractionProps={selection.itemInteractionProps} />
             </section>
           )}
           {payload.entries.length > 0 && (
@@ -283,7 +285,7 @@ export function RecentApp() {
               ) : (
                 <EntryTable entries={payload.entries} showAccessed onBrowse={openDirectory}
                   selected={selection.selected} onSelect={selection.selectEntry}
-                  onFavorite={toggleFavorite} itemInteractionProps={selection.itemInteractionProps} />
+                  onFavorite={actions.toggleFavorite} itemInteractionProps={selection.itemInteractionProps} />
               )}
             </section>
           )}

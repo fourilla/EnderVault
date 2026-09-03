@@ -8,6 +8,7 @@ import type {
 } from '../shared/browser/types';
 
 export type {
+  TransferBufferPayload,
   BrowserEntry,
   BrowserPage,
   BrowserSort,
@@ -52,14 +53,4 @@ export interface BrowserHistoryState {
   hidden?: HiddenMode;
   pageSize?: number;
   scrollTop: number;
-}
-
-export interface TransferBufferPayload {
-  active: boolean;
-  count: number;
-  items: Array<{
-    path: string;
-    name: string;
-    iconClass: string;
-  }>;
 }

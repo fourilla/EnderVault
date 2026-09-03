@@ -41,3 +41,9 @@ export interface BrowserPage {
   hasPrevious: boolean;
   hasNext: boolean;
 }
+
+export interface TransferBufferPayload {
+  active: boolean;
+  count: number;
+  items: Array<{ path: string; name: string; iconClass: string }>;
+}

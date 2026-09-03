@@ -1,6 +1,6 @@
 (function () {
     const globalActions = [];
-    let pageScopeOwner = "";
+    let pageScope = null;
 
     const actionValue = (action, context, property) =>
         typeof action[property] === "function" ? action[property](context) : action[property];
@@ -20,18 +20,6 @@
         globalActions.push(action);
     };
 
-    const claimPageScope = (owner) => {
-        const candidate = typeof owner === "string" ? owner.trim() : "";
-        if (!candidate) {
-            return false;
-        }
-        if (pageScopeOwner && pageScopeOwner !== candidate) {
-            return false;
-        }
-        pageScopeOwner = candidate;
-        return true;
-    };
-
     const globalActionsFor = (context) => visibleActions(globalActions, context).map((action) => ({
         id: action.id,
         group: action.group,
@@ -45,14 +33,25 @@
         menuId,
         actions,
         contextForEvent,
+        pageScope: owner = "",
         errorMessage = "The action failed.",
         extraCloseEvents = []
     }) => {
-        if (!window.EnderVault || !Array.isArray(actions) || typeof contextForEvent !== "function") {
+        if (!window.EnderVault || (!Array.isArray(actions) && typeof actions !== "function")
+                || typeof contextForEvent !== "function" || (owner && pageScope)) {
             return null;
         }
 
+        const scope = owner ? { owner } : null;
+        if (scope) pageScope = scope;
+        const currentActions = () => typeof actions === "function" ? actions() : actions;
+        const listeners = [];
+        const listen = (target, type, listener, options) => {
+            target.addEventListener(type, listener, options);
+            listeners.push(() => target.removeEventListener(type, listener, options));
+        };
         const { contextMenus, showToast } = window.EnderVault;
+        let disposed = false;
         let activeMenu = null;
         let activeContext = null;
         let activeContextTarget = null;
@@ -60,6 +59,7 @@
         document.body.classList.add("context-menu-enhanced");
 
         const closeMenu = () => {
+            if (!activeMenu) return;
             activeMenu?.remove();
             activeMenu = null;
             activeContext = null;
@@ -86,6 +86,7 @@
             label.textContent = actionValue(action, context, "label");
             button.append(iconElement, label);
             button.addEventListener("click", async () => {
+                if (disposed) return;
                 closeMenu();
                 try {
                     await action.run(context);
@@ -97,7 +98,7 @@
         };
 
         const renderMenu = (context, x, y) => {
-            const visible = visibleActions([...actions, ...globalActions], context);
+            const visible = visibleActions([...currentActions(), ...globalActions], context);
             closeMenu();
             if (!visible.length) {
                 return;
@@ -137,7 +138,7 @@
             document.body.classList.add("context-menu-open");
         };
 
-        document.addEventListener("contextmenu", (event) => {
+        listen(document, "contextmenu", (event) => {
             if (activeMenu?.contains(event.target)) {
                 event.preventDefault();
                 return;
@@ -151,13 +152,13 @@
             renderMenu(context, event.clientX, event.clientY);
         });
 
-        document.addEventListener("click", (event) => {
+        listen(document, "click", (event) => {
             if (activeMenu && !activeMenu.contains(event.target)) {
                 closeMenu();
             }
         });
 
-        document.addEventListener("keydown", (event) => {
+        listen(document, "keydown", (event) => {
             if (!activeMenu) {
                 return;
             }
@@ -183,14 +184,21 @@
             }
         });
 
-        window.addEventListener("resize", closeMenu);
-        window.addEventListener("scroll", closeMenu, true);
-        extraCloseEvents.forEach((eventName) => document.addEventListener(eventName, closeMenu));
+        listen(window, "resize", closeMenu);
+        listen(window, "scroll", closeMenu, true);
+        extraCloseEvents.forEach((eventName) => listen(document, eventName, closeMenu));
 
         return {
             close: closeMenu,
+            dispose: () => {
+                if (disposed) return;
+                disposed = true;
+                closeMenu();
+                listeners.forEach((remove) => remove());
+                if (scope && pageScope === scope) pageScope = null;
+            },
             activeContext: () => activeContext,
-            visibleActions: (context) => visibleActions([...actions, ...globalActions], context)
+            visibleActions: (context) => visibleActions([...currentActions(), ...globalActions], context)
         };
     };
 
@@ -198,7 +206,6 @@
         createActionMenu,
         registerGlobalAction,
         globalActionsFor,
-        claimPageScope,
-        pageScopeOwner: () => pageScopeOwner
+        pageScopeOwner: () => pageScope?.owner || ""
     };
 })();

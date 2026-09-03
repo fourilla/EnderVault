@@ -1,4 +1,6 @@
 import type { NotificationPayload } from './settings/types';
+import type { BrowserMenuAction } from './shared/browser/browser-menu-context';
+import type { BrowserEntry } from './shared/browser/types';
 
 export {};
 
@@ -85,15 +87,15 @@ declare global {
       }) => Promise<void> | void;
     };
     EnderVaultContextMenus?: {
-      claimPageScope: (owner: string) => boolean;
       createActionMenu: (options: Record<string, unknown>) => {
         close: () => void;
+        dispose: () => void;
       } | null;
     };
     EnderVaultContextMenu?: {
-      registerAction: (action: Record<string, unknown>) => Record<string, unknown>;
-      registerExtensionAction: (action: Record<string, unknown>) => void;
-      extensionActions: () => Array<Record<string, unknown>>;
+      registerAction: (action: BrowserMenuAction<BrowserEntry>) => BrowserMenuAction<BrowserEntry>;
+      registerExtensionAction: (action: BrowserMenuAction<BrowserEntry> & { extensions: string[] }) => void;
+      extensionActions: () => Array<BrowserMenuAction<BrowserEntry> & { extensions: string[] }>;
       close: () => void;
     };
     EnderVaultServerTasks?: {
