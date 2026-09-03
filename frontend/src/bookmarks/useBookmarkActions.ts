@@ -58,6 +58,7 @@ export function useBookmarkActions({
       if (state.query) params.set('q', state.query);
       const query = params.toString();
       window.EnderVaultServerTasks?.track(body.task, {
+        announceStart: true,
         refreshUrl: query ? `/files/bookmarks?${query}` : '/files/bookmarks',
       });
     }

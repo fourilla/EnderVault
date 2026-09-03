@@ -287,7 +287,8 @@
 }
 
 .app-topbar .icon-button:hover,
-.app-topbar .icon-button:focus-visible {
+.app-topbar .icon-button:focus-visible,
+.app-topbar .topbar-control-trigger[aria-expanded="true"] {
     border-color: var(--accent);
 }
 

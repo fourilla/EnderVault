@@ -65,6 +65,7 @@ test('trash from Recent sends full vault paths and CSRF, then requests refresh t
   assert.deepEqual(state.requests[0].body.getAll('paths'), state.entries.map((entry) => entry.path));
   assert.equal(state.requests[0].body.has('items'), false);
   assert.equal(state.tracked[0].options.refreshUrl, '/files?path=');
+  assert.equal(state.tracked[0].options.announceStart, true);
   assert.equal(state.selected().size, 0);
   assert.equal(state.reloads(), 0);
 });

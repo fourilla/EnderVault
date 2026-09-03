@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { type FormEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { parseCurl } from './curl-parser';
 import type { RemoteDownloadInspection, RemoteDownloadTask } from './types';
 
@@ -72,7 +72,7 @@ export function RemoteDownloadConfirmDialog({ inspection, busy, cancel, start }:
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
     if (inspection && !dialog.open) dialog.showModal();

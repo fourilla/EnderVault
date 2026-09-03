@@ -207,6 +207,9 @@
             return;
         }
         renderTask(task);
+        if (options.announceStart) {
+            window.EnderVaultActivity?.announceStarted([`server-${task.id}`]);
+        }
         startPolling();
     };
 

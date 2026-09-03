@@ -1,3 +1,17 @@
+html:has(.admin-react-shell) {
+  scroll-padding-top: calc(var(--topbar-height) + var(--space-md));
+}
+
+.admin-react-shell .app-topbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-topbar);
+}
+
+body:has(.admin-react-shell) .toast-region {
+  top: calc(var(--topbar-height) + var(--space-3xl));
+}
+
 .admin-shell-route-actions {
   display: flex;
   flex: 1 1 auto;
@@ -22,6 +36,12 @@
 
 .admin-shell-popover .topbar-control-popover {
   width: min(340px, calc(100vw - 16px));
+}
+
+.admin-shell-popover .topbar-control-menu {
+  max-height: calc(var(--topbar-popover-available-height, 80dvh) - var(--space-xs));
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .admin-shell-navigation-groups {

@@ -229,7 +229,7 @@ export function FileDetailApp() {
         notify(body);
         if (body.transferBuffer) setSnapshot((current) => current?.path === path
           ? { ...current, payload: { ...current.payload, transferBuffer: body.transferBuffer } } : current);
-        if (body.task) window.EnderVaultServerTasks?.track(body.task);
+        if (body.task) window.EnderVaultServerTasks?.track(body.task, { announceStart: true });
       } catch (reason) { toastError(reason, 'Transfer buffer action failed.'); }
     },
   };

@@ -63,7 +63,7 @@ export function MetadataInspectorApp() {
     try {
       const result = await startMetadataScan([...selectedAreas]);
       setPayload((current) => current ? { ...current, activeInspectionTask: result.task } : current);
-      window.EnderVaultServerTasks?.track(result.task);
+      window.EnderVaultServerTasks?.track(result.task, { announceStart: true });
     } catch (reason) {
       toastError(reason, 'Metadata inspection could not be started.');
     } finally {

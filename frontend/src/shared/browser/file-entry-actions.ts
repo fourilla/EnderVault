@@ -52,7 +52,10 @@ export function createFileEntryActions<T extends EntryListing>({
       notify(body);
       setSelected(new Set());
       if (body.task) {
-        window.EnderVaultServerTasks?.track(body.task, { refreshUrl: '/files?path=' + encodeURIComponent(path) });
+        window.EnderVaultServerTasks?.track(body.task, {
+          announceStart: true,
+          refreshUrl: '/files?path=' + encodeURIComponent(path),
+        });
       } else { reload(); }
     } catch (reason) { toastError(reason, 'Items could not be moved to trash.'); }
   };

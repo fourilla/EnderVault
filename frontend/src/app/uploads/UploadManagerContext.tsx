@@ -79,6 +79,7 @@ class AdminUploadManager {
   }
 
   startFiles(files: File[], destinationPath: string) {
+    const activityIds: string[] = [];
     files.forEach((file) => {
       const upload: ManagedUpload = {
         id: this.nextId++,
@@ -92,8 +93,10 @@ class AdminUploadManager {
       };
       this.uploads.set(upload.id, upload);
       this.queue.push(upload);
+      activityIds.push(`upload-${upload.id}`);
     });
     this.startQueuedUploads();
+    window.EnderVaultActivity?.announceStarted(activityIds);
   }
 
   private activeUploads() {

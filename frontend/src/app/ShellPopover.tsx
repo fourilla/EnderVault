@@ -4,6 +4,7 @@ import {
   type ReactNode,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
 } from 'react';
 import { useTopbarPopover } from './TopbarPopoverContext';
@@ -36,6 +37,10 @@ export function ShellPopover({
   const rootRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
   const open = activeId === id;
+
+  useLayoutEffect(() => {
+    if (open && rootRef.current) window.EnderVaultTopbarControls?.positionPopover(rootRef.current);
+  }, [open]);
 
   useEffect(() => {
     if (open) onOpen?.();

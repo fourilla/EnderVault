@@ -58,6 +58,7 @@ export function useFileActions({
       if (body.transferBuffer) setTransferBuffer(body.transferBuffer);
       if (body.task) {
         window.EnderVaultServerTasks?.track(body.task, {
+          announceStart: true,
           refreshUrl: '/files?path=' + encodeURIComponent(effectiveState().path),
         });
       }
@@ -81,6 +82,7 @@ export function useFileActions({
       setSelected(new Set());
       if (body.task) {
         window.EnderVaultServerTasks?.track(body.task, {
+          announceStart: true,
           refreshUrl: '/files?path=' + encodeURIComponent(effectiveState().path),
         });
       }

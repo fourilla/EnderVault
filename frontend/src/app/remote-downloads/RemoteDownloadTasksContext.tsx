@@ -24,6 +24,7 @@ interface RemoteDownloadTasksValue {
   tasks: RemoteDownloadTask[] | null;
   error: string;
   refresh: () => Promise<void>;
+  trackStarted: (task: RemoteDownloadTask) => void;
 }
 
 const RemoteDownloadTasksContext = createContext<RemoteDownloadTasksValue | null>(null);
@@ -41,6 +42,7 @@ export function RemoteDownloadTasksProvider({ children }: PropsWithChildren) {
   const running = useRef(false);
   const refreshRequested = useRef(false);
   const shouldPoll = useRef(false);
+  const startRevision = useRef(0);
   const remoteEnabled = bootstrap.capabilities.remoteDownloads;
   const activityEnabled = bootstrap.tasks.activityPanelEnabled && Boolean(window.EnderVaultActivity);
   const routeNeedsTasks = location.pathname === REMOTE_DOWNLOAD_PATH || location.pathname === '/admin/dashboard';
@@ -60,9 +62,47 @@ export function RemoteDownloadTasksProvider({ children }: PropsWithChildren) {
     scheduledIds.current.clear();
   }, []);
 
-  const publishActivity = useCallback((nextTasks: RemoteDownloadTask[]) => {
+  const publishTask = useCallback((task: RemoteDownloadTask) => {
     const activity = window.EnderVaultActivity;
     if (!activityEnabled || !activity) return;
+    displayedIds.current.add(task.id);
+    activity.upsert({
+      id: activityId(task),
+      title: task.fileName || `Remote download #${task.shortId}`,
+      type: 'REMOTE_DOWNLOAD',
+      typeLabel: `Remote download - ${task.networkRouteLabel}`,
+      status: task.status.toLowerCase(),
+      percent: task.progressPercent,
+      message: task.cancelRequested && task.active
+        ? 'Canceling...'
+        : task.message || task.progressLabel || task.statusLabel,
+      cancelRequested: task.cancelRequested,
+      cancelable: task.active,
+      onCancel: async () => {
+        const response = await cancelRemoteDownload(task.id);
+        if (response.notification) window.EnderVault?.showNotification(response.notification);
+      },
+    });
+
+    if (!task.active && !scheduledIds.current.has(task.id)) {
+      scheduledIds.current.add(task.id);
+      const delay = task.status === 'COMPLETE'
+        ? bootstrap.tasks.completedDisplayMs
+        : bootstrap.tasks.failedDisplayMs;
+      activity.scheduleRemoval(activityId(task), delay);
+    }
+    knownIds.current.add(task.id);
+  }, [activityEnabled, bootstrap.tasks.completedDisplayMs, bootstrap.tasks.failedDisplayMs]);
+
+  const trackStarted = useCallback((task: RemoteDownloadTask) => {
+    startRevision.current += 1;
+    shouldPoll.current = shouldPoll.current || task.active;
+    publishTask(task);
+    if (activityEnabled) window.EnderVaultActivity?.announceStarted([activityId(task)]);
+  }, [activityEnabled, publishTask]);
+
+  const publishActivity = useCallback((nextTasks: RemoteDownloadTask[]) => {
+    if (!activityEnabled) return;
     const firstLoad = !initialized.current;
     const returnedIds = new Set(nextTasks.map((task) => task.id));
 
@@ -80,33 +120,7 @@ export function RemoteDownloadTasksProvider({ children }: PropsWithChildren) {
         return;
       }
 
-      displayedIds.current.add(task.id);
-      activity.upsert({
-        id: activityId(task),
-        title: task.fileName || `Remote download #${task.shortId}`,
-        type: 'REMOTE_DOWNLOAD',
-        typeLabel: `Remote download - ${task.networkRouteLabel}`,
-        status: task.status.toLowerCase(),
-        percent: task.progressPercent,
-        message: task.cancelRequested && task.active
-          ? 'Canceling...'
-          : task.message || task.progressLabel || task.statusLabel,
-        cancelRequested: task.cancelRequested,
-        cancelable: task.active,
-        onCancel: async () => {
-          const response = await cancelRemoteDownload(task.id);
-          if (response.notification) window.EnderVault?.showNotification(response.notification);
-        },
-      });
-
-      if (!task.active && !scheduledIds.current.has(task.id)) {
-        scheduledIds.current.add(task.id);
-        const delay = task.status === 'COMPLETE'
-          ? bootstrap.tasks.completedDisplayMs
-          : bootstrap.tasks.failedDisplayMs;
-        activity.scheduleRemoval(activityId(task), delay);
-      }
-      knownIds.current.add(task.id);
+      publishTask(task);
     });
 
     displayedIds.current.forEach((id) => {
@@ -117,7 +131,7 @@ export function RemoteDownloadTasksProvider({ children }: PropsWithChildren) {
       knownIds.current.delete(id);
     });
     initialized.current = true;
-  }, [activityEnabled, bootstrap.tasks.completedDisplayMs, bootstrap.tasks.failedDisplayMs]);
+  }, [activityEnabled, publishTask]);
 
   const acceptTasks = useCallback((nextTasks: RemoteDownloadTask[]) => {
     setTasks(nextTasks);
@@ -134,8 +148,11 @@ export function RemoteDownloadTasksProvider({ children }: PropsWithChildren) {
     }
 
     running.current = true;
+    const revision = startRevision.current;
     try {
-      acceptTasks(await loadRemoteDownloadTasks());
+      const nextTasks = await loadRemoteDownloadTasks();
+      if (revision === startRevision.current) acceptTasks(nextTasks);
+      else refreshRequested.current = true;
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Remote download tasks could not be loaded.');
     } finally {
@@ -183,7 +200,8 @@ export function RemoteDownloadTasksProvider({ children }: PropsWithChildren) {
     tasks,
     error,
     refresh: synchronize,
-  }), [error, synchronize, tasks]);
+    trackStarted,
+  }), [error, synchronize, tasks, trackStarted]);
 
   return (
     <RemoteDownloadTasksContext.Provider value={value}>

@@ -53,6 +53,7 @@ declare global {
     };
     EnderVaultActivity?: {
       upsert: (item: Record<string, unknown>) => unknown;
+      announceStarted: (ids: string[]) => void;
       remove: (id: string) => void;
       scheduleRemoval: (id: string, delayMs?: number) => void;
       cancel: (id: string) => Promise<void>;
@@ -99,7 +100,10 @@ declare global {
       close: () => void;
     };
     EnderVaultServerTasks?: {
-      track: (task: unknown, options?: Record<string, unknown>) => void;
+      track: (task: unknown, options?: { refreshUrl?: string; announceStart?: boolean }) => void;
+    };
+    EnderVaultTopbarControls?: {
+      positionPopover: (control: HTMLElement) => void;
     };
     EnderVaultToasts?: {
       show: (notification: NotificationPayload) => void;
