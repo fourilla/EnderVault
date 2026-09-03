@@ -1,7 +1,6 @@
 import type { BookmarkHistoryState } from './types';
 
-const STORAGE_KEY = 'endervault.bookmarks.history-state.v1';
-const CANONICAL_URL = '/files/bookmarks';
+import type { ListingHistoryConfig } from '../shared/browser/listing-history';
 
 const scrollTop = (value: unknown) => {
   const parsed = typeof value === 'number' ? value : Number.parseInt(String(value || ''), 10);
@@ -25,38 +24,17 @@ export const parseBookmarkState = (candidate: unknown): BookmarkHistoryState | n
   };
 };
 
-const stateFromUrl = (): BookmarkHistoryState | null => {
-  const url = new URL(window.location.href);
-  if (!url.searchParams.has('directory') && !url.searchParams.has('q')) return null;
+const stateFromSearch = (search: string): BookmarkHistoryState => {
+  const params = new URLSearchParams(search);
   return {
     surface: 'bookmarks',
     version: 1,
-    directoryId: url.searchParams.get('directory') || '',
-    query: url.searchParams.get('q') || '',
+    directoryId: params.get('directory') || '',
+    query: params.get('q') || '',
     scrollTop: 0,
   };
 };
 
-const reloadedState = (): BookmarkHistoryState | null => {
-  const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
-  if (navigation?.type !== 'reload') return null;
-  try {
-    return parseBookmarkState(JSON.parse(sessionStorage.getItem(STORAGE_KEY) || 'null'));
-  } catch {
-    return null;
-  }
-};
-
-export const initialBookmarkState = () => parseBookmarkState(window.history.state)
-  || stateFromUrl()
-  || reloadedState()
-  || defaultBookmarkState();
-
-export const rememberBookmarkState = (state: BookmarkHistoryState, replace = false) => {
-  try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    // Browser history remains available when session storage is blocked.
-  }
-  window.history[replace ? 'replaceState' : 'pushState'](state, '', CANONICAL_URL);
+export const bookmarkHistory: ListingHistoryConfig<BookmarkHistoryState> = {
+  pathname: '/files/bookmarks', parse: parseBookmarkState, fromSearch: stateFromSearch,
 };

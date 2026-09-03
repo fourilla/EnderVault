@@ -111,8 +111,9 @@ function DetailMetadata({ payload, onToggleFavorite }: {
 export function FileDetailApp() {
   const location = useLocation();
   const navigate = useNavigate();
-  const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const path = query.get('path') || '';
+  const path = new URLSearchParams(location.search).get('path') || '';
+  // Comic page changes are client view state, not new file metadata requests.
+  const query = useMemo(() => new URLSearchParams({ path }), [path]);
   const [snapshot, setSnapshot] = useState<{ path: string; payload: FileDetailPayload } | null>(null);
   const payload = snapshot?.path === path ? snapshot.payload : null;
   const [loading, setLoading] = useState(true);
@@ -202,7 +203,7 @@ export function FileDetailApp() {
           if (!stillHere()) return;
           detailRequestVersion.current += 1;
           prefetchedDetail.current = location.search !== target.search
-            ? { key: detailQueryKey(target.searchParams), payload: next } : null;
+            ? { key: detailQueryKey(new URLSearchParams({ path: target.searchParams.get('path') || '' })), payload: next } : null;
           startTransition(() => {
             setSnapshot({ path: target.searchParams.get('path')!, payload: next });
             setRename(next.detail.name); setError(''); setLoading(false);

@@ -12,12 +12,8 @@ import { useListingRefresh } from '../shared/browser/useListingRefresh';
 import { useAdminApp } from '../app/AdminAppContext';
 import { notify, postForm, toastError } from '../shared/api/form-api';
 import { canonicalRecentState, loadRecentPayload } from './recent-api';
-import {
-  defaultRecentState,
-  initialRecentState,
-  parseRecentState,
-  rememberRecentState,
-} from './recent-history';
+import { recentHistory } from './recent-history';
+import { useListingHistory, useListingSnapshot } from '../shared/browser/ListingHistoryContext';
 import type { RecentHistoryState, RecentPayload, RecentSort } from './types';
 import './recent-app.css';
 
@@ -25,15 +21,15 @@ export function RecentApp() {
   const routeNavigate = useNavigate();
   const adminApp = useAdminApp();
   const openFile = useCallback((detailUrl: string) => routeNavigate(detailUrl), [routeNavigate]);
-  const [state, setState] = useState<RecentHistoryState>(() => initialRecentState());
-  const [payload, setPayload] = useState<RecentPayload | null>(null);
+  const { state, key: historyKey, remember, navigate: navigateHistory, isCurrent, ready } = useListingHistory(recentHistory);
+  const [payload, setPayload] = useListingSnapshot<RecentPayload>(historyKey);
   const [searchText, setSearchText] = useState(state.query);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [refreshToken, setRefreshToken] = useState(0);
   const stateRef = useRef(state);
   const payloadRef = useRef(payload);
-  const requestScroll = useNavigationScroll(payload, loading, state.scrollTop);
+  useNavigationScroll(payload, loading, state.scrollTop, historyKey, ready);
   stateRef.current = state;
   payloadRef.current = payload;
 
@@ -42,55 +38,40 @@ export function RecentApp() {
     : stateRef.current, []);
 
   const navigate = useCallback((next: RecentHistoryState, replace = false) => {
-    const current = { ...effectiveState(), scrollTop: Math.max(0, Math.round(window.scrollY)) };
-    rememberRecentState(current, true);
+    if (!isCurrent()) return;
+    remember(effectiveState());
     const normalized = { ...next, scrollTop: next.scrollTop || 0 };
-    requestScroll(normalized.scrollTop);
-    rememberRecentState(normalized, replace);
-    setState(normalized);
-  }, [effectiveState, requestScroll]);
+    navigateHistory(normalized, replace);
+  }, [effectiveState, remember, navigateHistory, isCurrent]);
 
   useEffect(() => {
-    rememberRecentState(state, true);
+    if (!isCurrent()) return;
     const controller = new AbortController();
+    const requestState = effectiveState();
     setLoading(true);
     setError('');
-    void loadRecentPayload(state, controller.signal)
+    void loadRecentPayload(requestState, controller.signal)
       .then((next) => {
-        if (controller.signal.aborted) return;
+        if (!isCurrent() || controller.signal.aborted) return;
         setPayload(next);
-        const canonical = canonicalRecentState(state, next);
+        const canonical = canonicalRecentState(requestState, next);
         stateRef.current = canonical;
-        rememberRecentState(canonical, true);
+        remember(canonical);
       })
       .catch((reason: unknown) => {
-        if (!controller.signal.aborted) {
+        if (isCurrent() && !controller.signal.aborted) {
           setError(reason instanceof Error ? reason.message : 'Recent items could not be loaded.');
         }
       })
       .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
+        if (isCurrent() && !controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [state, refreshToken]);
+  }, [state, refreshToken, remember, isCurrent, effectiveState]);
 
   useEffect(() => {
-    const onPopState = (event: PopStateEvent) => {
-      const restored = parseRecentState(event.state) || defaultRecentState();
-      requestScroll(restored.scrollTop);
-      setSearchText(restored.query);
-      setState(restored);
-    };
-    const onPageHide = () => rememberRecentState({
-      ...effectiveState(), scrollTop: Math.max(0, Math.round(window.scrollY)),
-    }, true);
-    window.addEventListener('popstate', onPopState);
-    window.addEventListener('pagehide', onPageHide);
-    return () => {
-      window.removeEventListener('popstate', onPopState);
-      window.removeEventListener('pagehide', onPageHide);
-    };
-  }, [effectiveState, requestScroll]);
+    setSearchText(state.query);
+  }, [historyKey, state.query]);
 
   const entries = useMemo(
     () => payload ? [...payload.directories, ...payload.entries] : [],

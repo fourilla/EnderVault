@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { comicPageIndex } from './comic-page';
 import { icon } from '../shared/browser/BrowserEntries';
 import type { FileDetailPayload } from './types';
 
 export function ComicTool({ payload }: { payload: FileDetailPayload }) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const comic = payload.comic;
-  const [page, setPage] = useState(comic?.pageIndex || 0);
   const [fullscreen, setFullscreen] = useState(false);
   const total = comic?.manifest.pageCount || 0;
+  const page = comicPageIndex(location.search, total, comic?.pageIndex || 0);
 
-  useEffect(() => setPage(comic?.pageIndex || 0), [comic?.pageIndex, payload.detail.path]);
   useEffect(() => {
     document.body.classList.toggle('is-comic-viewer-fullscreen', fullscreen);
     return () => document.body.classList.remove('is-comic-viewer-fullscreen');
@@ -23,11 +26,13 @@ export function ComicTool({ payload }: { payload: FileDetailPayload }) {
 
   if (!comic) return null;
   const showPage = (next: number) => {
+    if (!Number.isFinite(next)) return;
     const normalized = Math.max(0, Math.min(total - 1, next));
-    setPage(normalized);
-    const url = new URL(window.location.href);
-    url.searchParams.set('comicPage', String(normalized + 1));
-    window.history.replaceState(window.history.state, '', url);
+    if (normalized === page) return;
+    const params = new URLSearchParams(location.search);
+    params.set('comicPage', String(normalized + 1));
+    void navigate({ pathname: location.pathname, search: '?' + params, hash: location.hash },
+      { replace: true, state: location.state, preventScrollReset: true });
   };
   const nav = (name: string, target: number, iconClass: string, disabled: boolean) => (
     <button className={'ghost icon-button action-icon' + (disabled ? ' is-disabled' : '')}

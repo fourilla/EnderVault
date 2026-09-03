@@ -42,6 +42,7 @@ export interface BrowserPayload {
 }
 
 export interface BrowserHistoryState {
+  surface: 'files';
   version: 1;
   mode: BrowserMode;
   path: string;
