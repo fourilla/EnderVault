@@ -1,8 +1,8 @@
 package io.github.fourilla.endervault.common;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryStream;
@@ -54,7 +54,7 @@ public class JsonRegistry<T> {
         }
         try {
             return objectMapper.readValue(registryFile.toFile(), typeReference);
-        } catch (JsonProcessingException ex) {
+        } catch (JacksonException ex) {
             Path backupFile = backupCorruptFile(corruptionPolicy == CorruptionPolicy.BACKUP_AND_RESET);
             if (corruptionPolicy == CorruptionPolicy.BACKUP_AND_RESET) {
                 T defaultValue = defaultValue();

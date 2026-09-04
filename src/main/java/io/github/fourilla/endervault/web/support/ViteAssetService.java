@@ -2,8 +2,8 @@ package io.github.fourilla.endervault.web.support;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -178,11 +178,12 @@ public class ViteAssetService {
     private record ManifestChunk(
             String file,
             String src,
-            @JsonProperty("isEntry") boolean entry,
+            @JsonProperty("isEntry") Boolean entry,
             List<String> css,
             List<String> imports) {
 
         private ManifestChunk {
+            entry = Boolean.TRUE.equals(entry);
             css = css == null ? List.of() : List.copyOf(css);
             imports = imports == null ? List.of() : List.copyOf(imports);
         }

@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.filecommit;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -21,13 +22,22 @@ final class DurableJsonFileWriter {
     }
 
     <T> T read(Path path, Class<T> type) throws IOException {
-        return objectMapper.readValue(path.toFile(), type);
+        try {
+            return objectMapper.readValue(path.toFile(), type);
+        } catch (JacksonException ex) {
+            throw new IOException("Failed to read JSON file " + path, ex);
+        }
     }
 
     void write(Path target, Object value) throws IOException {
         Path parent = target.getParent();
         Files.createDirectories(parent);
-        byte[] content = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(value);
+        byte[] content;
+        try {
+            content = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(value);
+        } catch (JacksonException ex) {
+            throw new IOException("Failed to serialize JSON file " + target, ex);
+        }
         Path temporary = parent.resolve(target.getFileName() + "." + UUID.randomUUID() + ".tmp");
         try {
             try (FileChannel channel = FileChannel.open(

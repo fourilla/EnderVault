@@ -1,7 +1,7 @@
 package io.github.fourilla.endervault.web.auth;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.auth.ClientIpResolver;
 import io.github.fourilla.endervault.passkey.PasskeyLoginResult;
@@ -132,7 +132,7 @@ public class PasskeyLoginController {
             return ResponseEntity.badRequest()
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(objectMapper.writeValueAsString(ActionResponse.error(message)));
-        } catch (JsonProcessingException ex) {
+        } catch (JacksonException ex) {
             return ResponseEntity.badRequest()
                     .contentType(MediaType.APPLICATION_JSON)
                     .body("{\"ok\":false}");

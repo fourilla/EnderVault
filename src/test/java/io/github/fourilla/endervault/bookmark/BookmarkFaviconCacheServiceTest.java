@@ -3,7 +3,8 @@ package io.github.fourilla.endervault.bookmark;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
 import io.github.fourilla.endervault.temporary.TemporaryArtifactType;
@@ -22,7 +23,7 @@ class BookmarkFaviconCacheServiceTest {
     void temporaryFilesAreListedAndActiveWritesCannotBeDeleted() throws Exception {
         TemporaryArtifactRegistry registry = new TemporaryArtifactRegistry();
         BookmarkFaviconCacheService service = new BookmarkFaviconCacheService(
-                new ObjectMapper().findAndRegisterModules(),
+                JsonMapper.builder().findAndAddModules().build(),
                 metadataRoot,
                 "bookmark-favicons",
                 registry

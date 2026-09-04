@@ -7,7 +7,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.filecommit.FileCommitCoordinator;
@@ -43,7 +44,7 @@ class ResumableUploadCommitRecoveryTest {
     void setUp() throws IOException {
         NasProperties properties = new NasProperties();
         properties.getStorage().setRoot(root);
-        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        ObjectMapper objectMapper = JsonMapper.builder().findAndAddModules().build();
         storageService = new StorageService(properties);
         storageService.initialize();
         repository = new ResumableUploadRepository(objectMapper, properties);

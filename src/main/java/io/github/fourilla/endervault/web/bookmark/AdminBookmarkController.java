@@ -8,7 +8,7 @@ import io.github.fourilla.endervault.web.support.AdminSpaViewService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.util.Map;
-import org.springframework.core.io.PathResource;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
@@ -75,6 +75,6 @@ public class AdminBookmarkController {
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noCache())
                 .header(HttpHeaders.CONTENT_TYPE, mediaType.toString())
-                .body(new PathResource(favicon.path()));
+                .body(new FileSystemResource(favicon.path()));
     }
 }

@@ -8,8 +8,8 @@ import static org.mockito.Mockito.same;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.auth.ClientIpResolver;
 import io.github.fourilla.endervault.config.NasProperties;

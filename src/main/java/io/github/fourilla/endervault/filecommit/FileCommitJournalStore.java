@@ -1,6 +1,6 @@
 package io.github.fourilla.endervault.filecommit;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.github.fourilla.endervault.config.NasProperties;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;

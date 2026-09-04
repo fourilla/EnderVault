@@ -3,7 +3,8 @@ package io.github.fourilla.endervault.filetool.archive;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.auth.ClientIpResolver;
 import io.github.fourilla.endervault.common.StorageAccessException;
@@ -55,7 +56,7 @@ class ArchiveCreationTaskServiceTest {
         storageService = new StorageService(properties, new FileActionRegistry(), temporaryArtifactRegistry);
         storageService.initialize();
         taskManagerService = new TaskManagerService(properties);
-        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        ObjectMapper objectMapper = JsonMapper.builder().findAndAddModules().build();
         fileCommitJournalStore = new FileCommitJournalStore(objectMapper, properties);
         fileCommitJournalStore.initialize();
         FileCommitCoordinator fileCommitCoordinator = new FileCommitCoordinator(

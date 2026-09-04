@@ -1,6 +1,6 @@
 package io.github.fourilla.endervault.web.api.v1.settings;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.passkey.PasskeyCredential;
 import io.github.fourilla.endervault.passkey.PasskeyService;

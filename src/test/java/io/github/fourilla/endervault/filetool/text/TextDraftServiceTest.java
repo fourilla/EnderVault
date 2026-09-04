@@ -3,7 +3,8 @@ package io.github.fourilla.endervault.filetool.text;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.filetool.FileActionRegistry;
@@ -38,7 +39,7 @@ class TextDraftServiceTest {
         FileActionRegistry fileActionRegistry = new FileActionRegistry();
         TextFileService textFileService = new TextFileService(properties, fileActionRegistry);
         TextDraftRepository repository = new TextDraftRepository(
-                new ObjectMapper().findAndRegisterModules(),
+                JsonMapper.builder().findAndAddModules().build(),
                 properties
         );
         repository.initialize();
@@ -233,7 +234,7 @@ class TextDraftServiceTest {
         unsafeProperties.getStorage().setMetadataDirectory("../outside");
 
         assertThatThrownBy(() -> new TextDraftRepository(
-                new ObjectMapper().findAndRegisterModules(),
+                JsonMapper.builder().findAndAddModules().build(),
                 unsafeProperties
         )).isInstanceOf(StorageAccessException.class)
                 .hasMessageContaining("inside storage");

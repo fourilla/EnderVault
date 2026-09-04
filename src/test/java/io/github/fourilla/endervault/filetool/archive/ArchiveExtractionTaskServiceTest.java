@@ -2,7 +2,8 @@ package io.github.fourilla.endervault.filetool.archive;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.auth.ClientIpResolver;
 import io.github.fourilla.endervault.config.NasProperties;
@@ -47,7 +48,7 @@ class ArchiveExtractionTaskServiceTest {
         TemporaryArtifactRegistry artifacts = new TemporaryArtifactRegistry();
         storageService = new StorageService(properties, new FileActionRegistry(), artifacts);
         storageService.initialize();
-        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        ObjectMapper objectMapper = JsonMapper.builder().findAndAddModules().build();
         journalStore = new FileCommitJournalStore(objectMapper, properties);
         journalStore.initialize();
         FileCommitCoordinator singleCoordinator = new FileCommitCoordinator(
