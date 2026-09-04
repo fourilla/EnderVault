@@ -20,6 +20,7 @@ public record FileDetailPayload(
         TextFileContent text,
         ComicPayload comic,
         ArchivePayload archive,
+        ShareDefaultsPayload shareDefaults,
         List<ShareLinkPayload> shares,
         boolean favorite,
         TransferBufferPayload transferBuffer
@@ -28,7 +29,8 @@ public record FileDetailPayload(
     public static FileDetailPayload from(
             FileDetailResult result,
             FilePreviewSupport filePreviewSupport,
-            FileActionViewSupport fileActionViewSupport
+            FileActionViewSupport fileActionViewSupport,
+            boolean defaultSharePreviewEnabled
     ) {
         FileDetail detail = result.detail();
         return new FileDetailPayload(
@@ -38,10 +40,14 @@ public record FileDetailPayload(
                 result.textContent(),
                 ComicPayload.from(result),
                 ArchivePayload.from(result),
+                new ShareDefaultsPayload(defaultSharePreviewEnabled),
                 result.shares().stream().map(ShareLinkPayload::from).toList(),
                 result.favorite(),
                 TransferBufferPayload.from(result.transferBuffer())
         );
+    }
+
+    public record ShareDefaultsPayload(boolean previewEnabled) {
     }
 
     public record DetailPayload(

@@ -179,7 +179,7 @@
         flex-direction: row;
     }
 
-    .share-create-form {
+    .share-create-primary {
         grid-template-columns: 1fr;
     }
 

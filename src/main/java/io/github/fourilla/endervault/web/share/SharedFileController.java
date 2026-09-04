@@ -312,7 +312,7 @@ public class SharedFileController {
                 ? shareLink.path()
                 : SharedFileRoutes.itemVaultPath(shareLink.path(), path, item);
         FileDetail detail = storageService.detail(StorageScope.VAULT, vaultPath);
-        sharedPreviewPolicy.requireEnabled(fileToolService.resolve(detail));
+        sharedPreviewPolicy.requireEnabled(shareLink, fileToolService.resolve(detail));
         return file;
     }
 
@@ -327,7 +327,7 @@ public class SharedFileController {
             FileDetail detail
     ) throws IOException {
         FileToolDescriptor fileTool = fileToolService.resolve(detail);
-        boolean sharedPreviewEnabled = sharedPreviewPolicy.isEnabled(fileTool);
+        boolean sharedPreviewEnabled = sharedPreviewPolicy.isEnabled(shareLink, fileTool);
         String token = shareLink.token();
         boolean directoryShare = shareLink.type() == ShareTargetType.DIRECTORY;
         model.addAttribute("item", item);

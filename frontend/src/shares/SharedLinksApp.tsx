@@ -72,7 +72,7 @@ export function SharedLinksApp() {
         <section className="table-wrap" aria-label="Shared links">
           <table>
             <thead>
-              <tr><th>Link</th><th>Target</th><th>Type</th><th>Created</th><th>Expires</th><th>Status</th><th>Actions</th></tr>
+              <tr><th>Link</th><th>Target</th><th>Type</th><th>Created</th><th>Expires</th><th>Preview</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody>
               {shares.map((share) => (
@@ -82,6 +82,9 @@ export function SharedLinksApp() {
                   <td>{share.type}</td>
                   <td>{share.createdLabel}</td>
                   <td>{share.expiresLabel}</td>
+                  <td><span className={`status-badge ${share.previewEnabled ? 'active' : 'info'}`}>
+                    {share.previewEnabled ? 'Enabled' : 'Disabled'}
+                  </span></td>
                   <td><span className={`status-badge ${share.statusClass}`}>{share.statusLabel}</span></td>
                   <td>
                     <div className="table-actions">
@@ -110,7 +113,7 @@ export function SharedLinksApp() {
                   </td>
                 </tr>
               ))}
-              {shares.length === 0 && <tr className="empty-row"><td colSpan={7} className="empty">No shared links yet.</td></tr>}
+              {shares.length === 0 && <tr className="empty-row"><td colSpan={8} className="empty">No shared links yet.</td></tr>}
             </tbody>
           </table>
         </section>

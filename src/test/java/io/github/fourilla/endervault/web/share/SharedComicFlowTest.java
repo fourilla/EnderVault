@@ -11,7 +11,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
@@ -45,7 +44,6 @@ class SharedComicFlowTest {
     @Autowired ShareLinkService shares;
     @Autowired StorageService storage;
     @Autowired ObjectMapper mapper;
-    @Autowired NasProperties nasProperties;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -199,26 +197,21 @@ class SharedComicFlowTest {
     void disabledSharedPreviewsRemoveTheLandingSurfaceAndRejectDirectPreviewRequests() throws Exception {
         String name = "disabled-" + System.nanoTime() + ".cbz";
         writeComic(ROOT.resolve(name), Map.of("1.png", new byte[] {1}));
-        ShareLink link = shares.create("", name, null);
-        boolean original = nasProperties.getShare().isDefaultPreviewEnabled();
-        nasProperties.getShare().setDefaultPreviewEnabled(false);
-        try {
-            mockMvc.perform(get("/s/{token}", link.token()))
-                    .andExpect(status().isOk())
-                    .andExpect(content().string(not(containsString("shared-preview-panel"))))
-                    .andExpect(content().string(not(containsString("shared-comic-root"))))
-                    .andExpect(content().string(not(containsString("/react/assets/sharedComic-"))))
-                    .andExpect(content().string(containsString("shared-download-button")));
-            mockMvc.perform(get("/s/{token}/comic/manifest", link.token()).accept(MediaType.APPLICATION_JSON))
-                    .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.notification.message").value("Shared preview is unavailable."));
-            mockMvc.perform(get("/s/{token}/preview", link.token()))
-                    .andExpect(status().isNotFound());
-            mockMvc.perform(get("/s/{token}/download", link.token()))
-                    .andExpect(status().isOk());
-        } finally {
-            nasProperties.getShare().setDefaultPreviewEnabled(original);
-        }
+        ShareLink link = shares.create("", name, null, null, false);
+
+        mockMvc.perform(get("/s/{token}", link.token()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(not(containsString("shared-preview-panel"))))
+                .andExpect(content().string(not(containsString("shared-comic-root"))))
+                .andExpect(content().string(not(containsString("/react/assets/sharedComic-"))))
+                .andExpect(content().string(containsString("shared-download-button")));
+        mockMvc.perform(get("/s/{token}/comic/manifest", link.token()).accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.notification.message").value("Shared preview is unavailable."));
+        mockMvc.perform(get("/s/{token}/preview", link.token()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/s/{token}/download", link.token()))
+                .andExpect(status().isOk());
     }
 
     private static void writeComic(Path path, Map<String, byte[]> entries) throws IOException {

@@ -54,6 +54,10 @@ public record ShareLinkView(
         return shareLink.active();
     }
 
+    public boolean previewEnabled() {
+        return shareLink.previewEnabled();
+    }
+
     public boolean hasDirectDownloadUrl() {
         return directDownloadUrl != null && !directDownloadUrl.isBlank();
     }

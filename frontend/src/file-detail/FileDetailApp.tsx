@@ -15,6 +15,7 @@ import './file-detail-app.css';
 function ShareSection({ payload, refresh }: { payload: FileDetailPayload; refresh: () => void }) {
   const [token, setToken] = useState('');
   const [days, setDays] = useState('');
+  const [previewEnabled, setPreviewEnabled] = useState(payload.shareDefaults.previewEnabled);
   const [submitting, setSubmitting] = useState(false);
   const mutate = async (action: 'revoke' | 'delete', share: SharePayload) => {
     try {
@@ -31,26 +32,36 @@ function ShareSection({ payload, refresh }: { payload: FileDetailPayload; refres
       event.preventDefault(); setSubmitting(true);
       try {
         const body = await postForm('/api/v1/shares', {
-          path: payload.detail.path, customToken: token, expiresInDays: days,
+          path: payload.detail.path, customToken: token, expiresInDays: days, previewEnabled,
         });
-        notify(body); setToken(''); setDays(''); refresh();
+        notify(body); setToken(''); setDays('');
+        setPreviewEnabled(payload.shareDefaults.previewEnabled); refresh();
       } catch (reason) {
         toastError(reason, 'Share link could not be created.');
       } finally { setSubmitting(false); }
     }}>
-      <label><span className="visually-hidden">Custom token</span>
-        <input type="text" value={token} onChange={(event) => setToken(event.target.value)} placeholder="Custom token" />
+      <div className="share-create-primary">
+        <label><span className="visually-hidden">Custom token</span>
+          <input type="text" value={token} onChange={(event) => setToken(event.target.value)} placeholder="Custom token" />
+        </label>
+        <label><span className="visually-hidden">Expiration days</span>
+          <input type="text" inputMode="numeric" value={days} onChange={(event) => setDays(event.target.value)} placeholder="Days" />
+        </label>
+        <button type="submit" disabled={submitting}>Create link</button>
+      </div>
+      <label className="share-preview-option">
+        <input type="checkbox" checked={previewEnabled}
+          onChange={(event) => setPreviewEnabled(event.target.checked)} />
+        <span>Allow previews for supported files</span>
       </label>
-      <label><span className="visually-hidden">Expiration days</span>
-        <input type="text" inputMode="numeric" value={days} onChange={(event) => setDays(event.target.value)} placeholder="Days" />
-      </label>
-      <button type="submit" disabled={submitting}>Create link</button>
     </form>
     <div className="table-wrap compact-table" aria-label="Shared links for this item">
-      <table><thead><tr><th>Link</th><th>Created</th><th>Expires</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody>{payload.shares.length === 0 ? <tr className="empty-row"><td colSpan={5} className="empty">No shared links yet.</td></tr>
+      <table><thead><tr><th>Link</th><th>Created</th><th>Expires</th><th>Preview</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>{payload.shares.length === 0 ? <tr className="empty-row"><td colSpan={6} className="empty">No shared links yet.</td></tr>
           : payload.shares.map((share) => <tr key={share.token}>
             <td><input readOnly value={share.url} /></td><td>{share.createdLabel}</td><td>{share.expiresLabel}</td>
+            <td><span className={`status-badge ${share.previewEnabled ? 'active' : 'info'}`}>
+              {share.previewEnabled ? 'Enabled' : 'Disabled'}</span></td>
             <td><span className={`status-badge ${share.statusClass}`}>{share.statusLabel}</span></td>
             <td><div className="table-actions">
               <button className="ghost icon-button action-icon" type="button" title="Copy link" aria-label="Copy link"
@@ -290,6 +301,6 @@ export function FileDetailApp() {
       mode={payload.detail.directory ? 'browse' : undefined}
       path={payload.detail.directory ? payload.detail.path : payload.detail.parentPath}
       actions={bufferActions} />
-    <ShareSection payload={payload} refresh={refresh} />
+    <ShareSection key={payload.detail.path} payload={payload} refresh={refresh} />
   </>;
 }

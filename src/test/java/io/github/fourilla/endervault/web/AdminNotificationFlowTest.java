@@ -31,6 +31,7 @@ import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.bookmark.BookmarkItem;
 import io.github.fourilla.endervault.bookmark.BookmarkService;
 import io.github.fourilla.endervault.favorite.FavoriteService;
@@ -76,6 +77,9 @@ class AdminNotificationFlowTest {
 
     @Autowired
     ShareLinkService shareLinkService;
+
+    @Autowired
+    ActivityLogService activityLogService;
 
     @Autowired
     FavoriteService favoriteService;
@@ -1882,6 +1886,7 @@ class AdminNotificationFlowTest {
                         .with(csrf())
                         .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                         .param("path", filename)
+                        .param("previewEnabled", "false")
                         .param("customToken", "ajax-share-" + System.nanoTime()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true))
@@ -1889,8 +1894,15 @@ class AdminNotificationFlowTest {
                 .andExpect(jsonPath("$.notification.actionValue").exists())
                 .andExpect(jsonPath("$.shareLink.token").exists())
                 .andExpect(jsonPath("$.shareLink.url").exists())
+                .andExpect(jsonPath("$.shareLink.previewEnabled").value(false))
                 .andExpect(jsonPath("$.shareLink.directDownloadUrl").value(
                         Matchers.containsString("/download/" + filename)));
+
+        assertThat(activityLogService.recentCurrentEntries(200))
+                .filteredOn(entry -> "SHARE_CREATE".equals(entry.type()) && filename.equals(entry.path()))
+                .singleElement()
+                .satisfies(entry -> assertThat(entry.metadataView())
+                        .containsEntry("previewEnabled", "false"));
     }
 
     @Test
@@ -1922,6 +1934,8 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[?(@.token == '%s')].path".formatted(fileShare.token()))
                         .value(Matchers.hasItem(filename)))
+                .andExpect(jsonPath("$[?(@.token == '%s')].previewEnabled".formatted(fileShare.token()))
+                        .value(Matchers.hasItem(true)))
                 .andExpect(jsonPath("$[?(@.token == '%s')].directDownloadUrl".formatted(fileShare.token()))
                         .value(Matchers.hasItem(
                                 "http://localhost/s/" + fileShare.token() + "/download/" + filename)))
@@ -2145,6 +2159,7 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get("/api/v1/fs/detail").param("path", filename))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.shareDefaults.previewEnabled").value(true))
                 .andExpect(jsonPath("$.tool.type").value("text"))
                 .andExpect(jsonPath("$.text.loaded").value(true))
                 .andExpect(jsonPath("$.text.content").value("before"));

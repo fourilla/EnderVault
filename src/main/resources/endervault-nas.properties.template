@@ -185,7 +185,7 @@ nas.share.random-token-bytes=24
 nas.share.directory-share-enabled=true
 nas.share.direct-download-link-enabled=true
 nas.share.directory-show-hidden-items=false
-# Applies globally until per-link preview overrides are introduced.
+# Initial preview policy for newly created share links. Existing links keep their saved policy.
 nas.share.default-preview-enabled=true
 
 # ---------------------------------------------------------------------------

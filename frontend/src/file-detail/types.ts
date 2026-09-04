@@ -45,6 +45,9 @@ export interface FileDetailPayload {
   text: TextContentPayload | null;
   comic: ComicPayload | null;
   archive: ArchivePayload | null;
+  shareDefaults: {
+    previewEnabled: boolean;
+  };
   shares: SharePayload[];
   favorite: boolean;
   transferBuffer: TransferBufferPayload;
@@ -69,6 +72,7 @@ export interface SharePayload {
   expiresLabel: string;
   statusLabel: string;
   statusClass: string;
+  previewEnabled: boolean;
   active: boolean;
 }
 
