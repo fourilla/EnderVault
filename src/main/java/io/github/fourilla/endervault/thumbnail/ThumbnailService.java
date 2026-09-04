@@ -4,6 +4,8 @@ import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.filetool.comic.ComicArchiveService;
 import io.github.fourilla.endervault.task.TaskContext;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactType;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import java.io.IOException;
@@ -34,9 +36,14 @@ public class ThumbnailService {
     private final ThumbnailCacheStore cacheStore;
     private final ThumbnailClassifier classifier = new ThumbnailClassifier();
     private final ThumbnailGenerator thumbnailGenerator;
+    private final TemporaryArtifactRegistry temporaryArtifactRegistry;
 
     @Autowired
-    public ThumbnailService(NasProperties nasProperties, ComicArchiveService comicArchiveService) {
+    public ThumbnailService(
+            NasProperties nasProperties,
+            ComicArchiveService comicArchiveService,
+            TemporaryArtifactRegistry temporaryArtifactRegistry
+    ) {
         NasProperties.Storage storage = nasProperties.getStorage();
         NasProperties.Thumbnails thumbnails = nasProperties.getThumbnails();
         String cacheDirectory = validateDirectoryName(thumbnails.getCacheDirectory());
@@ -44,7 +51,13 @@ public class ThumbnailService {
         Path vaultRoot = storage.getRoot().toAbsolutePath().normalize();
         Path trashRoot = vaultRoot.resolve(storage.getTrashDirectory()).normalize();
         Path metadataRoot = vaultRoot.resolve(storage.getMetadataDirectory()).normalize();
-        this.cacheStore = new ThumbnailCacheStore(vaultRoot, trashRoot, metadataRoot, cacheDirectory);
+        this.cacheStore = new ThumbnailCacheStore(
+                vaultRoot,
+                trashRoot,
+                metadataRoot,
+                cacheDirectory,
+                temporaryArtifactRegistry
+        );
         this.videoEnabled = thumbnails.isVideoEnabled();
         this.comicEnabled = thumbnails.isComicEnabled();
         this.pdfEnabled = thumbnails.isPdfEnabled();
@@ -53,10 +66,15 @@ public class ThumbnailService {
                 thumbnailThreadFactory()
         );
         this.thumbnailGenerator = new ThumbnailGenerator(comicArchiveService);
+        this.temporaryArtifactRegistry = temporaryArtifactRegistry;
     }
 
     ThumbnailService(NasProperties nasProperties) {
-        this(nasProperties, new ComicArchiveService(nasProperties));
+        this(
+                nasProperties,
+                new ComicArchiveService(nasProperties),
+                new TemporaryArtifactRegistry()
+        );
     }
 
     @PostConstruct
@@ -187,11 +205,18 @@ public class ThumbnailService {
         }
 
         executor.submit(() -> {
+            Path temporaryFile = ThumbnailGenerator.temporaryFile(cacheFile);
+            TemporaryArtifactRegistry.Registration registration = temporaryArtifactRegistry.register(
+                    temporaryFile,
+                    TemporaryArtifactType.THUMBNAIL,
+                    sourceFile.toString()
+            );
             try {
                 generation.generate(sourceFile, cacheFile);
             } catch (Exception ex) {
                 logger.warn("Failed to generate thumbnail for {}", sourceFile, ex);
             } finally {
+                registration.close();
                 inProgress.remove(cacheFile);
             }
         });

@@ -5,17 +5,24 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.task.TaskCanceledException;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.stream.Stream;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.springframework.mock.web.MockMultipartFile;
 
 class StorageServiceTest {
 
@@ -41,6 +48,24 @@ class StorageServiceTest {
 
         assertThat(listing.directories()).extracting(FileItem::name).containsExactly("docs");
         assertThat(listing.files()).extracting(FileItem::name).containsExactly("note.txt");
+    }
+
+    @Test
+    void filtersDirectoryListingsBeforeCreatingFileItems() throws Exception {
+        Files.createDirectories(root.resolve("docs"));
+        Files.writeString(root.resolve("note.txt"), "hello");
+
+        DirectoryListing listing = storageService.list(
+                StorageScope.VAULT,
+                "",
+                FileSort.NAME,
+                SortDirection.ASC,
+                false,
+                StorageEntryFilter.DIRECTORIES
+        );
+
+        assertThat(listing.directories()).extracting(FileItem::name).containsExactly("docs");
+        assertThat(listing.files()).isEmpty();
     }
 
     @Test
@@ -113,6 +138,31 @@ class StorageServiceTest {
     }
 
     @Test
+    void listsVaultFilesWithNaturalNameOrderingInBothDirections() throws Exception {
+        Files.writeString(root.resolve("Q11.txt"), "eleven");
+        Files.writeString(root.resolve("Q2-3.txt"), "two");
+        Files.writeString(root.resolve("Q1.txt"), "one");
+
+        DirectoryListing ascending = storageService.list(
+                StorageScope.VAULT,
+                "",
+                FileSort.NAME,
+                SortDirection.ASC
+        );
+        DirectoryListing descending = storageService.list(
+                StorageScope.VAULT,
+                "",
+                FileSort.NAME,
+                SortDirection.DESC
+        );
+
+        assertThat(ascending.files()).extracting(FileItem::name)
+                .containsExactly("Q1.txt", "Q2-3.txt", "Q11.txt");
+        assertThat(descending.files()).extracting(FileItem::name)
+                .containsExactly("Q11.txt", "Q2-3.txt", "Q1.txt");
+    }
+
+    @Test
     void listsVaultItemsByModifiedTime() throws Exception {
         Path older = root.resolve("older.txt");
         Path newer = root.resolve("newer.txt");
@@ -152,6 +202,16 @@ class StorageServiceTest {
 
         assertThat(results).extracting(FileItem::path).containsExactly("match-note.txt", "photos-match");
         assertThat(results).extracting(FileItem::typeLabel).containsExactly("Text", "Directory");
+    }
+
+    @Test
+    void searchResultsUseNaturalPathOrdering() throws Exception {
+        Files.writeString(root.resolve("report11.txt"), "eleven");
+        Files.writeString(root.resolve("report3.txt"), "three");
+
+        List<FileItem> results = storageService.search(StorageScope.VAULT, "", "report");
+
+        assertThat(results).extracting(FileItem::path).containsExactly("report3.txt", "report11.txt");
     }
 
     @Test
@@ -346,28 +406,6 @@ class StorageServiceTest {
     }
 
     @Test
-    void uploadsAndRenamesFilesWithinVault() throws Exception {
-        MockMultipartFile file = new MockMultipartFile("files", "demo.txt", "text/plain", "demo".getBytes());
-
-        storageService.upload("", file);
-        storageService.rename("", "demo.txt", "renamed.txt");
-
-        assertThat(Files.readString(root.resolve("renamed.txt"))).isEqualTo("demo");
-    }
-
-    @Test
-    void uploadDoesNotLeaveInternalTemporaryFiles() throws Exception {
-        MockMultipartFile file = new MockMultipartFile("files", "clean.txt", "text/plain", "clean".getBytes());
-
-        storageService.upload("", file);
-
-        assertThat(Files.readString(root.resolve("clean.txt"))).isEqualTo("clean");
-        try (Stream<Path> temporaryFiles = Files.list(root.resolve(".endervault").resolve("uploads"))) {
-            assertThat(temporaryFiles).isEmpty();
-        }
-    }
-
-    @Test
     void renamesVaultPathAndReturnsNewPath() throws Exception {
         Files.createDirectories(root.resolve("docs"));
         Files.writeString(root.resolve("docs").resolve("note.txt"), "hello");
@@ -427,5 +465,138 @@ class StorageServiceTest {
 
         assertThat(root.resolve("a.txt")).doesNotExist();
         assertThat(root.resolve("dir")).doesNotExist();
+    }
+
+    @Test
+    void writesSelectedFilesAndDirectoriesToZipWithProgress() throws Exception {
+        Files.createDirectories(root.resolve("docs").resolve("empty"));
+        Files.writeString(root.resolve("docs").resolve("guide.txt"), "guide");
+        Files.writeString(root.resolve("root.txt"), "root");
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        AtomicLong processedBytes = new AtomicLong();
+        AtomicLong processedItems = new AtomicLong();
+
+        storageService.writeZip(
+                StorageScope.VAULT,
+                "",
+                List.of("docs", "root.txt"),
+                output,
+                new StorageProgressListener() {
+                    @Override
+                    public void onBytesProcessed(long bytes) {
+                        processedBytes.addAndGet(bytes);
+                    }
+
+                    @Override
+                    public void onItemProcessed() {
+                        processedItems.incrementAndGet();
+                    }
+                }
+        );
+
+        Map<String, String> entries = zipEntries(output.toByteArray());
+        assertThat(entries.keySet()).containsExactly(
+                "docs/",
+                "docs/empty/",
+                "docs/guide.txt",
+                "root.txt"
+        );
+        assertThat(entries.get("docs/guide.txt")).isEqualTo("guide");
+        assertThat(entries.get("root.txt")).isEqualTo("root");
+        assertThat(processedBytes).hasValue(9L);
+        assertThat(processedItems).hasValue(4L);
+    }
+
+    @Test
+    void writesDirectoryChildrenToZipInNaturalNameOrder() throws Exception {
+        Files.createDirectories(root.resolve("docs"));
+        Files.writeString(root.resolve("docs").resolve("page11.txt"), "eleven");
+        Files.writeString(root.resolve("docs").resolve("page3.txt"), "three");
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+
+        storageService.writeZip(StorageScope.VAULT, "", List.of("docs"), output);
+
+        assertThat(zipEntries(output.toByteArray()).keySet()).containsExactly(
+                "docs/",
+                "docs/page3.txt",
+                "docs/page11.txt"
+        );
+    }
+
+    @Test
+    void zipWritingChecksCancellationWhileReadingFileContent() throws Exception {
+        Files.write(root.resolve("large.bin"), new byte[192 * 1024]);
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+
+        assertThatThrownBy(() -> storageService.writeZip(
+                StorageScope.VAULT,
+                "",
+                List.of("large.bin"),
+                output,
+                new StorageProgressListener() {
+                    private long processed;
+
+                    @Override
+                    public void onBytesProcessed(long bytes) {
+                        processed += bytes;
+                        if (processed >= 64 * 1024) {
+                            throw new TaskCanceledException();
+                        }
+                    }
+                }
+        )).isInstanceOf(TaskCanceledException.class);
+    }
+
+    @Test
+    void rejectsKnownDirectArchiveConflictDuringPreflight() throws Exception {
+        Files.writeString(root.resolve("readme.txt"), "existing");
+
+        assertThatThrownBy(() -> storageService.preflightArchiveExtraction(
+                "",
+                false,
+                "ignored",
+                List.of(new StorageBatchEntry("readme.txt", false)),
+                ConflictPolicy.CANCEL
+        )).isInstanceOf(FileAlreadyExistsException.class);
+
+        assertThat(root.resolve("readme.txt")).hasContent("existing");
+    }
+
+    @Test
+    void directArchiveRenamePolicyReservesEveryPlannedTarget() throws Exception {
+        Files.writeString(root.resolve("report.txt"), "existing");
+        Path workspace = storageService.createArchiveExtractionWorkspace();
+        Path content = Files.createDirectory(workspace.resolve("content"));
+        Files.writeString(content.resolve("report.txt"), "first");
+        Files.writeString(content.resolve("report - 1.txt"), "second");
+
+        ArchiveCommitPlan result = storageService.planArchiveCommit(
+                content,
+                "",
+                false,
+                "ignored",
+                List.of(
+                        new StorageBatchEntry("report.txt", false),
+                        new StorageBatchEntry("report - 1.txt", false)
+                ),
+                ConflictPolicy.RENAME
+        );
+
+        assertThat(result.items()).extracting(ArchiveCommitPlanItem::targetPath)
+                .containsExactly("report - 1.txt", "report - 1 - 1.txt");
+        assertThat(root.resolve("report.txt")).hasContent("existing");
+        assertThat(content.resolve("report.txt")).hasContent("first");
+        assertThat(content.resolve("report - 1.txt")).hasContent("second");
+    }
+
+    private Map<String, String> zipEntries(byte[] archive) throws Exception {
+        Map<String, String> entries = new LinkedHashMap<>();
+        try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(archive))) {
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                entries.put(entry.getName(), new String(zip.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
+            }
+        }
+        return entries;
     }
 }

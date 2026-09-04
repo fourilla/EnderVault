@@ -10,10 +10,19 @@ public enum MetadataArea {
     SHARE_LINKS("Shared links", "Issued shared file and directory links", "fas fa-link"),
     TRASH("Trash", "Trash records and files stored under .trash", "fas fa-trash-can"),
     THUMBNAILS("Thumbnails", "Generated video and comic thumbnail cache", "fas fa-image"),
-    UPLOAD_TEMP("Upload temp", "Temporary files left by staged uploads", "fas fa-upload"),
+    FILE_STAGING("File staging", "Temporary files used by upload and file operations", "fas fa-file-circle-check"),
+    RESUMABLE_UPLOADS("Resumable uploads", "Durable upload sessions and resumable protocol data", "fas fa-cloud-arrow-up"),
+    ARCHIVE_STAGING("Archive staging", "Temporary workspaces used to create and extract archives", "fas fa-box-archive"),
     TEXT_DRAFTS("Text drafts", "Recoverable text editor drafts and leases", "fas fa-file-pen"),
     BOOKMARKS("Bookmarks", "Saved web links and bookmark directories", "fas fa-bookmark"),
-    STICKY_NOTES("Sticky notes", "Page and item notes whose targets may have moved or disappeared", "fas fa-note-sticky");
+    STICKY_NOTES("Sticky notes", "Page and item notes whose targets may have moved or disappeared", "fas fa-note-sticky"),
+    FILE_REQUESTS("File requests", "Public upload request records and destination directories", "fas fa-inbox"),
+    PENDING_FILE_DECISIONS("Pending decisions", "Fully received files waiting for an administrator decision", "fas fa-bell"),
+    FILE_COMMIT_JOURNALS(
+            "File commit journals",
+            "Durable file commit operations that could not be recovered automatically",
+            "fas fa-book-journal-whills"
+    );
 
     private final String label;
     private final String description;

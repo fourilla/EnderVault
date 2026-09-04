@@ -1,0 +1,67 @@
+.directory-picker-dialog {
+    width: min(560px, calc(100vw - 32px));
+    border: 0;
+    border-radius: var(--radius-panel);
+    background: transparent;
+    color: var(--text);
+    padding: 0;
+}
+
+.directory-picker-dialog::backdrop {
+    background: rgba(5, 8, 12, 0.64);
+}
+
+.directory-picker-card {
+    display: grid;
+    gap: var(--space-2xl);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
+    background: var(--panel-elevated);
+    box-shadow: 0 18px 50px var(--shadow);
+    padding: var(--space-4xl);
+}
+
+.directory-picker-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-xl);
+}
+
+.directory-picker-header h2,
+.directory-picker-header p,
+.directory-picker-selection {
+    margin: 0;
+}
+
+.directory-picker-header h2 {
+    font-size: var(--font-size-lg);
+}
+
+.directory-picker-header p,
+.directory-picker-selection {
+    color: var(--muted);
+    font-size: var(--font-size-sm);
+}
+
+.directory-picker-tree {
+    min-height: 240px;
+    max-height: min(52vh, 520px);
+    overflow: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-control);
+    background: var(--panel-muted);
+    padding: var(--space-sm);
+}
+
+.directory-picker-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-lg);
+}
+
+@media (max-width: 560px) {
+    .directory-picker-card {
+        padding: var(--space-2xl);
+    }
+}

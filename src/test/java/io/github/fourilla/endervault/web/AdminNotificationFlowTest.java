@@ -2,8 +2,10 @@ package io.github.fourilla.endervault.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.head;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
@@ -12,19 +14,42 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.util.Base64;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.fourilla.endervault.activity.ActivityLogService;
+import io.github.fourilla.endervault.bookmark.BookmarkItem;
+import io.github.fourilla.endervault.bookmark.BookmarkService;
 import io.github.fourilla.endervault.favorite.FavoriteService;
+import io.github.fourilla.endervault.filerequest.FileRequest;
+import io.github.fourilla.endervault.filerequest.FileRequestService;
+import io.github.fourilla.endervault.filerequest.UploaderNamePolicy;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
+import io.github.fourilla.endervault.storage.StorageService;
+import io.github.fourilla.endervault.trash.TrashRecord;
+import io.github.fourilla.endervault.trash.TrashService;
+import io.github.fourilla.endervault.upload.ResumableUploadService;
+import io.github.fourilla.endervault.upload.ResumableUploadRepository;
+import io.github.fourilla.endervault.upload.ResumableUploadSession;
+import io.github.fourilla.endervault.upload.ResumableUploadSource;
+import io.github.fourilla.endervault.upload.ResumableUploadStatus;
 import io.github.fourilla.endervault.web.support.FlashNotification;
-import io.github.fourilla.endervault.web.support.FlashNotifications;
+import io.github.fourilla.endervault.web.support.ViteAssetService;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,9 +58,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.security.test.context.support.WithAnonymousUser;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -54,7 +79,34 @@ class AdminNotificationFlowTest {
     ShareLinkService shareLinkService;
 
     @Autowired
+    ActivityLogService activityLogService;
+
+    @Autowired
     FavoriteService favoriteService;
+
+    @Autowired
+    BookmarkService bookmarkService;
+
+    @Autowired
+    FileRequestService fileRequestService;
+
+    @Autowired
+    ResumableUploadService resumableUploadService;
+
+    @Autowired
+    ResumableUploadRepository resumableUploadRepository;
+
+    @Autowired
+    StorageService storageService;
+
+    @Autowired
+    TrashService trashService;
+
+    @Autowired
+    ObjectMapper objectMapper;
+
+    @Autowired
+    ViteAssetService viteAssetService;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -65,30 +117,870 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void filesPageRendersToastRegion() throws Exception {
+    void filesPageRendersAuthenticatedAppRootAndRuntime() throws Exception {
         mockMvc.perform(get("/files"))
                 .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"_csrf\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"_csrf_header\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/adminApp-")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/webjars/tus-js-client/")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/resumable-upload-client.js")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("/js/file-uploads.js"))))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"toastRegion\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-outbound-route-form")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/page-jump.js")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Open read-only mode")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Recent")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Favorites")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/styles-")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/shell-")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Trash"))))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Shared links"))))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Remote download"))));
+                        org.hamcrest.Matchers.containsString("/js/notification-center.js"))));
     }
 
     @Test
-    void remoteDownloadPageRendersRouteSelectionAndTaskRouteColumn() throws Exception {
+    void authenticatedAppBootstrapExposesShellStateWithoutSecrets() throws Exception {
+        mockMvc.perform(get("/api/v1/app/bootstrap"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.username").value("user"))
+                .andExpect(jsonPath("$.capabilities.remoteDownloads").isBoolean())
+                .andExpect(jsonPath("$.capabilities.fileRequests").isBoolean())
+                .andExpect(jsonPath("$.capabilities.vpn").isBoolean())
+                .andExpect(jsonPath("$.capabilities.metadataInspector").isBoolean())
+                .andExpect(jsonPath("$.storage.usedBytes").isNumber())
+                .andExpect(jsonPath("$.storage.totalLabel").isString())
+                .andExpect(jsonPath("$.favorites").isArray())
+                .andExpect(jsonPath("$.tasks.activityPanelEnabled").isBoolean())
+                .andExpect(jsonPath("$.uploads.maxConcurrentUploads").isNumber())
+                .andExpect(jsonPath("$.sessions.activeCount").isNumber())
+                .andExpect(jsonPath("$.outboundRoute.route").isString())
+                .andExpect(jsonPath("$.stickyNoteTheme.backgroundColor").value("#1B3033"))
+                .andExpect(jsonPath("$.botToken").doesNotExist())
+                .andExpect(jsonPath("$.password").doesNotExist());
+    }
+
+    @Test
+    void pagesLoadTheirOwningFrontendInsteadOfLegacyAdminActions() throws Exception {
+        mockMvc.perform(get("/files/read-only"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("/js/read-only.js")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/admin-actions.js"))));
+
+        mockMvc.perform(get("/files"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("/react/assets/adminApp-")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/admin-actions.js"))));
+
+        mockMvc.perform(get("/files/recent"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("/react/assets/adminApp-")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/admin-actions.js"))));
+
+        mockMvc.perform(get("/admin/trash"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("/react/assets/adminApp-")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/admin-actions.js"))));
+
+        mockMvc.perform(get("/admin/logs"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("/react/assets/adminApp-")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/admin-actions.js"))));
+    }
+
+    @Test
+    void outboundRouteUsesVersionedApiAndLegacyEndpointIsRemoved() throws Exception {
+        mockMvc.perform(post("/api/v1/outbound-route")
+                        .with(csrf())
+                        .param("route", "unknown"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.ok").value(false));
+
+        mockMvc.perform(post("/admin/outbound/route")
+                        .with(csrf())
+                        .param("route", "direct"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void pendingDecisionPageAndNotificationApiRender() throws Exception {
+        mockMvc.perform(get("/admin/pending-decisions"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/pending-decisions.js"))));
+
+        mockMvc.perform(get("/api/v1/pending-decisions"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.decisions").isArray())
+                .andExpect(jsonPath("$.decisions[0].stagingFilename").doesNotExist())
+                .andExpect(jsonPath("$.decisions[0].targetSnapshot").doesNotExist());
+
+        mockMvc.perform(get("/api/v1/notifications"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.actionableCount").isNumber())
+                .andExpect(jsonPath("$.reviewAllHref").value("/admin/pending-decisions"));
+    }
+
+    @Test
+    void taskPollingUsesVersionedApiAndLegacyEndpointsAreRemoved() throws Exception {
+        mockMvc.perform(get("/api/v1/tasks"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON));
+
+        mockMvc.perform(post("/api/v1/tasks/cancel")
+                        .with(csrf())
+                        .param("id", "missing-task"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.ok").value(false));
+
+        mockMvc.perform(get("/admin/tasks"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/tasks/cancel").with(csrf()).param("id", "missing-task"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/tasks/delete").with(csrf()).param("id", "missing-task"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void fileRequestManagementUsesSpaShellAndVersionedQueryApi() throws Exception {
+        String destination = "request-destination-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(destination));
+
+        mockMvc.perform(get("/admin/file-requests"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(Matchers.containsString("data-storage-directory-picker")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/file-requests.js"))));
+
+        mockMvc.perform(get("/api/v1/file-requests").param("destinationPath", destination))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.defaults.destinationPath").value(destination))
+                .andExpect(jsonPath("$.uploaderNamePolicies").isArray())
+                .andExpect(jsonPath("$.defaults.maxFileSizeGb").isString());
+
+    }
+
+    @Test
+    void fileRequestDetailUsesSpaShellAndVersionedQueryApi() throws Exception {
+        String token = "detail_request_" + java.util.UUID.randomUUID().toString().replace("-", "_");
+        FileRequest request = fileRequestService.create(
+                "Review assets", "Upload final assets only.", "", UploaderNamePolicy.REQUIRED,
+                1024, 4096, 3, List.of("png"), 7, token
+        );
+
+        mockMvc.perform(get("/admin/file-requests/{id}", request.id()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")));
+
+        mockMvc.perform(get("/api/v1/file-requests/{id}", request.id()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.item.id").value(request.id()))
+                .andExpect(jsonPath("$.item.title").value("Review assets"))
+                .andExpect(jsonPath("$.item.description").value("Upload final assets only."))
+                .andExpect(jsonPath("$.item.uploaderNameLabel").value("Required"))
+                .andExpect(jsonPath("$.item.extensionsLabel").value("png"))
+                .andExpect(jsonPath("$.activeUploads").isArray())
+                .andExpect(jsonPath("$.pendingDecisions").isArray())
+                .andExpect(jsonPath("$.activityHistory").isArray());
+    }
+
+    @Test
+    void fileRequestApiCreatesRevokesAndDeletesRequestWithCsrf() throws Exception {
+        String token = "api_request_" + java.util.UUID.randomUUID().toString().replace("-", "_");
+
+        mockMvc.perform(post("/api/v1/file-requests")
+                        .with(csrf())
+                        .param("title", "API request")
+                        .param("description", "Created through the versioned API.")
+                        .param("destinationPath", "")
+                        .param("uploaderNamePolicy", "OPTIONAL")
+                        .param("maxFileSizeGb", "1")
+                        .param("maxTotalGb", "2")
+                        .param("maxFiles", "2")
+                        .param("allowedExtensions", "txt")
+                        .param("expirationDays", "7")
+                        .param("customToken", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.redirectUrl", Matchers.startsWith("/admin/file-requests/")));
+
+        FileRequest request = fileRequestService.list().stream()
+                .filter(candidate -> candidate.token().equals(token))
+                .findFirst()
+                .orElseThrow();
+
+        mockMvc.perform(post("/api/v1/file-requests/{id}/revoke", request.id()).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.redirectUrl").value(Matchers.nullValue()));
+
+        assertThat(fileRequestService.require(request.id()).enabled()).isFalse();
+
+        mockMvc.perform(post("/api/v1/file-requests/{id}/delete", request.id()).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.redirectUrl").value(Matchers.nullValue()));
+
+        assertThat(fileRequestService.list()).noneMatch(candidate -> candidate.id().equals(request.id()));
+    }
+
+    @Test
+    @WithAnonymousUser
+    void publicFileRequestAdmitsAndReceivesResumableUpload() throws Exception {
+        String suffix = java.util.UUID.randomUUID().toString();
+        String filename = "public-request-" + suffix + ".txt";
+        String token = "public_request_" + suffix.replace("-", "_");
+        FileRequest request = fileRequestService.create(
+                "Send project files",
+                "Upload the requested text file.",
+                "",
+                UploaderNamePolicy.OPTIONAL,
+                1024,
+                4096,
+                3,
+                List.of("txt"),
+                7,
+                token
+        );
+
+        mockMvc.perform(get("/r/{token}", request.token()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("Send project files")))
+                .andExpect(content().string(Matchers.containsString("Upload the requested text file.")))
+                .andExpect(content().string(Matchers.containsString("/js/file-request-upload.js")))
+                .andExpect(content().string(Matchers.containsString("data-file-request-upload")))
+                .andExpect(content().string(Matchers.containsString("file-request-upload-actions")))
+                .andExpect(content().string(Matchers.containsString("accept=\".txt\"")))
+                .andExpect(content().string(Matchers.containsString(
+                        "/r/" + request.token() + "/upload-sessions"
+                )))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("nas.storage.root"))));
+
+        byte[] content = "received".getBytes(StandardCharsets.UTF_8);
+        JsonNode result = admitAndUpload(
+                "/r/" + request.token() + "/upload-sessions",
+                filename,
+                "Alice",
+                content,
+                "a".repeat(64)
+        );
+
+        assertThat(result.get("status").asText()).isEqualTo("RECEIVED");
+        assertThat(result.get("message").asText()).isEqualTo("Upload received.");
+        assertThat(Files.readAllBytes(ROOT.resolve(filename))).isEqualTo(content);
+        assertThat(fileRequestService.require(request.id()).acceptedFiles()).isEqualTo(1);
+    }
+
+    @Test
+    @WithAnonymousUser
+    void publicFileRequestDoesNotRevealWhetherUploadedFilenameAlreadyExists() throws Exception {
+        String suffix = java.util.UUID.randomUUID().toString();
+        String filename = "private-conflict-" + suffix + ".txt";
+        String token = "private_conflict_" + suffix.replace("-", "_");
+        byte[] existing = "existing".getBytes(StandardCharsets.UTF_8);
+        Files.write(ROOT.resolve(filename), existing);
+        FileRequest request = fileRequestService.create(
+                "Private collision status",
+                "",
+                UploaderNamePolicy.NONE,
+                1024,
+                4096,
+                3,
+                List.of("txt"),
+                7,
+                token
+        );
+
+        JsonNode result = admitAndUpload(
+                "/r/" + request.token() + "/upload-sessions",
+                filename,
+                null,
+                "replacement".getBytes(StandardCharsets.UTF_8),
+                "9".repeat(64)
+        );
+
+        assertThat(result.get("status").asText()).isEqualTo("RECEIVED");
+        assertThat(result.get("message").asText()).isEqualTo("Upload received.");
+        assertThat(result.get("committedPath").isNull()).isTrue();
+        assertThat(result.get("pendingDecisionId").isNull()).isTrue();
+        assertThat(result.get("defaultConflictPolicy").isNull()).isTrue();
+        assertThat(Files.readAllBytes(ROOT.resolve(filename))).isEqualTo(existing);
+    }
+
+    @Test
+    @WithAnonymousUser
+    void publicFileRequestUploadStillRequiresCsrfProof() throws Exception {
+        String token = "csrf_request_" + java.util.UUID.randomUUID().toString().replace("-", "_");
+        fileRequestService.create(
+                "CSRF protected upload",
+                "",
+                UploaderNamePolicy.NONE,
+                1024,
+                4096,
+                3,
+                List.of(),
+                7,
+                token
+        );
+
+        mockMvc.perform(post("/r/{token}/upload-sessions", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(Map.of(
+                                "filename", "csrf.txt",
+                                "contentType", "text/plain",
+                                "size", 4,
+                                "lastModified", 0,
+                                "fingerprint", "b".repeat(64)
+                        ))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithAnonymousUser
+    void publicFileRequestDoesNotExposeMissingDestinationPath() throws Exception {
+        String suffix = java.util.UUID.randomUUID().toString();
+        String destination = "private-request-destination-" + suffix;
+        Files.createDirectories(ROOT.resolve(destination));
+        String token = "missing_destination_" + suffix.replace("-", "_");
+        fileRequestService.create(
+                "Missing destination",
+                destination,
+                UploaderNamePolicy.NONE,
+                1024,
+                4096,
+                2,
+                List.of("txt"),
+                7,
+                token
+        );
+        Files.delete(ROOT.resolve(destination));
+
+        mockMvc.perform(post("/r/{token}/upload-sessions", token)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(Map.of(
+                                "filename", "example.txt",
+                                "contentType", "text/plain",
+                                "size", 8,
+                                "lastModified", 0,
+                                "fingerprint", "3".repeat(64)
+                        ))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.notification.message").value("File request is unavailable."))
+                .andExpect(content().string(Matchers.not(Matchers.containsString(destination))));
+    }
+
+    @Test
+    @WithAnonymousUser
+    void publicFileRequestAdmissionReusesActiveSessionAndCreatesNewOneAfterCancel() throws Exception {
+        String token = "resume_request_" + java.util.UUID.randomUUID().toString().replace("-", "_");
+        fileRequestService.create(
+                "Resume upload",
+                "",
+                UploaderNamePolicy.NONE,
+                1024,
+                4096,
+                2,
+                List.of("txt"),
+                7,
+                token
+        );
+        String admissionUrl = "/r/" + token + "/upload-sessions";
+        String fingerprint = "d".repeat(64);
+
+        JsonNode first = admitUploadSession(admissionUrl, "resume.txt", null, 8, fingerprint);
+        JsonNode reused = admitUploadSession(
+                admissionUrl, "resume.txt", null, 8, fingerprint, first.get("sessionId").asText()
+        );
+        assertThat(reused.get("sessionId").asText()).isEqualTo(first.get("sessionId").asText());
+
+        JsonNode duplicate = admitUploadSession(admissionUrl, "resume.txt", null, 8, fingerprint);
+        assertThat(duplicate.get("sessionId").asText()).isNotEqualTo(first.get("sessionId").asText());
+        mockMvc.perform(delete(duplicate.get("statusUrl").asText()).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELED"));
+
+        mockMvc.perform(delete(first.get("statusUrl").asText()).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELED"));
+        assertThat(resumableUploadService.list())
+                .noneMatch(session -> session.id().equals(first.get("sessionId").asText()));
+
+        JsonNode replacement = admitUploadSession(admissionUrl, "resume.txt", null, 8, fingerprint);
+        assertThat(replacement.get("sessionId").asText()).isNotEqualTo(first.get("sessionId").asText());
+    }
+
+    @Test
+    @WithAnonymousUser
+    void admittedUploadSessionCreatesOnlyOneProtocolResource() throws Exception {
+        String token = "single_protocol_" + java.util.UUID.randomUUID().toString().replace("-", "_");
+        fileRequestService.create(
+                "Single protocol resource",
+                "",
+                UploaderNamePolicy.NONE,
+                1024,
+                4096,
+                2,
+                List.of("txt"),
+                7,
+                token
+        );
+        JsonNode admission = admitUploadSession(
+                "/r/" + token + "/upload-sessions", "single.txt", null, 8, "6".repeat(64)
+        );
+        String sessionId = admission.get("sessionId").asText();
+        String endpoint = admission.get("endpoint").asText();
+        String metadata = "filename "
+                + Base64.getEncoder().encodeToString("single.txt".getBytes(StandardCharsets.UTF_8))
+                + ",sessionId "
+                + Base64.getEncoder().encodeToString(sessionId.getBytes(StandardCharsets.UTF_8));
+
+        mockMvc.perform(post(endpoint)
+                        .with(csrf())
+                        .header("Tus-Resumable", "1.0.0")
+                        .header("Upload-Length", 8)
+                        .header("Upload-Metadata", metadata))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post(endpoint)
+                        .with(csrf())
+                        .header("Tus-Resumable", "1.0.0")
+                        .header("Upload-Length", 8)
+                        .header("Upload-Metadata", metadata))
+                .andExpect(status().isConflict());
+
+        mockMvc.perform(delete(admission.get("statusUrl").asText()).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELED"));
+    }
+
+    @Test
+    void fullyReceivedFileRequestUploadFinishesAfterRequestIsRevoked() throws Exception {
+        String suffix = java.util.UUID.randomUUID().toString();
+        String filename = "revoked-finalize-" + suffix + ".txt";
+        String token = "revoked_finalize_" + suffix.replace("-", "_");
+        byte[] content = "received-before-revoke".getBytes(StandardCharsets.UTF_8);
+        FileRequest request = fileRequestService.create(
+                "Revoke finalization boundary",
+                "",
+                UploaderNamePolicy.NONE,
+                1024,
+                4096,
+                2,
+                List.of("txt"),
+                7,
+                token
+        );
+        ResumableUploadSession session = resumableUploadService.admitFileRequest(
+                token, filename, "text/plain", content.length, null, "7".repeat(64), null
+        );
+        Path staged = storageService.resumableUploadStagingFile(session.id());
+        Files.createDirectories(staged.getParent());
+        Files.write(staged, content);
+        resumableUploadService.markStaged(session.id(), staged);
+
+        fileRequestService.revoke(request.id());
+        var result = resumableUploadService.finalizeStaged(session.id());
+
+        assertThat(result.status()).isEqualTo(ResumableUploadStatus.COMPLETED);
+        assertThat(Files.readAllBytes(ROOT.resolve(filename))).isEqualTo(content);
+        assertThat(fileRequestService.require(request.id()).acceptedFiles()).isEqualTo(1);
+    }
+
+    @Test
+    @WithAnonymousUser
+    void publicUploaderCanCancelReservedSessionAfterRequestIsRevoked() throws Exception {
+        String suffix = java.util.UUID.randomUUID().toString();
+        String token = "revoked_cancel_" + suffix.replace("-", "_");
+        FileRequest request = fileRequestService.create(
+                "Cancel after revoke",
+                "",
+                UploaderNamePolicy.NONE,
+                1024,
+                4096,
+                2,
+                List.of("txt"),
+                7,
+                token
+        );
+        JsonNode admission = admitUploadSession(
+                "/r/" + token + "/upload-sessions",
+                "cancel-after-revoke.txt",
+                null,
+                8,
+                "6".repeat(64)
+        );
+
+        fileRequestService.revoke(request.id());
+
+        mockMvc.perform(delete(admission.get("statusUrl").asText()).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELED"));
+        assertThat(resumableUploadService.list())
+                .noneMatch(session -> session.id().equals(admission.get("sessionId").asText()));
+    }
+
+    @Test
+    void fullyReceivedFileRequestUploadFinishesAfterRequestRecordIsDeleted() throws Exception {
+        String suffix = java.util.UUID.randomUUID().toString();
+        String filename = "deleted-finalize-" + suffix + ".txt";
+        String token = "deleted_finalize_" + suffix.replace("-", "_");
+        byte[] content = "received-before-delete".getBytes(StandardCharsets.UTF_8);
+        FileRequest request = fileRequestService.create(
+                "Delete finalization boundary",
+                "",
+                UploaderNamePolicy.NONE,
+                1024,
+                4096,
+                2,
+                List.of("txt"),
+                7,
+                token
+        );
+        ResumableUploadSession session = resumableUploadService.admitFileRequest(
+                token, filename, "text/plain", content.length, null, "8".repeat(64), null
+        );
+        Path staged = storageService.resumableUploadStagingFile(session.id());
+        Files.createDirectories(staged.getParent());
+        Files.write(staged, content);
+        resumableUploadService.markStaged(session.id(), staged);
+
+        fileRequestService.delete(request.id());
+        var result = resumableUploadService.finalizeStaged(session.id());
+
+        assertThat(result.status()).isEqualTo(ResumableUploadStatus.COMPLETED);
+        assertThat(Files.readAllBytes(ROOT.resolve(filename))).isEqualTo(content);
+    }
+
+    @Test
+    @WithAnonymousUser
+    void publicFileRequestAdmissionReservesQuotaWithoutDoubleCountingResume() throws Exception {
+        String token = "quota_request_" + java.util.UUID.randomUUID().toString().replace("-", "_");
+        fileRequestService.create(
+                "One upload only",
+                "",
+                UploaderNamePolicy.NONE,
+                1024,
+                1024,
+                1,
+                List.of("txt"),
+                7,
+                token
+        );
+        String admissionUrl = "/r/" + token + "/upload-sessions";
+        JsonNode admitted = admitUploadSession(admissionUrl, "first.txt", null, 8, "e".repeat(64));
+
+        JsonNode resumed = admitUploadSession(
+                admissionUrl,
+                "first.txt",
+                null,
+                8,
+                "e".repeat(64),
+                admitted.get("sessionId").asText()
+        );
+        assertThat(resumed.get("sessionId").asText()).isEqualTo(admitted.get("sessionId").asText());
+
+        mockMvc.perform(post(admissionUrl)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(Map.of(
+                                "filename", "second.txt",
+                                "contentType", "text/plain",
+                                "size", 8,
+                                "lastModified", 0,
+                                "fingerprint", "f".repeat(64)
+                        ))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.ok").value(false));
+    }
+
+    @Test
+    void expiredUploadSessionDoesNotReserveFileRequestQuota() throws Exception {
+        String suffix = java.util.UUID.randomUUID().toString();
+        String token = "expired_reservation_" + suffix.replace("-", "_");
+        FileRequest request = fileRequestService.create(
+                "Expired reservation",
+                "",
+                UploaderNamePolicy.NONE,
+                1024,
+                1024,
+                1,
+                List.of("txt"),
+                7,
+                token
+        );
+        Instant now = Instant.now();
+        ResumableUploadSession expired = new ResumableUploadSession(
+                java.util.UUID.randomUUID().toString(),
+                ResumableUploadSource.FILE_REQUEST,
+                request.id(),
+                "",
+                "expired.txt",
+                "text/plain",
+                8,
+                null,
+                "4".repeat(64),
+                now.minusSeconds(7200),
+                now.minusSeconds(3600),
+                ResumableUploadStatus.ADMITTED,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+        resumableUploadRepository.save(expired);
+
+        ResumableUploadSession admitted = resumableUploadService.admitFileRequest(
+                token, "replacement.txt", "text/plain", 8, null, "5".repeat(64), null
+        );
+
+        assertThat(admitted.id()).isNotEqualTo(expired.id());
+        resumableUploadService.remove(expired.id());
+        resumableUploadService.remove(admitted.id());
+    }
+
+    private JsonNode admitAndUpload(
+            String admissionUrl,
+            String filename,
+            String uploaderName,
+            byte[] content,
+            String fingerprint
+    ) throws Exception {
+        JsonNode admission = admitUploadSession(
+                admissionUrl, filename, uploaderName, content.length, fingerprint
+        );
+        String sessionId = admission.get("sessionId").asText();
+        String endpoint = admission.get("endpoint").asText();
+        String metadata = "filename " + Base64.getEncoder().encodeToString(filename.getBytes(StandardCharsets.UTF_8))
+                + ",sessionId " + Base64.getEncoder().encodeToString(sessionId.getBytes(StandardCharsets.UTF_8));
+
+        MvcResult protocolCreation = mockMvc.perform(post(endpoint)
+                        .with(csrf())
+                        .header("Tus-Resumable", "1.0.0")
+                        .header("Upload-Length", content.length)
+                        .header("Upload-Metadata", metadata))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String uploadUrl = protocolCreation.getResponse().getHeader(HttpHeaders.LOCATION);
+        assertThat(uploadUrl).isNotBlank();
+
+        int firstChunkLength = Math.max(1, content.length / 2);
+        byte[] firstChunk = java.util.Arrays.copyOfRange(content, 0, firstChunkLength);
+        byte[] secondChunk = java.util.Arrays.copyOfRange(content, firstChunkLength, content.length);
+        mockMvc.perform(patch(uploadUrl)
+                        .with(csrf())
+                        .header("Tus-Resumable", "1.0.0")
+                        .header("Upload-Offset", 0)
+                        .header(HttpHeaders.CONTENT_TYPE, "application/offset+octet-stream")
+                        .content(firstChunk))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(head(uploadUrl)
+                        .with(csrf())
+                        .header("Tus-Resumable", "1.0.0"))
+                .andExpect(status().isNoContent())
+                .andExpect(header().string("Upload-Offset", String.valueOf(firstChunkLength)));
+
+        mockMvc.perform(patch(uploadUrl)
+                        .with(csrf())
+                        .header("Tus-Resumable", "1.0.0")
+                        .header("Upload-Offset", firstChunkLength)
+                        .header(HttpHeaders.CONTENT_TYPE, "application/offset+octet-stream")
+                        .content(secondChunk))
+                .andExpect(status().isNoContent());
+
+        MvcResult statusResult = mockMvc.perform(get(admission.get("statusUrl").asText())
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andReturn();
+        return objectMapper.readTree(statusResult.getResponse().getContentAsByteArray());
+    }
+
+    private JsonNode admitUploadSession(
+            String admissionUrl,
+            String filename,
+            String uploaderName,
+            long size,
+            String fingerprint
+    ) throws Exception {
+        return admitUploadSession(admissionUrl, filename, uploaderName, size, fingerprint, null);
+    }
+
+    private JsonNode admitUploadSession(
+            String admissionUrl,
+            String filename,
+            String uploaderName,
+            long size,
+            String fingerprint,
+            String resumeSessionId
+    ) throws Exception {
+        Map<String, Object> admissionRequest = new java.util.LinkedHashMap<>();
+        admissionRequest.put("filename", filename);
+        admissionRequest.put("contentType", "text/plain");
+        admissionRequest.put("size", size);
+        admissionRequest.put("lastModified", 0);
+        admissionRequest.put("fingerprint", fingerprint);
+        if (resumeSessionId != null) {
+            admissionRequest.put("resumeSessionId", resumeSessionId);
+        }
+        if (uploaderName != null) {
+            admissionRequest.put("uploaderName", uploaderName);
+        }
+
+        MvcResult admissionResult = mockMvc.perform(post(admissionUrl)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(admissionRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andReturn();
+        JsonNode admission = objectMapper.readTree(admissionResult.getResponse().getContentAsByteArray());
+        return admission;
+    }
+
+    @Test
+    void storageEntriesEndpointReturnsRequestedDirectoryTypesOnly() throws Exception {
+        Path container = ROOT.resolve("entries-api-test");
+        Files.createDirectories(container.resolve("nested"));
+        Files.writeString(container.resolve("note.txt"), "hello");
+
+        mockMvc.perform(get("/api/v1/fs/entries")
+                        .param("path", "entries-api-test")
+                        .param("types", "directory"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.path").value("entries-api-test"))
+                .andExpect(jsonPath("$.entries.length()").value(1))
+                .andExpect(jsonPath("$.entries[0].name").value("nested"))
+                .andExpect(jsonPath("$.entries[0].type").value("directory"));
+    }
+
+    @Test
+    void fileBrowserListingApiReturnsSharedBrowserContract() throws Exception {
+        Path container = ROOT.resolve("browser-listing-api-test");
+        Files.createDirectories(container.resolve("nested"));
+        Files.writeString(container.resolve("note.txt"), "hello");
+
+        mockMvc.perform(get("/api/v1/fs/listing")
+                        .param("path", "browser-listing-api-test")
+                        .param("view", "grid")
+                        .param("sort", "name")
+                        .param("dir", "asc")
+                        .param("hidden", "show")
+                        .param("size", "50"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.mode").value("browse"))
+                .andExpect(jsonPath("$.path").value("browser-listing-api-test"))
+                .andExpect(jsonPath("$.directories.length()").value(1))
+                .andExpect(jsonPath("$.directories[0].name").value("nested"))
+                .andExpect(jsonPath("$.directories[0].type").value("directory"))
+                .andExpect(jsonPath("$.entries.length()").value(1))
+                .andExpect(jsonPath("$.entries[0].name").value("note.txt"))
+                .andExpect(jsonPath("$.entries[0].typeLabel").value("Text"))
+                .andExpect(jsonPath("$.entries[0].detailUrl").isNotEmpty())
+                .andExpect(jsonPath("$.entries[0].downloadUrl").isNotEmpty())
+                .andExpect(jsonPath("$.page.number").value(1))
+                .andExpect(jsonPath("$.page.totalItems").value(1))
+                .andExpect(jsonPath("$.preferences.view").value("grid"))
+                .andExpect(jsonPath("$.preferences.hidden").value("show"))
+                .andExpect(jsonPath("$.preferences.pageSize").value(50))
+                .andExpect(jsonPath("$.search.performed").value(false));
+    }
+
+    @Test
+    void fileBrowserSearchApiUsesTheSharedBrowserContract() throws Exception {
+        Path container = ROOT.resolve("browser-search-api-test");
+        Files.createDirectories(container.resolve("nested"));
+        Files.createDirectories(container.resolve("Q3-note-directory"));
+        Files.writeString(container.resolve("nested").resolve("Q11-note.txt"), "eleven");
+        Files.writeString(container.resolve("nested").resolve("Q2-note.txt"), "two");
+
+        mockMvc.perform(get("/api/v1/fs/search")
+                        .param("path", "browser-search-api-test")
+                        .param("q", "note")
+                        .param("view", "table")
+                        .param("sort", "name")
+                        .param("dir", "asc")
+                        .param("size", "50"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.mode").value("search"))
+                .andExpect(jsonPath("$.directories.length()").value(1))
+                .andExpect(jsonPath("$.directories[0].name").value("Q3-note-directory"))
+                .andExpect(jsonPath("$.entries.length()").value(2))
+                .andExpect(jsonPath("$.entries[0].name").value("Q2-note.txt"))
+                .andExpect(jsonPath("$.entries[1].name").value("Q11-note.txt"))
+                .andExpect(jsonPath("$.page.totalItems").value(2))
+                .andExpect(jsonPath("$.preferences.view").value("table"))
+                .andExpect(jsonPath("$.search.query").value("note"))
+                .andExpect(jsonPath("$.search.performed").value(true));
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    void storageEntriesEndpointRequiresAdminRole() throws Exception {
+        mockMvc.perform(get("/api/v1/fs/entries"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void storageEntriesApiErrorsStayJsonWithoutAjaxHeaders() throws Exception {
+        mockMvc.perform(get("/api/v1/fs/entries").param("types", "unknown"))
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.ok").value(false))
+                .andExpect(jsonPath("$.notification.message")
+                        .value("Storage entry types must contain directory, file, or both."));
+    }
+
+    @Test
+    void remoteDownloadPageUsesSpaShellAndExposesPagePayload() throws Exception {
         mockMvc.perform(get("/admin/utils/remote-download"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("name=\"networkRoute\"")))
-                .andExpect(content().string(Matchers.containsString("Use global (Direct)")))
-                .andExpect(content().string(Matchers.containsString("<th>Route</th>")));
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(Matchers.containsString("data-storage-directory-picker")))
+                .andExpect(content().string(Matchers.containsString("/js/directory-tree.js")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/remote-download.js"))))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/remote-download-curl.js"))));
+
+        mockMvc.perform(get("/api/v1/remote-downloads"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.tasks").doesNotExist())
+                .andExpect(jsonPath("$.skipInspectByDefault").isBoolean())
+                .andExpect(jsonPath("$.defaultTargetDirectory").isString());
+    }
+
+    @Test
+    void remoteDownloadActionsUseVersionedApi() throws Exception {
+        mockMvc.perform(get("/api/v1/remote-downloads/tasks"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON));
+
+        mockMvc.perform(post("/api/v1/remote-downloads/inspect/discard")
+                        .with(csrf())
+                        .param("requestId", "missing-inspection"))
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.ok").value(false))
+                .andExpect(jsonPath("$.notification.message")
+                        .value("Remote download request identifier is invalid."));
+
+        mockMvc.perform(post("/admin/utils/remote-download/inspect/discard")
+                        .with(csrf())
+                        .param("requestId", "missing-inspection"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/utils/remote-download/cancel")
+                        .with(csrf())
+                        .param("id", "missing-task"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/admin/utils/remote-download/tasks"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -98,13 +990,11 @@ class AdminNotificationFlowTest {
         Files.createDirectories(ROOT.resolve(directory));
         Files.writeString(ROOT.resolve(filename), "grid");
 
-        mockMvc.perform(get("/files").param("view", "grid"))
+        mockMvc.perform(get("/api/v1/fs/listing").param("view", "grid"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(directory)))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-select-pick-label")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-select-all")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("directory-card"))));
+                .andExpect(jsonPath("$.preferences.view").value("grid"))
+                .andExpect(jsonPath("$.directories[?(@.name == '" + directory + "')]").exists())
+                .andExpect(jsonPath("$.entries[?(@.name == '" + filename + "')]").exists());
     }
 
     @Test
@@ -112,21 +1002,101 @@ class AdminNotificationFlowTest {
         String filename = "grid-card-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "grid");
 
-        mockMvc.perform(get("/files").param("view", "grid"))
+        mockMvc.perform(get("/api/v1/fs/listing").param("view", "grid"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("thumb-extension")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("card-name")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("card-actions"))));
+                .andExpect(jsonPath("$.preferences.view").value("grid"))
+                .andExpect(jsonPath("$.entries[?(@.name == '" + filename + "')].extensionLabel")
+                        .value("TXT"))
+                .andExpect(jsonPath("$.entries[?(@.name == '" + filename + "')].detailUrl").exists());
     }
 
     @Test
     void filesPageRendersTransferControls() throws Exception {
+        mockMvc.perform(get("/api/v1/files/transfer-buffer"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.transferBuffer.active").value(false))
+                .andExpect(jsonPath("$.transferBuffer.count").value(0));
+    }
+
+    @Test
+    void browserPreferenceResetUsesVersionedApiOnly() throws Exception {
+        mockMvc.perform(post("/api/v1/browser-preferences/reset")
+                        .with(csrf())
+                        .param("target", "files"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.redirectUrl").value("/files"));
+
+        mockMvc.perform(post("/files/preferences/reset").with(csrf()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void fileBrowserViewPreferenceCanBeSavedWithoutReloadingTheListing() throws Exception {
+        mockMvc.perform(post("/api/v1/browser-preferences/files/view")
+                        .with(csrf())
+                        .param("view", "grid"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.view").value("grid"))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE,
+                        Matchers.containsString("endervault.files.view=grid")));
+    }
+
+    @Test
+    void legacyTransferBufferRoutesAreRemoved() throws Exception {
+        mockMvc.perform(post("/files/transfer/buffer").with(csrf()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/detail/transfer/buffer").with(csrf()).param("path", "legacy.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/transfer/paste").with(csrf()).param("operation", "copy"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/transfer/clear").with(csrf()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/transfer/remove").with(csrf()).param("itemPath", "legacy.txt"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void filesPageLoadsReactOwnedArchiveCreationUi() throws Exception {
         mockMvc.perform(get("/files"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"addToTransferBufferButton\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-transfer-action=\"transfer-buffer-add\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-selection-required")));
+                .andExpect(content().string(Matchers.containsString("/react/assets/adminApp-")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/archive-create.js"))));
+    }
+
+    @Test
+    void selectedItemsCanBeQueuedAsStoredZipArchive() throws Exception {
+        String directory = "archive-create-" + System.nanoTime();
+        Path source = Files.createDirectories(ROOT.resolve(directory));
+        Files.writeString(source.resolve("note.txt"), "archive me", StandardCharsets.UTF_8);
+
+        mockMvc.perform(post("/api/v1/files/archives")
+                        .with(csrf())
+                        .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
+                        .header("X-Requested-With", "fetch")
+                        .param("path", directory)
+                        .param("items", "note.txt")
+                        .param("outputName", "saved"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.task.type").value("ARCHIVE_CREATE"))
+                .andExpect(jsonPath("$.redirectUrl").value("/files?path=" + directory));
+
+        Path archive = source.resolve("saved.zip");
+        long deadline = System.currentTimeMillis() + 5_000L;
+        while (!Files.exists(archive) && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20L);
+        }
+        assertThat(archive).exists().isNotEmptyFile();
+    }
+
+    @Test
+    void legacyArchiveMutationRoutesAreRemoved() throws Exception {
+        mockMvc.perform(post("/files/archive/create").with(csrf()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/detail/archive/extract").with(csrf()).param("path", "legacy.zip"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -138,28 +1108,34 @@ class AdminNotificationFlowTest {
         Files.writeString(ROOT.resolve(source).resolve("note.txt"), "move me");
         MockHttpSession session = new MockHttpSession();
 
-        mockMvc.perform(post("/files/transfer/buffer")
+        mockMvc.perform(post("/api/v1/files/transfer-buffer")
                         .session(session)
                         .with(csrf())
                         .param("path", source)
                         .param("items", "note.txt"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/files?path=" + source));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.transferBuffer.active").value(true));
 
-        mockMvc.perform(post("/files/transfer/paste")
+        mockMvc.perform(post("/api/v1/files/transfer-buffer/paste")
                         .session(session)
                         .with(csrf())
                         .param("path", target)
-                        .param("operation", "move"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/files?path=" + target));
+                        .param("operation", "move")
+                        .param("conflictPolicy", "ask"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.task.type").value("FILE_MOVE"))
+                .andExpect(jsonPath("$.transferBuffer.active").value(false));
 
+        long deadline = System.currentTimeMillis() + 5_000L;
+        while (!Files.exists(ROOT.resolve(target).resolve("note.txt")) && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20L);
+        }
         assertThat(ROOT.resolve(source).resolve("note.txt")).doesNotExist();
         assertThat(Files.readString(ROOT.resolve(target).resolve("note.txt"))).isEqualTo("move me");
     }
 
     @Test
-    void transferPasteProcessesValidItemsAndKeepsFailedItemsInBuffer() throws Exception {
+    void transferPasteQueuesSnapshotAndClearsBuffer() throws Exception {
         String source = "transfer-partial-source-" + System.nanoTime();
         String target = "transfer-partial-target-" + System.nanoTime();
         Files.createDirectories(ROOT.resolve(source));
@@ -168,25 +1144,30 @@ class AdminNotificationFlowTest {
         Files.writeString(ROOT.resolve(source).resolve("stale.txt"), "gone");
         MockHttpSession session = new MockHttpSession();
 
-        mockMvc.perform(post("/files/transfer/buffer")
+        mockMvc.perform(post("/api/v1/files/transfer-buffer")
                         .session(session)
                         .with(csrf())
                         .param("path", source)
                         .param("items", "ok.txt")
                         .param("items", "stale.txt"))
-                .andExpect(status().is3xxRedirection());
+                .andExpect(status().isOk());
 
         Files.delete(ROOT.resolve(source).resolve("stale.txt"));
 
-        mockMvc.perform(post("/files/transfer/paste")
+        mockMvc.perform(post("/api/v1/files/transfer-buffer/paste")
                         .session(session)
                         .with(csrf())
                         .param("path", target)
-                        .param("operation", "move"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/files?path=" + target))
-                .andExpect(flash().attributeExists(FlashNotifications.ATTRIBUTE_NAME));
+                        .param("operation", "move")
+                        .param("conflictPolicy", "ask"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.task.type").value("FILE_MOVE"))
+                .andExpect(jsonPath("$.transferBuffer.active").value(false));
 
+        long deadline = System.currentTimeMillis() + 5_000L;
+        while (!Files.exists(ROOT.resolve(target).resolve("ok.txt")) && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20L);
+        }
         assertThat(ROOT.resolve(source).resolve("ok.txt")).doesNotExist();
         assertThat(Files.readString(ROOT.resolve(target).resolve("ok.txt"))).isEqualTo("move me");
 
@@ -194,8 +1175,8 @@ class AdminNotificationFlowTest {
                         .session(session)
                         .param("path", target))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Transfer buffer")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("stale.txt")));
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("1 item(s) ready"))));
     }
 
     @Test
@@ -205,7 +1186,7 @@ class AdminNotificationFlowTest {
         Files.writeString(ROOT.resolve(source).resolve("note.txt"), "ajax");
         MockHttpSession session = new MockHttpSession();
 
-        mockMvc.perform(post("/files/transfer/buffer")
+        mockMvc.perform(post("/api/v1/files/transfer-buffer")
                         .session(session)
                         .with(csrf())
                         .header("X-Requested-With", "fetch")
@@ -218,18 +1199,17 @@ class AdminNotificationFlowTest {
                 .andExpect(jsonPath("$.transferBuffer.count").value(1))
                 .andExpect(jsonPath("$.transferBuffer.items[0].name").value("note.txt"));
 
-        mockMvc.perform(post("/files/transfer/remove")
+        mockMvc.perform(post("/api/v1/files/transfer-buffer/remove")
                         .session(session)
                         .with(csrf())
                         .header("X-Requested-With", "fetch")
                         .accept(MediaType.APPLICATION_JSON)
-                        .param("path", source)
                         .param("itemPath", source + "/note.txt"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true))
                 .andExpect(jsonPath("$.transferBuffer.active").value(false));
 
-        mockMvc.perform(post("/files/transfer/buffer")
+        mockMvc.perform(post("/api/v1/files/transfer-buffer")
                         .session(session)
                         .with(csrf())
                         .header("X-Requested-With", "fetch")
@@ -239,15 +1219,66 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.transferBuffer.active").value(true));
 
-        mockMvc.perform(post("/files/transfer/clear")
+        mockMvc.perform(post("/api/v1/files/transfer-buffer/clear")
                         .session(session)
                         .with(csrf())
                         .header("X-Requested-With", "fetch")
-                        .accept(MediaType.APPLICATION_JSON)
-                        .param("path", source))
+                        .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true))
                 .andExpect(jsonPath("$.transferBuffer.active").value(false));
+    }
+
+    @Test
+    void transferBufferAcceptsFullPathsFromDifferentDirectories() throws Exception {
+        String base = "transfer-search-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(base).resolve("alpha"));
+        Files.createDirectories(ROOT.resolve(base).resolve("beta"));
+        Files.writeString(ROOT.resolve(base).resolve("alpha/note.txt"), "alpha");
+        Files.writeString(ROOT.resolve(base).resolve("beta/note.txt"), "beta");
+        MockHttpSession session = new MockHttpSession();
+
+        mockMvc.perform(post("/api/v1/files/transfer-buffer")
+                        .session(session)
+                        .with(csrf())
+                        .param("paths", base + "/alpha/note.txt")
+                        .param("paths", base + "/beta/note.txt"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.transferBuffer.count").value(2))
+                .andExpect(jsonPath("$.transferBuffer.items[0].path").value(base + "/alpha/note.txt"))
+                .andExpect(jsonPath("$.transferBuffer.items[1].path").value(base + "/beta/note.txt"));
+    }
+
+    @Test
+    void fullPathSelectionCollapsesItemsCoveredBySelectedDirectory() throws Exception {
+        String base = "transfer-collapse-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(base).resolve("docs"));
+        Files.writeString(ROOT.resolve(base).resolve("docs/note.txt"), "note");
+        MockHttpSession session = new MockHttpSession();
+
+        mockMvc.perform(post("/api/v1/files/transfer-buffer")
+                        .session(session)
+                        .with(csrf())
+                        .param("paths", base + "/docs/note.txt")
+                        .param("paths", base + "/docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.transferBuffer.count").value(1))
+                .andExpect(jsonPath("$.transferBuffer.items[0].path").value(base + "/docs"));
+    }
+
+    @Test
+    void selectionRequestRejectsMixedFullPathAndLegacyItemContracts() throws Exception {
+        String base = "transfer-ambiguous-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(base));
+        Files.writeString(ROOT.resolve(base).resolve("note.txt"), "note");
+
+        mockMvc.perform(post("/api/v1/files/transfer-buffer")
+                        .session(new MockHttpSession())
+                        .with(csrf())
+                        .param("path", base)
+                        .param("items", "note.txt")
+                        .param("paths", base + "/note.txt"))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -259,20 +1290,26 @@ class AdminNotificationFlowTest {
         Files.writeString(ROOT.resolve(source).resolve("note.txt"), "copy me");
         MockHttpSession session = new MockHttpSession();
 
-        mockMvc.perform(post("/files/transfer/buffer")
+        mockMvc.perform(post("/api/v1/files/transfer-buffer")
                         .session(session)
                         .with(csrf())
                         .param("path", source)
                         .param("items", "note.txt"))
-                .andExpect(status().is3xxRedirection());
+                .andExpect(status().isOk());
 
-        mockMvc.perform(post("/files/transfer/paste")
+        mockMvc.perform(post("/api/v1/files/transfer-buffer/paste")
                         .session(session)
                         .with(csrf())
                         .param("path", target)
-                        .param("operation", "copy"))
-                .andExpect(status().is3xxRedirection());
+                        .param("operation", "copy")
+                        .param("conflictPolicy", "ask"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.task.type").value("FILE_COPY"));
 
+        long deadline = System.currentTimeMillis() + 5_000L;
+        while (!Files.exists(ROOT.resolve(target).resolve("note.txt")) && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20L);
+        }
         assertThat(Files.readString(ROOT.resolve(source).resolve("note.txt"))).isEqualTo("copy me");
         assertThat(Files.readString(ROOT.resolve(target).resolve("note.txt"))).isEqualTo("copy me");
     }
@@ -298,36 +1335,45 @@ class AdminNotificationFlowTest {
     void dashboardPageRendersSummaryPanels() throws Exception {
         mockMvc.perform(get("/admin/dashboard"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Dashboard")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Task Manager")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("System Health")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Management")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Utils")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Shared links")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Activity logs")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Trash")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Metadata inspector")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Settings")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote download")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("href=\"/admin/vpn\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Page archiving")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Storage remaining")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Outbound route")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("VPN Egress")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Proxy health")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Background tasks")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Register and remove trusted devices"))))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Configure activity notifications and test messages"))))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Enable Telegram alerts"))))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Quick Actions"))))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Activity Log"))))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Maintenance"))));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/adminApp-")));
+
+        mockMvc.perform(get("/api/v1/dashboard"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.storage.usedPercent").isNumber())
+                .andExpect(jsonPath("$.trash.count").isNumber())
+                .andExpect(jsonPath("$.shares.active").isNumber())
+                .andExpect(jsonPath("$.thumbnails.cachedFiles").isNumber())
+                .andExpect(jsonPath("$.fileRequests.active").isNumber())
+                .andExpect(jsonPath("$.inspection.issues").isNumber())
+                .andExpect(jsonPath("$.serverTasks").isArray())
+                .andExpect(jsonPath("$.activeSessions").isNumber())
+                .andExpect(jsonPath("$.updatedAt").isString())
+                .andExpect(header().string("Cache-Control", "no-store"));
+
+        mockMvc.perform(get("/api/v1/dashboard/runtime"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.heapUsedBytes").isNumber())
+                .andExpect(jsonPath("$.uptimeMs").isNumber())
+                .andExpect(jsonPath("$.processors").isNumber())
+                .andExpect(jsonPath("$.sampledAt").isString())
+                .andExpect(header().string("Cache-Control", "no-store"));
+
+        mockMvc.perform(get("/api/v1/outbound-route"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.route").isString())
+                .andExpect(jsonPath("$.vpnReady").isBoolean())
+                .andExpect(header().string("Cache-Control", "no-store"));
+    }
+
+    @Test
+    @WithAnonymousUser
+    void dashboardMetricsAreNotPublic() throws Exception {
+        for (String path : List.of("/api/v1/dashboard", "/api/v1/dashboard/runtime", "/api/v1/outbound-route")) {
+            mockMvc.perform(get(path))
+                    .andExpect(status().is3xxRedirection())
+                    .andExpect(redirectedUrl("http://localhost/login"));
+        }
     }
 
     @Test
@@ -354,137 +1400,286 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void settingsPageLinksToSecurityAndNotificationSettings() throws Exception {
+    void trashAndActivityLogMutationsUseVersionedApis() throws Exception {
+        String fileName = "api-trash-" + java.util.UUID.randomUUID() + ".txt";
+        Files.writeString(ROOT.resolve(fileName), "trash api test");
+        TrashRecord record = trashService.moveToTrash("", List.of(fileName)).getFirst();
+
+        mockMvc.perform(get("/admin/trash"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/adminApp-")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("data-trash-item"))))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/admin/trash/empty"))));
+
+        mockMvc.perform(get("/api/v1/trash"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].id").value(record.id()))
+                .andExpect(jsonPath("$.items[0].originalName").value(fileName))
+                .andExpect(jsonPath("$.items[0].directory").value(false));
+
+        mockMvc.perform(post("/api/v1/trash/delete")
+                        .with(csrf())
+                        .param("id", record.id()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true));
+        mockMvc.perform(post("/admin/trash/restore")
+                        .with(csrf())
+                        .param("id", "missing-trash-record"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/trash/delete")
+                        .with(csrf())
+                        .param("id", "missing-trash-record"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/trash/empty").with(csrf()))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/admin/logs"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/adminApp-")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("log-filter-form"))));
+        mockMvc.perform(get("/api/v1/activity-logs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.selectedFile").value("activity-log.jsonl"))
+                .andExpect(jsonPath("$.files").isArray())
+                .andExpect(jsonPath("$.entries").isArray());
+        mockMvc.perform(post("/api/v1/activity-logs/delete")
+                        .with(csrf())
+                        .param("file", "activity-log.jsonl"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.ok").value(false));
+        mockMvc.perform(post("/admin/logs/delete")
+                        .with(csrf())
+                        .param("file", "activity-log.jsonl"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void settingsPageHostsTheReactSettingsEntryPoint() throws Exception {
         mockMvc.perform(get("/admin/settings"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Settings")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("settings-index-panel")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("settings-link-row")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Application")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Security")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Notifications")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Passkeys")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Telegram alerts")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("General settings")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("VPN egress")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/passkeys")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/telegram-alerts")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/general")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/vpn")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Metadata inspector"))));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"_csrf\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/adminApp-")));
     }
 
     @Test
-    void generalSettingsPageRendersApplicationSettingsForm() throws Exception {
-        mockMvc.perform(get("/admin/settings/general"))
+    @WithAnonymousUser
+    void reactBuildAssetsUseThePublicStaticResourcePolicy() throws Exception {
+        String entryScript = viteAssetService.entry("src/app/main.tsx").entryScript();
+
+        mockMvc.perform(get(entryScript))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("General Settings")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Browser Defaults")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Recent Items")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"sticky-note-theme\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"stickyNoteBackgroundColor\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"stickyNoteBorderColor\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"stickyNoteTextColor\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/sticky-note-theme-settings.js")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("--sticky-note-bg: #1B3033")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Trash")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("File Tools")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote Download")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"general-settings-save\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/general")));
+                .andExpect(content().contentType("application/javascript"));
     }
 
     @Test
-    void vpnSettingsPageRendersConfigurationAndStatusLink() throws Exception {
-        mockMvc.perform(get("/admin/settings/vpn"))
+    void settingsReadApisExposeEveryReactSection() throws Exception {
+        mockMvc.perform(get("/api/v1/settings/general"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("VPN Egress")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Proxy Connection")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Tunnel Health")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"vpn-settings-save\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("href=\"/admin/vpn\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Current State")
-                )))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("vpn-health-refresh")
-                )));
+                .andExpect(jsonPath("$.browser.defaultView").isString())
+                .andExpect(jsonPath("$.stickyNotes.defaultBackgroundColor").value("#1B3033"))
+                .andExpect(jsonPath("$.fileTools.textAutoLoadMaxMib").isString())
+                .andExpect(jsonPath("$.remoteDownload.connectTimeoutSeconds").isNumber())
+                .andExpect(jsonPath("$.remoteDownload.workerThreads").isNumber());
+        mockMvc.perform(get("/api/v1/settings/advanced"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.groups").isArray())
+                .andExpect(jsonPath("$.groups[0].fields[1].dependencies[0]").value("shareEnabled"))
+                .andExpect(jsonPath("$.deployment").isArray());
+        mockMvc.perform(get("/api/v1/settings/bookmarks"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.metadata.htmlMaxKib").isString());
+        mockMvc.perform(get("/api/v1/settings/file-requests"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rateLimitMaxAdmissions").isNumber());
+        mockMvc.perform(get("/api/v1/settings/vpn"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.healthConnectTimeoutSeconds").isString());
+        mockMvc.perform(get("/api/v1/settings/sessions"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activeSessions").isNumber());
+        mockMvc.perform(get("/api/v1/settings/account"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").isString());
+        mockMvc.perform(get("/api/v1/settings/telegram-alerts"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.groups").isArray());
+        mockMvc.perform(get("/api/v1/settings/passkeys"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.credentials").isArray())
+                .andExpect(jsonPath("$.rpId").isString());
     }
 
     @Test
-    void vpnStatusPageRendersRuntimeDetailsInPanel() throws Exception {
+    void legacySettingsMutationEndpointsAreUnavailable() throws Exception {
+        for (String endpoint : List.of(
+                "/admin/settings/account",
+                "/admin/settings/bookmarks",
+                "/admin/settings/advanced",
+                "/admin/settings/general",
+                "/admin/settings/file-requests",
+                "/admin/settings/passkeys",
+                "/admin/settings/sessions",
+                "/admin/settings/vpn",
+                "/admin/settings/telegram-alerts"
+        )) {
+            mockMvc.perform(get(endpoint)).andExpect(status().isNotFound());
+            mockMvc.perform(post(endpoint).with(csrf())).andExpect(status().isNotFound());
+        }
+
+        mockMvc.perform(post("/admin/settings/telegram-alerts/test").with(csrf()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/settings/passkeys/register/options").with(csrf()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/settings/passkeys/register/finish")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/settings/passkeys/legacy/delete").with(csrf()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void vpnStatusUsesAdminSpaAndExposesRuntimeDetailsThroughApi() throws Exception {
         mockMvc.perform(get("/admin/vpn"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("Connection Details")))
-                .andExpect(content().string(Matchers.containsString("VPN public IP")))
-                .andExpect(content().string(Matchers.containsString("Outbound route")))
-                .andExpect(content().string(Matchers.containsString("vpn-detail-wide vpn-active-tasks")))
-                .andExpect(content().string(Matchers.containsString("data-vpn-runtime=\"controlBadge\"")))
-                .andExpect(content().string(Matchers.not(Matchers.containsString("<dt>Profile</dt>"))))
-                .andExpect(content().string(Matchers.not(Matchers.containsString("vpn-status-metrics"))));
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/vpn-status.js"))));
+
+        mockMvc.perform(get("/api/v1/vpn/status"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.state").isString())
+                .andExpect(jsonPath("$.health.state").isString())
+                .andExpect(jsonPath("$.activeVpnTasks").isNumber())
+                .andExpect(jsonPath("$.controlApiKey").doesNotExist());
     }
 
     @Test
-    void settingsPagesRenderSidebarFavorites() throws Exception {
+    void removedVpnRuntimeEndpointsAreNotAvailable() throws Exception {
+        mockMvc.perform(get("/admin/vpn/status"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/vpn/refresh").with(csrf()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/vpn/connect").with(csrf()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/vpn/reconnect").with(csrf()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/vpn/disconnect").with(csrf()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void authenticatedAppBootstrapRendersFavoritesForTheReactSidebar() throws Exception {
         String filename = "settings-favorite-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "favorite");
         favoriteService.toggle(filename);
 
+        mockMvc.perform(get("/api/v1/app/bootstrap"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.favorites[*].path").value(Matchers.hasItem(filename)));
+
         mockMvc.perform(get("/admin/settings"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-sidebar-favorites-list")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(filename)));
-
-        mockMvc.perform(get("/admin/settings/general"))
-                .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-sidebar-favorites-list")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(filename)));
-    }
-
-    @Test
-    void passkeysPageRendersSettingsScopedActions() throws Exception {
-        mockMvc.perform(get("/admin/settings/passkeys"))
-                .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Passkeys")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Register Device")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("settings-detail-panel")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/passkeys/register/options")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/passkeys/register/finish")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Back to settings")));
-    }
-
-    @Test
-    void telegramAlertsPageRendersSettingsForm() throws Exception {
-        mockMvc.perform(get("/admin/settings/telegram-alerts"))
-                .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Telegram Alerts")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Enable Telegram alerts")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("settings-switch-input")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("form=\"telegramSettingsForm\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-toggle-target=\".telegram-settings-dependent\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Bot token")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Chat ID")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("LOGIN_SUCCESS")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Save and Apply")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Send Test Message")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-password-toggle")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Show bot token")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/admin-actions.js")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/telegram-alerts")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/admin/settings/telegram-alerts/test")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"telegram-settings-save\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-ajax-action=\"telegram-settings-test\"")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/directory-tree.js")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/directory-picker.js")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("/js/settings-form.js"))));
     }
 
     @Test
     void recentPageRendersVirtualDirectoryShell() throws Exception {
-        mockMvc.perform(get("/files/recent")
-                        .param("q", "unlikely-recent-query-" + System.nanoTime()))
+        String query = "unlikely-recent-query-" + System.nanoTime();
+
+        mockMvc.perform(get("/files/recent"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Virtual location")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Search in recent")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("No recent items matched your search.")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Loading EnderVault...")));
+
+        mockMvc.perform(get("/api/v1/recent").param("q", query))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.search.query").value(query))
+                .andExpect(jsonPath("$.search.performed").value(true))
+                .andExpect(jsonPath("$.directories").isEmpty())
+                .andExpect(jsonPath("$.entries").isEmpty());
+    }
+
+    @Test
+    void bookmarkMutationsUseVersionedApi() throws Exception {
+        String title = "API bookmark directory " + java.util.UUID.randomUUID();
+
+        mockMvc.perform(post("/api/v1/bookmarks/directories")
+                        .with(csrf())
+                        .param("title", title))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.redirectUrl").value("/files/bookmarks"));
+
+        BookmarkItem created = bookmarkService.list(null, title).stream()
+                .filter(item -> title.equals(item.title()))
+                .findFirst()
+                .orElseThrow();
+
+        mockMvc.perform(get("/files/bookmarks"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/adminApp-")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("bookmark-actions.js"))))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("bookmark-context-menu.js"))));
+
+        mockMvc.perform(get("/api/v1/bookmarks").param("q", title))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.search.query").value(title))
+                .andExpect(jsonPath("$.search.performed").value(true))
+                .andExpect(jsonPath("$.directories[0].id").value(created.id()))
+                .andExpect(jsonPath("$.directories[0].type").value("directory"))
+                .andExpect(jsonPath("$.directories[0].primaryUrl").value(
+                        "/files/bookmarks?directory=" + created.id()))
+                .andExpect(jsonPath("$.directories[0].directory").doesNotExist())
+                .andExpect(jsonPath("$.directories[0].link").doesNotExist())
+                .andExpect(jsonPath("$.links").isEmpty());
+
+        mockMvc.perform(get("/files/bookmarks/detail").param("id", created.id()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/admin-actions.js"))));
+
+        mockMvc.perform(get("/api/v1/bookmarks/{id}", created.id()))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.id").value(created.id()))
+                .andExpect(jsonPath("$.type").value("directory"))
+                .andExpect(jsonPath("$.title").value(title))
+                .andExpect(jsonPath("$.parentUrl").value("/files/bookmarks"))
+                .andExpect(jsonPath("$.directoryUrl").value(
+                        "/files/bookmarks?directory=" + created.id()));
+
+        mockMvc.perform(post("/api/v1/bookmarks/delete")
+                        .with(csrf())
+                        .param("id", created.id()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.redirectUrl").value("/files/bookmarks"));
+
+        mockMvc.perform(post("/api/v1/bookmarks/delete-selected").with(csrf()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.ok").value(false));
+        mockMvc.perform(post("/files/bookmarks/directories")
+                        .with(csrf())
+                        .param("title", title))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/bookmarks/delete")
+                        .with(csrf())
+                        .param("id", created.id()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/bookmarks/metadata")
+                        .with(csrf())
+                        .param("id", created.id()))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -492,14 +1687,30 @@ class AdminNotificationFlowTest {
         String filename = "recent-ui-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "recent");
 
-        mockMvc.perform(get("/files/detail").param("path", filename))
-                .andExpect(status().isOk());
-
-        mockMvc.perform(get("/files/recent").param("q", "recent-ui"))
+        mockMvc.perform(get("/api/v1/fs/detail").param("path", filename))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(filename)))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Accessed")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remove selected from recent")));
+                .andExpect(jsonPath("$.detail.path").value(filename));
+
+        mockMvc.perform(get("/api/v1/recent").param("q", "recent-ui"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.entries[0].name").value(filename))
+                .andExpect(jsonPath("$.entries[0].accessedAt").isNotEmpty())
+                .andExpect(jsonPath("$.entries[0].accessedLabel").isNotEmpty())
+                .andExpect(jsonPath("$.search.performed").value(true));
+
+        mockMvc.perform(post("/api/v1/recent/remove")
+                        .with(csrf())
+                        .param("paths", filename)
+                        .param("q", "recent-ui"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.redirectUrl").value("/files/recent?q=recent-ui"));
+        mockMvc.perform(post("/files/recent/remove")
+                        .with(csrf())
+                        .param("paths", filename))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/recent/clear").with(csrf()))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -507,24 +1718,31 @@ class AdminNotificationFlowTest {
         String filename = "favorite-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "favorite");
 
-        mockMvc.perform(post("/files/favorites/toggle")
+        mockMvc.perform(post("/api/v1/favorites/toggle")
                         .with(csrf())
-                        .header("Referer", "http://localhost/files")
                         .param("path", filename))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/files"))
-                .andExpect(flash().attributeExists(FlashNotifications.ATTRIBUTE_NAME));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.active").value(true));
 
         mockMvc.perform(get("/files/favorites"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(filename)))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Move up")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remove")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/react/assets/adminApp-")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("<table>"))));
 
-        mockMvc.perform(get("/files"))
+        mockMvc.perform(get("/api/v1/favorites"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("is-favorite")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("data-favorite-action")));
+                .andExpect(jsonPath("$.items[?(@.path == '" + filename + "')].name").value(filename))
+                .andExpect(jsonPath("$.items[?(@.path == '" + filename + "')].typeLabel").value("File"))
+                .andExpect(jsonPath("$.items[?(@.path == '" + filename + "')].openUrl")
+                        .value("/files/detail?path=" + filename))
+                .andExpect(jsonPath("$.items[?(@.path == '" + filename + "')].hidden").value(false));
+
+        mockMvc.perform(get("/api/v1/fs/listing"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.entries[?(@.name == '" + filename + "')].favorite")
+                        .value(true));
     }
 
     @Test
@@ -532,77 +1750,131 @@ class AdminNotificationFlowTest {
         String filename = "favorite-json-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "favorite");
 
-        mockMvc.perform(post("/files/favorites/toggle")
+        mockMvc.perform(post("/api/v1/favorites/toggle")
                         .with(csrf())
-                        .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                         .param("path", filename))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true))
                 .andExpect(jsonPath("$.active").value(true))
                 .andExpect(jsonPath("$.favorite.path").value(filename))
                 .andExpect(jsonPath("$.notification.type").value("success"));
+
+        mockMvc.perform(post("/files/favorites/toggle")
+                        .with(csrf())
+                        .param("path", filename))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/favorites/remove")
+                        .with(csrf())
+                        .param("path", filename))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/favorites/move")
+                        .with(csrf())
+                        .param("path", filename)
+                        .param("direction", "up"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
-    void remoteDownloadPageRendersForm() throws Exception {
+    void remoteDownloadPageDoesNotRenderLegacyForm() throws Exception {
         mockMvc.perform(get("/admin/utils/remote-download"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote Download")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"url\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"path\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Remote download")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("id=\"remoteDownloadForm\""))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("/js/remote-download-curl.js"))));
     }
 
     @Test
     void metadataInspectorRendersScanAreasAsCompactRows() throws Exception {
         mockMvc.perform(get("/admin/metadata"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Metadata Inspector")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("metadata-area-list")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("metadata-area-row")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"admin-app-root\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("metadata-area-grid"))));
+                        org.hamcrest.Matchers.containsString("/js/metadata.js"))));
+
+        mockMvc.perform(get("/api/v1/metadata"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.areas").isArray())
+                .andExpect(jsonPath("$.areas[*].name", org.hamcrest.Matchers.hasItem("FILE_REQUESTS")))
+                .andExpect(jsonPath("$.areas[*].name", org.hamcrest.Matchers.hasItem("PENDING_FILE_DECISIONS")))
+                .andExpect(jsonPath("$.areas[0].description").isString())
+                .andExpect(jsonPath("$.areas[0].ordinal").doesNotExist());
     }
 
     @Test
-    void logsPageRendersActivityEntries() throws Exception {
+    void metadataRepairUsesVersionedJsonApi() throws Exception {
+        mockMvc.perform(post("/api/v1/metadata/repair")
+                        .with(csrf())
+                        .accept(MediaType.APPLICATION_JSON)
+                        .param("repairAll", "true"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.notification.type").value("info"));
+    }
+
+    @Test
+    void removedMetadataMutationEndpointsAreNotAvailable() throws Exception {
+        mockMvc.perform(post("/admin/metadata/scan").with(csrf()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/metadata/repair").with(csrf()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void activityLogApiFiltersAndRendersActivityEntries() throws Exception {
         String directory = "log-dir-" + System.nanoTime();
 
-        mockMvc.perform(post("/files/directories")
+        mockMvc.perform(post("/api/v1/files/directories")
                         .with(csrf())
                         .param("name", directory))
-                .andExpect(status().is3xxRedirection());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true));
 
-        mockMvc.perform(get("/admin/logs")
+        mockMvc.perform(get("/api/v1/activity-logs")
                         .param("type", "CREATE_DIRECTORY")
                         .param("q", directory)
                         .param("order", "oldest"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("CREATE_DIRECTORY")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Apply filters")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("127.0.0.1")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(directory)));
+                .andExpect(jsonPath("$.query.type").value("CREATE_DIRECTORY"))
+                .andExpect(jsonPath("$.query.order").value("oldest"))
+                .andExpect(jsonPath("$.matchedCount").value(1))
+                .andExpect(jsonPath("$.entries[0].type").value("CREATE_DIRECTORY"))
+                .andExpect(jsonPath("$.entries[0].ipLabel").value("127.0.0.1"))
+                .andExpect(jsonPath("$.entries[0].pathLabel").value(directory));
     }
 
     @Test
-    void expectedPostFailuresRedirectBackWithErrorToast() throws Exception {
+    void fileMutationFailuresStayJson() throws Exception {
         Files.createDirectories(ROOT.resolve("existing"));
 
-        MvcResult result = mockMvc.perform(post("/files/directories")
+        mockMvc.perform(post("/api/v1/files/directories")
                         .with(csrf())
-                        .header("Referer", "http://localhost/files")
                         .param("name", "existing"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/files"))
-                .andExpect(flash().attributeExists(FlashNotifications.ATTRIBUTE_NAME))
-                .andReturn();
+                .andExpect(status().isConflict())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.ok").value(false))
+                .andExpect(jsonPath("$.notification.type").value("error"));
+    }
 
-        @SuppressWarnings("unchecked")
-        List<FlashNotification> notifications =
-                (List<FlashNotification>) result.getFlashMap().get(FlashNotifications.ATTRIBUTE_NAME);
-        assertThat(notifications)
-                .extracting(FlashNotification::type)
-                .containsExactly("error");
+    @Test
+    void legacyFileMutationRoutesAreRemoved() throws Exception {
+        mockMvc.perform(post("/files/directories").with(csrf()).param("name", "legacy"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/files").with(csrf()).param("name", "legacy.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/rename").with(csrf())
+                        .param("item", "legacy.txt")
+                        .param("newName", "renamed.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/move").with(csrf())
+                        .param("item", "legacy.txt")
+                        .param("targetPath", "target"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/detail/delete").with(csrf()).param("path", "legacy.txt"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -610,10 +1882,11 @@ class AdminNotificationFlowTest {
         String filename = "ajax-share-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "share");
 
-        mockMvc.perform(post("/files/detail/share")
+        mockMvc.perform(post("/api/v1/shares")
                         .with(csrf())
                         .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                         .param("path", filename)
+                        .param("previewEnabled", "false")
                         .param("customToken", "ajax-share-" + System.nanoTime()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true))
@@ -621,12 +1894,31 @@ class AdminNotificationFlowTest {
                 .andExpect(jsonPath("$.notification.actionValue").exists())
                 .andExpect(jsonPath("$.shareLink.token").exists())
                 .andExpect(jsonPath("$.shareLink.url").exists())
+                .andExpect(jsonPath("$.shareLink.previewEnabled").value(false))
                 .andExpect(jsonPath("$.shareLink.directDownloadUrl").value(
                         Matchers.containsString("/download/" + filename)));
+
+        assertThat(activityLogService.recentCurrentEntries(200))
+                .filteredOn(entry -> "SHARE_CREATE".equals(entry.type()) && filename.equals(entry.path()))
+                .singleElement()
+                .satisfies(entry -> assertThat(entry.metadataView())
+                        .containsEntry("previewEnabled", "false"));
     }
 
     @Test
-    void sharedLinksPageOffersCopyActionsForFileSharesOnly() throws Exception {
+    void legacyFileShareMutationRoutesAreRemoved() throws Exception {
+        mockMvc.perform(post("/files/share").with(csrf()).param("item", "legacy.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/detail/share").with(csrf()).param("path", "legacy.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/detail/shares/revoke").with(csrf()).param("token", "legacy"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/detail/shares/delete").with(csrf()).param("token", "legacy"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void sharedLinksUseSpaShellAndVersionedQueryApi() throws Exception {
         String filename = "copy-link-" + System.nanoTime() + ".txt";
         String directory = "copy-link-dir-" + System.nanoTime();
         Files.writeString(ROOT.resolve(filename), "share");
@@ -636,12 +1928,49 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get("/admin/shares"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("Copy link")))
-                .andExpect(content().string(Matchers.containsString("Copy direct download link")))
-                .andExpect(content().string(Matchers.containsString(
-                        "/s/" + fileShare.token() + "/download/" + filename)))
-                .andExpect(content().string(Matchers.not(Matchers.containsString(
-                        "/s/" + directoryShare.token() + "/download/" + directory))));
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")));
+
+        mockMvc.perform(get("/api/v1/shares"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.token == '%s')].path".formatted(fileShare.token()))
+                        .value(Matchers.hasItem(filename)))
+                .andExpect(jsonPath("$[?(@.token == '%s')].previewEnabled".formatted(fileShare.token()))
+                        .value(Matchers.hasItem(true)))
+                .andExpect(jsonPath("$[?(@.token == '%s')].directDownloadUrl".formatted(fileShare.token()))
+                        .value(Matchers.hasItem(
+                                "http://localhost/s/" + fileShare.token() + "/download/" + filename)))
+                .andExpect(jsonPath("$[?(@.token == '%s')].directDownloadUrl".formatted(directoryShare.token()))
+                        .value(Matchers.hasItem(Matchers.nullValue())));
+    }
+
+    @Test
+    void sharedLinkMutationsUseVersionedApiOnly() throws Exception {
+        String filename = "share-api-" + System.nanoTime() + ".txt";
+        Files.writeString(ROOT.resolve(filename), "share");
+        ShareLink shareLink = shareLinkService.create("", filename, null);
+
+        mockMvc.perform(post("/api/v1/shares/revoke")
+                        .with(csrf())
+                        .param("token", shareLink.token()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.redirectUrl").value(Matchers.nullValue()));
+
+        assertThat(shareLinkService.list())
+                .filteredOn(candidate -> candidate.token().equals(shareLink.token()))
+                .singleElement()
+                .extracting(ShareLink::enabled)
+                .isEqualTo(false);
+
+        mockMvc.perform(post("/api/v1/shares/delete")
+                        .with(csrf())
+                        .param("token", shareLink.token()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true));
+
+        assertThat(shareLinkService.list()).noneMatch(candidate -> candidate.token().equals(shareLink.token()));
+        mockMvc.perform(post("/admin/shares/revoke").with(csrf()).param("token", shareLink.token()))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -666,7 +1995,8 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void sharedFileLandingRendersImagePreviewInline() throws Exception {
+    @WithAnonymousUser
+    void sharedFileLandingMountsReadOnlyImageViewerWithoutAdminRuntime() throws Exception {
         String filename = "shared-image-" + System.nanoTime() + ".jpg";
         Files.write(ROOT.resolve(filename), new byte[] {(byte) 0xff, (byte) 0xd8, (byte) 0xff, (byte) 0xd9});
         ShareLink shareLink = shareLinkService.create("", filename, null);
@@ -674,10 +2004,83 @@ class AdminNotificationFlowTest {
         mockMvc.perform(get("/s/{token}", shareLink.token()))
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("shared-preview-panel")))
+                .andExpect(content().string(Matchers.containsString("data-shared-preview")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("data-shared-preview open"))))
+                .andExpect(content().string(Matchers.containsString("id=\"shared-image-root\"")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/sharedImage-")))
                 .andExpect(content().string(Matchers.containsString("<img class=\"preview-media\"")))
+                .andExpect(content().string(Matchers.containsString("data-shared-image-source")))
                 .andExpect(content().string(Matchers.containsString("/s/" + shareLink.token() + "/preview")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/react/assets/adminApp-"))))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/react/assets/shell-"))))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/api/v1/"))))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("fa-eye"))))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("target=\"_blank\""))));
+    }
+
+    @Test
+    @WithAnonymousUser
+    void sharedDirectoryImageViewerKeepsTokenScopeAndRevokeChecks() throws Exception {
+        String directory = "shared-viewer-" + System.nanoTime();
+        String nested = "nested images";
+        String filename = "picture & 01.jpg";
+        byte[] image = new byte[] {(byte) 0xff, (byte) 0xd8, (byte) 0xff, (byte) 0xd9};
+        Files.createDirectories(ROOT.resolve(directory).resolve(nested));
+        Files.write(ROOT.resolve(directory).resolve(nested).resolve(filename), image);
+        ShareLink shareLink = shareLinkService.create("", directory, null);
+
+        mockMvc.perform(get("/s/{token}/file", shareLink.token()).param("path", nested).param("item", filename))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("id=\"shared-image-root\"")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/sharedImage-")))
+                .andExpect(content().string(Matchers.containsString("/s/" + shareLink.token()
+                        + "/preview?path=nested%20images&amp;item=picture%20%26%2001.jpg")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/files/preview"))));
+
+        mockMvc.perform(get("/s/{token}/preview", shareLink.token()).param("path", nested).param("item", filename)
+                        .header(HttpHeaders.RANGE, "bytes=0-1"))
+                .andExpect(status().isPartialContent())
+                .andExpect(content().bytes(new byte[] {(byte) 0xff, (byte) 0xd8}));
+
+        shareLinkService.revoke(shareLink.token());
+        mockMvc.perform(get("/s/{token}/preview", shareLink.token()).param("path", nested).param("item", filename))
+                .andExpect(status().isNotFound())
+                .andExpect(content().string(Matchers.containsString("/react/assets/styles-")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("shared-image-root"))));
+    }
+
+    @Test
+    void imageDetailRendersEnhancedViewerWithFallbackImage() throws Exception {
+        String filename = "viewer-image-" + System.nanoTime() + ".jpg";
+        Files.write(ROOT.resolve(filename), new byte[] {(byte) 0xff, (byte) 0xd8, (byte) 0xff, (byte) 0xd9});
+
+        mockMvc.perform(get("/files/detail").param("path", filename))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("id=\"admin-app-root\"")));
+
+        mockMvc.perform(get("/api/v1/fs/detail").param("path", filename))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tool.type").value("image"))
+                .andExpect(jsonPath("$.urls.previewContent", Matchers.containsString("/files/preview")));
+    }
+
+    @Test
+    void audioDetailAndSharedLandingReuseNativeAudioPlayer() throws Exception {
+        String filename = "shared-audio-" + System.nanoTime() + ".mp3";
+        Files.write(ROOT.resolve(filename), new byte[] {0x49, 0x44, 0x33, 0x04});
+        ShareLink shareLink = shareLinkService.create("", filename, null);
+
+        mockMvc.perform(get("/api/v1/fs/detail").param("path", filename))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tool.type").value("audio"))
+                .andExpect(jsonPath("$.urls.previewContent", Matchers.containsString("/files/preview?item=")));
+
+        mockMvc.perform(get("/s/{token}", shareLink.token()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("Audio Player")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/react/assets/sharedImage-"))))
+                .andExpect(content().string(Matchers.containsString("class=\"audio-tool-player\"")))
+                .andExpect(content().string(Matchers.containsString("/s/" + shareLink.token() + "/preview")));
     }
 
     @Test
@@ -688,10 +2091,11 @@ class AdminNotificationFlowTest {
 
         MvcResult result = mockMvc.perform(get("/s/{token}", shareLink.token()))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("/webjars/codemirror/5.65.19/lib/codemirror.js")))
-                .andExpect(content().string(Matchers.containsString("/webjars/codemirror/5.65.19/addon/mode/simple.js")))
-                .andExpect(content().string(Matchers.containsString("/js/file-tools.js")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/fileTools-")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/webjars/codemirror/"))))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/file-tools.js"))))
                 .andExpect(content().string(Matchers.containsString("data-shared-text-preview")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/react/assets/sharedImage-"))))
                 .andExpect(content().string(Matchers.containsString("data-text-extension=\"html\"")))
                 .andExpect(content().string(Matchers.containsString("Text Preview")))
                 .andExpect(content().string(Matchers.containsString("shared-download-button")))
@@ -702,9 +2106,7 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(Matchers.containsString("&lt;script&gt;alert(1)&lt;/script&gt;")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("<script>alert"))))
                 .andReturn();
-        String body = result.getResponse().getContentAsString();
-        assertThat(body.indexOf("/webjars/codemirror/5.65.19/addon/mode/simple.js"))
-                .isLessThan(body.indexOf("/webjars/codemirror/5.65.19/mode/rust/rust.js"));
+        assertThat(result.getResponse().getContentAsString()).contains("/react/assets/fileTools-");
     }
 
     @Test
@@ -755,20 +2157,21 @@ class AdminNotificationFlowTest {
         String filename = "text-editor-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "before", StandardCharsets.UTF_8);
 
-        mockMvc.perform(get("/files/detail").param("path", filename))
+        mockMvc.perform(get("/api/v1/fs/detail").param("path", filename))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("File Tools")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Text Editor")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("name=\"content\"")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("before")));
+                .andExpect(jsonPath("$.shareDefaults.previewEnabled").value(true))
+                .andExpect(jsonPath("$.tool.type").value("text"))
+                .andExpect(jsonPath("$.text.loaded").value(true))
+                .andExpect(jsonPath("$.text.content").value("before"));
 
-        mockMvc.perform(post("/files/detail/text")
+        mockMvc.perform(post("/api/v1/files/text/save")
                         .with(csrf())
                         .param("path", filename)
+                        .param("editorToken", "editor-" + System.nanoTime())
                         .param("content", "after"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/files/detail?path=" + filename))
-                .andExpect(flash().attributeExists(FlashNotifications.ATTRIBUTE_NAME));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.notification.type").value("success"));
 
         assertThat(Files.readString(ROOT.resolve(filename), StandardCharsets.UTF_8)).isEqualTo("after");
     }
@@ -779,13 +2182,13 @@ class AdminNotificationFlowTest {
         String largeContent = "large-text-" + "x".repeat(1024 * 1024);
         Files.writeString(ROOT.resolve(filename), largeContent, StandardCharsets.UTF_8);
 
-        mockMvc.perform(get("/files/detail").param("path", filename))
+        mockMvc.perform(get("/api/v1/fs/detail").param("path", filename))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("Load text")))
-                .andExpect(content().string(Matchers.containsString("Download original")))
-                .andExpect(content().string(Matchers.not(Matchers.containsString("name=\"content\""))));
+                .andExpect(jsonPath("$.tool.type").value("text"))
+                .andExpect(jsonPath("$.text.loaded").value(false))
+                .andExpect(jsonPath("$.text.manualLoadAvailable").value(true));
 
-        mockMvc.perform(get("/files/detail/text/load")
+        mockMvc.perform(get("/api/v1/files/text/load")
                         .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                         .param("path", filename))
                 .andExpect(status().isOk())
@@ -795,20 +2198,21 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void textSaveCanReturnJsonForEnhancedEditor() throws Exception {
-        String filename = "text-editor-json-" + System.nanoTime() + ".txt";
-        Files.writeString(ROOT.resolve(filename), "before", StandardCharsets.UTF_8);
-
-        mockMvc.perform(post("/files/detail/text")
-                        .with(csrf())
-                        .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
-                        .param("path", filename)
-                        .param("content", "after json"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.ok").value(true))
-                .andExpect(jsonPath("$.notification.type").value("success"));
-
-        assertThat(Files.readString(ROOT.resolve(filename), StandardCharsets.UTF_8)).isEqualTo("after json");
+    void legacyTextEditorRoutesAreRemoved() throws Exception {
+        mockMvc.perform(post("/files/detail/text").with(csrf()).param("path", "legacy.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/files/detail/text/load").param("path", "legacy.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/files/detail/text/draft").param("path", "legacy.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/detail/text/draft").with(csrf()).param("path", "legacy.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/detail/text/draft/save-as").with(csrf()).param("path", "legacy.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/detail/text/draft/restore").with(csrf()).param("path", "legacy.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/files/detail/text/draft/discard").with(csrf()).param("path", "legacy.txt"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -816,29 +2220,34 @@ class AdminNotificationFlowTest {
         String filename = "comic-detail-" + System.nanoTime() + ".cbz";
         writeComicStub(ROOT.resolve(filename));
 
-        mockMvc.perform(get("/files/detail").param("path", filename))
+        mockMvc.perform(get("/api/v1/fs/detail").param("path", filename))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("data-comic-page-url")))
-                .andExpect(content().string(Matchers.containsString("/js/comic-viewer.js")))
-                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/file-tools.js"))))
-                .andExpect(content().string(Matchers.not(Matchers.containsString("/webjars/codemirror/"))));
+                .andExpect(jsonPath("$.tool.type").value("comic"))
+                .andExpect(jsonPath("$.comic.manifest.pageCount").value(1))
+                .andExpect(jsonPath("$.comic.pageUrl", Matchers.containsString("/files/detail/comic/page")));
     }
 
     @Test
-    void uploadCanReturnJsonForXhrProgressFlow() throws Exception {
+    void adminUploadUsesResumableProtocolAndFinalizesIntoVault() throws Exception {
         String filename = "ajax-upload-" + System.nanoTime() + ".txt";
-        MockMultipartFile file = new MockMultipartFile("files", filename, "text/plain", "upload".getBytes());
+        byte[] content = "upload".getBytes(StandardCharsets.UTF_8);
 
-        mockMvc.perform(multipart("/files/upload")
-                        .file(file)
-                        .with(csrf())
-                        .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.ok").value(true))
-                .andExpect(jsonPath("$.notification.type").value("success"))
-                .andExpect(jsonPath("$.uploadedFiles[0].name").value(filename));
+        JsonNode result = admitAndUpload(
+                "/api/v1/files/upload-sessions",
+                filename,
+                null,
+                content,
+                "c".repeat(64)
+        );
 
-        assertThat(ROOT.resolve(filename)).exists();
+        assertThat(result.get("status").asText()).isEqualTo("COMPLETED");
+        assertThat(Files.readAllBytes(ROOT.resolve(filename))).isEqualTo(content);
+    }
+
+    @Test
+    void legacyUploadConflictRouteIsRemoved() throws Exception {
+        mockMvc.perform(post("/files/upload/conflicts/resolve").with(csrf()).param("id", "legacy"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -872,11 +2281,38 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void mixedParentDownloadPreservesPathsRelativeToSearchRoot() throws Exception {
+        String base = "selected-search-zip-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(base).resolve("alpha"));
+        Files.createDirectories(ROOT.resolve(base).resolve("beta"));
+        Files.writeString(ROOT.resolve(base).resolve("alpha/note.txt"), "alpha");
+        Files.writeString(ROOT.resolve(base).resolve("beta/note.txt"), "beta");
+
+        MvcResult result = mockMvc.perform(get("/files/download.zip")
+                        .param("path", base)
+                        .param("paths", base + "/alpha/note.txt")
+                        .param("paths", base + "/beta/note.txt"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE, Matchers.containsString("application/zip")))
+                .andReturn();
+
+        Set<String> entries = new LinkedHashSet<>();
+        try (ZipInputStream zip = new ZipInputStream(
+                new ByteArrayInputStream(result.getResponse().getContentAsByteArray()))) {
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                entries.add(entry.getName());
+            }
+        }
+        assertThat(entries).containsExactly("alpha/note.txt", "beta/note.txt");
+    }
+
+    @Test
     void deleteSelectedCanReturnJsonForEnhancedForms() throws Exception {
         String filename = "ajax-delete-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "delete");
 
-        mockMvc.perform(post("/files/delete")
+        mockMvc.perform(post("/api/v1/files/trash")
                         .with(csrf())
                         .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                         .param("items", filename))
@@ -889,12 +2325,39 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void fullPathSelectionCanMoveItemsFromDifferentDirectoriesToTrash() throws Exception {
+        String base = "trash-search-" + System.nanoTime();
+        Path first = ROOT.resolve(base).resolve("alpha/note.txt");
+        Path second = ROOT.resolve(base).resolve("beta/note.txt");
+        Files.createDirectories(first.getParent());
+        Files.createDirectories(second.getParent());
+        Files.writeString(first, "alpha");
+        Files.writeString(second, "beta");
+
+        mockMvc.perform(post("/api/v1/files/trash")
+                        .with(csrf())
+                        .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
+                        .param("path", base)
+                        .param("paths", base + "/alpha/note.txt")
+                        .param("paths", base + "/beta/note.txt"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.task.type").value("FILE_TRASH"));
+
+        long deadline = System.currentTimeMillis() + 5_000L;
+        while ((Files.exists(first) || Files.exists(second)) && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20L);
+        }
+        assertThat(first).doesNotExist();
+        assertThat(second).doesNotExist();
+    }
+
+    @Test
     void detailRenameCanReturnJsonRedirectForEnhancedForms() throws Exception {
         String filename = "ajax-rename-" + System.nanoTime() + ".txt";
         String renamed = "ajax-renamed-" + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "rename");
 
-        mockMvc.perform(post("/files/detail/rename")
+        mockMvc.perform(post("/api/v1/files/detail/rename")
                         .with(csrf())
                         .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                         .param("path", filename)
@@ -915,13 +2378,12 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get("/files/detail").param("path", filename))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Add to transfer buffer")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Move to trash")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/file-transfer-buffer.js")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Danger zone"))))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("name=\"targetPath\""))));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"admin-app-root\"")));
+
+        mockMvc.perform(get("/api/v1/fs/detail").param("path", filename))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.detail.path").value(filename))
+                .andExpect(jsonPath("$.transferBuffer.active").value(false));
     }
 
     @Test
@@ -932,31 +2394,33 @@ class AdminNotificationFlowTest {
         Files.createDirectories(ROOT.resolve(target));
         MockHttpSession session = new MockHttpSession();
 
-        mockMvc.perform(post("/files/detail/transfer/buffer")
+        mockMvc.perform(post("/api/v1/files/transfer-buffer/detail")
                         .session(session)
                         .with(csrf())
                         .param("path", filename))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/files/detail?path=" + filename))
-                .andExpect(flash().attributeExists(FlashNotifications.ATTRIBUTE_NAME));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.transferBuffer.active").value(true));
 
-        mockMvc.perform(get("/files/detail")
+        mockMvc.perform(get("/api/v1/fs/detail")
                         .session(session)
                         .param("path", filename))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Transfer buffer")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString(filename)))
-                .andExpect(content().string(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("Move here"))));
+                .andExpect(jsonPath("$.transferBuffer.active").value(true))
+                .andExpect(jsonPath("$.transferBuffer.items[0].name").value(filename))
+                .andExpect(jsonPath("$.detail.directory").value(false));
 
-        mockMvc.perform(post("/files/transfer/paste")
+        mockMvc.perform(post("/api/v1/files/transfer-buffer/paste")
                         .session(session)
                         .with(csrf())
                         .param("path", target)
-                        .param("operation", "copy"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/files?path=" + target));
+                        .param("operation", "copy")
+                        .param("conflictPolicy", "ask"))
+                .andExpect(status().isAccepted());
 
+        long deadline = System.currentTimeMillis() + 5_000L;
+        while (!Files.exists(ROOT.resolve(target).resolve(filename)) && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20L);
+        }
         assertThat(Files.readString(ROOT.resolve(target).resolve(filename))).isEqualTo("buffer");
     }
 
@@ -968,19 +2432,18 @@ class AdminNotificationFlowTest {
         Files.createDirectories(ROOT.resolve(target));
         MockHttpSession session = new MockHttpSession();
 
-        mockMvc.perform(post("/files/detail/transfer/buffer")
+        mockMvc.perform(post("/api/v1/files/transfer-buffer/detail")
                         .session(session)
                         .with(csrf())
                         .param("path", filename))
-                .andExpect(status().is3xxRedirection());
+                .andExpect(status().isOk());
 
-        mockMvc.perform(get("/files/detail")
+        mockMvc.perform(get("/api/v1/fs/detail")
                         .session(session)
                         .param("path", target))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Transfer buffer")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Move here")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Copy here")));
+                .andExpect(jsonPath("$.transferBuffer.active").value(true))
+                .andExpect(jsonPath("$.detail.directory").value(true));
     }
 
     private static Path createTempRoot() {

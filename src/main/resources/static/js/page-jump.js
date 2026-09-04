@@ -16,7 +16,7 @@
         const param = trigger.dataset.pageParam || "page";
         const url = new URL(window.location.href);
         url.searchParams.set(param, String(page));
-        window.location.assign(url.toString());
+        window.EnderVault?.navigate?.(url.toString()) || window.location.assign(url.toString());
     };
 
     const promptFallback = (trigger) => {

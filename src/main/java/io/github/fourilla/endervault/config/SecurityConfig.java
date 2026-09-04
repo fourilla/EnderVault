@@ -45,9 +45,14 @@ public class SecurityConfig {
             SessionRegistry sessionRegistry
     ) throws Exception {
         http.authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/css/**", "/js/**", "/webjars/**", "/_static/**", "/favicon.ico").permitAll()
+                        .requestMatchers(
+                                "/css/**", "/js/**", "/react/**", "/webjars/**", "/_static/**", "/favicon.ico")
+                        .permitAll()
                         .requestMatchers(HttpMethod.GET, "/", "/login", "/s/**").permitAll()
+                        .requestMatchers("/r/**").permitAll()
+                        .requestMatchers("/api/v1/uploads/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/login/passkey/**").permitAll()
+                        .requestMatchers("/api/**").hasRole("ADMIN")
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .requestMatchers("/files/**").hasRole("ADMIN")
                         .anyRequest().authenticated()

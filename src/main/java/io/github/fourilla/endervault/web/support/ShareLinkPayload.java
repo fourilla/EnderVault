@@ -4,10 +4,13 @@ public record ShareLinkPayload(
         String token,
         String url,
         String directDownloadUrl,
+        String path,
+        String type,
         String createdLabel,
         String expiresLabel,
         String statusLabel,
         String statusClass,
+        boolean previewEnabled,
         boolean active
 ) {
 
@@ -16,10 +19,13 @@ public record ShareLinkPayload(
                 shareLink.token(),
                 shareLink.url(),
                 shareLink.directDownloadUrl(),
+                shareLink.path(),
+                shareLink.type().name(),
                 shareLink.createdLabel(),
                 shareLink.expiresLabel(),
                 shareLink.statusLabel(),
                 shareLink.statusClass(),
+                shareLink.previewEnabled(),
                 shareLink.active()
         );
     }

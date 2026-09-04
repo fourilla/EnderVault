@@ -1,11 +1,35 @@
-document.addEventListener("DOMContentLoaded", () => {
-    document.querySelectorAll("form[data-text-editor]").forEach((form) => {
+const initializeFileTools = (root = document) => {
+    const textEditors = root.matches?.("form[data-text-editor]")
+        ? [root]
+        : root.querySelectorAll("form[data-text-editor]");
+    textEditors.forEach((form) => {
         initializeTextEditor(form);
     });
-    document.querySelectorAll("[data-shared-text-preview]").forEach((preview) => {
+    const sharedPreviews = root.matches?.("[data-shared-text-preview]")
+        ? [root]
+        : root.querySelectorAll("[data-shared-text-preview]");
+    sharedPreviews.forEach((preview) => {
         initializeSharedTextPreview(preview);
     });
-});
+};
+
+const destroyFileTools = (root = document) => {
+    const textEditors = root.matches?.("form[data-text-editor]")
+        ? [root]
+        : root.querySelectorAll("form[data-text-editor]");
+    textEditors.forEach((form) => {
+        form._endervaultFileToolsCleanup?.();
+        delete form._endervaultFileToolsCleanup;
+        delete form.dataset.textEditorBound;
+    });
+};
+
+window.EnderVaultFileTools = {
+    init: initializeFileTools,
+    destroy: destroyFileTools
+};
+
+document.addEventListener("DOMContentLoaded", () => initializeFileTools());
 
 const TEXT_EDITOR_FONT_SIZE_KEY = "endervault.textEditor.fontSize";
 const TEXT_EDITOR_LINE_WRAP_KEY = "endervault.textEditor.lineWrap";
@@ -91,6 +115,10 @@ const FILENAME_MODES = {
 };
 
 const initializeTextEditor = (form) => {
+    if (!window.CodeMirror || form.dataset.textEditorBound === "true") {
+        return;
+    }
+    form.dataset.textEditorBound = "true";
     let textarea = null;
     let codeMirror = null;
     let savedValue = "";
@@ -626,13 +654,14 @@ const initializeTextEditor = (form) => {
         }
     };
 
-    window.addEventListener("beforeunload", (event) => {
+    const handleBeforeUnload = (event) => {
         if (!dirty) {
             return;
         }
         event.preventDefault();
         event.returnValue = "";
-    });
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
 
     form.addEventListener("submit", async (event) => {
         if (!window.EnderVault) {
@@ -760,6 +789,17 @@ const initializeTextEditor = (form) => {
     draftDialog?.querySelector("[data-text-draft-takeover]")?.addEventListener("click", takeOverDraft);
     draftDialog?.querySelector("[data-text-draft-discard]")?.addEventListener("click", discardDraft);
     draftDialog?.querySelector("[data-text-draft-view-original]")?.addEventListener("click", () => draftDialog.close());
+    form._endervaultFileToolsCleanup = () => {
+        clearDraftTimers();
+        window.removeEventListener("beforeunload", handleBeforeUnload);
+        form._endervaultEditorControlsCleanup?.();
+        delete form._endervaultEditorControlsCleanup;
+        if (codeMirror) {
+            codeMirror.toTextArea();
+            codeMirror = null;
+        }
+        document.body.classList.remove("is-text-editor-fullscreen");
+    };
     checkDraft();
 };
 
@@ -817,6 +857,24 @@ const enhanceWithCodeMirror = (form, textarea) => {
 
 const initializeSharedTextPreview = (preview) => {
     if (!window.CodeMirror || preview.dataset.sharedTextPreviewBound === "true") {
+        return;
+    }
+
+    const disclosure = preview.closest("details[data-shared-preview]");
+    if (disclosure && !disclosure.open) {
+        if (preview.dataset.sharedTextPreviewPending === "true") {
+            return;
+        }
+        preview.dataset.sharedTextPreviewPending = "true";
+        const initializeWhenOpened = () => {
+            if (!disclosure.open) {
+                return;
+            }
+            disclosure.removeEventListener("toggle", initializeWhenOpened);
+            delete preview.dataset.sharedTextPreviewPending;
+            initializeSharedTextPreview(preview);
+        };
+        disclosure.addEventListener("toggle", initializeWhenOpened);
         return;
     }
 
@@ -937,12 +995,16 @@ const attachEditorControls = (form, editor, mode, lineWrapping, fontSize) => {
         setEditorFullscreen(form, editor, fullscreenButton, !form.classList.contains("is-editor-fullscreen"));
     });
 
-    document.addEventListener("keydown", (event) => {
+    const handleEditorKeydown = (event) => {
         if (event.key !== "Escape" || !form.classList.contains("is-editor-fullscreen")) {
             return;
         }
         setEditorFullscreen(form, editor, fullscreenButton, false);
-    });
+    };
+    document.addEventListener("keydown", handleEditorKeydown);
+    form._endervaultEditorControlsCleanup = () => {
+        document.removeEventListener("keydown", handleEditorKeydown);
+    };
 
     const editButton = document.createElement("button");
     editButton.className = "ghost icon-button action-icon editor-toggle source-only-control";

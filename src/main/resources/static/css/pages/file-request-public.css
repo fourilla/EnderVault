@@ -1,0 +1,165 @@
+.file-request-public-topbar {
+    justify-content: flex-start;
+}
+
+.file-request-public-workspace {
+    width: min(760px, calc(100% - 2rem));
+    margin-inline: auto;
+    padding-block: clamp(1.5rem, 5vh, 4rem);
+}
+
+.file-request-public-panel {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
+    background: var(--panel-elevated);
+    padding: clamp(1rem, 3vw, 2rem);
+}
+
+.file-request-public-heading h1 {
+    margin: 0.25rem 0 0.5rem;
+    overflow-wrap: anywhere;
+}
+
+.file-request-public-heading {
+    min-width: 0;
+}
+
+.file-request-public-heading > p:last-child {
+    margin: 0;
+    color: var(--muted);
+}
+
+.file-request-public-description {
+    max-width: 100%;
+    color: var(--text) !important;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+
+.file-request-limit-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1px;
+    margin: 1.5rem 0;
+    background: var(--line);
+    border: 1px solid var(--line);
+}
+
+.file-request-limit-list > div {
+    min-width: 0;
+    padding: 0.75rem;
+    background: var(--panel);
+}
+
+.file-request-limit-list dt {
+    color: var(--muted);
+    font-size: var(--font-size-small);
+}
+
+.file-request-limit-list dd {
+    margin: 0.2rem 0 0;
+    overflow-wrap: anywhere;
+}
+
+.file-request-upload-form,
+.file-request-uploader-field {
+    display: grid;
+    gap: var(--space-md);
+}
+
+.file-request-drop-zone {
+    display: grid;
+    justify-items: center;
+    gap: var(--space-md);
+    min-height: 180px;
+    width: 100%;
+    border: 1px dashed var(--line);
+    border-radius: var(--radius-control);
+    background: var(--panel);
+    color: var(--text);
+}
+
+.file-request-drop-zone i {
+    font-size: 2rem;
+    color: var(--accent);
+}
+
+.file-request-drop-zone span {
+    color: var(--muted);
+}
+
+.file-request-drop-zone:hover,
+.file-request-drop-zone.is-dragging {
+    border-color: var(--accent);
+    background: var(--item-hover-bg);
+}
+
+.file-request-queue {
+    display: grid;
+    gap: 1px;
+    max-height: 320px;
+    overflow-y: auto;
+    border: 1px solid var(--line);
+    background: var(--line);
+}
+
+.file-request-queue-item {
+    display: grid;
+    grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-md);
+    min-height: 48px;
+    padding: 0.45rem 0.65rem;
+    background: var(--panel);
+}
+
+.file-request-queue-item > span {
+    min-width: 0;
+}
+
+.file-request-queue-item strong,
+.file-request-queue-item small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-request-queue-item small {
+    color: var(--muted);
+}
+
+.file-request-queue-item.is-complete > i {
+    color: var(--success);
+}
+
+.file-request-queue-item.is-failed > i,
+.file-request-live-status.is-error {
+    color: var(--danger);
+}
+
+.file-request-live-status {
+    min-height: 1.25rem;
+    margin: 0;
+    color: var(--muted);
+}
+
+.file-request-upload-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+@media (max-width: 560px) {
+    .file-request-public-workspace {
+        width: min(100% - 1rem, 760px);
+        padding-block: 0.5rem;
+    }
+
+    .file-request-public-panel {
+        padding: 1rem;
+    }
+
+    .file-request-limit-list {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

@@ -180,6 +180,20 @@
         }
     };
 
+    const deletePasskey = async (form) => {
+        const button = form.querySelector("button[type='submit']");
+        setButtonBusy(button, true);
+        try {
+            const body = await window.EnderVault.submitJsonForm(form);
+            if (!window.EnderVault.navigateWithNotification(body)) {
+                window.location.reload();
+            }
+        } catch (error) {
+            showError(error);
+            setButtonBusy(button, false);
+        }
+    };
+
     document.addEventListener("click", (event) => {
         const registerButton = event.target.closest("[data-passkey-register]");
         if (registerButton) {
@@ -197,5 +211,12 @@
                 loginWithPasskey(loginButton);
             }
         }
+    });
+
+    document.querySelectorAll("[data-passkey-delete-form]").forEach((form) => {
+        form.addEventListener("submit", (event) => {
+            event.preventDefault();
+            deletePasskey(form);
+        });
     });
 })();

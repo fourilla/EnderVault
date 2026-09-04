@@ -17,6 +17,12 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 @ControllerAdvice
 public class WebExceptionHandler {
 
+    private final FrontendAssetModelAdvice frontendAssets;
+
+    public WebExceptionHandler(FrontendAssetModelAdvice frontendAssets) {
+        this.frontendAssets = frontendAssets;
+    }
+
     @ExceptionHandler(StorageAccessException.class)
     public Object storageAccess(
             StorageAccessException exception,
@@ -84,7 +90,7 @@ public class WebExceptionHandler {
             String message
     ) {
         String cleanMessage = cleanMessage(message, title);
-        if (ActionResponseSupport.wantsJson(request)) {
+        if (isApiRequest(request) || JsonRequestSupport.wantsJson(request)) {
             return ResponseEntity.status(status).body(ActionResponse.error(cleanMessage));
         }
 
@@ -94,6 +100,7 @@ public class WebExceptionHandler {
         }
 
         response.setStatus(status.value());
+        model.addAttribute("stylesFrontend", frontendAssets.stylesFrontend());
         model.addAttribute("title", title);
         model.addAttribute("message", cleanMessage);
         return "error";
@@ -104,6 +111,10 @@ public class WebExceptionHandler {
         String contextPath = request.getContextPath();
         return "POST".equalsIgnoreCase(request.getMethod())
                 && path.startsWith(contextPath + "/files");
+    }
+
+    private boolean isApiRequest(HttpServletRequest request) {
+        return request.getRequestURI().startsWith(request.getContextPath() + "/api/");
     }
 
     private String redirectBackPath(HttpServletRequest request) {

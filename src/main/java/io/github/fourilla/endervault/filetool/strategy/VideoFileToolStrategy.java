@@ -25,7 +25,8 @@ public class VideoFileToolStrategy implements FileToolStrategy {
         return FileToolDescriptor.of(
                 FileToolType.VIDEO,
                 FileToolCapability.INLINE_PREVIEW,
-                FileToolCapability.PREVIEW_PAGE
+                FileToolCapability.PREVIEW_PAGE,
+                FileToolCapability.SHARED_PREVIEW
         );
     }
 }

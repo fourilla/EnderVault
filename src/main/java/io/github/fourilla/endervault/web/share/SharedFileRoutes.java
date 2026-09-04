@@ -2,6 +2,8 @@ package io.github.fourilla.endervault.web.share;
 
 import java.nio.file.Path;
 import java.util.Locale;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.springframework.web.util.UriComponentsBuilder;
 
 final class SharedFileRoutes {
@@ -18,17 +20,33 @@ final class SharedFileRoutes {
     }
 
     static String comicPageUrlPrefix(String token, String path, String item) {
-        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/s/{token}/comic/page");
+        String baseUrl = comicPageUrl(token, path, item);
+        return baseUrl + (baseUrl.contains("?") ? "&" : "?") + "page=";
+    }
+
+    static String comicPageUrl(String token, String path, String item) {
+        return comicUrl("page", token, path, item);
+    }
+
+    static String comicManifestUrl(String token, String path, String item) {
+        return comicUrl("manifest", token, path, item);
+    }
+
+    private static String comicUrl(String resource, String token, String path, String item) {
+        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/s/{token}/comic/" + resource);
+        Map<String, String> variables = new LinkedHashMap<>();
+        variables.put("token", token);
         if (path != null && !path.isBlank()) {
-            builder.queryParam("path", path);
+            builder.queryParam("path", "{path}");
+            variables.put("path", path);
         }
         if (item != null && !item.isBlank()) {
-            builder.queryParam("item", item);
+            builder.queryParam("item", "{item}");
+            variables.put("item", item);
         }
-        String baseUrl = builder.buildAndExpand(token)
-                .encode()
+        return builder.encode()
+                .buildAndExpand(variables)
                 .toUriString();
-        return baseUrl + (baseUrl.contains("?") ? "&" : "?") + "page=";
     }
 
     static String directoryUrl(String token, String path) {

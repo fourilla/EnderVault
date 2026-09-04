@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.storage;
 
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
+import io.github.fourilla.endervault.common.NaturalNameComparator;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.filetool.FileActionRegistry;
 import java.io.IOException;
@@ -55,6 +56,18 @@ final class StorageListingService {
             boolean showHidden
     )
             throws IOException {
+        return list(scope, requestedPath, sort, direction, showHidden, StorageEntryFilter.ALL);
+    }
+
+    DirectoryListing list(
+            StorageScope scope,
+            String requestedPath,
+            FileSort sort,
+            SortDirection direction,
+            boolean showHidden,
+            StorageEntryFilter entryFilter
+    )
+            throws IOException {
         Path directory = pathResolver.resolveDirectory(scope, requestedPath);
         String currentPath = pathResolver.toRelativePath(pathResolver.baseFor(scope), directory);
         List<FileItem> children;
@@ -64,6 +77,7 @@ final class StorageListingService {
                     .filter(path -> !Files.isSymbolicLink(path))
                     .filter(path -> !pathResolver.isHiddenSystemPath(scope, path))
                     .filter(path -> showHidden || !isHidden(path))
+                    .filter(path -> entryFilter.includes(Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)))
                     .map(path -> toFileItem(pathResolver.baseFor(scope), path))
                     .sorted(itemComparator(sort, direction))
                     .toList();
@@ -95,6 +109,17 @@ final class StorageListingService {
     }
 
     List<FileItem> search(StorageScope scope, String requestedRoot, String query, boolean showHidden) throws IOException {
+        return search(scope, requestedRoot, query, null, null, showHidden);
+    }
+
+    List<FileItem> search(
+            StorageScope scope,
+            String requestedRoot,
+            String query,
+            FileSort sort,
+            SortDirection direction,
+            boolean showHidden
+    ) throws IOException {
         String normalizedQuery = normalizeSearchQuery(query);
         if (normalizedQuery.isEmpty()) {
             return List.of();
@@ -110,9 +135,10 @@ final class StorageListingService {
 
         List<FileItem> results = new ArrayList<>();
         searchRecursively(scope, searchRoot, normalizedQuery, showHidden, results);
-        return results.stream()
-                .sorted(Comparator.comparing(item -> item.path().toLowerCase(Locale.ROOT)))
-                .toList();
+        Comparator<FileItem> comparator = sort == null || direction == null
+                ? Comparator.comparing(FileItem::path, NaturalNameComparator.INSTANCE)
+                : itemComparator(sort, direction);
+        return results.stream().sorted(comparator).toList();
     }
 
     DirectoryListing listSharedDirectory(String sharedBasePath, String requestedPath) throws IOException {
@@ -315,9 +341,7 @@ final class StorageListingService {
     }
 
     private Comparator<FileItem> itemComparator(FileSort sort, SortDirection direction) {
-        Comparator<FileItem> nameComparator = Comparator.comparing(
-                item -> item.name().toLowerCase(Locale.ROOT)
-        );
+        Comparator<FileItem> nameComparator = Comparator.comparing(FileItem::name, NaturalNameComparator.INSTANCE);
         Comparator<FileItem> primary = switch (sort) {
             case SIZE -> Comparator.comparingLong(FileItem::size);
             case MODIFIED -> Comparator.comparing(FileItem::modifiedAt);
@@ -335,7 +359,7 @@ final class StorageListingService {
     private Comparator<Path> pathNameComparator() {
         return Comparator
                 .comparing((Path path) -> !Files.isDirectory(path))
-                .thenComparing(path -> path.getFileName().toString().toLowerCase(Locale.ROOT));
+                .thenComparing(path -> path.getFileName().toString(), NaturalNameComparator.INSTANCE);
     }
 
     private boolean isHidden(Path path) {

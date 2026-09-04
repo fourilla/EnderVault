@@ -3,6 +3,7 @@ package io.github.fourilla.endervault.storage;
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.favorite.FavoriteService;
 import io.github.fourilla.endervault.filetool.text.TextDraftService;
+import io.github.fourilla.endervault.filerequest.FileRequestService;
 import io.github.fourilla.endervault.recent.RecentService;
 import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.stickynote.StickyNoteService;
@@ -22,6 +23,7 @@ public class FileLifecycleService {
     private final ThumbnailService thumbnailService;
     private final TextDraftService textDraftService;
     private final StickyNoteService stickyNoteService;
+    private final FileRequestService fileRequestService;
     private final ActivityLogService activityLogService;
 
     public FileLifecycleService(
@@ -32,6 +34,7 @@ public class FileLifecycleService {
             ThumbnailService thumbnailService,
             TextDraftService textDraftService,
             StickyNoteService stickyNoteService,
+            FileRequestService fileRequestService,
             ActivityLogService activityLogService
     ) {
         this.storageService = storageService;
@@ -41,6 +44,7 @@ public class FileLifecycleService {
         this.thumbnailService = thumbnailService;
         this.textDraftService = textDraftService;
         this.stickyNoteService = stickyNoteService;
+        this.fileRequestService = fileRequestService;
         this.activityLogService = activityLogService;
     }
 
@@ -137,5 +141,6 @@ public class FileLifecycleService {
         recentService.moveVaultPath(oldPath, newPath);
         textDraftService.moveVaultPath(oldPath, newPath);
         stickyNoteService.moveVaultPath(oldPath, newPath);
+        fileRequestService.moveVaultPath(oldPath, newPath);
     }
 }

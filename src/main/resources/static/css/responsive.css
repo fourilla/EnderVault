@@ -41,6 +41,18 @@
         text-align: left;
     }
 
+    .page-header-copy {
+        justify-items: start;
+    }
+
+    .page-header-copy p {
+        text-align: left;
+    }
+
+    .page-header-actions {
+        justify-content: flex-start;
+    }
+
     .workspace {
         width: min(100% - var(--space-5xl), var(--workspace-max-width));
         margin-top: 12px;
@@ -57,31 +69,22 @@
         inset: 0;
     }
 
-    .dashboard-metrics,
     .dashboard-grid,
-    .dashboard-action-grid,
     .logs-layout {
         grid-template-columns: 1fr;
     }
 
-    .telegram-settings-grid,
     .settings-field-grid,
     .sticky-note-theme-editor {
         grid-template-columns: 1fr;
     }
 
-    .telegram-activity-settings {
-        grid-template-columns: 1fr;
-    }
-
-    .telegram-subsection-heading,
     .settings-subsection-heading {
         align-items: start;
         flex-direction: column;
         gap: var(--space-xs);
     }
 
-    .telegram-subsection-heading p,
     .settings-subsection-heading p {
         text-align: left;
     }
@@ -116,13 +119,6 @@
 
     .log-filter-actions {
         justify-self: stretch;
-    }
-
-    .upload-activity {
-        right: 10px;
-        bottom: 10px;
-        left: 10px;
-        width: auto;
     }
 
     .toolbar-cluster {
@@ -183,7 +179,7 @@
         flex-direction: row;
     }
 
-    .share-create-form {
+    .share-create-primary {
         grid-template-columns: 1fr;
     }
 
@@ -200,10 +196,6 @@
         bottom: 10px;
         left: 10px;
         width: auto;
-    }
-
-    .activity-panel-visible.transfer-buffer-dock-enabled [data-transfer-buffer-region] {
-        bottom: calc(10px + var(--activity-panel-height, 180px) + var(--space-md));
     }
 
     .transfer-buffer-remove {
@@ -237,6 +229,22 @@
         width: min(280px, calc(100vw - 44px));
         margin-top: var(--space-md);
         box-shadow: none;
+    }
+
+    .settings-save-bar {
+        align-items: stretch;
+        flex-direction: column;
+        gap: var(--space-md);
+    }
+
+    .settings-save-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .settings-readonly-list > div {
+        grid-template-columns: 1fr;
+        gap: var(--space-xs);
     }
 
     .details div {
@@ -277,17 +285,5 @@
     .readonly-date-col {
         width: 96px;
         font-size: var(--font-size-xs);
-    }
-}
-
-@media (max-width: 1100px) {
-    .telegram-activity-settings {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-}
-
-@media (max-width: 720px) {
-    .telegram-activity-settings {
-        grid-template-columns: 1fr;
     }
 }

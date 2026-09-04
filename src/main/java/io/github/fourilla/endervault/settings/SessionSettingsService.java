@@ -95,13 +95,6 @@ public class SessionSettingsService {
             int activeSessions,
             String configPath
     ) {
-        public String maxConcurrentLabel() {
-            return maxConcurrentSessions == 0 ? "Unlimited" : Integer.toString(maxConcurrentSessions);
-        }
-
-        public String idleTimeoutLabel() {
-            return sessionIdleTimeoutMinutes == 0 ? "Unlimited" : sessionIdleTimeoutMinutes + " minutes";
-        }
     }
 
     public record SessionSettingsUpdate(

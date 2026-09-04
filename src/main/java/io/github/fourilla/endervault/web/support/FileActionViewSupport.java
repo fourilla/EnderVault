@@ -39,8 +39,12 @@ public class FileActionViewSupport {
         return links(fileActionRegistry.browserActions(detail), kind -> detailFileHref(kind, detail), true);
     }
 
-    public List<FileActionLink> sharedDirectoryActions(String token, FileItem item) {
-        return links(fileActionRegistry.sharedDirectoryActions(item), kind -> sharedDirectoryHref(kind, token, item), false);
+    public List<FileActionLink> sharedDirectoryActions(String token, FileItem item, boolean previewEnabled) {
+        return links(
+                fileActionRegistry.sharedDirectoryActions(item, previewEnabled),
+                kind -> sharedDirectoryHref(kind, token, item),
+                false
+        );
     }
 
     public String previewUrl(FileItem item) {

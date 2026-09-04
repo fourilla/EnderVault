@@ -1,8 +1,10 @@
 package io.github.fourilla.endervault.web;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -54,16 +56,13 @@ class StickyNoteFlowTest {
         mockMvc.perform(get("/files"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("endervault-sticky-target-type")))
-                .andExpect(content().string(containsString("data-sticky-note-controls")))
-                .andExpect(content().string(containsString("data-sticky-note-visibility")))
-                .andExpect(content().string(containsString("data-sticky-note-add")))
-                .andExpect(content().string(containsString("/admin/settings/general#sticky-note-theme")))
-                .andExpect(content().string(containsString("Note appearance")))
-                .andExpect(content().string(containsString("href=\"/admin/sticky-notes\"")))
-                .andExpect(content().string(containsString("Note list")))
-                .andExpect(content().string(not(containsString("data-sticky-note-collapse-all"))))
-                .andExpect(content().string(containsString("/js/topbar-controls.js")))
-                .andExpect(content().string(containsString("/js/sticky-notes.js")));
+                .andExpect(content().string(containsString("endervault-sticky-target-key")))
+                .andExpect(content().string(containsString("endervault-sticky-surface")))
+                .andExpect(content().string(containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(containsString("/react/assets/shell-")))
+                .andExpect(content().string(not(containsString("/js/topbar-controls.js"))))
+                .andExpect(content().string(not(containsString("/js/sticky-notes.js"))))
+                .andExpect(content().string(not(containsString("/js/page-context-menu.js"))));
 
         mockMvc.perform(get("/files/read-only"))
                 .andExpect(status().isOk())
@@ -80,7 +79,7 @@ class StickyNoteFlowTest {
                 "x", 12,
                 "y", 24
         ));
-        MvcResult created = mockMvc.perform(post("/admin/sticky-notes/items")
+        MvcResult created = mockMvc.perform(post("/api/v1/sticky-notes")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .accept(MediaType.APPLICATION_JSON)
@@ -103,7 +102,7 @@ class StickyNoteFlowTest {
                 "collapsed", false,
                 "layer", 2
         ));
-        MvcResult updated = mockMvc.perform(put("/admin/sticky-notes/items/{id}", id)
+        MvcResult updated = mockMvc.perform(put("/api/v1/sticky-notes/{id}", id)
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .accept(MediaType.APPLICATION_JSON)
@@ -118,7 +117,7 @@ class StickyNoteFlowTest {
                         .asText()
         ));
 
-        mockMvc.perform(get("/admin/sticky-notes/items")
+        mockMvc.perform(get("/api/v1/sticky-notes")
                         .param("targetType", "STORAGE")
                         .param("targetKey", "")
                         .param("surface", "BROWSER")
@@ -128,17 +127,42 @@ class StickyNoteFlowTest {
 
         mockMvc.perform(get("/admin/sticky-notes"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("MockMvc sticky note")))
-                .andExpect(content().string(containsString("class=\"search-form\"")))
-                .andExpect(content().string(containsString("class=\"button-link ghost icon-button action-icon\"")))
-                .andExpect(content().string(containsString(updatedLabel)));
+                .andExpect(content().string(containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(not(containsString("data-sticky-note-manager-delete"))));
 
-        mockMvc.perform(post("/admin/sticky-notes/items/{id}/delete", id)
+        mockMvc.perform(get("/api/v1/sticky-notes/catalog"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.notes[*].id", hasItem(id)))
+                .andExpect(jsonPath("$.notes[*].content", hasItem("MockMvc sticky note")))
+                .andExpect(jsonPath("$.notes[*].updatedLabel", hasItem(updatedLabel)))
+                .andExpect(jsonPath("$.notes[0].context.targetKey").doesNotExist());
+
+        mockMvc.perform(delete("/api/v1/sticky-notes/{id}", id)
                         .with(csrf())
-                        .accept(MediaType.APPLICATION_JSON)
-                        .header("X-Requested-With", "fetch"))
+                        .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.deletedId").value(id));
+    }
+
+    @Test
+    void removedStickyNoteItemEndpointsAreNotAvailable() throws Exception {
+        mockMvc.perform(get("/admin/sticky-notes/items")
+                        .param("targetType", "PAGE")
+                        .param("surface", "PAGE"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/sticky-notes/items")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/admin/sticky-notes/items/legacy/delete").with(csrf()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void removedSearchHtmlEndpointIsNotAvailable() throws Exception {
+        mockMvc.perform(get("/files/search"))
+                .andExpect(status().isNotFound());
     }
 
     private static Path createTempRoot() {

@@ -11,13 +11,20 @@
         return;
     }
 
-    const apiRoot = "/admin/sticky-notes/items";
+    const apiRoot = "/api/v1/sticky-notes";
     const hiddenPreferenceKey = "endervault.stickyNotes.hidden";
-    const controls = document.querySelector("[data-sticky-note-controls]");
-    const appMain = document.querySelector(".app-main") || document.body;
+    let controls = document.querySelector("[data-sticky-note-controls]");
+    let appMain = document.querySelector(".app-main") || document.body;
     const states = new Map();
+    const minimumWidth = 220;
+    const minimumHeight = 140;
+    const maximumWidth = 600;
+    const maximumHeight = 700;
     let topLayer = 1;
     let layer;
+    let activePointerInteractions = 0;
+    let contextRevision = 0;
+    let initialized = false;
 
     const csrfHeaders = () => {
         const csrf = window.EnderVault?.csrfPair();
@@ -33,6 +40,11 @@
     const localBackupKey = (id) => `endervault.stickyNote.unsaved:${id}`;
 
     const showToast = (type, message) => window.EnderVault?.showToast(type, message);
+
+    const requestDelete = (id) => window.EnderVault.requestJson(`${apiRoot}/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        headers: csrfHeaders()
+    });
 
     const snapshot = (state) => ({
         content: state.editor.value,
@@ -150,6 +162,20 @@
         state.card.style.top = `${state.y}px`;
     };
 
+    const beginPointerInteraction = (state) => {
+        state.card.classList.add("is-pointer-interacting");
+        activePointerInteractions += 1;
+        layer.classList.add("is-interacting");
+    };
+
+    const endPointerInteraction = (state) => {
+        state.card.classList.remove("is-pointer-interacting");
+        activePointerInteractions = Math.max(0, activePointerInteractions - 1);
+        if (activePointerInteractions === 0) {
+            layer.classList.remove("is-interacting");
+        }
+    };
+
     const bringToFront = (state, persist = true) => {
         if (state.layer === topLayer) {
             return;
@@ -194,19 +220,14 @@
             return;
         }
         try {
-            const formData = new FormData();
-            const csrf = window.EnderVault.csrfPair();
-            if (csrf) {
-                formData.append(csrf.name, csrf.value);
-            }
-            const body = await window.EnderVault.requestJson(`${apiRoot}/${encodeURIComponent(state.id)}/delete`, {
-                method: "POST",
-                body: formData
-            });
+            const body = await requestDelete(state.id);
             clearLocalBackup(state);
             state.resizeObserver?.disconnect();
             state.card.remove();
             states.delete(state.id);
+            document.dispatchEvent(new CustomEvent("endervault:sticky-note-deleted", {
+                detail: { id: state.id }
+            }));
             window.EnderVault.showNotification(body.notification);
         } catch (error) {
             showToast("error", error.message || "Sticky note could not be deleted.");
@@ -218,14 +239,22 @@
             if (event.button !== 0 || event.target.closest("button")) {
                 return;
             }
-            event.preventDefault();
             bringToFront(state, false);
             const cardRect = state.card.getBoundingClientRect();
             const offsetX = event.clientX - cardRect.left;
             const offsetY = event.clientY - cardRect.top;
+            const startX = event.clientX;
+            const startY = event.clientY;
+            let moved = false;
             handle.setPointerCapture(event.pointerId);
+            beginPointerInteraction(state);
 
             const onMove = (moveEvent) => {
+                if (!moved && Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) < 3) {
+                    return;
+                }
+                moved = true;
+                moveEvent.preventDefault();
                 state.x = moveEvent.clientX - appMainLeft() - offsetX;
                 state.y = moveEvent.clientY - offsetY;
                 applyPosition(state);
@@ -234,7 +263,57 @@
                 handle.removeEventListener("pointermove", onMove);
                 handle.removeEventListener("pointerup", onEnd);
                 handle.removeEventListener("pointercancel", onEnd);
-                scheduleSave(state);
+                endPointerInteraction(state);
+                if (moved) {
+                    scheduleSave(state);
+                }
+            };
+            handle.addEventListener("pointermove", onMove);
+            handle.addEventListener("pointerup", onEnd);
+            handle.addEventListener("pointercancel", onEnd);
+        });
+    };
+
+    const enableResizing = (state, handle) => {
+        handle.addEventListener("pointerdown", (event) => {
+            if (event.button !== 0 || state.collapsed) {
+                return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            bringToFront(state, false);
+            const cardRect = state.card.getBoundingClientRect();
+            const startX = event.clientX;
+            const startY = event.clientY;
+            const startWidth = cardRect.width;
+            const startHeight = cardRect.height;
+            const maxWidth = Math.max(minimumWidth, Math.min(maximumWidth, window.innerWidth - cardRect.left - 8));
+            const maxHeight = Math.max(minimumHeight, Math.min(maximumHeight, window.innerHeight - cardRect.top - 8));
+            let resized = false;
+            state.resizing = true;
+            handle.setPointerCapture(event.pointerId);
+            beginPointerInteraction(state);
+
+            const onMove = (moveEvent) => {
+                moveEvent.preventDefault();
+                const width = clamp(startWidth + moveEvent.clientX - startX, minimumWidth, maxWidth);
+                const height = clamp(startHeight + moveEvent.clientY - startY, minimumHeight, maxHeight);
+                resized = resized || Math.round(width) !== Math.round(startWidth)
+                        || Math.round(height) !== Math.round(startHeight);
+                state.card.style.width = `${Math.round(width)}px`;
+                state.card.style.height = `${Math.round(height)}px`;
+                state.expandedHeight = Math.round(height);
+                applyPosition(state);
+            };
+            const onEnd = () => {
+                handle.removeEventListener("pointermove", onMove);
+                handle.removeEventListener("pointerup", onEnd);
+                handle.removeEventListener("pointercancel", onEnd);
+                state.resizing = false;
+                endPointerInteraction(state);
+                if (resized) {
+                    scheduleSave(state);
+                }
             };
             handle.addEventListener("pointermove", onMove);
             handle.addEventListener("pointerup", onEnd);
@@ -282,13 +361,18 @@
         editor.className = "sticky-note-editor";
         editor.value = note.content || "";
         editor.placeholder = "Write a note...";
+        editor.spellcheck = false;
         editor.setAttribute("aria-label", `Sticky note for ${context.label || "this page"}`);
         editor.maxLength = 10_000;
         const status = document.createElement("span");
         status.className = "sticky-note-status";
         status.textContent = "Saved";
         body.append(editor, status);
-        card.append(header, body);
+        const resizeHandle = iconButton("fas fa-grip-lines", "Resize sticky note").button;
+        resizeHandle.className = "sticky-note-resize-handle";
+        resizeHandle.tabIndex = -1;
+        resizeHandle.setAttribute("aria-hidden", "true");
+        card.append(header, body, resizeHandle);
         layer.append(card);
 
         const state = {
@@ -310,6 +394,7 @@
             debounceTimer: null,
             maxTimer: null,
             errorShown: false,
+            resizing: false,
             resizeObserver: null,
             lastWidth: note.width,
             lastHeight: note.height
@@ -327,7 +412,15 @@
         card.addEventListener("pointerdown", () => bringToFront(state));
         collapse.button.addEventListener("click", () => setCollapsed(state, !state.collapsed));
         remove.button.addEventListener("click", () => void deleteNote(state));
+        header.addEventListener("dblclick", (event) => {
+            if (event.button !== 0 || event.target.closest("button")) {
+                return;
+            }
+            event.preventDefault();
+            setCollapsed(state, !state.collapsed);
+        });
         enableDragging(state, header);
+        enableResizing(state, resizeHandle);
 
         if (window.ResizeObserver) {
             state.resizeObserver = new ResizeObserver(() => {
@@ -343,7 +436,9 @@
                 state.lastHeight = height;
                 state.expandedHeight = height;
                 applyPosition(state);
-                scheduleSave(state);
+                if (!state.resizing) {
+                    scheduleSave(state);
+                }
             });
             state.resizeObserver.observe(card);
         }
@@ -377,13 +472,23 @@
     const setAllHidden = (hidden) => {
         layer.hidden = hidden;
         const button = controls?.querySelector("[data-sticky-note-visibility]");
+        const trigger = controls?.querySelector("[data-sticky-note-trigger]");
+        const label = button?.querySelector("[data-sticky-note-visibility-label]");
         const icon = button?.querySelector("i");
         const status = controls?.querySelector("[data-sticky-note-visibility-status]");
         if (button && icon) {
             button.title = hidden ? "Show sticky notes" : "Hide sticky notes";
             button.setAttribute("aria-label", button.title);
             button.setAttribute("aria-pressed", String(!hidden));
-            button.classList.toggle("is-active", !hidden);
+            icon.className = hidden ? "fas fa-eye" : "fas fa-eye-slash";
+            if (label) {
+                label.textContent = button.title;
+            }
+        }
+        if (trigger) {
+            trigger.title = hidden ? "Sticky notes hidden" : "Sticky notes visible";
+            trigger.setAttribute("aria-label", trigger.title);
+            trigger.classList.toggle("is-active", !hidden);
         }
         if (status) {
             status.textContent = hidden ? "Hidden" : "Visible";
@@ -419,10 +524,86 @@
         }
     };
 
+    const normalizedContext = (candidate) => ({
+        targetType: String(candidate?.targetType || "").trim(),
+        targetKey: String(candidate?.targetKey || "").trim(),
+        surface: String(candidate?.surface || "").trim(),
+        label: String(candidate?.label || "").trim()
+    });
+
+    const clearRenderedNotes = () => {
+        states.forEach((state) => {
+            keepaliveFlush(state);
+            state.resizeObserver?.disconnect();
+            state.card.remove();
+        });
+        states.clear();
+        topLayer = 1;
+    };
+
+    const loadCurrentContext = async () => {
+        const revision = ++contextRevision;
+        const query = new URLSearchParams({
+            targetType: context.targetType,
+            targetKey: context.targetKey,
+            surface: context.surface
+        });
+        const body = await window.EnderVault.requestJson(`${apiRoot}?${query}`);
+        if (revision !== contextRevision) {
+            return;
+        }
+        body.notes.forEach(renderNote);
+    };
+
+    const setContext = async (candidate) => {
+        const next = normalizedContext(candidate);
+        if (!next.targetType || !next.surface) {
+            return;
+        }
+        if (next.targetType === context.targetType
+                && next.targetKey === context.targetKey
+                && next.surface === context.surface
+                && next.label === context.label) {
+            return;
+        }
+        Object.assign(context, next);
+        if (!layer || !window.EnderVault) {
+            return;
+        }
+        clearRenderedNotes();
+        try {
+            await loadCurrentContext();
+        } catch (error) {
+            showToast("error", error.message || "Sticky notes could not be loaded.");
+        }
+    };
+
+    window.EnderVaultStickyNotes = { setContext };
+    document.addEventListener("endervault:sticky-context-changed", (event) => {
+        void setContext(event.detail);
+    });
+    document.addEventListener("endervault:sticky-note-deleted", (event) => {
+        const id = String(event.detail?.id || "");
+        const state = states.get(id);
+        if (!state) {
+            return;
+        }
+        clearLocalBackup(state);
+        state.resizeObserver?.disconnect();
+        state.card.remove();
+        states.delete(id);
+    });
+
     const initialize = async () => {
+        if (initialized) {
+            return;
+        }
+        controls = document.querySelector("[data-sticky-note-controls]");
         if (!window.EnderVault || !controls) {
             return;
         }
+        initialized = true;
+        appMain = document.querySelector(".app-main") || document.body;
         controls.hidden = false;
         layer = document.createElement("div");
         layer.className = "sticky-note-layer";
@@ -431,6 +612,7 @@
 
         controls.querySelector("[data-sticky-note-add]")?.addEventListener("click", () => void createNote());
         controls.querySelector("[data-sticky-note-visibility]")?.addEventListener("click", () => setAllHidden(!layer.hidden));
+        controls.querySelector("[data-sticky-note-trigger]")?.addEventListener("click", () => setAllHidden(!layer.hidden));
         window.EnderVaultContextMenus?.registerGlobalAction({
             id: "new-sticky-note",
             group: "sticky-note",
@@ -448,13 +630,7 @@
         setAllHidden(initiallyHidden);
 
         try {
-            const query = new URLSearchParams({
-                targetType: context.targetType,
-                targetKey: context.targetKey,
-                surface: context.surface
-            });
-            const body = await window.EnderVault.requestJson(`${apiRoot}?${query}`);
-            body.notes.forEach(renderNote);
+            await loadCurrentContext();
         } catch (error) {
             showToast("error", error.message || "Sticky notes could not be loaded.");
         }
@@ -467,5 +643,11 @@
         });
     };
 
-    document.addEventListener("DOMContentLoaded", () => void initialize());
+    const initializeWhenReady = () => void initialize();
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initializeWhenReady, { once: true });
+    } else {
+        initializeWhenReady();
+    }
+    document.addEventListener("endervault:spa-shell-ready", initializeWhenReady);
 })();

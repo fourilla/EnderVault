@@ -72,12 +72,19 @@ class SessionManagementFlowTest {
 
         mockMvc.perform(get("/admin/sessions").session(second))
                 .andExpect(status().isOk())
-                .andExpect(content().string(not(containsString("<th>Last active</th>"))))
-                .andExpect(content().string(containsString("session-detail-open")))
-                .andExpect(content().string(containsString("data-session-user-agent=\"Second Browser\"")))
-                .andExpect(content().string(containsString("<dt>Last active</dt>")));
+                .andExpect(content().string(containsString("id=\"admin-app-root\"")))
+                .andExpect(content().string(not(containsString("/admin/sessions/revoke"))));
 
-        mockMvc.perform(get("/admin/settings/sessions").session(second))
+        mockMvc.perform(get("/api/v1/sessions").session(second))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.sessions[0].current").value(true))
+                .andExpect(jsonPath("$.sessions[0].userAgent").value("Second Browser"))
+                .andExpect(jsonPath("$.sessions[0].lastActiveLabel").isString())
+                .andExpect(jsonPath("$.sessions[0].managementId").isString())
+                .andExpect(jsonPath("$.sessions[0].sessionId").doesNotExist());
+
+        mockMvc.perform(get("/admin/settings").param("section", "sessions").session(second))
                 .andExpect(status().isOk());
     }
 
@@ -86,7 +93,7 @@ class SessionManagementFlowTest {
         MockHttpSession session = login("Session To Revoke");
         SessionView current = sessionManagementService.listActive(session.getId()).getFirst();
 
-        mockMvc.perform(post("/admin/sessions/revoke")
+        mockMvc.perform(post("/api/v1/sessions/revoke")
                         .session(session)
                         .with(csrf())
                         .accept(MediaType.APPLICATION_JSON)
@@ -95,6 +102,18 @@ class SessionManagementFlowTest {
                 .andExpect(jsonPath("$.redirectUrl").value("/login?session-revoked"));
 
         assertThat(sessionManagementService.activeCount()).isZero();
+    }
+
+    @Test
+    void removedSessionMutationEndpointIsNotAvailable() throws Exception {
+        MockHttpSession session = login("Legacy Session Endpoint");
+        SessionView current = sessionManagementService.listActive(session.getId()).getFirst();
+
+        mockMvc.perform(post("/admin/sessions/revoke")
+                        .session(session)
+                        .with(csrf())
+                        .param("managementId", current.managementId()))
+                .andExpect(status().isNotFound());
     }
 
     private MockHttpSession login(String userAgent) throws Exception {

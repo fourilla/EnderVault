@@ -20,6 +20,7 @@ import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.thumbnail.ThumbnailService;
 import io.github.fourilla.endervault.web.support.FilePreviewSupport;
 import io.github.fourilla.endervault.web.support.FileResponseService;
+import io.github.fourilla.endervault.web.support.VaultSelectionResolver;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
@@ -51,7 +52,8 @@ class AdminFileTransferControllerTest {
                 mock(ActivityLogService.class),
                 fileToolService,
                 mock(TextFileService.class),
-                new FilePreviewSupport()
+                new FilePreviewSupport(),
+                new VaultSelectionResolver(storageService)
         );
     }
 

@@ -70,7 +70,16 @@ public class NasProperties {
     private Share share = new Share();
 
     @Valid
+    private FileRequest fileRequest = new FileRequest();
+
+    @Valid
+    private PendingFileDecisions pendingFileDecisions = new PendingFileDecisions();
+
+    @Valid
     private Upload upload = new Upload();
+
+    @Valid
+    private TemporaryArtifacts temporaryArtifacts = new TemporaryArtifacts();
 
     @Valid
     private ActivityLog activityLog = new ActivityLog();
@@ -217,12 +226,36 @@ public class NasProperties {
         this.share = share;
     }
 
+    public FileRequest getFileRequest() {
+        return fileRequest;
+    }
+
+    public void setFileRequest(FileRequest fileRequest) {
+        this.fileRequest = fileRequest;
+    }
+
+    public PendingFileDecisions getPendingFileDecisions() {
+        return pendingFileDecisions;
+    }
+
+    public void setPendingFileDecisions(PendingFileDecisions pendingFileDecisions) {
+        this.pendingFileDecisions = pendingFileDecisions;
+    }
+
     public Upload getUpload() {
         return upload;
     }
 
     public void setUpload(Upload upload) {
         this.upload = upload;
+    }
+
+    public TemporaryArtifacts getTemporaryArtifacts() {
+        return temporaryArtifacts;
+    }
+
+    public void setTemporaryArtifacts(TemporaryArtifacts temporaryArtifacts) {
+        this.temporaryArtifacts = temporaryArtifacts;
     }
 
     public ActivityLog getActivityLog() {
@@ -758,8 +791,6 @@ public class NasProperties {
 
         private boolean directEnabled = true;
 
-        private boolean extractorEnabled = false;
-
         private boolean blockPrivateNetworks = true;
 
         @NotNull
@@ -785,6 +816,14 @@ public class NasProperties {
         @Max(1000)
         private int historyLimit = 100;
 
+        @Min(0)
+        @Max(5)
+        private int maxRetries = 2;
+
+        private boolean skipInspectByDefault = false;
+
+        private String defaultTargetDirectory = "";
+
         public boolean isEnabled() {
             return enabled;
         }
@@ -799,14 +838,6 @@ public class NasProperties {
 
         public void setDirectEnabled(boolean directEnabled) {
             this.directEnabled = directEnabled;
-        }
-
-        public boolean isExtractorEnabled() {
-            return extractorEnabled;
-        }
-
-        public void setExtractorEnabled(boolean extractorEnabled) {
-            this.extractorEnabled = extractorEnabled;
         }
 
         public boolean isBlockPrivateNetworks() {
@@ -871,6 +902,30 @@ public class NasProperties {
 
         public void setHistoryLimit(int historyLimit) {
             this.historyLimit = historyLimit;
+        }
+
+        public int getMaxRetries() {
+            return maxRetries;
+        }
+
+        public void setMaxRetries(int maxRetries) {
+            this.maxRetries = maxRetries;
+        }
+
+        public boolean isSkipInspectByDefault() {
+            return skipInspectByDefault;
+        }
+
+        public void setSkipInspectByDefault(boolean skipInspectByDefault) {
+            this.skipInspectByDefault = skipInspectByDefault;
+        }
+
+        public String getDefaultTargetDirectory() {
+            return defaultTargetDirectory;
+        }
+
+        public void setDefaultTargetDirectory(String defaultTargetDirectory) {
+            this.defaultTargetDirectory = defaultTargetDirectory == null ? "" : defaultTargetDirectory;
         }
     }
 
@@ -1036,6 +1091,26 @@ public class NasProperties {
         @Min(1024)
         private long comicInfoMaxBytes = 65536L;
 
+        @Min(1)
+        @Max(1000000)
+        private int archiveMaxEntries = 50000;
+
+        @Min(1024)
+        private long archiveEntryMaxBytes = 21474836480L;
+
+        @Min(1024)
+        private long archiveTotalMaxBytes = 107374182400L;
+
+        @Min(1)
+        private int archiveMaxCompressionRatio = 1000;
+
+        @Min(1024)
+        private int archiveMaxMemoryKiB = 262144;
+
+        @Min(1)
+        @Max(512)
+        private int archiveManifestCacheEntries = 32;
+
         public long getTextAutoLoadMaxBytes() {
             return textAutoLoadMaxBytes;
         }
@@ -1100,6 +1175,54 @@ public class NasProperties {
             this.comicInfoMaxBytes = comicInfoMaxBytes;
         }
 
+        public int getArchiveMaxEntries() {
+            return archiveMaxEntries;
+        }
+
+        public void setArchiveMaxEntries(int archiveMaxEntries) {
+            this.archiveMaxEntries = archiveMaxEntries;
+        }
+
+        public long getArchiveEntryMaxBytes() {
+            return archiveEntryMaxBytes;
+        }
+
+        public void setArchiveEntryMaxBytes(long archiveEntryMaxBytes) {
+            this.archiveEntryMaxBytes = archiveEntryMaxBytes;
+        }
+
+        public long getArchiveTotalMaxBytes() {
+            return archiveTotalMaxBytes;
+        }
+
+        public void setArchiveTotalMaxBytes(long archiveTotalMaxBytes) {
+            this.archiveTotalMaxBytes = archiveTotalMaxBytes;
+        }
+
+        public int getArchiveMaxCompressionRatio() {
+            return archiveMaxCompressionRatio;
+        }
+
+        public void setArchiveMaxCompressionRatio(int archiveMaxCompressionRatio) {
+            this.archiveMaxCompressionRatio = archiveMaxCompressionRatio;
+        }
+
+        public int getArchiveMaxMemoryKiB() {
+            return archiveMaxMemoryKiB;
+        }
+
+        public void setArchiveMaxMemoryKiB(int archiveMaxMemoryKiB) {
+            this.archiveMaxMemoryKiB = archiveMaxMemoryKiB;
+        }
+
+        public int getArchiveManifestCacheEntries() {
+            return archiveManifestCacheEntries;
+        }
+
+        public void setArchiveManifestCacheEntries(int archiveManifestCacheEntries) {
+            this.archiveManifestCacheEntries = archiveManifestCacheEntries;
+        }
+
         @Deprecated
         public long getTextMaxBytes() {
             return textAutoLoadMaxBytes;
@@ -1126,7 +1249,7 @@ public class NasProperties {
         private boolean customTokenEnabled = true;
 
         @Min(1)
-        private int customTokenMinLength = 3;
+        private int customTokenMinLength = 12;
 
         @Min(1)
         private int customTokenMaxLength = 64;
@@ -1140,6 +1263,8 @@ public class NasProperties {
         private boolean directDownloadLinkEnabled = true;
 
         private boolean directoryShowHiddenItems = false;
+
+        private boolean defaultPreviewEnabled = true;
 
         public boolean isEnabled() {
             return enabled;
@@ -1228,50 +1353,261 @@ public class NasProperties {
         public void setDirectoryShowHiddenItems(boolean directoryShowHiddenItems) {
             this.directoryShowHiddenItems = directoryShowHiddenItems;
         }
+
+        public boolean isDefaultPreviewEnabled() {
+            return defaultPreviewEnabled;
+        }
+
+        public void setDefaultPreviewEnabled(boolean defaultPreviewEnabled) {
+            this.defaultPreviewEnabled = defaultPreviewEnabled;
+        }
     }
 
     public static class Upload {
+        @Min(1048576)
+        @Max(67108864)
+        private long resumableChunkSizeBytes = 33554432L;
+
         @Min(1)
-        private int tempRetentionMinutes = 30;
+        @Max(16)
+        private int maxConcurrentChunks = 4;
+
+        @Min(1)
+        @Max(168)
+        private int resumableSessionRetentionHours = 24;
 
         @Min(60000)
-        private long tempCleanupIntervalMs = 600000L;
+        private long resumableCleanupIntervalMs = 600000L;
+
+        public long getResumableChunkSizeBytes() {
+            return resumableChunkSizeBytes;
+        }
+
+        public void setResumableChunkSizeBytes(long resumableChunkSizeBytes) {
+            this.resumableChunkSizeBytes = resumableChunkSizeBytes;
+        }
+
+        public int getMaxConcurrentChunks() {
+            return maxConcurrentChunks;
+        }
+
+        public void setMaxConcurrentChunks(int maxConcurrentChunks) {
+            this.maxConcurrentChunks = maxConcurrentChunks;
+        }
+
+        public int getResumableSessionRetentionHours() {
+            return resumableSessionRetentionHours;
+        }
+
+        public void setResumableSessionRetentionHours(int resumableSessionRetentionHours) {
+            this.resumableSessionRetentionHours = resumableSessionRetentionHours;
+        }
+
+        public long getResumableCleanupIntervalMs() {
+            return resumableCleanupIntervalMs;
+        }
+
+        public void setResumableCleanupIntervalMs(long resumableCleanupIntervalMs) {
+            this.resumableCleanupIntervalMs = resumableCleanupIntervalMs;
+        }
+    }
+
+    public static class FileRequest {
+        private boolean enabled = true;
 
         @Min(0)
-        private int maxFilesPerRequest = 0;
+        @Max(365)
+        private int defaultExpirationDays = 7;
 
-        private boolean directoryUploadEnabled = false;
+        @Min(1)
+        @Max(21474836480L)
+        private long defaultMaxFileSizeBytes = 10737418240L;
 
-        public int getTempRetentionMinutes() {
-            return tempRetentionMinutes;
+        @Min(1)
+        @Max(107374182400L)
+        private long defaultMaxTotalBytes = 21474836480L;
+
+        @Min(1)
+        @Max(1000)
+        private int defaultMaxFiles = 100;
+
+        private String defaultUploaderNamePolicy = "optional";
+
+        private boolean customTokenEnabled = true;
+
+        @Min(1)
+        private int customTokenMinLength = 12;
+
+        @Min(1)
+        private int customTokenMaxLength = 64;
+
+        @Min(8)
+        @Max(64)
+        private int randomTokenBytes = 24;
+
+        @Min(1)
+        @Max(2)
+        private int maxConcurrentUploadsPerRequest = 2;
+
+        private boolean rateLimitEnabled = true;
+
+        @Min(1)
+        @Max(100000)
+        private int rateLimitMaxAdmissions = 120;
+
+        @Min(1)
+        @Max(86400)
+        private int rateLimitWindowSeconds = 60;
+
+        @Min(0)
+        @Max(86400)
+        private int accessLogDedupSeconds = 600;
+
+        public boolean isEnabled() {
+            return enabled;
         }
 
-        public void setTempRetentionMinutes(int tempRetentionMinutes) {
-            this.tempRetentionMinutes = tempRetentionMinutes;
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
         }
 
-        public long getTempCleanupIntervalMs() {
-            return tempCleanupIntervalMs;
+        public int getDefaultExpirationDays() {
+            return defaultExpirationDays;
         }
 
-        public void setTempCleanupIntervalMs(long tempCleanupIntervalMs) {
-            this.tempCleanupIntervalMs = tempCleanupIntervalMs;
+        public void setDefaultExpirationDays(int defaultExpirationDays) {
+            this.defaultExpirationDays = defaultExpirationDays;
         }
 
-        public int getMaxFilesPerRequest() {
-            return maxFilesPerRequest;
+        public long getDefaultMaxFileSizeBytes() {
+            return defaultMaxFileSizeBytes;
         }
 
-        public void setMaxFilesPerRequest(int maxFilesPerRequest) {
-            this.maxFilesPerRequest = maxFilesPerRequest;
+        public void setDefaultMaxFileSizeBytes(long defaultMaxFileSizeBytes) {
+            this.defaultMaxFileSizeBytes = defaultMaxFileSizeBytes;
         }
 
-        public boolean isDirectoryUploadEnabled() {
-            return directoryUploadEnabled;
+        public long getDefaultMaxTotalBytes() {
+            return defaultMaxTotalBytes;
         }
 
-        public void setDirectoryUploadEnabled(boolean directoryUploadEnabled) {
-            this.directoryUploadEnabled = directoryUploadEnabled;
+        public void setDefaultMaxTotalBytes(long defaultMaxTotalBytes) {
+            this.defaultMaxTotalBytes = defaultMaxTotalBytes;
+        }
+
+        public int getDefaultMaxFiles() {
+            return defaultMaxFiles;
+        }
+
+        public void setDefaultMaxFiles(int defaultMaxFiles) {
+            this.defaultMaxFiles = defaultMaxFiles;
+        }
+
+        public String getDefaultUploaderNamePolicy() {
+            return defaultUploaderNamePolicy;
+        }
+
+        public void setDefaultUploaderNamePolicy(String defaultUploaderNamePolicy) {
+            this.defaultUploaderNamePolicy = defaultUploaderNamePolicy;
+        }
+
+        public boolean isCustomTokenEnabled() {
+            return customTokenEnabled;
+        }
+
+        public void setCustomTokenEnabled(boolean customTokenEnabled) {
+            this.customTokenEnabled = customTokenEnabled;
+        }
+
+        public int getCustomTokenMinLength() {
+            return customTokenMinLength;
+        }
+
+        public void setCustomTokenMinLength(int customTokenMinLength) {
+            this.customTokenMinLength = customTokenMinLength;
+        }
+
+        public int getCustomTokenMaxLength() {
+            return customTokenMaxLength;
+        }
+
+        public void setCustomTokenMaxLength(int customTokenMaxLength) {
+            this.customTokenMaxLength = customTokenMaxLength;
+        }
+
+        public int getRandomTokenBytes() {
+            return randomTokenBytes;
+        }
+
+        public void setRandomTokenBytes(int randomTokenBytes) {
+            this.randomTokenBytes = randomTokenBytes;
+        }
+
+        public int getMaxConcurrentUploadsPerRequest() {
+            return maxConcurrentUploadsPerRequest;
+        }
+
+        public void setMaxConcurrentUploadsPerRequest(int maxConcurrentUploadsPerRequest) {
+            this.maxConcurrentUploadsPerRequest = maxConcurrentUploadsPerRequest;
+        }
+
+        public boolean isRateLimitEnabled() {
+            return rateLimitEnabled;
+        }
+
+        public void setRateLimitEnabled(boolean rateLimitEnabled) {
+            this.rateLimitEnabled = rateLimitEnabled;
+        }
+
+        public int getRateLimitMaxAdmissions() {
+            return rateLimitMaxAdmissions;
+        }
+
+        public void setRateLimitMaxAdmissions(int rateLimitMaxAdmissions) {
+            this.rateLimitMaxAdmissions = rateLimitMaxAdmissions;
+        }
+
+        public int getRateLimitWindowSeconds() {
+            return rateLimitWindowSeconds;
+        }
+
+        public void setRateLimitWindowSeconds(int rateLimitWindowSeconds) {
+            this.rateLimitWindowSeconds = rateLimitWindowSeconds;
+        }
+
+        public int getAccessLogDedupSeconds() {
+            return accessLogDedupSeconds;
+        }
+
+        public void setAccessLogDedupSeconds(int accessLogDedupSeconds) {
+            this.accessLogDedupSeconds = accessLogDedupSeconds;
+        }
+    }
+
+    public static class PendingFileDecisions {
+        @Min(1)
+        @Max(3650)
+        private int warningDays = 30;
+
+        public int getWarningDays() {
+            return warningDays;
+        }
+
+        public void setWarningDays(int warningDays) {
+            this.warningDays = warningDays;
+        }
+    }
+
+    public static class TemporaryArtifacts {
+        @Min(1)
+        private int staleAfterMinutes = 30;
+
+        public int getStaleAfterMinutes() {
+            return staleAfterMinutes;
+        }
+
+        public void setStaleAfterMinutes(int staleAfterMinutes) {
+            this.staleAfterMinutes = staleAfterMinutes;
         }
     }
 
@@ -1403,9 +1739,6 @@ public class NasProperties {
     public static class MetadataInspector {
         private boolean enabled = true;
 
-        @Min(1)
-        private int uploadTempStaleMinutes = 30;
-
         @Min(0)
         private int maxIssuesPerArea = 5000;
 
@@ -1415,14 +1748,6 @@ public class NasProperties {
 
         public void setEnabled(boolean enabled) {
             this.enabled = enabled;
-        }
-
-        public int getUploadTempStaleMinutes() {
-            return uploadTempStaleMinutes;
-        }
-
-        public void setUploadTempStaleMinutes(int uploadTempStaleMinutes) {
-            this.uploadTempStaleMinutes = uploadTempStaleMinutes;
         }
 
         public int getMaxIssuesPerArea() {

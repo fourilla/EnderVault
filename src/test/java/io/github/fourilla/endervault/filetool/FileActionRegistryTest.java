@@ -2,6 +2,8 @@ package io.github.fourilla.endervault.filetool;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.fourilla.endervault.storage.FileItem;
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
 
 class FileActionRegistryTest {
@@ -66,6 +68,20 @@ class FileActionRegistryTest {
     }
 
     @Test
+    void supportedArchivesExposeArchiveToolsWithoutAStandalonePreviewPage() {
+        FileToolDescriptor descriptor = registry.resolve(
+                "backup.tar.gz",
+                false,
+                "application/gzip",
+                "gz"
+        );
+
+        assertThat(descriptor.type()).isEqualTo(FileToolType.ARCHIVE);
+        assertThat(descriptor.archive()).isTrue();
+        assertThat(descriptor.previewPageAvailable()).isFalse();
+    }
+
+    @Test
     void unknownBinaryFilesUseHexFallbackWithoutPreviewPage() {
         FileToolDescriptor descriptor = registry.resolve(
                 "blob.bin",
@@ -92,8 +108,54 @@ class FileActionRegistryTest {
     }
 
     @Test
+    void mp3FilesExposeAudioPreviewEvenWhenMediaTypeIsGeneric() {
+        FileToolDescriptor descriptor = registry.resolve(
+                "track.mp3",
+                false,
+                "application/octet-stream",
+                "mp3"
+        );
+
+        assertThat(descriptor.type()).isEqualTo(FileToolType.AUDIO);
+        assertThat(descriptor.audio()).isTrue();
+        assertThat(descriptor.previewable()).isTrue();
+        assertThat(descriptor.previewPageAvailable()).isTrue();
+        assertThat(registry.browserActions("track.mp3", false, "application/octet-stream", "mp3"))
+                .containsExactly(FileActionKind.DOWNLOAD, FileActionKind.PREVIEW);
+    }
+
+    @Test
     void browserActionsExposeDownloadOnlyForUnknownBinaryFiles() {
         assertThat(registry.browserActions("archive.bin", false, "application/octet-stream", "bin"))
                 .containsExactly(FileActionKind.DOWNLOAD);
+    }
+
+    @Test
+    void sharedDirectoryActionsRequireBothLinkPolicyAndSharedCapability() {
+        FileItem text = item("note.txt", "text/plain");
+        FileItem pdf = item("document.pdf", "application/pdf");
+
+        assertThat(registry.sharedDirectoryActions(text, true))
+                .containsExactly(FileActionKind.DOWNLOAD, FileActionKind.PREVIEW);
+        assertThat(registry.sharedDirectoryActions(text, false))
+                .containsExactly(FileActionKind.DOWNLOAD);
+        assertThat(registry.sharedDirectoryActions(pdf, true))
+                .containsExactly(FileActionKind.DOWNLOAD);
+    }
+
+    private FileItem item(String name, String mediaType) {
+        return new FileItem(
+                name,
+                name,
+                false,
+                1,
+                "1 B",
+                "2026-01-01 00:00:00",
+                Instant.EPOCH,
+                mediaType,
+                true,
+                false,
+                false
+        );
     }
 }

@@ -4,6 +4,7 @@ import io.github.fourilla.endervault.common.ByteSizeFormatter;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.filetool.FileActionRegistry;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -18,7 +19,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class StorageService {
@@ -26,36 +26,59 @@ public class StorageService {
     private final Path root;
     private final Path trashRoot;
     private final Path metadataRoot;
-    private final Path uploadTempRoot;
+    private final Path fileStagingRoot;
+    private final Path archiveTempRoot;
     private final String trashDirectoryName;
     private final String metadataDirectoryName;
     private final StoragePathResolver pathResolver;
     private final StorageZipWriter zipWriter;
-    private final UploadStagingService uploadStagingService;
+    private final FileStagingService fileStagingService;
     private final StorageListingService listingService;
     private final StorageConflictResolver conflictResolver;
     private final StorageTreeOperations treeOperations;
+    private final ArchiveStagingCommitter archiveStagingCommitter;
     private final NasProperties.Share shareProperties;
 
     public StorageService(NasProperties nasProperties) {
-        this(nasProperties, new FileActionRegistry());
+        this(nasProperties, new FileActionRegistry(), new TemporaryArtifactRegistry());
     }
 
     @Autowired
-    public StorageService(NasProperties nasProperties, FileActionRegistry fileActionRegistry) {
+    public StorageService(
+            NasProperties nasProperties,
+            FileActionRegistry fileActionRegistry,
+            TemporaryArtifactRegistry temporaryArtifactRegistry
+    ) {
         NasProperties.Storage storage = nasProperties.getStorage();
         this.root = storage.getRoot().toAbsolutePath().normalize();
         this.trashDirectoryName = validateConfiguredDirectory(storage.getTrashDirectory());
         this.metadataDirectoryName = validateConfiguredDirectory(storage.getMetadataDirectory());
         this.trashRoot = root.resolve(trashDirectoryName).normalize();
         this.metadataRoot = root.resolve(metadataDirectoryName).normalize();
-        this.uploadTempRoot = metadataRoot.resolve("uploads").normalize();
-        this.pathResolver = new StoragePathResolver(root, trashRoot, metadataRoot, uploadTempRoot);
+        this.fileStagingRoot = metadataRoot.resolve("file-staging").normalize();
+        this.archiveTempRoot = metadataRoot.resolve("archive-staging").normalize();
+        this.pathResolver = new StoragePathResolver(root, trashRoot, metadataRoot, fileStagingRoot);
         this.zipWriter = new StorageZipWriter();
-        this.uploadStagingService = new UploadStagingService(uploadTempRoot, pathResolver);
+        this.fileStagingService = new FileStagingService(
+                fileStagingRoot,
+                pathResolver,
+                temporaryArtifactRegistry
+        );
         this.listingService = new StorageListingService(root, trashRoot, pathResolver, fileActionRegistry);
         this.conflictResolver = new StorageConflictResolver(nasProperties, pathResolver);
-        this.treeOperations = new StorageTreeOperations(pathResolver, uploadStagingService);
+        this.treeOperations = new StorageTreeOperations(
+                pathResolver,
+                fileStagingService,
+                temporaryArtifactRegistry
+        );
+        this.archiveStagingCommitter = new ArchiveStagingCommitter(
+                root,
+                archiveTempRoot,
+                pathResolver,
+                conflictResolver,
+                treeOperations,
+                temporaryArtifactRegistry
+        );
         this.shareProperties = nasProperties.getShare();
     }
 
@@ -64,7 +87,8 @@ public class StorageService {
         Files.createDirectories(root);
         createSystemDirectory(trashRoot, "Trash");
         createSystemDirectory(metadataRoot, "Metadata");
-        createSystemDirectory(uploadTempRoot, "Upload temporary");
+        createSystemDirectory(fileStagingRoot, "File staging");
+        createSystemDirectory(archiveTempRoot, "Archive temporary");
     }
 
     public DirectoryListing list(StorageScope scope, String requestedPath) throws IOException {
@@ -88,6 +112,17 @@ public class StorageService {
             boolean showHidden
     ) throws IOException {
         return listingService.list(scope, requestedPath, sort, direction, showHidden);
+    }
+
+    public DirectoryListing list(
+            StorageScope scope,
+            String requestedPath,
+            FileSort sort,
+            SortDirection direction,
+            boolean showHidden,
+            StorageEntryFilter entryFilter
+    ) throws IOException {
+        return listingService.list(scope, requestedPath, sort, direction, showHidden, entryFilter);
     }
 
     public DirectoryListing listTrash() throws IOException {
@@ -121,6 +156,17 @@ public class StorageService {
         return listingService.search(scope, requestedRoot, query, showHidden);
     }
 
+    public List<FileItem> search(
+            StorageScope scope,
+            String requestedRoot,
+            String query,
+            FileSort sort,
+            SortDirection direction,
+            boolean showHidden
+    ) throws IOException {
+        return listingService.search(scope, requestedRoot, query, sort, direction, showHidden);
+    }
+
     public Path resolveFile(StorageScope scope, String directoryPath, String fileName) throws IOException {
         Path file = pathResolver.resolveChild(scope, directoryPath, fileName, true);
         if (!Files.isRegularFile(file)) {
@@ -139,6 +185,14 @@ public class StorageService {
 
     public Path resolveVaultPath(String vaultPath) throws IOException {
         return pathResolver.resolve(StorageScope.VAULT, vaultPath);
+    }
+
+    public Path resolveVaultDirectory(String vaultPath) throws IOException {
+        Path directory = pathResolver.resolveDirectory(StorageScope.VAULT, vaultPath);
+        if (!Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)) {
+            throw new NoSuchFileException(vaultPath == null ? "" : vaultPath);
+        }
+        return directory;
     }
 
     public FileItem describeVaultPath(String vaultPath) throws IOException {
@@ -161,6 +215,11 @@ public class StorageService {
 
     public Path ensureVaultDirectory(String vaultPath) throws IOException {
         return pathResolver.resolveDirectory(StorageScope.VAULT, vaultPath);
+    }
+
+    public String normalizeVaultDirectory(String vaultPath) throws IOException {
+        Path directory = pathResolver.resolveDirectory(StorageScope.VAULT, vaultPath);
+        return pathResolver.toRelativePath(root, directory);
     }
 
     public String renameVaultPath(String vaultPath, String newName) throws IOException {
@@ -376,40 +435,36 @@ public class StorageService {
         return listingService.mediaType(file);
     }
 
-    public FileItem upload(String directoryPath, MultipartFile file) throws IOException {
-        return upload(directoryPath, file, null);
+    public Path createFileStagingTemporaryFile(String prefix, String suffix) throws IOException {
+        return fileStagingService.createTemporaryFile(prefix, suffix);
     }
 
-    public FileItem upload(String directoryPath, MultipartFile file, ConflictPolicy conflictPolicy) throws IOException {
-        if (file.isEmpty()) {
-            return null;
-        }
-        StagedUpload stagedUpload = stageUpload(file);
-        try {
-            FileItem item = moveStagedUploadIntoVault(stagedUpload, directoryPath, conflictPolicy);
-            stagedUpload = null;
-            return item;
-        } finally {
-            if (stagedUpload != null) {
-                Files.deleteIfExists(stagedUpload.temporaryFile());
-            }
-        }
+    public Path resumableUploadProtocolRoot() throws IOException {
+        return fileStagingService.resumableProtocolRoot();
     }
 
-    public StagedUpload stageUpload(MultipartFile file) throws IOException {
-        return uploadStagingService.stageUpload(file);
+    public Path claimResumableUploadData(Path protocolData, String sessionId) throws IOException {
+        return fileStagingService.claimResumableUpload(protocolData, sessionId);
     }
 
-    public Path createUploadTemporaryFile(String prefix, String suffix) throws IOException {
-        return uploadStagingService.createTemporaryFile(prefix, suffix);
+    public Path resumableUploadStagingFile(String sessionId) {
+        return fileStagingService.resumableStagingFile(sessionId);
     }
 
-    public List<TemporaryFileInfo> listUploadTemporaryFiles() throws IOException {
-        return uploadStagingService.listTemporaryFiles();
+    public String fileStagingFilename(Path path) {
+        return fileStagingService.filename(path);
     }
 
-    public void deleteUploadTemporaryFile(String filename) throws IOException {
-        uploadStagingService.deleteTemporaryFile(filename);
+    public Path resolveFileStagingFile(String filename) {
+        return fileStagingService.resolveFile(filename);
+    }
+
+    public List<FileStagingInfo> listFileStagingFiles() throws IOException {
+        return fileStagingService.listFiles();
+    }
+
+    public void deleteFileStagingFile(String filename) throws IOException {
+        fileStagingService.deleteFile(filename);
     }
 
     public FileItem moveTemporaryFileIntoVault(Path temporaryFile, String directoryPath, String filename)
@@ -448,20 +503,151 @@ public class StorageService {
         );
     }
 
-    public FileItem moveStagedUploadIntoVault(
-            StagedUpload stagedUpload,
+    public String resolveAvailableVaultFilename(String directoryPath, String filename) throws IOException {
+        Path target = pathResolver.resolveChild(StorageScope.VAULT, directoryPath, filename, false);
+        StorageConflictResolver.StorageConflictTarget resolvedTarget =
+                conflictResolver.resolve(target, false, ConflictPolicy.RENAME);
+        return resolvedTarget.path().getFileName().toString();
+    }
+
+    public CommittedVaultFile commitStagedRegularFileNoReplace(
+            Path stagedFile,
             String directoryPath,
+            String filename
+    ) throws IOException {
+        Path target = pathResolver.resolveChild(StorageScope.VAULT, directoryPath, filename, false);
+        treeOperations.commitRegularFileNoReplace(stagedFile, target);
+        return new CommittedVaultFile(
+                target.getFileName().toString(),
+                pathResolver.toRelativePath(root, target)
+        );
+    }
+
+    public void createStagedRegularFileReplacementBackup(
+            String directoryPath,
+            String filename,
+            Path backupFile
+    ) throws IOException {
+        Path target = pathResolver.resolveChild(StorageScope.VAULT, directoryPath, filename, true);
+        Path canonicalBackup = resolveFileStagingFile(fileStagingFilename(backupFile));
+        treeOperations.createRegularFileReplacementBackup(target, canonicalBackup);
+    }
+
+    public CommittedVaultFile commitStagedRegularFileReplace(
+            Path stagedFile,
+            String directoryPath,
+            String filename
+    ) throws IOException {
+        Path target = pathResolver.resolveChild(StorageScope.VAULT, directoryPath, filename, true);
+        treeOperations.commitRegularFileReplace(stagedFile, target);
+        return new CommittedVaultFile(
+                target.getFileName().toString(),
+                pathResolver.toRelativePath(root, target)
+        );
+    }
+
+    public void deleteStagedRegularFileReplacementBackup(Path backupFile) throws IOException {
+        Path canonicalBackup = resolveFileStagingFile(fileStagingFilename(backupFile));
+        treeOperations.deleteRegularFileReplacementBackup(canonicalBackup);
+    }
+
+    public Path createArchiveExtractionWorkspace() throws IOException {
+        return archiveStagingCommitter.createWorkspace("extract-");
+    }
+
+    public Path createArchiveCreationWorkspace() throws IOException {
+        return archiveStagingCommitter.createWorkspace("create-");
+    }
+
+    public Path claimArchiveCreationOutput(Path archiveOutput) throws IOException {
+        Path safeOutput = archiveStagingCommitter.requireCreationOutput(archiveOutput);
+        return fileStagingService.claimTemporaryFile(safeOutput, "archive-output-", ".tmp");
+    }
+
+    public void preflightArchiveExtraction(
+            String directoryPath,
+            boolean createContainingDirectory,
+            String directoryName,
+            List<StorageBatchEntry> topLevelEntries,
             ConflictPolicy conflictPolicy
     ) throws IOException {
-        if (stagedUpload == null) {
-            return null;
-        }
-        return moveTemporaryFileIntoVault(
-                stagedUpload.temporaryFile(),
+        archiveStagingCommitter.preflight(
                 directoryPath,
-                stagedUpload.filename(),
+                createContainingDirectory,
+                directoryName,
+                topLevelEntries,
                 conflictPolicy
         );
+    }
+
+    public ArchiveCommitPlan planArchiveCommit(
+            Path temporaryDirectory,
+            String directoryPath,
+            boolean createContainingDirectory,
+            String directoryName,
+            List<StorageBatchEntry> topLevelEntries,
+            ConflictPolicy conflictPolicy
+    ) throws IOException {
+        return archiveStagingCommitter.planCommit(
+                temporaryDirectory,
+                directoryPath,
+                createContainingDirectory,
+                directoryName,
+                topLevelEntries,
+                conflictPolicy
+        );
+    }
+
+    public String archiveStagingCommitPath(Path path) throws IOException {
+        return archiveStagingCommitter.storageRelativeCommitPath(path);
+    }
+
+    public Path resolveArchiveStagingCommitPath(String storageRelativePath) throws IOException {
+        return archiveStagingCommitter.resolveCommitPath(storageRelativePath);
+    }
+
+    public Path archiveStagingWorkspaceFor(Path commitPath) throws IOException {
+        return archiveStagingCommitter.workspaceForCommitPath(commitPath);
+    }
+
+    public Path resolveVaultCommitTarget(String vaultPath) throws IOException {
+        return pathResolver.resolveRestoreTargetPath(vaultPath);
+    }
+
+    public void commitArchiveStagedEntryNoReplace(Path stagedPath, String targetPath) throws IOException {
+        Path source = resolveArchiveStagingCommitPath(archiveStagingCommitPath(stagedPath));
+        Path target = resolveVaultCommitTarget(targetPath);
+        treeOperations.commitEntryNoReplace(source, target);
+    }
+
+    public void deleteArchiveExtractionWorkspace(Path workspace) throws IOException {
+        archiveStagingCommitter.deleteWorkspace(workspace);
+    }
+
+    public void deleteArchiveCreationWorkspace(Path workspace) throws IOException {
+        archiveStagingCommitter.deleteWorkspace(workspace);
+    }
+
+    public List<ArchiveStagingInfo> listArchiveStagingArtifacts(StorageProgressListener progressListener)
+            throws IOException {
+        return archiveStagingCommitter.listArtifacts(progressListener);
+    }
+
+    public void deleteArchiveStagingArtifact(String name) throws IOException {
+        archiveStagingCommitter.deleteArtifact(name);
+    }
+
+    public void preflightVaultFileCommit(
+            String directoryPath,
+            String filename,
+            ConflictPolicy conflictPolicy
+    ) throws IOException {
+        Path target = pathResolver.resolveChild(StorageScope.VAULT, directoryPath, filename, false);
+        conflictResolver.resolve(target, false, conflictPolicy);
+    }
+
+    public void validateVaultEntryName(String name) {
+        pathResolver.validateSingleName(name);
     }
 
     public StorageOperationSummary summarizeVaultPaths(List<String> vaultPaths) throws IOException {
@@ -547,7 +733,17 @@ public class StorageService {
 
     public void writeZip(StorageScope scope, String directoryPath, List<String> itemNames, OutputStream outputStream)
             throws IOException {
-        try (StorageZipWriter.EntryWriter zip = zipWriter.open(outputStream)) {
+        writeZip(scope, directoryPath, itemNames, outputStream, StorageProgressListener.NOOP);
+    }
+
+    public void writeZip(
+            StorageScope scope,
+            String directoryPath,
+            List<String> itemNames,
+            OutputStream outputStream,
+            StorageProgressListener progressListener
+    ) throws IOException {
+        try (StorageZipWriter.EntryWriter zip = zipWriter.open(outputStream, progressListener)) {
             for (String itemName : itemNames) {
                 Path item = pathResolver.resolveChild(scope, directoryPath, itemName, true);
                 zip.write(item, item.getFileName().toString());
@@ -556,11 +752,28 @@ public class StorageService {
     }
 
     public void writeVaultPathsZip(List<String> vaultPaths, OutputStream outputStream) throws IOException {
-        try (StorageZipWriter.EntryWriter zip = zipWriter.open(outputStream)) {
+        writeVaultPathsZip("", vaultPaths, outputStream, StorageProgressListener.NOOP);
+    }
+
+    public void writeVaultPathsZip(
+            String baseDirectoryPath,
+            List<String> vaultPaths,
+            OutputStream outputStream,
+            StorageProgressListener progressListener
+    ) throws IOException {
+        Path baseDirectory = pathResolver.resolveDirectory(StorageScope.VAULT, baseDirectoryPath);
+        try (StorageZipWriter.EntryWriter zip = zipWriter.open(outputStream, progressListener)) {
             for (String vaultPath : vaultPaths) {
                 pathResolver.validateVaultItemPath(vaultPath);
                 Path item = pathResolver.resolve(StorageScope.VAULT, vaultPath);
-                zip.write(item, pathResolver.toRelativePath(root, item));
+                if (!item.startsWith(baseDirectory)) {
+                    throw new StorageAccessException("Selected items must be inside the archive destination context.");
+                }
+                String entryName = pathResolver.toRelativePath(baseDirectory, item);
+                if (entryName.isBlank()) {
+                    throw new StorageAccessException("The archive destination directory cannot select itself.");
+                }
+                zip.write(item, entryName);
             }
         }
     }
@@ -613,18 +826,29 @@ public class StorageService {
         }
     }
 
-    public record StagedUpload(Path temporaryFile, String filename, long size) {
-    }
-
     public record CommittedVaultFile(String name, String path) {
     }
 
-    public record TemporaryFileInfo(
+    public record FileStagingInfo(
             String name,
             long size,
             String sizeLabel,
             Instant modifiedAt,
-            String modifiedLabel
+            String modifiedLabel,
+            boolean active,
+            String activeOperation
+    ) {
+    }
+
+    public record ArchiveStagingInfo(
+            String name,
+            String operation,
+            long size,
+            String sizeLabel,
+            Instant modifiedAt,
+            String modifiedLabel,
+            boolean active,
+            String activeOperation
     ) {
     }
 }

@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.trash;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -8,7 +9,9 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import io.github.fourilla.endervault.bookmark.BookmarkMetadataFetcher;
 import io.github.fourilla.endervault.bookmark.BookmarkService;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.publiclink.PublicLinkTokenService;
 import io.github.fourilla.endervault.favorite.FavoriteService;
+import io.github.fourilla.endervault.filerequest.FileRequestService;
 import io.github.fourilla.endervault.outbound.OutboundHttpClientRegistry;
 import io.github.fourilla.endervault.outbound.OutboundRouteStateService;
 import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthService;
@@ -17,6 +20,7 @@ import io.github.fourilla.endervault.recent.RecentService;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.storage.StorageService;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
@@ -47,7 +51,12 @@ class TrashServiceTest {
         storageService.initialize();
 
         ObjectMapper objectMapper = JsonMapper.builder().findAndAddModules().build();
-        shareLinkService = new ShareLinkService(storageService, objectMapper, properties);
+        shareLinkService = new ShareLinkService(
+                storageService,
+                objectMapper,
+                properties,
+                new PublicLinkTokenService()
+        );
         shareLinkService.initialize();
         BookmarkService bookmarkService = new BookmarkService(
                 objectMapper,
@@ -58,7 +67,8 @@ class TrashServiceTest {
                                 new VpnProxyHealthService(properties, new VpnTunnelHealthProbe())
                         )
                 ),
-                new OutboundRouteStateService(properties)
+                new OutboundRouteStateService(properties),
+                new TemporaryArtifactRegistry()
         );
         bookmarkService.initialize();
         favoriteService = new FavoriteService(storageService, bookmarkService, objectMapper, properties);
@@ -73,6 +83,7 @@ class TrashServiceTest {
                 shareLinkService,
                 favoriteService,
                 recentService,
+                mock(FileRequestService.class),
                 properties
         );
     }

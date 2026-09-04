@@ -44,13 +44,42 @@ button.shared-download-button:disabled:hover {
 }
 
 .shared-preview-panel {
-    display: grid;
-    gap: var(--space-xl);
     margin-top: 18px;
 }
 
-.shared-preview-panel .section-heading {
+.shared-preview-summary {
+    cursor: pointer;
+    list-style: none;
     margin: 0;
+    border-block: 1px solid var(--line);
+    padding: var(--space-lg) 0;
+}
+
+.shared-preview-summary::-webkit-details-marker {
+    display: none;
+}
+
+.shared-preview-summary::marker {
+    content: "";
+}
+
+.shared-preview-chevron {
+    color: var(--muted);
+    transition: transform 120ms ease;
+}
+
+.shared-preview-panel[open] .shared-preview-chevron {
+    transform: rotate(180deg);
+}
+
+.shared-preview-content {
+    display: grid;
+    gap: var(--space-xl);
+    padding-top: var(--space-xl);
+}
+
+.shared-preview-panel:not([open]) > .shared-preview-content {
+    display: none;
 }
 
 .shared-text-fallback {
@@ -196,7 +225,6 @@ button.shared-download-button:disabled:hover {
     padding-top: var(--space-xl);
 }
 
-.manage-delete .row-form,
 .manage-delete button {
     width: 100%;
 }
@@ -278,7 +306,7 @@ button.shared-download-button:disabled:hover {
     overflow: hidden;
     border: 1px solid var(--line);
     border-radius: var(--radius-panel);
-    background: #05070a;
+    background: var(--media-canvas-bg);
 }
 
 .comic-page-image {

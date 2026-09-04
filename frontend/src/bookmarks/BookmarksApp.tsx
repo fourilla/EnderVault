@@ -1,0 +1,220 @@
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { icon } from '../shared/browser/BrowserEntries';
+import { useItemSelection } from '../shared/browser/useItemSelection';
+import { useNavigationScroll } from '../shared/browser/useNavigationScroll';
+import { useListingRefresh } from '../shared/browser/useListingRefresh';
+import { loadBookmarks } from './bookmark-api';
+import { BookmarkDialogs, type DialogKind } from './BookmarkDialogs';
+import { BookmarkBreadcrumbs, BookmarkTable } from './BookmarkEntries';
+import { bookmarkHistory } from './bookmark-history';
+import { useListingHistory, useListingSnapshot } from '../shared/browser/ListingHistoryContext';
+import type { BookmarkEntry, BookmarkHistoryState, BookmarkPayload } from './types';
+import { useBookmarkActions } from './useBookmarkActions';
+import { useBookmarkContextMenu } from './useBookmarkContextMenu';
+import './bookmarks-app.css';
+
+const itemKey = (entry: BookmarkEntry) => entry.id;
+const requestKey = (state: BookmarkHistoryState) => state.directoryId + '\u0000' + state.query;
+
+export function BookmarksApp() {
+  const { state, key: historyKey, remember, navigate: navigateHistory, isCurrent, ready } = useListingHistory(bookmarkHistory);
+  const [payload, setPayload] = useListingSnapshot<BookmarkPayload>(historyKey);
+  const [searchText, setSearchText] = useState(state.query);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [refreshToken, setRefreshToken] = useState(0);
+  const [dialog, setDialog] = useState<DialogKind>(null);
+  const stateRef = useRef(state);
+  const payloadRef = useRef(payload);
+  useNavigationScroll(payload, loading, state.scrollTop, historyKey, ready);
+  const requestGenerationRef = useRef(0);
+  stateRef.current = state;
+  payloadRef.current = payload;
+
+  const effectiveState = useCallback((): BookmarkHistoryState => {
+    const current = stateRef.current;
+    const currentPayload = payloadRef.current;
+    if (!currentPayload) return current;
+    return {
+      ...current,
+      directoryId: currentPayload.currentDirectoryId || '',
+      query: currentPayload.search.query,
+    };
+  }, []);
+
+  const reload = useCallback(() => {
+    setRefreshToken((value) => value + 1);
+  }, []);
+
+  const navigate = useCallback((next: BookmarkHistoryState, replace = false) => {
+    if (!isCurrent()) return;
+    const normalized = { ...next, surface: 'bookmarks' as const, version: 1 as const };
+    const sameRequest = requestKey(effectiveState()) === requestKey(normalized);
+    remember(effectiveState());
+    navigateHistory(normalized, replace || sameRequest);
+    requestGenerationRef.current += 1;
+    payloadRef.current = null;
+    setPayload(null);
+    setLoading(true);
+  }, [effectiveState, remember, navigateHistory, isCurrent]);
+
+  const browse = useCallback((directoryId: string) => {
+    setSearchText('');
+    navigate({ ...effectiveState(), directoryId, query: '', scrollTop: 0 });
+  }, [effectiveState, navigate]);
+
+  const openItem = useCallback((entry: BookmarkEntry) => {
+    if (entry.type === 'directory') {
+      browse(entry.id);
+    } else if (entry.primaryNewTab) {
+      window.open(entry.primaryUrl, '_blank', 'noopener,noreferrer');
+    } else {
+      window.EnderVault?.navigate(entry.primaryUrl) || window.location.assign(entry.primaryUrl);
+    }
+  }, [browse]);
+
+  const entries = payload ? [...payload.directories, ...payload.links] : [];
+  const selection = useItemSelection({
+    items: entries,
+    enabled: true,
+    locationKey: requestKey(state),
+    itemKey,
+    openItem,
+  });
+
+  const actions = useBookmarkActions({
+    selectedEntries: selection.selectedItems,
+    setSelected: selection.setSelected,
+    setPayload,
+    effectiveState,
+    reload,
+  });
+
+  const openLinkDialog = useCallback(() => setDialog('link'), []);
+  const openBulkDialog = useCallback(() => setDialog('bulk'), []);
+  useBookmarkContextMenu({
+    payloadRef,
+    selectedRef: selection.selectedRef,
+    setSelected: selection.setSelected,
+    browse,
+    actions,
+    openLinkDialog,
+    openBulkDialog,
+  });
+
+  useEffect(() => {
+    if (!isCurrent()) return;
+    const generation = ++requestGenerationRef.current;
+    const requestState = effectiveState();
+    const controller = new AbortController();
+    setLoading(true);
+    setError('');
+    void loadBookmarks(requestState, controller.signal)
+      .then((nextPayload) => {
+        if (!isCurrent() || controller.signal.aborted || generation !== requestGenerationRef.current) return;
+        setPayload(nextPayload);
+        const resolved = {
+          ...requestState,
+          directoryId: nextPayload.currentDirectoryId || '',
+          query: nextPayload.search.query,
+        };
+        stateRef.current = resolved;
+        remember(resolved);
+        const currentLabel = nextPayload.breadcrumbs.at(-1)?.label || 'Bookmarks';
+        const stickyContext = nextPayload.currentDirectoryId ? {
+          targetType: 'BOOKMARK', targetKey: nextPayload.currentDirectoryId,
+          surface: 'BROWSER', label: currentLabel,
+        } : {
+          targetType: 'PAGE', targetKey: 'bookmarks', surface: 'PAGE', label: 'Bookmarks',
+        };
+        void window.EnderVaultStickyNotes?.setContext(stickyContext);
+        document.dispatchEvent(new CustomEvent('endervault:sticky-context-changed', { detail: stickyContext }));
+      })
+      .catch((reason: unknown) => {
+        if (!isCurrent() || controller.signal.aborted || generation !== requestGenerationRef.current) return;
+        setError(reason instanceof Error ? reason.message : 'Bookmarks could not be loaded.');
+      })
+      .finally(() => {
+        if (isCurrent() && !controller.signal.aborted && generation === requestGenerationRef.current) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [historyKey, state.directoryId, state.query, refreshToken, remember, isCurrent, effectiveState]);
+
+  useEffect(() => {
+    setSearchText(state.query);
+  }, [historyKey, state.query]);
+
+  useListingRefresh(reload);
+
+  const submitSearch = (event: FormEvent) => {
+    event.preventDefault();
+    navigate({ ...effectiveState(), query: searchText.trim(), scrollTop: 0 });
+  };
+
+  return (
+    <>
+      <BookmarkBreadcrumbs breadcrumbs={payload?.breadcrumbs || [{ id: null, label: 'Bookmarks' }]}
+        browse={browse} />
+      <section className="toolbar" aria-label="Bookmark tools">
+        <form className="search-form" onSubmit={submitSearch}>
+          <label className="search-field">
+            <span className="visually-hidden">Search bookmarks</span>
+            {icon('fas fa-magnifying-glass')}
+            <input value={searchText} onChange={(event) => setSearchText(event.target.value)}
+              placeholder="Search bookmarks" autoComplete="off" />
+          </label>
+          <button className="icon-button" type="submit" title="Search bookmarks" aria-label="Search bookmarks">
+            {icon('fas fa-magnifying-glass')}
+          </button>
+        </form>
+        <div className="toolbar-cluster" aria-label="Bookmark controls">
+          <div className="toolbar-actions file-actions bookmark-actions" aria-label="Bookmark actions">
+            <button className="icon-button" type="button" title="New directory" aria-label="New directory"
+              onClick={() => void actions.createDirectory()}>{icon('fas fa-folder-plus')}</button>
+            <button className="icon-button" type="button" title="Add link" aria-label="Add link"
+              onClick={openLinkDialog}>{icon('fas fa-link')}</button>
+            <button className="icon-button" type="button" title="Bulk add links" aria-label="Bulk add links"
+              onClick={openBulkDialog}>{icon('fas fa-list-ul')}</button>
+            <button className="icon-button danger" type="button" title="Delete selected"
+              aria-label="Delete selected" disabled={selection.selectedItems.length === 0}
+              onClick={() => void actions.deleteEntries()}>{icon('fas fa-trash-can')}</button>
+          </div>
+        </div>
+      </section>
+
+      <BookmarkDialogs kind={dialog} close={() => setDialog(null)}
+        createLink={actions.createLink} bulkAdd={actions.bulkAdd} />
+
+      {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
+      {loading && !payload && (
+        <section className="browser-load-progress" role="status" aria-live="polite">
+          <i className="fas fa-spinner fa-spin" aria-hidden="true" />
+          <span>{state.query ? 'Searching bookmarks...' : 'Loading bookmarks...'}</span>
+        </section>
+      )}
+      {payload && (
+        <>
+          {payload.directories.length > 0 && (
+            <BookmarkTable entries={payload.directories} heading="Directories" browse={browse}
+              selected={selection.selected} select={selection.selectItem}
+              itemInteractionProps={selection.itemInteractionProps}
+              toggleFavorite={(entry) => void actions.toggleFavorite(entry)}
+              refreshMetadata={(entry) => void actions.refreshMetadata(entry)} />
+          )}
+          {payload.links.length > 0 && (
+            <BookmarkTable entries={payload.links} heading="Links" browse={browse}
+              selected={selection.selected} select={selection.selectItem}
+              itemInteractionProps={selection.itemInteractionProps}
+              toggleFavorite={(entry) => void actions.toggleFavorite(entry)}
+              refreshMetadata={(entry) => void actions.refreshMetadata(entry)} />
+          )}
+          {payload.totalItems === 0 && (
+            <p className="empty browser-grid-empty">
+              {payload.search.performed ? 'No bookmarks matched your search.' : 'No bookmarks found.'}
+            </p>
+          )}
+        </>
+      )}
+    </>
+  );
+}

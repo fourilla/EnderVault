@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+    <title>EnderVault</title>
+    <th:block th:replace="~{fragments/assets :: styles(true)}"></th:block>
+    <th:block th:replace="~{fragments/assets :: coreScripts}"></th:block>
+    <th:block th:replace="~{fragments/assets :: resumableUploadScript}"></th:block>
+    <th:block th:replace="~{fragments/assets :: directoryPickerScript}"></th:block>
+    <th:block th:replace="~{fragments/assets :: viteEntry(${adminAppFrontend})}"></th:block>
+</head>
+<body data-server-task-activity="true">
+<div hidden aria-hidden="true">
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+</div>
+<div th:replace="~{fragments/notifications :: toasts}"></div>
+<div id="admin-app-root" class="admin-app-root">
+    <section class="dashboard-panel settings-react-loading" th:if="${adminAppFrontend.available()}">
+        Loading EnderVault...
+    </section>
+    <section class="dashboard-panel" th:unless="${adminAppFrontend.available()}">
+        <header class="section-heading">
+            <div>
+                <h2>EnderVault frontend unavailable</h2>
+                <p>Build the frontend assets or start the configured Vite development server.</p>
+            </div>
+        </header>
+    </section>
+</div>
+<th:block th:replace="~{fragments/directory-picker :: dialog}"></th:block>
+</body>
+</html>

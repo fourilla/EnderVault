@@ -1,10 +1,54 @@
 .share-create-form {
     display: grid;
-    grid-template-columns: minmax(180px, 1fr) minmax(110px, 140px) auto;
+    grid-template-columns: 1fr;
 }
 
-.share-create-form label {
+.share-create-primary {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) minmax(110px, 140px) auto;
+    gap: var(--space-md);
+}
+
+.share-create-primary label {
     min-width: 0;
+}
+
+.share-preview-option {
+    display: inline-flex;
+    align-items: center;
+    justify-self: start;
+    gap: var(--space-sm);
+}
+
+.input-action-field {
+    position: relative;
+    display: grid;
+    min-width: 0;
+}
+
+.input-action-field > input {
+    padding-right: calc(var(--table-action-icon-size) + var(--space-xl));
+}
+
+.input-action-field .input-action-button {
+    position: absolute;
+    top: 50%;
+    right: var(--space-sm);
+    width: var(--table-action-icon-size);
+    height: var(--table-action-icon-size);
+    min-height: var(--table-action-icon-size);
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    padding: 0;
+    box-shadow: none;
+    transform: translateY(-50%);
+}
+
+.input-action-field .input-action-button:hover,
+.input-action-field .input-action-button:focus-visible {
+    background: var(--item-hover-bg);
+    color: var(--text);
 }
 
 .password-field {

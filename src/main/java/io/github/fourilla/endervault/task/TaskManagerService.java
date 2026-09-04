@@ -115,6 +115,23 @@ public class TaskManagerService {
         taskFutures.remove(task.id());
     }
 
+    public AppTask resolvePending(String id, boolean discarded, String committedPath) {
+        AppTask task = tasks.get(id);
+        if (task == null || task.status() != TaskStatus.PENDING) {
+            return task;
+        }
+        if (discarded) {
+            task.markCanceled("Pending file discarded.");
+        } else {
+            if (committedPath == null || committedPath.isBlank()) {
+                throw new IllegalArgumentException("Committed path is required when resolving a pending task.");
+            }
+            task.setTargetPath(committedPath);
+            task.markComplete("Saved to " + committedPath + ".");
+        }
+        return task;
+    }
+
     @PreDestroy
     public void shutdown() {
         executorService.shutdownNow();
@@ -127,14 +144,11 @@ public class TaskManagerService {
             }
             task.markRunning();
             TaskOutcome outcome = work.run(new TaskContext(task));
-            if (task.cancelRequested()) {
-                throw new TaskCanceledException();
-            }
             TaskOutcome safeOutcome = outcome == null ? TaskOutcome.complete("Complete.") : outcome;
-            if (safeOutcome.status() == TaskStatus.PARTIAL) {
-                task.markPartial(safeOutcome.message());
-            } else {
-                task.markComplete(safeOutcome.message());
+            switch (safeOutcome.status()) {
+                case PENDING -> task.markPending(safeOutcome.message());
+                case PARTIAL -> task.markPartial(safeOutcome.message());
+                default -> task.markComplete(safeOutcome.message());
             }
         } catch (TaskCanceledException ex) {
             task.markCanceled("Canceled.");

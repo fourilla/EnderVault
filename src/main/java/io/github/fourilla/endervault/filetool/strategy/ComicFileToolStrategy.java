@@ -25,6 +25,7 @@ public class ComicFileToolStrategy implements FileToolStrategy {
         return FileToolDescriptor.of(
                 FileToolType.COMIC,
                 FileToolCapability.PREVIEW_PAGE,
+                FileToolCapability.SHARED_PREVIEW,
                 FileToolCapability.COMIC_VIEW
         );
     }

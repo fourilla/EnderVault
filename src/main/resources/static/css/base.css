@@ -29,6 +29,13 @@
     --disabled-text: #728093;
     --shadow: rgba(0, 0, 0, 0.42);
     --thumb-bg: #25313d;
+    --media-canvas-bg: #0b0f14;
+
+    --z-toast: 1000;
+    --z-topbar: 1050;
+    --z-topbar-popover: 1100;
+    --z-context-menu: 1200;
+    --z-modal: 10000;
 
     --font-size-2xs: 11px;
     --font-size-xs: 12px;
@@ -200,9 +207,20 @@ select {
 
 input:focus,
 textarea:focus,
-select:focus,
+select:focus {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+}
+
 button:focus,
-a:focus {
+a:focus,
+summary:focus {
+    outline: none;
+}
+
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible {
     outline: 2px solid var(--focus);
     outline-offset: 2px;
 }

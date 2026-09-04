@@ -46,6 +46,7 @@ class FileToolServiceTest {
         assertThat(descriptor.type()).isEqualTo(FileToolType.TEXT);
         assertThat(descriptor.editable()).isTrue();
         assertThat(descriptor.previewable()).isFalse();
+        assertThat(descriptor.sharedPreviewable()).isTrue();
         assertThat(content.loaded()).isTrue();
         assertThat(content.content()).isEqualTo("hello");
     }
@@ -143,5 +144,20 @@ class FileToolServiceTest {
         assertThat(descriptor.type()).isEqualTo(FileToolType.COMIC);
         assertThat(descriptor.editable()).isFalse();
         assertThat(descriptor.previewable()).isFalse();
+        assertThat(descriptor.sharedPreviewable()).isTrue();
+    }
+
+    @Test
+    void resolvesMp3FilesAsAudioTool() throws Exception {
+        Files.write(root.resolve("track.mp3"), new byte[] {1, 2, 3});
+        FileDetail detail = storageService.detail(StorageScope.VAULT, "track.mp3");
+
+        FileToolDescriptor descriptor = fileToolService.resolve(detail);
+
+        assertThat(descriptor.type()).isEqualTo(FileToolType.AUDIO);
+        assertThat(descriptor.audio()).isTrue();
+        assertThat(descriptor.previewable()).isTrue();
+        assertThat(descriptor.previewPageAvailable()).isTrue();
+        assertThat(descriptor.sharedPreviewable()).isTrue();
     }
 }

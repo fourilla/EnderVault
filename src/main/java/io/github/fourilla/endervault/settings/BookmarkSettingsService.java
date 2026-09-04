@@ -1,8 +1,10 @@
 package io.github.fourilla.endervault.settings;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.github.fourilla.endervault.config.LocalPropertiesFile;
 import io.github.fourilla.endervault.config.NasProperties;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -13,6 +15,7 @@ import org.springframework.util.MultiValueMap;
 @Service
 public class BookmarkSettingsService {
 
+    private static final int KIB = 1024;
     private static final List<String> LINK_CLICK_ACTIONS = List.of("open", "detail");
 
     private final NasProperties nasProperties;
@@ -50,8 +53,8 @@ public class BookmarkSettingsService {
         int connectTimeoutSeconds = intRange(first(parameters, "connectTimeoutSeconds"), 1, 3600, "Connect timeout");
         int responseTimeoutSeconds = intRange(first(parameters, "responseTimeoutSeconds"), 1, 3600, "Response timeout");
         int maxRedirects = intRange(first(parameters, "maxRedirects"), 0, 50, "Max redirects");
-        int htmlMaxBytes = intRange(first(parameters, "htmlMaxBytes"), 1024, Integer.MAX_VALUE, "HTML max bytes");
-        int faviconMaxBytes = intRange(first(parameters, "faviconMaxBytes"), 1024, Integer.MAX_VALUE, "Favicon max bytes");
+        int htmlMaxBytes = scaledInt(first(parameters, "htmlMaxKib"), KIB, 1024, "HTML response limit");
+        int faviconMaxBytes = scaledInt(first(parameters, "faviconMaxKib"), KIB, 1024, "Favicon response limit");
         String faviconCacheDirectory = safeCacheDirectory(first(parameters, "faviconCacheDirectory"));
 
         return new BookmarkSettingsUpdate(
@@ -74,6 +77,11 @@ public class BookmarkSettingsService {
     public void save(BookmarkSettingsUpdate update) throws IOException {
         persist(update);
         applyToRuntime(update);
+    }
+
+    public boolean requiresRestart(BookmarkSettingsUpdate update) {
+        return !nasProperties.getBookmarks().getFaviconCacheDirectory()
+                .equals(update.cache().faviconCacheDirectory());
     }
 
     private void persist(BookmarkSettingsUpdate update) throws IOException {
@@ -161,6 +169,29 @@ public class BookmarkSettingsService {
         }
     }
 
+    private static int scaledInt(String rawValue, int scale, int min, String label) {
+        try {
+            int value = new BigDecimal(clean(rawValue))
+                    .multiply(BigDecimal.valueOf(scale))
+                    .intValueExact();
+            if (value < min) {
+                throw new IllegalArgumentException(label + " must be at least " + (min / scale) + " KiB.");
+            }
+            return value;
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException(label + " must be a number.");
+        } catch (ArithmeticException ex) {
+            throw new IllegalArgumentException(label + " has too much precision or is too large.");
+        }
+    }
+
+    private static String kibibytes(int bytes) {
+        return BigDecimal.valueOf(bytes)
+                .divide(BigDecimal.valueOf(KIB))
+                .stripTrailingZeros()
+                .toPlainString();
+    }
+
     private static String first(MultiValueMap<String, String> parameters, String key) {
         String value = parameters.getFirst(key);
         return value == null ? "" : value;
@@ -203,6 +234,16 @@ public class BookmarkSettingsService {
             int htmlMaxBytes,
             int faviconMaxBytes
     ) {
+
+        @JsonProperty
+        public String htmlMaxKib() {
+            return kibibytes(htmlMaxBytes);
+        }
+
+        @JsonProperty
+        public String faviconMaxKib() {
+            return kibibytes(faviconMaxBytes);
+        }
     }
 
     public record CacheSettings(String faviconCacheDirectory) {

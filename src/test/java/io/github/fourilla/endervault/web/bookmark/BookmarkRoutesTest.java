@@ -10,10 +10,18 @@ class BookmarkRoutesTest {
 
     @Test
     void buildsBookmarkRedirectWithNormalizedParameters() {
+        assertThat(BookmarkRoutes.bookmarksUrl(" docs ", " spring docs "))
+                .isEqualTo("/files/bookmarks?directory=docs&q=spring%20docs");
         assertThat(BookmarkRoutes.redirectToBookmarks(" docs ", " spring docs "))
                 .isEqualTo("redirect:/files/bookmarks?directory=docs&q=spring%20docs");
         assertThat(BookmarkRoutes.redirectToBookmarks("", ""))
                 .isEqualTo("redirect:/files/bookmarks");
+        assertThat(BookmarkRoutes.bookmarkDetailUrl("bookmark id"))
+                .isEqualTo("/files/bookmarks/detail?id=bookmark%20id");
+        assertThat(BookmarkRoutes.bookmarkOpenUrl("bookmark id"))
+                .isEqualTo("/files/bookmarks/open?id=bookmark%20id");
+        assertThat(BookmarkRoutes.bookmarkFaviconUrl("bookmark id"))
+                .isEqualTo("/files/bookmarks/favicon?id=bookmark%20id");
     }
 
     @Test

@@ -1,0 +1,4 @@
+.admin-react-shell .detail-layout > .detail-main {
+  min-width: 0;
+  height: 100%;
+}

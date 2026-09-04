@@ -1,0 +1,134 @@
+.file-request-form fieldset {
+    display: grid;
+    gap: var(--space-3xl);
+    margin: 0;
+    border: 0;
+    padding: 0;
+}
+
+.file-request-field-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2xl) var(--space-3xl);
+}
+
+.file-request-field-grid > label {
+    display: grid;
+    gap: var(--space-sm);
+    min-width: 0;
+}
+
+.file-request-field-grid > label > span:first-child {
+    color: var(--muted);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+}
+
+.file-request-token-field,
+.file-request-description-field {
+    grid-column: 1 / -1;
+}
+
+.file-request-description-field textarea {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-control);
+    background: var(--panel-elevated);
+    color: var(--text);
+    padding: var(--field-padding);
+    font: inherit;
+    resize: vertical;
+}
+
+.file-request-duplicate-note {
+    margin: 0;
+    color: var(--muted);
+    white-space: pre-wrap;
+}
+
+.file-request-policy-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-lg) var(--space-3xl);
+    margin: 0;
+}
+
+.file-request-policy-grid > div {
+    display: grid;
+    grid-template-columns: 130px minmax(0, 1fr);
+    gap: var(--space-lg);
+}
+
+.file-request-policy-grid dt {
+    color: var(--muted);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+}
+
+.file-request-policy-grid dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.file-request-policy-description {
+    white-space: pre-wrap;
+}
+
+.file-request-policy-wide {
+    grid-column: 1 / -1;
+}
+
+.file-request-detail-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--space-md);
+    margin-top: var(--space-2xl);
+}
+
+.file-request-detail-actions form {
+    margin: 0;
+}
+
+.file-request-delete-panel form {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.field-with-suffix {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-md);
+}
+
+.field-with-suffix > span {
+    color: var(--muted);
+    font-size: var(--font-size-xs);
+}
+
+.file-requests-table td small,
+.file-requests-table td strong {
+    display: block;
+}
+
+.file-requests-table td small {
+    color: var(--muted);
+    font-size: var(--font-size-xs);
+}
+
+@media (max-width: 760px) {
+    .file-request-field-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .file-request-token-field,
+    .file-request-description-field,
+    .file-request-policy-wide {
+        grid-column: auto;
+    }
+
+    .file-request-policy-grid {
+        grid-template-columns: 1fr;
+    }
+}

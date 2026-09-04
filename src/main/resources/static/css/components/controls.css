@@ -229,3 +229,7 @@ td .action-icon i {
     grid-template-columns: 1fr 1fr;
     gap: var(--space-lg);
 }
+
+.archive-create-dialog {
+    width: min(460px, calc(100vw - 32px));
+}

@@ -14,7 +14,16 @@ public record RemoteDownloadProbePayload(
         String contentTypeLabel,
         String warningLabel,
         String networkRoute,
-        String networkRouteLabel
+        String networkRouteLabel,
+        String status,
+        String statusLabel,
+        String rangeCapability,
+        String rangeCapabilityLabel,
+        int requestedConnections,
+        boolean inspectionSkipped,
+        String requestOptionsLabel,
+        boolean startAllowed,
+        String detail
 ) {
 
     public static RemoteDownloadProbePayload from(RemoteDownloadProbe probe) {
@@ -30,7 +39,16 @@ public record RemoteDownloadProbePayload(
                 probe.contentTypeLabel(),
                 probe.warningLabel(),
                 probe.networkRoute().settingValue(),
-                probe.networkRouteLabel()
+                probe.networkRouteLabel(),
+                probe.status().name(),
+                probe.statusLabel(),
+                probe.rangeCapability().name(),
+                probe.rangeCapabilityLabel(),
+                probe.requestedConnections(),
+                probe.inspectionSkipped(),
+                probe.requestOptionsLabel(),
+                probe.startAllowed(),
+                probe.detail()
         );
     }
 }

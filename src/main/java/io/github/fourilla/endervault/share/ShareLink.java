@@ -10,7 +10,8 @@ public record ShareLink(
         ShareTargetType type,
         Instant createdAt,
         Instant expiresAt,
-        boolean enabled
+        boolean enabled,
+        boolean previewEnabled
 ) {
     private static final DateTimeFormatter LABEL_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
@@ -56,10 +57,10 @@ public record ShareLink(
     }
 
     public ShareLink revoke() {
-        return new ShareLink(token, path, type, createdAt, expiresAt, false);
+        return new ShareLink(token, path, type, createdAt, expiresAt, false, previewEnabled);
     }
 
     public ShareLink withPath(String path) {
-        return new ShareLink(token, path, type, createdAt, expiresAt, enabled);
+        return new ShareLink(token, path, type, createdAt, expiresAt, enabled, previewEnabled);
     }
 }

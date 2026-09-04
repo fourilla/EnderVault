@@ -1,11 +1,14 @@
 package io.github.fourilla.endervault.settings;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.github.fourilla.endervault.config.LocalPropertiesFile;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.outbound.NetworkRoute;
 import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealth;
 import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthService;
 import io.github.fourilla.endervault.outbound.vpn.VpnTunnelHealthEndpoint;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.stereotype.Service;
@@ -34,6 +37,7 @@ public class VpnSettingsService {
     public VpnSettingsSnapshot currentSettings() {
         NasProperties.Vpn vpn = nasProperties.getOutbound().getVpn();
         return new VpnSettingsSnapshot(
+                nasProperties.getOutbound().getInitialRoute().settingValue(),
                 vpn.isEnabled(),
                 vpn.getProxyHost(),
                 vpn.getProxyPort(),
@@ -46,29 +50,31 @@ public class VpnSettingsService {
     }
 
     public VpnSettingsUpdate updateFrom(MultiValueMap<String, String> parameters) {
+        NetworkRoute initialRoute = NetworkRoute.fromSetting(first(parameters, "initialRoute"));
         boolean enabled = parameters.containsKey("enabled");
         String proxyHost = proxyHost(first(parameters, "proxyHost"), enabled);
         int proxyPort = intRange(first(parameters, "proxyPort"), 1, 65535, "Proxy port");
-        int healthConnectTimeoutMs = intRange(
-                first(parameters, "healthConnectTimeoutMs"),
+        int healthConnectTimeoutMs = Math.toIntExact(scaledMilliseconds(
+                first(parameters, "healthConnectTimeoutSeconds"),
                 MIN_TIMEOUT_MS,
                 MAX_TIMEOUT_MS,
                 "Proxy health connect timeout"
-        );
+        ));
         String tunnelHealthUrl = tunnelHealthUrl(first(parameters, "tunnelHealthUrl"));
-        int healthRequestTimeoutMs = intRange(
-                first(parameters, "healthRequestTimeoutMs"),
+        int healthRequestTimeoutMs = Math.toIntExact(scaledMilliseconds(
+                first(parameters, "healthRequestTimeoutSeconds"),
                 MIN_TIMEOUT_MS,
                 MAX_TIMEOUT_MS,
                 "Tunnel health request timeout"
-        );
-        long healthCheckIntervalMs = longRange(
-                first(parameters, "healthCheckIntervalMs"),
+        ));
+        long healthCheckIntervalMs = scaledMilliseconds(
+                first(parameters, "healthCheckIntervalSeconds"),
                 1000L,
                 Long.MAX_VALUE,
                 "Health check interval"
         );
         return new VpnSettingsUpdate(
+                initialRoute,
                 enabled,
                 proxyHost,
                 proxyPort,
@@ -81,6 +87,7 @@ public class VpnSettingsService {
 
     public VpnProxyHealth save(VpnSettingsUpdate update) throws IOException {
         Map<String, String> updates = new LinkedHashMap<>();
+        updates.put("nas.outbound.initial-route", update.initialRoute().settingValue());
         updates.put("nas.outbound.vpn.enabled", Boolean.toString(update.enabled()));
         updates.put("nas.outbound.vpn.proxy-host", update.proxyHost());
         updates.put("nas.outbound.vpn.proxy-port", Integer.toString(update.proxyPort()));
@@ -100,6 +107,7 @@ public class VpnSettingsService {
         localPropertiesFile.update(updates, "# VPN egress settings managed from EnderVault Settings.");
 
         NasProperties.Vpn vpn = nasProperties.getOutbound().getVpn();
+        nasProperties.getOutbound().setInitialRoute(update.initialRoute());
         vpn.setEnabled(update.enabled());
         vpn.setProxyHost(update.proxyHost());
         vpn.setProxyPort(update.proxyPort());
@@ -108,6 +116,11 @@ public class VpnSettingsService {
         vpn.setHealthRequestTimeoutMs(update.healthRequestTimeoutMs());
         vpn.setHealthCheckIntervalMs(update.healthCheckIntervalMs());
         return vpnProxyHealthService.refresh();
+    }
+
+    public boolean requiresRestart(VpnSettingsUpdate update) {
+        return nasProperties.getOutbound().getInitialRoute() != update.initialRoute()
+                || nasProperties.getOutbound().getVpn().getHealthCheckIntervalMs() != update.healthCheckIntervalMs();
     }
 
     private static String proxyHost(String rawValue, boolean required) {
@@ -146,6 +159,29 @@ public class VpnSettingsService {
         }
     }
 
+    private static long scaledMilliseconds(String rawValue, long min, long max, String label) {
+        try {
+            long value = new BigDecimal(clean(rawValue))
+                    .multiply(BigDecimal.valueOf(1000L))
+                    .longValueExact();
+            if (value < min || value > max) {
+                throw new IllegalArgumentException(label + " is outside the supported range.");
+            }
+            return value;
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException(label + " must be a number.");
+        } catch (ArithmeticException ex) {
+            throw new IllegalArgumentException(label + " has too much precision or is too large.");
+        }
+    }
+
+    private static String seconds(long milliseconds) {
+        return BigDecimal.valueOf(milliseconds)
+                .divide(BigDecimal.valueOf(1000L))
+                .stripTrailingZeros()
+                .toPlainString();
+    }
+
     private static String first(MultiValueMap<String, String> parameters, String key) {
         String value = parameters.getFirst(key);
         return value == null ? "" : value;
@@ -156,6 +192,7 @@ public class VpnSettingsService {
     }
 
     public record VpnSettingsSnapshot(
+            String initialRoute,
             boolean enabled,
             String proxyHost,
             int proxyPort,
@@ -165,9 +202,25 @@ public class VpnSettingsService {
             long healthCheckIntervalMs,
             String configPath
     ) {
+
+        @JsonProperty
+        public String healthConnectTimeoutSeconds() {
+            return seconds(healthConnectTimeoutMs);
+        }
+
+        @JsonProperty
+        public String healthRequestTimeoutSeconds() {
+            return seconds(healthRequestTimeoutMs);
+        }
+
+        @JsonProperty
+        public String healthCheckIntervalSeconds() {
+            return seconds(healthCheckIntervalMs);
+        }
     }
 
     public record VpnSettingsUpdate(
+            NetworkRoute initialRoute,
             boolean enabled,
             String proxyHost,
             int proxyPort,

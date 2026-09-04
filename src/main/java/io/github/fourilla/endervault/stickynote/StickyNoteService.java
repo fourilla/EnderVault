@@ -7,6 +7,8 @@ import io.github.fourilla.endervault.bookmark.BookmarkService;
 import io.github.fourilla.endervault.common.JsonRegistry;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.filerequest.FileRequest;
+import io.github.fourilla.endervault.filerequest.FileRequestService;
 import io.github.fourilla.endervault.storage.FileItem;
 import io.github.fourilla.endervault.storage.StorageService;
 import jakarta.annotation.PostConstruct;
@@ -30,6 +32,7 @@ public class StickyNoteService {
     private final JsonRegistry<List<StickyNote>> registry;
     private final StorageService storageService;
     private final BookmarkService bookmarkService;
+    private final FileRequestService fileRequestService;
     private final StickyNotePageCatalog pageCatalog;
 
     public StickyNoteService(
@@ -37,10 +40,12 @@ public class StickyNoteService {
             NasProperties nasProperties,
             StorageService storageService,
             BookmarkService bookmarkService,
+            FileRequestService fileRequestService,
             StickyNotePageCatalog pageCatalog
     ) {
         this.storageService = storageService;
         this.bookmarkService = bookmarkService;
+        this.fileRequestService = fileRequestService;
         this.pageCatalog = pageCatalog;
         this.registry = new JsonRegistry<>(
                 objectMapper,
@@ -202,6 +207,10 @@ public class StickyNoteService {
                     BookmarkItem bookmark = bookmarkService.find(context.normalizedTargetKey());
                     yield bookmark == null ? context.normalizedTargetKey() : bookmark.title();
                 }
+                case FILE_REQUEST -> {
+                    FileRequest fileRequest = fileRequestService.require(context.normalizedTargetKey());
+                    yield fileRequest.title();
+                }
             };
         } catch (Exception ex) {
             return context.normalizedTargetKey().isBlank() ? "Unknown target" : context.normalizedTargetKey();
@@ -219,6 +228,7 @@ public class StickyNoteService {
             }
             case STORAGE -> storageOpenUrl(context);
             case BOOKMARK -> bookmarkOpenUrl(context);
+            case FILE_REQUEST -> fileRequestOpenUrl(context);
         };
     }
 
@@ -250,6 +260,14 @@ public class StickyNoteService {
                     throw new StorageAccessException("The bookmark target was not found.");
                 }
             }
+            case FILE_REQUEST -> {
+                if (targetKey.isBlank()) {
+                    throw new StorageAccessException("The file request target was not found.");
+                }
+                if (requireExisting) {
+                    fileRequestService.require(targetKey);
+                }
+            }
         }
         return new StickyNoteContext(context.targetType(), targetKey, context.surface());
     }
@@ -259,7 +277,7 @@ public class StickyNoteService {
         String encoded = urlEncode(key);
         return switch (context.surface()) {
             case DETAIL -> "/files/detail?path=" + encoded;
-            case SEARCH -> "/files/search?path=" + encoded;
+            case SEARCH -> key.isBlank() ? "/files" : "/files?path=" + encoded;
             default -> key.isBlank() ? "/files" : "/files?path=" + encoded;
         };
     }
@@ -273,6 +291,15 @@ public class StickyNoteService {
             return context.surface() == StickyNoteSurface.DETAIL
                     ? "/files/bookmarks/detail?id=" + urlEncode(bookmark.id())
                     : "/files/bookmarks?directory=" + urlEncode(bookmark.directory() ? bookmark.id() : bookmark.parentId());
+        } catch (IOException ex) {
+            return null;
+        }
+    }
+
+    private String fileRequestOpenUrl(StickyNoteContext context) {
+        try {
+            FileRequest fileRequest = fileRequestService.require(context.normalizedTargetKey());
+            return "/admin/file-requests/" + urlEncode(fileRequest.id());
         } catch (IOException ex) {
             return null;
         }

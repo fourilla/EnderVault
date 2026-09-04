@@ -3,6 +3,7 @@
     const pollIntervalMs = 1400;
     const refreshUrls = new Map();
     const terminalNotifications = new Set();
+    const terminalEvents = new Set();
     let pollTimer = null;
 
     const metaContent = (name) =>
@@ -72,7 +73,7 @@
     const panelId = (task) => `server-${task.id}`;
 
     const cancelTask = async (task) => {
-        const body = await window.EnderVault.requestJson("/admin/tasks/cancel", {
+        const body = await window.EnderVault.requestJson("/api/v1/tasks/cancel", {
             method: "POST",
             body: csrfFormData(task.id)
         });
@@ -136,6 +137,10 @@
         });
 
         if (terminal(task)) {
+            if (!terminalEvents.has(task.id)) {
+                terminalEvents.add(task.id);
+                document.dispatchEvent(new CustomEvent("endervault:task-terminal", { detail: task }));
+            }
             maybeRefreshPage(task);
             maybeNotifyTerminalTask(task);
             removeTrackedId(task.id);
@@ -160,7 +165,7 @@
 
         const params = new URLSearchParams();
         ids.forEach((id) => params.append("ids", id));
-        const tasks = await window.EnderVault.requestJson(`/admin/tasks?${params.toString()}`);
+        const tasks = await window.EnderVault.requestJson(`/api/v1/tasks?${params.toString()}`);
         const returnedIds = new Set(tasks.map((task) => task.id));
         tasks.forEach(renderTask);
         ids.filter((id) => !returnedIds.has(id)).forEach((id) => {
@@ -202,6 +207,9 @@
             return;
         }
         renderTask(task);
+        if (options.announceStart) {
+            window.EnderVaultActivity?.announceStarted([`server-${task.id}`]);
+        }
         startPolling();
     };
 

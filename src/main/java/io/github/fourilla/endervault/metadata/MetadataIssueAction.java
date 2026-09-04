@@ -10,12 +10,17 @@ public enum MetadataIssueAction {
     DELETE_ORPHAN_TRASH_ITEM("Delete orphan trash item", true),
     DELETE_THUMBNAIL_CACHE("Delete cache file", true),
     DELETE_BOOKMARK_FAVICON_CACHE("Delete favicon cache", true),
-    DELETE_UPLOAD_TEMP("Delete temporary file", true),
+    DELETE_FILE_STAGING("Delete staging file", true),
+    DELETE_RESUMABLE_UPLOAD("Delete resumable upload", true),
+    DELETE_ARCHIVE_STAGING("Delete archive workspace", true),
     DELETE_TEXT_DRAFT("Delete text draft", true),
     DELETE_TEXT_DRAFT_METADATA("Delete draft metadata", true),
     DELETE_TEXT_DRAFT_CONTENT("Delete draft content", true),
     MOVE_BOOKMARK_TO_ROOT("Move bookmark to recovered", true),
-    MOVE_BOOKMARK_TO_RECOVERED_DIRECTORY("Move bookmark to recovered", true);
+    MOVE_BOOKMARK_TO_RECOVERED_DIRECTORY("Move bookmark to recovered", true),
+    REVOKE_FILE_REQUEST("Revoke file request", true),
+    DELETE_FILE_REQUEST("Delete file request metadata", true),
+    REMOVE_MISSING_PENDING_DECISION("Remove missing pending decision", true);
 
     private final String label;
     private final boolean repairable;

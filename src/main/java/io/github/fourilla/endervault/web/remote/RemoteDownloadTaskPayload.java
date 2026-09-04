@@ -6,6 +6,7 @@ public record RemoteDownloadTaskPayload(
         String id,
         String shortId,
         String sourceUrl,
+        String fileName,
         String targetDirectory,
         String targetPath,
         String networkRoute,
@@ -18,6 +19,11 @@ public record RemoteDownloadTaskPayload(
         String createdLabel,
         String finishedLabel,
         String message,
+        int requestedConnections,
+        int actualConnections,
+        String pendingDecisionId,
+        int retryCount,
+        String startedLabel,
         boolean active,
         boolean cancelRequested
 ) {
@@ -27,6 +33,7 @@ public record RemoteDownloadTaskPayload(
                 task.id(),
                 task.shortId(),
                 task.sourceUrl(),
+                task.fileName(),
                 task.targetDirectory(),
                 task.targetPath(),
                 task.networkRoute().settingValue(),
@@ -39,6 +46,11 @@ public record RemoteDownloadTaskPayload(
                 task.createdLabel(),
                 task.finishedLabel(),
                 task.message(),
+                task.requestedConnections(),
+                task.actualConnections(),
+                task.pendingDecisionId(),
+                task.retryCount(),
+                task.startedLabel(),
                 task.active(),
                 task.cancelRequested()
         );

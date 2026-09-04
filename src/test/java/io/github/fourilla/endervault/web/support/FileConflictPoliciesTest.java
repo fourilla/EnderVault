@@ -1,26 +1,15 @@
 package io.github.fourilla.endervault.web.support;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
 import io.github.fourilla.endervault.storage.ConflictPolicy;
-import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 
 class FileConflictPoliciesTest {
 
     @Test
-    void detectsAskPolicyOnlyForJsonRequests() {
-        HttpServletRequest htmlRequest = mock(HttpServletRequest.class);
-        HttpServletRequest jsonRequest = mock(HttpServletRequest.class);
-        when(jsonRequest.getHeader(HttpHeaders.ACCEPT)).thenReturn(MediaType.APPLICATION_JSON_VALUE);
-
+    void detectsAskPolicy() {
         assertThat(FileConflictPolicies.asks(" ask ")).isTrue();
-        assertThat(FileConflictPolicies.asksForJson("ask", htmlRequest)).isFalse();
-        assertThat(FileConflictPolicies.asksForJson("ask", jsonRequest)).isTrue();
+        assertThat(FileConflictPolicies.asks("cancel")).isFalse();
     }
 
     @Test

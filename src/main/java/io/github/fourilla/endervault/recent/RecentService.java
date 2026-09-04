@@ -3,6 +3,7 @@ package io.github.fourilla.endervault.recent;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.fourilla.endervault.common.JsonRegistry;
+import io.github.fourilla.endervault.common.NaturalNameComparator;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.storage.FileItem;
@@ -185,7 +186,8 @@ public class RecentService {
 
     private Comparator<RecentListItem> comparator(RecentSort sort) {
         Comparator<RecentListItem> nameComparator = Comparator.comparing(
-                item -> item.name().toLowerCase(Locale.ROOT)
+                RecentListItem::name,
+                NaturalNameComparator.INSTANCE
         );
         return switch (sort) {
             case NAME -> nameComparator;

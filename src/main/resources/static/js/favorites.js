@@ -1,7 +1,6 @@
 document.addEventListener("DOMContentLoaded", () => {
     const {
         requestJson,
-        submitJsonForm,
         showNotification,
         showToast,
         csrfPair,
@@ -11,49 +10,9 @@ document.addEventListener("DOMContentLoaded", () => {
     let activeSidebarMenu = null;
     let activeSidebarFavorite = null;
 
-    const favoriteUrl = (favorite) => {
-        if (favorite.openUrl) {
-            return favorite.openUrl;
-        }
-        const query = new URLSearchParams({ path: favorite.path }).toString();
-        return favorite.directory ? `/files?${query}` : `/files/detail?${query}`;
+    const dispatchFavoritesChanged = (detail) => {
+        document.dispatchEvent(new CustomEvent("endervault:favorites-changed", { detail }));
     };
-
-    const setButtonState = (button, active) => {
-        if (!button) {
-            return;
-        }
-
-        const label = active ? "Remove from favorites" : "Add to favorites";
-        button.classList.toggle("is-favorite", active);
-        button.title = label;
-        button.setAttribute("aria-label", label);
-    };
-
-    const updateMatchingButtons = (path, active) => {
-        document.querySelectorAll("form[data-favorite-path]").forEach((form) => {
-            if (form.dataset.favoritePath !== path) {
-                return;
-            }
-            setButtonState(form.querySelector(".favorite-toggle"), active);
-        });
-        document.querySelectorAll("[data-context-item]").forEach((item) => {
-            if (item.dataset.itemPath === path) {
-                item.dataset.itemFavorite = String(active);
-            }
-        });
-        document.querySelectorAll("[data-bookmark-context-item]").forEach((item) => {
-            if (`bookmark:${item.dataset.bookmarkId}` === path) {
-                item.dataset.bookmarkFavorite = String(active);
-            }
-        });
-    };
-
-    const favoriteElement = (root, attribute, path) =>
-        Array.from(root.querySelectorAll(`[${attribute}]`))
-                .find((element) => element.getAttribute(attribute) === path);
-
-    const sidebarList = () => document.querySelector("[data-sidebar-favorites-list]");
 
     const sidebarFavoriteLinks = () =>
         Array.from(document.querySelectorAll("[data-sidebar-favorites-list] [data-favorite-sidebar-path]"));
@@ -76,115 +35,28 @@ document.addEventListener("DOMContentLoaded", () => {
         return formData;
     };
 
-    const addSidebarFavorite = (favorite) => {
-        const list = sidebarList();
-        if (!list || !favorite) {
-            return;
-        }
-
-        favoriteElement(list, "data-favorite-sidebar-path", favorite.path)?.remove();
-        document.querySelector("[data-sidebar-favorites-empty]")?.remove();
-
-        const link = document.createElement("a");
-        link.href = favoriteUrl(favorite);
-        link.title = favorite.path;
-        link.classList.toggle("is-hidden-item", Boolean(favorite.hidden));
-        link.dataset.favoriteSidebarPath = favorite.path;
-        link.dataset.favoriteDirectOpenUrl = favorite.directOpenUrl || favorite.openUrl || link.href;
-        link.dataset.favoriteDetailUrl = favorite.detailUrl || favorite.openUrl || link.href;
-        link.dataset.favoriteBookmarkLink = String((favorite.path || "").startsWith("bookmark:") && Boolean(favorite.directOpenUrl));
-        if (favorite.openInNewTab) {
-            link.target = "_blank";
-            link.rel = "noopener noreferrer";
-        }
-        link.innerHTML = `
-            <i aria-hidden="true"></i>
-            <span></span>
-        `;
-        link.querySelector("i").className = favorite.iconClass;
-        link.querySelector("span").textContent = favorite.name;
-        list.append(link);
-    };
-
-    const removeSidebarFavorite = (path) => {
-        const list = sidebarList();
-        if (!list) {
-            return;
-        }
-
-        const link = favoriteElement(list, "data-favorite-sidebar-path", path);
-        if (link === activeSidebarFavorite) {
-            closeSidebarFavoriteMenu();
-        }
-        link?.remove();
-
-        if (!list.querySelector("a") && !document.querySelector("[data-sidebar-favorites-empty]")) {
-            const empty = document.createElement("p");
-            empty.dataset.sidebarFavoritesEmpty = "";
-            empty.textContent = "No favorites yet.";
-            list.after(empty);
-        }
-    };
-
-    const removeManagementRow = (path) => {
-        favoriteElement(document, "data-favorite-row-path", path)?.remove();
-        const tableBody = document.querySelector(".favorites-panel tbody");
-        if (!tableBody || tableBody.querySelector("[data-favorite-row-path]")) {
-            return;
-        }
-
-        const emptyRow = document.createElement("tr");
-        emptyRow.className = "empty-row";
-        emptyRow.innerHTML = '<td colspan="5" class="empty">No favorites yet.</td>';
-        tableBody.append(emptyRow);
-    };
-
-    const handleFavoriteResponse = (form, body) => {
-        const path = body.path || form.dataset.favoritePath || new FormData(form).get("path");
-        showNotification(body.notification);
-        updateMatchingButtons(path, body.active);
-
-        if (body.active) {
-            addSidebarFavorite(body.favorite);
-            return;
-        }
-
-        removeSidebarFavorite(path);
-        if (form.dataset.favoriteAction === "remove") {
-            removeManagementRow(path);
-        }
-    };
-
-    const togglePath = async (path) => {
+    const remove = async (path) => {
         const formData = formDataWithCsrf();
         formData.append("path", path);
-        const body = await requestJson("/files/favorites/toggle", {
+        const body = await requestJson("/api/v1/favorites/remove", {
             method: "POST",
             body: formData
         });
-        handleFavoriteResponse({
-            dataset: {
-                favoriteAction: "toggle",
-                favoritePath: path
-            }
-        }, body);
+        showNotification(body.notification);
+        dispatchFavoritesChanged({ action: "remove", path, active: false });
         return body;
     };
 
-    const toggleBookmark = async (id) => {
-        const path = `bookmark:${id}`;
+    const move = async (path, direction) => {
         const formData = formDataWithCsrf();
-        formData.append("id", id);
-        const body = await requestJson("/files/favorites/toggle-bookmark", {
+        formData.append("path", path);
+        formData.append("direction", direction);
+        const body = await requestJson("/api/v1/favorites/move", {
             method: "POST",
             body: formData
         });
-        handleFavoriteResponse({
-            dataset: {
-                favoriteAction: "toggle",
-                favoritePath: path
-            }
-        }, body);
+        showNotification(body.notification);
+        dispatchFavoritesChanged({ action: "move", path, direction });
         return body;
     };
 
@@ -245,36 +117,12 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        const formData = formDataWithCsrf();
-        formData.append("path", link.dataset.favoriteSidebarPath || "");
-        formData.append("direction", direction);
-        const body = await requestJson("/files/favorites/move", {
-            method: "POST",
-            body: formData
-        });
-
-        if (direction === "up") {
-            sibling.before(link);
-        } else {
-            sibling.after(link);
-        }
-        showNotification(body.notification);
+        await move(link.dataset.favoriteSidebarPath || "", direction);
     };
 
     const removeSidebarFavoriteViaMenu = async (link) => {
         const path = link.dataset.favoriteSidebarPath || "";
-        const formData = formDataWithCsrf();
-        formData.append("path", path);
-        const body = await requestJson("/files/favorites/remove", {
-            method: "POST",
-            body: formData
-        });
-        handleFavoriteResponse({
-            dataset: {
-                favoriteAction: "remove",
-                favoritePath: path
-            }
-        }, body);
+        await remove(path);
     };
 
     const showSidebarFavoriteMenu = (event, link) => {
@@ -297,7 +145,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 icon: "fas fa-circle-info",
                 label: "Details",
                 action: () => {
-                    window.location.href = link.dataset.favoriteDetailUrl || link.href;
+                    const url = link.dataset.favoriteDetailUrl || link.href;
+                    window.EnderVault?.navigate?.(url) || window.location.assign(url);
                 }
             }));
         } else {
@@ -309,7 +158,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         window.open(link.href, "_blank", "noopener,noreferrer");
                         return;
                     }
-                    window.location.href = link.href;
+                    window.EnderVault?.navigate?.(link.href) || window.location.assign(link.href);
                 }
             }));
         }
@@ -397,36 +246,5 @@ document.addEventListener("DOMContentLoaded", () => {
         document.addEventListener("scroll", closeSidebarFavoriteMenu, true);
     };
 
-    const bindFavoriteForms = (root = document) => {
-        root.querySelectorAll("form[data-favorite-action]").forEach((form) => {
-            if (form.dataset.favoriteBound === "true") {
-                return;
-            }
-            form.dataset.favoriteBound = "true";
-
-            form.addEventListener("submit", async (event) => {
-                event.preventDefault();
-                const button = form.querySelector("button");
-                button.disabled = true;
-                try {
-                    const body = await submitJsonForm(form);
-                    handleFavoriteResponse(form, body);
-                } catch (error) {
-                    showToast("error", error.message || "Favorite update failed.");
-                } finally {
-                    button.disabled = false;
-                }
-            });
-        });
-    };
-
-    bindFavoriteForms();
     bindSidebarFavoriteContextMenu();
-    document.addEventListener("endervault:listing-refreshed", () => bindFavoriteForms());
-
-    window.EnderVaultFavorites = {
-        togglePath,
-        toggleBookmark,
-        bind: bindFavoriteForms
-    };
 });

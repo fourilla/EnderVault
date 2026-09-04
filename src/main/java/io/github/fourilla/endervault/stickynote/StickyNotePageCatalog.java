@@ -29,15 +29,10 @@ public class StickyNotePageCatalog {
         register(values, "metadata-inspector", "Metadata Inspector", "/admin/metadata");
         register(values, "active-sessions", "Active Sessions", "/admin/sessions");
         register(values, "settings", "Settings", "/admin/settings");
-        register(values, "general-settings", "General Settings", "/admin/settings/general");
-        register(values, "account-settings", "Account Settings", "/admin/settings/account");
-        register(values, "bookmark-settings", "Bookmark Settings", "/admin/settings/bookmarks");
-        register(values, "session-settings", "Session Settings", "/admin/settings/sessions");
-        register(values, "vpn-settings", "VPN Settings", "/admin/settings/vpn");
-        register(values, "telegram-alerts", "Telegram Alerts", "/admin/settings/telegram-alerts");
-        register(values, "passkeys", "Passkeys", "/admin/settings/passkeys");
         register(values, "vpn-status", "VPN Status", "/admin/vpn");
         register(values, "remote-download", "Remote Download", "/admin/utils/remote-download");
+        register(values, "file-requests", "File Requests", "/admin/file-requests");
+        register(values, "pending-decisions", "Pending File Decisions", "/admin/pending-decisions");
         register(values, "recent", "Recent", "/files/recent");
         register(values, "favorites", "Favorites", "/files/favorites");
         register(values, "bookmarks", "Bookmarks", "/files/bookmarks");

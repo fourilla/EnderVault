@@ -1,0 +1,128 @@
+html:has(.admin-react-shell) {
+  scroll-padding-top: calc(var(--topbar-height) + var(--space-md));
+}
+
+.admin-react-shell .app-topbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-topbar);
+}
+
+body:has(.admin-react-shell) .toast-region {
+  top: calc(var(--topbar-height) + var(--space-3xl));
+}
+
+.admin-shell-route-actions {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 0;
+}
+
+.admin-shell-popover.is-open .topbar-control-popover {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.admin-shell-popover:not(.is-open):hover .topbar-control-popover,
+.admin-shell-popover:not(.is-open):focus-within .topbar-control-popover {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-2px);
+}
+
+.admin-shell-popover .topbar-control-popover {
+  width: min(340px, calc(100vw - 16px));
+}
+
+.admin-shell-popover .topbar-control-menu {
+  max-height: calc(var(--topbar-popover-available-height, 80dvh) - var(--space-xs));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.admin-shell-navigation-groups {
+  display: grid;
+  gap: var(--space-lg);
+  margin-top: var(--space-lg);
+}
+
+.admin-shell-navigation-group > strong {
+  color: var(--muted);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+}
+
+.admin-shell-navigation-group .topbar-control-menu-actions {
+  margin-top: var(--space-xs);
+  padding-top: 0;
+  border-top: 0;
+}
+
+.admin-shell-logout form,
+.admin-shell-logout button {
+  width: 100%;
+}
+
+.admin-shell-logout button {
+  justify-content: flex-start;
+}
+
+.browser-load-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-sm);
+}
+
+.activity-control-indicator {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--panel);
+  border-radius: var(--radius-pill);
+  background: var(--success);
+}
+
+.activity-control .topbar-control-popover {
+  width: min(430px, calc(100vw - 16px));
+}
+
+.activity-popover-list {
+  display: grid;
+  gap: 9px;
+  max-height: min(420px, 65vh);
+  margin-top: var(--space-lg);
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.activity-popover-empty {
+  margin-bottom: 0;
+  color: var(--muted);
+  font-size: var(--font-size-sm);
+}
+
+.account-session-count {
+  position: absolute;
+  top: 2px;
+  right: 1px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  border: 1px solid var(--panel);
+  border-radius: var(--radius-pill);
+  background: var(--accent-strong);
+  color: var(--panel);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0 3px;
+}

@@ -1,0 +1,97 @@
+.notification-center-trigger {
+    position: relative;
+    border-color: var(--line);
+}
+
+.notification-center-trigger.has-notifications {
+    color: var(--warning);
+}
+
+.notification-center-indicator {
+    position: absolute;
+    top: 7px;
+    right: 7px;
+    width: 7px;
+    height: 7px;
+    border: 1px solid var(--panel);
+    border-radius: var(--radius-pill);
+    background: var(--danger);
+}
+
+.notification-center:not(.is-open):hover .topbar-control-popover,
+.notification-center:not(.is-open):focus-within .topbar-control-popover {
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-2px);
+}
+
+.notification-center.is-open .topbar-control-popover {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+
+.notification-center .topbar-control-popover {
+    width: min(360px, calc(100vw - 16px));
+}
+
+.notification-center-list {
+    display: grid;
+    gap: var(--space-xs);
+    margin-top: var(--space-md);
+    padding-top: var(--space-md);
+    border-top: 1px solid var(--line);
+}
+
+.notification-center-item {
+    display: grid;
+    grid-template-columns: var(--sidebar-icon-width) minmax(0, 1fr);
+    gap: var(--space-md);
+    padding: var(--space-md);
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+    color: var(--text);
+    text-decoration: none;
+}
+
+.notification-center-item:hover,
+.notification-center-item:focus-visible {
+    border-color: var(--item-hover-line);
+    background: var(--item-hover-bg);
+}
+
+.notification-center-item > i {
+    margin-top: var(--space-2xs);
+    color: var(--warning);
+}
+
+.notification-center-item > span {
+    display: grid;
+    min-width: 0;
+}
+
+.notification-center-item strong,
+.notification-center-item small,
+.notification-center-item time {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.notification-center-item small,
+.notification-center-item time,
+.notification-center-empty,
+.pending-decision-note {
+    color: var(--muted);
+    font-size: var(--font-size-xs);
+}
+
+.notification-center-empty {
+    margin-top: var(--space-md) !important;
+}
+
+.pending-decision-note {
+    margin: 0 0 var(--space-xl);
+}

@@ -1,12 +1,17 @@
 package io.github.fourilla.endervault.storage;
 
 import io.github.fourilla.endervault.common.StorageAccessException;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
+import io.github.fourilla.endervault.temporary.TemporaryArtifactType;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.channels.FileChannel;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.FileStore;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
@@ -19,11 +24,17 @@ import java.util.stream.Stream;
 final class StorageTreeOperations {
 
     private final StoragePathResolver pathResolver;
-    private final UploadStagingService uploadStagingService;
+    private final FileStagingService fileStagingService;
+    private final TemporaryArtifactRegistry temporaryArtifactRegistry;
 
-    StorageTreeOperations(StoragePathResolver pathResolver, UploadStagingService uploadStagingService) {
+    StorageTreeOperations(
+            StoragePathResolver pathResolver,
+            FileStagingService fileStagingService,
+            TemporaryArtifactRegistry temporaryArtifactRegistry
+    ) {
         this.pathResolver = pathResolver;
-        this.uploadStagingService = uploadStagingService;
+        this.fileStagingService = fileStagingService;
+        this.temporaryArtifactRegistry = temporaryArtifactRegistry;
     }
 
     void move(Path source, Path target) throws IOException {
@@ -42,6 +53,140 @@ final class StorageTreeOperations {
             } else {
                 Files.move(source, target);
             }
+        }
+    }
+
+    void commitRegularFileNoReplace(Path source, Path target) throws IOException {
+        rejectSymbolicLink(source);
+        if (!Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)) {
+            throw new StorageAccessException("File commit source is not a regular file.");
+        }
+        Path targetParent = target.getParent();
+        if (targetParent == null || !Files.isDirectory(targetParent, LinkOption.NOFOLLOW_LINKS)) {
+            throw new StorageAccessException("File commit destination directory is unavailable.");
+        }
+        FileStore sourceStore = Files.getFileStore(source);
+        FileStore targetStore = Files.getFileStore(targetParent);
+        if (!sourceStore.equals(targetStore)) {
+            throw new StorageAccessException("Crash-safe file commit requires staging and destination on one filesystem.");
+        }
+
+        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
+            if (Files.isSymbolicLink(target)
+                    || !Files.isRegularFile(target, LinkOption.NOFOLLOW_LINKS)
+                    || !Files.isSameFile(source, target)) {
+                throw new java.nio.file.FileAlreadyExistsException(target.toString());
+            }
+            forceDirectory(targetParent);
+        } else {
+            try {
+                Files.createLink(target, source);
+            } catch (UnsupportedOperationException ex) {
+                throw new StorageAccessException(
+                        "The destination filesystem does not support crash-safe file commits.",
+                        ex
+                );
+            }
+            forceDirectory(targetParent);
+        }
+
+        Files.delete(source);
+        forceDirectory(source.getParent());
+    }
+
+    void commitEntryNoReplace(Path source, Path target) throws IOException {
+        rejectSymbolicLink(source);
+        boolean validSource = Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)
+                || Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS);
+        if (!validSource) {
+            throw new StorageAccessException("Archive commit source is not a regular file or directory.");
+        }
+        Path targetParent = target.getParent();
+        if (targetParent == null || !Files.isDirectory(targetParent, LinkOption.NOFOLLOW_LINKS)) {
+            throw new StorageAccessException("Archive commit destination directory is unavailable.");
+        }
+        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
+            throw new java.nio.file.FileAlreadyExistsException(target.toString());
+        }
+        if (!Files.getFileStore(source).equals(Files.getFileStore(targetParent))) {
+            throw new StorageAccessException("Crash-safe archive commit requires one filesystem.");
+        }
+        try {
+            Files.move(source, target, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException ex) {
+            throw new StorageAccessException("The destination filesystem does not support atomic archive commits.", ex);
+        }
+        forceDirectory(targetParent);
+        forceDirectory(source.getParent());
+    }
+
+    void createRegularFileReplacementBackup(Path target, Path backup) throws IOException {
+        rejectSymbolicLink(target);
+        if (!Files.isRegularFile(target, LinkOption.NOFOLLOW_LINKS)) {
+            throw new StorageAccessException("File replacement target is not a regular file.");
+        }
+        if (Files.exists(backup, LinkOption.NOFOLLOW_LINKS)) {
+            rejectSymbolicLink(backup);
+            if (!Files.isRegularFile(backup, LinkOption.NOFOLLOW_LINKS)) {
+                throw new StorageAccessException("File replacement backup is not a regular file.");
+            }
+            return;
+        }
+        FileStore targetStore = Files.getFileStore(target);
+        FileStore backupStore = Files.getFileStore(backup.getParent());
+        if (!targetStore.equals(backupStore)) {
+            throw new StorageAccessException("Crash-safe file replacement requires one filesystem.");
+        }
+        try {
+            Files.createLink(backup, target);
+        } catch (UnsupportedOperationException ex) {
+            throw new StorageAccessException(
+                    "The destination filesystem does not support crash-safe file replacement.",
+                    ex
+            );
+        }
+        forceDirectory(backup.getParent());
+    }
+
+    void commitRegularFileReplace(Path source, Path target) throws IOException {
+        rejectSymbolicLink(source);
+        rejectSymbolicLink(target);
+        if (!Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)
+                || !Files.isRegularFile(target, LinkOption.NOFOLLOW_LINKS)) {
+            throw new StorageAccessException("Crash-safe replacement requires regular files.");
+        }
+        Path targetParent = target.getParent();
+        FileStore sourceStore = Files.getFileStore(source);
+        FileStore targetStore = Files.getFileStore(targetParent);
+        if (!sourceStore.equals(targetStore)) {
+            throw new StorageAccessException("Crash-safe file replacement requires one filesystem.");
+        }
+        try {
+            Files.move(source, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        } catch (AtomicMoveNotSupportedException ex) {
+            throw new StorageAccessException("The destination filesystem does not support atomic file replacement.", ex);
+        }
+        forceDirectory(targetParent);
+        forceDirectory(source.getParent());
+    }
+
+    void deleteRegularFileReplacementBackup(Path backup) throws IOException {
+        if (!Files.exists(backup, LinkOption.NOFOLLOW_LINKS)) {
+            return;
+        }
+        rejectSymbolicLink(backup);
+        if (!Files.isRegularFile(backup, LinkOption.NOFOLLOW_LINKS)) {
+            throw new StorageAccessException("File replacement backup is not a regular file.");
+        }
+        Files.delete(backup);
+        forceDirectory(backup.getParent());
+    }
+
+    private void forceDirectory(Path directory) throws IOException {
+        try (FileChannel channel = FileChannel.open(directory, StandardOpenOption.READ)) {
+            channel.force(true);
+        } catch (AccessDeniedException | UnsupportedOperationException ex) {
+            // Windows does not generally allow opening a directory as a FileChannel.
         }
     }
 
@@ -89,15 +234,24 @@ final class StorageTreeOperations {
             return;
         }
 
-        Path temporaryFile = uploadStagingService.createTemporaryFile("copy-overwrite-", ".tmp");
+        Path temporaryFile = fileStagingService.createTemporaryFile("copy-overwrite-", ".tmp");
+        TemporaryArtifactRegistry.Registration registration = temporaryArtifactRegistry.register(
+                temporaryFile,
+                TemporaryArtifactType.FILE_COPY,
+                target.toString()
+        );
         try {
             Files.deleteIfExists(temporaryFile);
             copyFileDirect(source, temporaryFile, progress);
             move(temporaryFile, target, true);
             temporaryFile = null;
         } finally {
-            if (temporaryFile != null) {
-                Files.deleteIfExists(temporaryFile);
+            try {
+                if (temporaryFile != null) {
+                    Files.deleteIfExists(temporaryFile);
+                }
+            } finally {
+                registration.close();
             }
         }
     }
@@ -147,7 +301,7 @@ final class StorageTreeOperations {
 
     void rejectSymbolicLink(Path path) {
         if (Files.isSymbolicLink(path)) {
-            throw new StorageAccessException("Symbolic links cannot be copied.");
+            throw new StorageAccessException("Symbolic links are not supported by this storage operation.");
         }
     }
 
