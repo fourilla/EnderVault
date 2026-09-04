@@ -1,7 +1,6 @@
 import type { RecentHistoryState, RecentSort } from './types';
 
-const STORAGE_KEY = 'endervault.recent.history-state.v1';
-const CANONICAL_URL = '/files/recent';
+import type { ListingHistoryConfig } from '../shared/browser/listing-history';
 
 const finiteInteger = (value: unknown, fallback: number, minimum = 0) => {
   const parsed = typeof value === 'number' ? value : Number.parseInt(String(value || ''), 10);
@@ -36,43 +35,22 @@ export const parseRecentState = (candidate: unknown): RecentHistoryState | null 
   };
 };
 
-const stateFromUrl = (): RecentHistoryState | null => {
-  const url = new URL(window.location.href);
-  if (url.searchParams.size === 0) return null;
+const stateFromSearch = (search: string): RecentHistoryState => {
+  const params = new URLSearchParams(search);
   return {
     surface: 'recent',
     version: 1,
-    query: url.searchParams.get('q') || '',
-    page: finiteInteger(url.searchParams.get('page'), 1, 1),
-    view: view(url.searchParams.get('view')),
-    sort: recentSort(url.searchParams.get('sort')),
-    direction: direction(url.searchParams.get('dir')),
-    hidden: hidden(url.searchParams.get('hidden')),
-    pageSize: url.searchParams.has('size') ? finiteInteger(url.searchParams.get('size'), 200, 1) : undefined,
+    query: params.get('q') || '',
+    page: finiteInteger(params.get('page'), 1, 1),
+    view: view(params.get('view')),
+    sort: recentSort(params.get('sort')),
+    direction: direction(params.get('dir')),
+    hidden: hidden(params.get('hidden')),
+    pageSize: params.has('size') ? finiteInteger(params.get('size'), 200, 1) : undefined,
     scrollTop: 0,
   };
 };
 
-const reloadState = (): RecentHistoryState | null => {
-  const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
-  if (navigation?.type !== 'reload') return null;
-  try {
-    return parseRecentState(JSON.parse(sessionStorage.getItem(STORAGE_KEY) || 'null'));
-  } catch {
-    return null;
-  }
-};
-
-export const initialRecentState = () => parseRecentState(window.history.state)
-  || stateFromUrl()
-  || reloadState()
-  || defaultRecentState();
-
-export const rememberRecentState = (state: RecentHistoryState, replace = false) => {
-  try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    // Browser history remains available when session storage is blocked.
-  }
-  window.history[replace ? 'replaceState' : 'pushState'](state, '', CANONICAL_URL);
+export const recentHistory: ListingHistoryConfig<RecentHistoryState> = {
+  pathname: '/files/recent', parse: parseRecentState, fromSearch: stateFromSearch,
 };

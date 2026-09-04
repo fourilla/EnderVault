@@ -67,8 +67,18 @@ public class ShareLinkService {
             Instant expiresAt,
             String customToken
     ) throws IOException {
+        return create(directoryPath, itemName, expiresAt, customToken, shareProperties.isDefaultPreviewEnabled());
+    }
+
+    public synchronized ShareLink create(
+            String directoryPath,
+            String itemName,
+            Instant expiresAt,
+            String customToken,
+            boolean previewEnabled
+    ) throws IOException {
         FileItem item = storageService.describeVaultChild(directoryPath, itemName);
-        return createFromItem(item, expiresAt, customToken);
+        return createFromItem(item, expiresAt, customToken, previewEnabled);
     }
 
     public synchronized ShareLink createForVaultPath(String vaultPath, Instant expiresAt) throws IOException {
@@ -77,11 +87,20 @@ public class ShareLinkService {
 
     public synchronized ShareLink createForVaultPath(String vaultPath, Instant expiresAt, String customToken)
             throws IOException {
+        return createForVaultPath(vaultPath, expiresAt, customToken, shareProperties.isDefaultPreviewEnabled());
+    }
+
+    public synchronized ShareLink createForVaultPath(
+            String vaultPath,
+            Instant expiresAt,
+            String customToken,
+            boolean previewEnabled
+    ) throws IOException {
         if (vaultPath == null || vaultPath.isBlank() || "/".equals(vaultPath)) {
             throw new StorageAccessException("Path is required.");
         }
         FileItem item = storageService.describeVaultPath(vaultPath);
-        return createFromItem(item, expiresAt, customToken);
+        return createFromItem(item, expiresAt, customToken, previewEnabled);
     }
 
     public synchronized List<ShareLink> listForVaultPath(String vaultPath) throws IOException {
@@ -92,7 +111,12 @@ public class ShareLinkService {
                 .toList();
     }
 
-    private ShareLink createFromItem(FileItem item, Instant expiresAt, String customToken) throws IOException {
+    private ShareLink createFromItem(
+            FileItem item,
+            Instant expiresAt,
+            String customToken,
+            boolean previewEnabled
+    ) throws IOException {
         ensureSharingEnabled();
         ShareTargetType type = item.directory() ? ShareTargetType.DIRECTORY : ShareTargetType.FILE;
         if (type == ShareTargetType.DIRECTORY && !shareProperties.isDirectoryShareEnabled()) {
@@ -104,7 +128,15 @@ public class ShareLinkService {
                 links.stream().map(ShareLink::token).toList(),
                 tokenPolicy()
         );
-        ShareLink shareLink = new ShareLink(token, item.path(), type, Instant.now(), expiresAt, true);
+        ShareLink shareLink = new ShareLink(
+                token,
+                item.path(),
+                type,
+                Instant.now(),
+                expiresAt,
+                true,
+                previewEnabled
+        );
 
         links.add(shareLink);
         writeAll(links);

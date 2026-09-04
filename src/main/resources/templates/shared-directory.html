@@ -73,7 +73,7 @@
                     <td th:text="${file.modifiedLabel()}">-</td>
                     <td>
                         <div class="table-actions">
-                            <th:block th:replace="~{fragments/file-actions :: links(${fileActions.sharedDirectoryActions(token, file)})}"></th:block>
+                            <th:block th:replace="~{fragments/file-actions :: links(${fileActions.sharedDirectoryActions(token, file, share.previewEnabled())})}"></th:block>
                         </div>
                     </td>
                 </tr>

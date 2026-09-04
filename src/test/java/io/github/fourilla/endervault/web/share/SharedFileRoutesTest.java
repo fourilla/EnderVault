@@ -16,7 +16,14 @@ class SharedFileRoutesTest {
     @Test
     void comicPageUrlPrefixKeepsDirectoryContext() {
         assertThat(SharedFileRoutes.comicPageUrlPrefix("token 1", "a/b", "comic.cbz"))
-                .isEqualTo("/s/token%201/comic/page?path=a/b&item=comic.cbz&page=");
+                .isEqualTo("/s/token%201/comic/page?path=a%2Fb&item=comic.cbz&page=");
+    }
+
+    @Test
+    void comicRoutesEncodeLiteralPlusAndQueryDelimiters() {
+        assertThat(SharedFileRoutes.comicManifestUrl("token", "a+b", "book & 1.cbz"))
+                .isEqualTo("/s/token/comic/manifest?path=a%2Bb&item=book%20%26%201.cbz");
+        assertThat(SharedFileRoutes.comicPageUrl("token", null, null)).isEqualTo("/s/token/comic/page");
     }
 
     @Test

@@ -36,6 +36,7 @@ public class AdvancedSettingsService {
             Map.entry("shareRandomTokenBytes", List.of("shareEnabled")),
             Map.entry("shareDirectoryEnabled", List.of("shareEnabled")),
             Map.entry("shareDirectDownloadEnabled", List.of("shareEnabled")),
+            Map.entry("shareDefaultPreviewEnabled", List.of("shareEnabled")),
             Map.entry("shareShowHiddenItems", List.of("shareEnabled", "shareDirectoryEnabled")),
             Map.entry("taskCompletedDisplaySeconds", List.of("taskActivityPanelEnabled")),
             Map.entry("taskFailedDisplaySeconds", List.of("taskActivityPanelEnabled")),
@@ -172,6 +173,8 @@ public class AdvancedSettingsService {
                         share::isDirectoryShareEnabled, share::setDirectoryShareEnabled),
                 bool("sharing", "nas.share.direct-download-link-enabled", "shareDirectDownloadEnabled", "Direct download links", "Expose a copyable direct-download URL for shared files.", ApplyMode.RUNTIME,
                         share::isDirectDownloadLinkEnabled, share::setDirectDownloadLinkEnabled),
+                bool("sharing", "nas.share.default-preview-enabled", "shareDefaultPreviewEnabled", "Default shared previews", "Enable supported previews for newly created share links. Existing links keep their saved policy.", ApplyMode.RUNTIME,
+                        share::isDefaultPreviewEnabled, share::setDefaultPreviewEnabled),
                 bool("sharing", "nas.share.directory-show-hidden-items", "shareShowHiddenItems", "Show hidden items in shared directories", "Hidden descendants remain inaccessible when this is disabled.", ApplyMode.RUNTIME,
                         share::isDirectoryShowHiddenItems, share::setDirectoryShowHiddenItems),
 

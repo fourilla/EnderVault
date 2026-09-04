@@ -25,6 +25,10 @@ public record FileToolDescriptor(
         return capabilities.contains(FileToolCapability.PREVIEW_PAGE);
     }
 
+    public boolean sharedPreviewable() {
+        return capabilities.contains(FileToolCapability.SHARED_PREVIEW);
+    }
+
     public boolean editable() {
         return capabilities.contains(FileToolCapability.TEXT_EDIT);
     }

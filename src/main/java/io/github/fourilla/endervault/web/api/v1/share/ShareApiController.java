@@ -64,11 +64,17 @@ public class ShareApiController {
             @RequestParam(value = "item", required = false) String item,
             @RequestParam(value = "expiresInDays", required = false) String expiresInDays,
             @RequestParam(value = "customToken", required = false) String customToken,
+            @RequestParam(value = "previewEnabled", required = false) Boolean previewEnabled,
             HttpServletRequest request
     ) throws IOException {
+        boolean effectivePreviewEnabled = previewEnabled != null
+                ? previewEnabled
+                : shareProperties.isDefaultPreviewEnabled();
         ShareLink shareLink = item == null || item.isBlank()
-                ? shareLinkService.createForVaultPath(path, expiresAt(expiresInDays), customToken)
-                : shareLinkService.create(path, item, expiresAt(expiresInDays), customToken);
+                ? shareLinkService.createForVaultPath(
+                        path, expiresAt(expiresInDays), customToken, effectivePreviewEnabled)
+                : shareLinkService.create(
+                        path, item, expiresAt(expiresInDays), customToken, effectivePreviewEnabled);
         ShareLinkView shareView = ShareLinkView.from(
                 shareLink,
                 shareUrlBuilder.shareBaseUrl(),
@@ -142,7 +148,8 @@ public class ShareApiController {
     private Map<String, String> shareMetadata(ShareLink shareLink) {
         return Map.of(
                 "tokenFingerprint", publicLinkTokenService.fingerprint(shareLink.token()),
-                "type", shareLink.type().name()
+                "type", shareLink.type().name(),
+                "previewEnabled", Boolean.toString(shareLink.previewEnabled())
         );
     }
 

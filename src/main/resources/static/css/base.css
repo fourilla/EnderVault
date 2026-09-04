@@ -32,6 +32,7 @@
     --media-canvas-bg: #0b0f14;
 
     --z-toast: 1000;
+    --z-topbar: 1050;
     --z-topbar-popover: 1100;
     --z-context-menu: 1200;
     --z-modal: 10000;

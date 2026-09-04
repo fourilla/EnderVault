@@ -1,5 +1,6 @@
 package io.github.fourilla.endervault.web.api.v1.fs;
 
+import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.web.file.detail.FileDetailQueryService;
 import io.github.fourilla.endervault.web.file.detail.FileDetailResult;
 import io.github.fourilla.endervault.web.support.FileActionViewSupport;
@@ -19,15 +20,18 @@ public class FileDetailApiController {
     private final FileDetailQueryService queryService;
     private final FilePreviewSupport filePreviewSupport;
     private final FileActionViewSupport fileActionViewSupport;
+    private final NasProperties.Share shareProperties;
 
     public FileDetailApiController(
             FileDetailQueryService queryService,
             FilePreviewSupport filePreviewSupport,
-            FileActionViewSupport fileActionViewSupport
+            FileActionViewSupport fileActionViewSupport,
+            NasProperties nasProperties
     ) {
         this.queryService = queryService;
         this.filePreviewSupport = filePreviewSupport;
         this.fileActionViewSupport = fileActionViewSupport;
+        this.shareProperties = nasProperties.getShare();
     }
 
     @GetMapping(value = "/detail", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -37,6 +41,11 @@ public class FileDetailApiController {
             HttpServletRequest request
     ) throws IOException {
         FileDetailResult result = queryService.query(path, comicPage, request);
-        return FileDetailPayload.from(result, filePreviewSupport, fileActionViewSupport);
+        return FileDetailPayload.from(
+                result,
+                filePreviewSupport,
+                fileActionViewSupport,
+                shareProperties.isDefaultPreviewEnabled()
+        );
     }
 }

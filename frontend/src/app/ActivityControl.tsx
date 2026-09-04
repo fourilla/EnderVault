@@ -1,7 +1,10 @@
+import { useEffect, useRef } from 'react';
 import { useActivitySnapshot, type ActivityItem } from './useActivitySnapshot';
 import { useRemoteDownloadTasks } from './remote-downloads/RemoteDownloadTasksContext';
 import { useUploadManager } from './uploads/UploadManagerContext';
 import { ShellPopover } from './ShellPopover';
+import { useTopbarPopover } from './TopbarPopoverContext';
+import { observeActivityStarts } from './activity-starts';
 
 const rowClass = (status: string) => {
   if (status === 'complete' || status === 'partial') return 'upload-complete';
@@ -42,6 +45,14 @@ export function ActivityControl() {
   const { activeCount: activeUploads } = useUploadManager();
   const { refresh: refreshRemoteDownloads } = useRemoteDownloadTasks();
   const activity = useActivitySnapshot();
+  const popover = useTopbarPopover();
+  const popoverRef = useRef(popover);
+  popoverRef.current = popover;
+
+  useEffect(() => observeActivityStarts({
+    activeId: () => popoverRef.current.activeId,
+    show: () => popoverRef.current.show('activity'),
+  }), []);
 
   const activeCount = Math.max(activity.activeCount, activeUploads);
   const label = activeCount > 0 ? `${activeCount} active task(s)` : 'Tasks and uploads';

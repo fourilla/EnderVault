@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useHashTarget } from '../shared/browser/useHashTarget';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
 import { PageHeader } from '../shared/layout/PageHeader';
@@ -7,7 +7,6 @@ import { loadPendingDecisions, resolvePendingDecision } from './pending-decision
 import type { PendingFileDecision, PendingFileDecisionAction } from './types';
 
 export function PendingDecisionsApp() {
-  const location = useLocation();
   const [decisions, setDecisions] = useState<PendingFileDecision[] | null>(null);
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState('');
@@ -25,12 +24,7 @@ export function PendingDecisionsApp() {
     return () => controller.abort();
   }, []);
 
-  useEffect(() => {
-    if (!decisions || !location.hash.startsWith('#decision-')) return;
-    const target = document.getElementById(location.hash.slice(1));
-    target?.scrollIntoView({ block: 'center' });
-    target?.focus({ preventScroll: true });
-  }, [decisions, location.hash]);
+  useHashTarget(decisions, '#decision-', true);
 
   const resolve = async (
     decision: PendingFileDecision,

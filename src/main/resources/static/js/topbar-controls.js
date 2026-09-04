@@ -18,12 +18,14 @@
 
         popover.style.top = `${Math.round(triggerRect.bottom)}px`;
         popover.style.left = `${Math.round(left)}px`;
+        popover.style.setProperty("--topbar-popover-available-height",
+                `${Math.max(0, window.innerHeight - triggerRect.bottom - viewportMargin)}px`);
         popover.classList.add("is-viewport-positioned");
     };
 
     const repositionOpenPopovers = () => {
         document.querySelectorAll(".topbar-control").forEach((control) => {
-            if (control.matches(":hover") || control.contains(document.activeElement)) {
+            if (control.matches(":hover, .is-open") || control.contains(document.activeElement)) {
                 positionPopover(control);
             }
         });
@@ -48,6 +50,8 @@
             document.addEventListener("scroll", repositionOpenPopovers, true);
         }
     };
+
+    window.EnderVaultTopbarControls = { positionPopover };
 
     if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", initialize, { once: true });

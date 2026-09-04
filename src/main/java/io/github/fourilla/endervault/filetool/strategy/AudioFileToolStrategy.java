@@ -30,7 +30,8 @@ public class AudioFileToolStrategy implements FileToolStrategy {
         return FileToolDescriptor.of(
                 FileToolType.AUDIO,
                 FileToolCapability.INLINE_PREVIEW,
-                FileToolCapability.PREVIEW_PAGE
+                FileToolCapability.PREVIEW_PAGE,
+                FileToolCapability.SHARED_PREVIEW
         );
     }
 }

@@ -96,11 +96,16 @@ public class FileActionRegistry {
         return List.copyOf(actions);
     }
 
-    public List<FileActionKind> sharedDirectoryActions(FileItem item) {
+    public List<FileActionKind> sharedDirectoryActions(FileItem item, boolean previewEnabled) {
         if (item.directory()) {
             return List.of();
         }
-        return browserActions(item);
+        List<FileActionKind> actions = new ArrayList<>();
+        actions.add(FileActionKind.DOWNLOAD);
+        if (previewEnabled && resolve(item).sharedPreviewable()) {
+            actions.add(FileActionKind.PREVIEW);
+        }
+        return List.copyOf(actions);
     }
 
     public String extension(String name) {

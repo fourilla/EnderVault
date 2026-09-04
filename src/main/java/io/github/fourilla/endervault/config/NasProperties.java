@@ -1264,6 +1264,8 @@ public class NasProperties {
 
         private boolean directoryShowHiddenItems = false;
 
+        private boolean defaultPreviewEnabled = true;
+
         public boolean isEnabled() {
             return enabled;
         }
@@ -1350,6 +1352,14 @@ public class NasProperties {
 
         public void setDirectoryShowHiddenItems(boolean directoryShowHiddenItems) {
             this.directoryShowHiddenItems = directoryShowHiddenItems;
+        }
+
+        public boolean isDefaultPreviewEnabled() {
+            return defaultPreviewEnabled;
+        }
+
+        public void setDefaultPreviewEnabled(boolean defaultPreviewEnabled) {
+            this.defaultPreviewEnabled = defaultPreviewEnabled;
         }
     }
 

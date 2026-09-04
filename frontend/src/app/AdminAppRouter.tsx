@@ -9,6 +9,8 @@ import {
 } from 'react-router-dom';
 import { AppShell } from './AppShell';
 import { spaRoutes } from './navigation';
+import { createListingHistory } from '../shared/browser/listing-history';
+import { ListingHistoryProvider } from '../shared/browser/ListingHistoryContext';
 
 function RouteLoading() {
   return (
@@ -66,7 +68,8 @@ const router = createBrowserRouter([{
   errorElement: <RouteError />,
   children: [...routeObjects, { path: '*', element: <RouteNotFound /> }],
 }]);
+const listingHistory = createListingHistory(router, () => window.scrollY, () => window.sessionStorage);
 
 export function AdminAppRouter() {
-  return <RouterProvider router={router} />;
+  return <ListingHistoryProvider history={listingHistory}><RouterProvider router={router} /></ListingHistoryProvider>;
 }

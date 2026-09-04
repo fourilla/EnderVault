@@ -1,10 +1,23 @@
 .share-create-form {
     display: grid;
-    grid-template-columns: minmax(180px, 1fr) minmax(110px, 140px) auto;
+    grid-template-columns: 1fr;
 }
 
-.share-create-form label {
+.share-create-primary {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) minmax(110px, 140px) auto;
+    gap: var(--space-md);
+}
+
+.share-create-primary label {
     min-width: 0;
+}
+
+.share-preview-option {
+    display: inline-flex;
+    align-items: center;
+    justify-self: start;
+    gap: var(--space-sm);
 }
 
 .input-action-field {

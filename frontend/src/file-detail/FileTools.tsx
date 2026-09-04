@@ -1,7 +1,7 @@
 import type { FileDetailPayload } from './types';
 import { ArchiveTool } from './ArchiveTool';
 import { ComicTool } from './ComicTool';
-import { ImageTool } from './ImageTool';
+import { ImageViewer } from '../shared/file-tools/ImageViewer';
 import { TextTool } from './TextTool';
 
 export function FileTools({ payload }: { payload: FileDetailPayload }) {
@@ -15,7 +15,7 @@ export function FileTools({ payload }: { payload: FileDetailPayload }) {
     {tool.type === 'pdf' && <div className="preview-surface">
       <iframe className="preview-frame" src={urls.previewContent || undefined} title="Preview" />
     </div>}
-    {tool.type === 'image' && <ImageTool payload={payload} />}
+    {tool.type === 'image' && <ImageViewer sourceUrl={urls.previewContent || ''} name={detail.name} />}
     {tool.type === 'audio' && <div className="audio-tool">
       <div className="audio-tool-heading"><span className="audio-tool-icon" aria-hidden="true"><i className="fas fa-music" /></span>
         <div className="audio-tool-title"><strong title={detail.name}>{detail.name}</strong></div></div>

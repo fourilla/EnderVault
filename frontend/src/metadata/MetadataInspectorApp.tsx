@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useHashTarget } from '../shared/browser/useHashTarget';
 import { toastError } from '../shared/api/form-api';
 import { PageHeader } from '../shared/layout/PageHeader';
 import { loadMetadataInspector, repairMetadataIssues, startMetadataScan } from './metadata-api';
@@ -7,7 +7,6 @@ import { MetadataIssueTable } from './MetadataIssueTable';
 import type { MetadataPagePayload, MetadataTask } from './types';
 
 export function MetadataInspectorApp() {
-  const location = useLocation();
   const [payload, setPayload] = useState<MetadataPagePayload | null>(null);
   const [selectedAreas, setSelectedAreas] = useState<Set<string> | null>(null);
   const [selectedIssues, setSelectedIssues] = useState(new Set<string>());
@@ -47,10 +46,7 @@ export function MetadataInspectorApp() {
     return () => document.removeEventListener('endervault:task-terminal', onTaskTerminal);
   }, []);
 
-  useEffect(() => {
-    if (!payload || !location.hash.startsWith('#metadata-')) return;
-    document.getElementById(location.hash.slice(1))?.scrollIntoView({ block: 'center' });
-  }, [location.hash, payload]);
+  useHashTarget(payload, '#metadata-');
 
   const toggleArea = (name: string, checked: boolean) => {
     setSelectedAreas((current) => {
@@ -67,7 +63,7 @@ export function MetadataInspectorApp() {
     try {
       const result = await startMetadataScan([...selectedAreas]);
       setPayload((current) => current ? { ...current, activeInspectionTask: result.task } : current);
-      window.EnderVaultServerTasks?.track(result.task);
+      window.EnderVaultServerTasks?.track(result.task, { announceStart: true });
     } catch (reason) {
       toastError(reason, 'Metadata inspection could not be started.');
     } finally {

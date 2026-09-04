@@ -22,16 +22,19 @@ class ShareLinkServiceTest {
     @TempDir
     Path root;
 
+    private NasProperties properties;
+    private StorageService storageService;
+    private ObjectMapper objectMapper;
     private ShareLinkService shareLinkService;
 
     @BeforeEach
     void setUp() throws Exception {
-        NasProperties properties = new NasProperties();
+        properties = new NasProperties();
         properties.getStorage().setRoot(root);
-        StorageService storageService = new StorageService(properties);
+        storageService = new StorageService(properties);
         storageService.initialize();
 
-        ObjectMapper objectMapper = JsonMapper.builder().findAndAddModules().build();
+        objectMapper = JsonMapper.builder().findAndAddModules().build();
         shareLinkService = new ShareLinkService(storageService, objectMapper, properties, new PublicLinkTokenService());
         shareLinkService.initialize();
     }
@@ -45,8 +48,51 @@ class ShareLinkServiceTest {
         assertThat(shareLink.token()).isNotBlank();
         assertThat(shareLink.path()).isEqualTo("note.txt");
         assertThat(shareLink.type()).isEqualTo(ShareTargetType.FILE);
+        assertThat(shareLink.previewEnabled()).isTrue();
         assertThat(shareLinkService.requireUsable(shareLink.token())).isEqualTo(shareLink);
         assertThat(root.resolve(".endervault").resolve("shared-links.json")).exists();
+    }
+
+    @Test
+    void usesTheCurrentDefaultOnlyWhenCreatingANewLink() throws Exception {
+        Files.writeString(root.resolve("default.txt"), "default");
+        Files.writeString(root.resolve("override.txt"), "override");
+        properties.getShare().setDefaultPreviewEnabled(false);
+
+        ShareLink defaultLink = shareLinkService.create("", "default.txt", null);
+        ShareLink explicitLink = shareLinkService.create("", "override.txt", null, null, true);
+
+        assertThat(defaultLink.previewEnabled()).isFalse();
+        assertThat(explicitLink.previewEnabled()).isTrue();
+
+        properties.getShare().setDefaultPreviewEnabled(true);
+        assertThat(shareLinkService.list())
+                .filteredOn(link -> link.token().equals(defaultLink.token()))
+                .singleElement()
+                .extracting(ShareLink::previewEnabled)
+                .isEqualTo(false);
+    }
+
+    @Test
+    void treatsLegacyRecordsWithoutPreviewPolicyAsDisabled() throws Exception {
+        Path registry = root.resolve(".endervault").resolve("shared-links.json");
+        Files.writeString(registry, """
+                [{
+                  "token": "legacy-share-token",
+                  "path": "legacy.txt",
+                  "type": "FILE",
+                  "createdAt": "2026-01-01T00:00:00Z",
+                  "expiresAt": null,
+                  "enabled": true
+                }]
+                """);
+        ShareLinkService reloaded = new ShareLinkService(
+                storageService, objectMapper, properties, new PublicLinkTokenService());
+        reloaded.initialize();
+
+        assertThat(reloaded.list()).singleElement()
+                .extracting(ShareLink::previewEnabled)
+                .isEqualTo(false);
     }
 
     @Test

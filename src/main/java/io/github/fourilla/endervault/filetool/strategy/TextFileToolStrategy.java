@@ -42,6 +42,7 @@ public class TextFileToolStrategy implements FileToolStrategy {
             return FileToolDescriptor.of(
                     FileToolType.TEXT,
                     FileToolCapability.PREVIEW_PAGE,
+                    FileToolCapability.SHARED_PREVIEW,
                     FileToolCapability.TEXT_SOURCE,
                     FileToolCapability.TEXT_EDIT,
                     FileToolCapability.MARKDOWN_RENDER
@@ -50,6 +51,7 @@ public class TextFileToolStrategy implements FileToolStrategy {
         return FileToolDescriptor.of(
                 FileToolType.TEXT,
                 FileToolCapability.PREVIEW_PAGE,
+                FileToolCapability.SHARED_PREVIEW,
                 FileToolCapability.TEXT_SOURCE,
                 FileToolCapability.TEXT_EDIT
         );

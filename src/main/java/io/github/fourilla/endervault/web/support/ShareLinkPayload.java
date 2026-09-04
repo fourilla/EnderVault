@@ -10,6 +10,7 @@ public record ShareLinkPayload(
         String expiresLabel,
         String statusLabel,
         String statusClass,
+        boolean previewEnabled,
         boolean active
 ) {
 
@@ -24,6 +25,7 @@ public record ShareLinkPayload(
                 shareLink.expiresLabel(),
                 shareLink.statusLabel(),
                 shareLink.statusClass(),
+                shareLink.previewEnabled(),
                 shareLink.active()
         );
     }

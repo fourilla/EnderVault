@@ -8,5 +8,6 @@ export interface ShareLink {
   expiresLabel: string;
   statusLabel: string;
   statusClass: string;
+  previewEnabled: boolean;
   active: boolean;
 }

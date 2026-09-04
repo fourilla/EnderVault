@@ -32,7 +32,7 @@ const rememberLocalValue = (key: string, value: string | null) => {
 
 export function RemoteDownloadApp() {
   const { bootstrap } = useAdminApp();
-  const { tasks, error: taskError } = useRemoteDownloadTasks();
+  const { tasks, error: taskError, trackStarted } = useRemoteDownloadTasks();
   const [url, setUrl] = useState('');
   const [destination, setDestination] = useState('');
   const [networkRoute, setNetworkRoute] = useState<RemoteNetworkRoute>('global');
@@ -48,6 +48,7 @@ export function RemoteDownloadApp() {
   const [busyTaskId, setBusyTaskId] = useState('');
   const [error, setError] = useState('');
   const pendingRequestId = useRef<string | null>(null);
+  const startedTask = useRef<RemoteDownloadTask | null>(null);
   const rememberedConnections = useRef(1);
 
   useEffect(() => {
@@ -81,6 +82,13 @@ export function RemoteDownloadApp() {
       ? tasks?.find((task) => task.id === current.id) ?? current
       : null);
   }, [tasks]);
+
+  useEffect(() => {
+    if (inspection || !startedTask.current) return;
+    const task = startedTask.current;
+    startedTask.current = null;
+    trackStarted(task);
+  }, [inspection, trackStarted]);
 
   const toggleSkipInspection = (checked: boolean) => {
     if (checked) {
@@ -134,6 +142,7 @@ export function RemoteDownloadApp() {
     try {
       const payload = await startRemoteDownload(requestId);
       pendingRequestId.current = null;
+      startedTask.current = payload.task ?? null;
       setInspection(null);
       if (payload.notification) window.EnderVault?.showNotification(payload.notification);
       rememberLocalValue(REMEMBER_DESTINATION_KEY, String(rememberDestination));

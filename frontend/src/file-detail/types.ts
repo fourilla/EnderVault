@@ -1,4 +1,5 @@
 import type { TransferBufferPayload } from '../files/types';
+import type { ComicManifest } from '../shared/file-tools/comic-types';
 
 export interface FileDetailPayload {
   detail: {
@@ -44,6 +45,9 @@ export interface FileDetailPayload {
   text: TextContentPayload | null;
   comic: ComicPayload | null;
   archive: ArchivePayload | null;
+  shareDefaults: {
+    previewEnabled: boolean;
+  };
   shares: SharePayload[];
   favorite: boolean;
   transferBuffer: TransferBufferPayload;
@@ -68,12 +72,12 @@ export interface SharePayload {
   expiresLabel: string;
   statusLabel: string;
   statusClass: string;
+  previewEnabled: boolean;
   active: boolean;
 }
 
 export interface ComicPayload {
-  manifest: {
-    pageCount: number;
+  manifest: ComicManifest & {
     pages: Array<{
       index: number;
       entryName: string;
@@ -82,13 +86,6 @@ export interface ComicPayload {
       size: number;
       number: number;
     }>;
-    metadata: {
-      present: boolean;
-      truncated: boolean;
-      rawText: string;
-      entries: Array<{ name: string; value: string }>;
-      hasEntries: boolean;
-    };
     empty: boolean;
   };
   pageIndex: number;

@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
 import { BrowserPagination } from '../shared/browser/BrowserPagination';
@@ -28,10 +29,11 @@ const setParam = (params: URLSearchParams, name: string, value: string) => {
 };
 
 export function ActivityLogsApp() {
+  const { search: locationSearch } = useLocation();
+  const routeNavigate = useNavigate();
   const [payload, setPayload] = useState<ActivityLogPayload | null>(null);
   const [draft, setDraft] = useState<ActivityLogFilterDraft | null>(null);
   const [fileDraft, setFileDraft] = useState('');
-  const [locationSearch, setLocationSearch] = useState(window.location.search);
   const [refreshToken, setRefreshToken] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -40,17 +42,12 @@ export function ActivityLogsApp() {
   const detailDialog = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
-    const restoreHistory = () => setLocationSearch(window.location.search);
-    window.addEventListener('popstate', restoreHistory);
-    return () => window.removeEventListener('popstate', restoreHistory);
-  }, []);
-
-  useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setError('');
     void loadActivityLogs(locationSearch, controller.signal)
       .then((nextPayload) => {
+        if (controller.signal.aborted) return;
         setPayload(nextPayload);
         setDraft(filterDraft(nextPayload.query));
         setFileDraft(nextPayload.selectedFile);
@@ -79,8 +76,7 @@ export function ActivityLogsApp() {
       setRefreshToken((value) => value + 1);
       return;
     }
-    window.history.pushState({}, '', nextUrl);
-    setLocationSearch(nextSearch);
+    void routeNavigate(nextUrl);
   };
 
   const appliedParams = (query = payload?.query) => {

@@ -79,6 +79,20 @@ class ViteAssetServiceTest {
     }
 
     @Test
+    void resolvesSharedImageEntryWithoutAdminRuntime() {
+        ViteAssetService service = new ViteAssetService(
+                new ObjectMapper(),
+                new DefaultResourceLoader(),
+                "");
+
+        ViteAssetService.ViteEntry entry = service.entry("src/shared-file/image.tsx");
+
+        assertThat(entry.available()).isTrue();
+        assertThat(entry.entryScript()).startsWith("/react/assets/sharedImage-").endsWith(".js");
+        assertThat(entry.modulePreloads()).noneMatch(url -> url.contains("adminApp-") || url.contains("shell-"));
+    }
+
+    @Test
     void resolvesBundledMarkdownRendererFromGeneratedManifest() {
         ViteAssetService service = new ViteAssetService(
                 new ObjectMapper(),
@@ -110,6 +124,15 @@ class ViteAssetServiceTest {
         assertThat(entry.clientScript()).isEqualTo("http://127.0.0.1:5173/@vite/client");
         assertThat(entry.entryScript()).isEqualTo("http://127.0.0.1:5173/src/app/main.tsx");
         assertThat(entry.styles()).isEmpty();
+    }
+
+    @Test
+    void resolvesSharedComicEntryWithoutAdminRuntime() {
+        ViteAssetService service = new ViteAssetService(new ObjectMapper(), new DefaultResourceLoader(), "");
+        ViteAssetService.ViteEntry entry = service.entry("src/shared-file/comic.tsx");
+        assertThat(entry.available()).isTrue();
+        assertThat(entry.entryScript()).startsWith("/react/assets/sharedComic-").endsWith(".js");
+        assertThat(entry.modulePreloads()).noneMatch(url -> url.contains("adminApp-") || url.contains("shell-"));
     }
 
     @Test

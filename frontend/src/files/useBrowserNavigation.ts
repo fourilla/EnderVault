@@ -1,13 +1,11 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { canonicalState, loadBrowserPayload } from './browser-api';
-import {
-  defaultBrowserState,
-  initialBrowserState,
-  parseBrowserState,
-  rememberBrowserState,
-} from './browser-history';
+import { browserHistory } from './browser-history';
+import { useListingHistory, useListingSnapshot } from '../shared/browser/ListingHistoryContext';
 import { postForm, toastError } from '../shared/api/form-api';
 import type { BrowserHistoryState, BrowserPayload, BrowserView } from './types';
+import { useNavigationScroll } from '../shared/browser/useNavigationScroll';
+import { useListingRefresh } from '../shared/browser/useListingRefresh';
 
 const listingRequestKeyFor = (state: BrowserHistoryState) => [
   state.mode,
@@ -21,15 +19,15 @@ const listingRequestKeyFor = (state: BrowserHistoryState) => [
 ].join('\u0000');
 
 export function useBrowserNavigation() {
-  const [state, setState] = useState<BrowserHistoryState>(() => initialBrowserState());
-  const [payload, setPayload] = useState<BrowserPayload | null>(null);
+  const { state, key: historyKey, remember, navigate: navigateHistory, isCurrent, ready } = useListingHistory(browserHistory);
+  const [payload, setPayload] = useListingSnapshot<BrowserPayload>(historyKey);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchText, setSearchText] = useState(state.query);
   const [refreshToken, setRefreshToken] = useState(0);
   const stateRef = useRef(state);
   const payloadRef = useRef(payload);
-  const restoreScrollRef = useRef(state.scrollTop);
+  useNavigationScroll(payload, loading, state.scrollTop, historyKey, ready);
   const requestGenerationRef = useRef(0);
 
   stateRef.current = state;
@@ -41,28 +39,17 @@ export function useBrowserNavigation() {
     return currentPayload ? canonicalState(current, currentPayload) : current;
   }, []);
 
-  const persistCurrentScroll = useCallback(() => {
-    const current = { ...effectiveState(), scrollTop: Math.max(0, Math.round(window.scrollY)) };
-    rememberBrowserState(current, true);
-    stateRef.current = current;
-    return current;
-  }, [effectiveState]);
-
   const navigate = useCallback((next: BrowserHistoryState, replace = false) => {
-    persistCurrentScroll();
+    if (!isCurrent()) return;
     const normalized = { ...next, version: 1 as const, scrollTop: next.scrollTop || 0 };
-    const sameRequest = listingRequestKeyFor(stateRef.current) === listingRequestKeyFor(normalized);
+    const sameRequest = listingRequestKeyFor(effectiveState()) === listingRequestKeyFor(normalized);
+    remember(effectiveState());
+    navigateHistory(normalized, replace || sameRequest);
     requestGenerationRef.current += 1;
     payloadRef.current = null;
     setPayload(null);
     setLoading(true);
-    restoreScrollRef.current = normalized.scrollTop;
-    rememberBrowserState(normalized, replace || sameRequest);
-    setState(normalized);
-    if (sameRequest) {
-      setRefreshToken((current) => current + 1);
-    }
-  }, [persistCurrentScroll]);
+  }, [effectiveState, remember, navigateHistory, isCurrent]);
 
   const browse = useCallback((path: string) => {
     const current = effectiveState();
@@ -77,50 +64,24 @@ export function useBrowserNavigation() {
     });
   }, [effectiveState, navigate]);
 
-  useEffect(() => {
-    const refreshListing = async (url?: string) => {
-      if (url) {
-        const target = new URL(url, window.location.href);
-        const targetPath = target.searchParams.get('path');
-        if (targetPath != null && targetPath !== effectiveState().path) {
-          navigate({
-            ...effectiveState(),
-            mode: 'browse',
-            path: targetPath,
-            query: '',
-            page: 1,
-            scrollTop: 0,
-          });
-          return;
-        }
-      }
-      setRefreshToken((current) => current + 1);
-    };
-    window.EnderVaultFileBrowser = {
-      refreshListing,
-      requestListingRefresh: (url?: string) => void refreshListing(url),
-      syncToolbarState: () => undefined,
-    };
-    document.dispatchEvent(new CustomEvent('endervault:files-ready'));
-    return () => {
-      delete window.EnderVaultFileBrowser;
-    };
-  }, [effectiveState, navigate]);
+  const reload = useCallback(() => setRefreshToken((current) => current + 1), []);
+  useListingRefresh(reload);
 
   const listingRequestKey = listingRequestKeyFor(state);
 
   useEffect(() => {
+    if (!isCurrent()) return;
     const requestGeneration = ++requestGenerationRef.current;
-    rememberBrowserState(state, true);
+    const requestState = effectiveState();
     const controller = new AbortController();
     setLoading(true);
     setError('');
-    void loadBrowserPayload(state, controller.signal)
+    void loadBrowserPayload(requestState, controller.signal)
       .then((nextPayload) => {
-        if (controller.signal.aborted || requestGeneration !== requestGenerationRef.current) return;
+        if (!isCurrent() || controller.signal.aborted || requestGeneration !== requestGenerationRef.current) return;
         setPayload(nextPayload);
-        const resolvedState = canonicalState(state, nextPayload);
-        rememberBrowserState(resolvedState, true);
+        const resolvedState = canonicalState(requestState, nextPayload);
+        remember(resolvedState);
         stateRef.current = resolvedState;
         const stickyContext = {
           targetType: 'STORAGE',
@@ -139,41 +100,22 @@ export function useBrowserNavigation() {
             : '';
           readOnlyLink.href = '/files/read-only' + query;
         }
-        window.requestAnimationFrame(() => {
-          window.scrollTo({ top: restoreScrollRef.current, behavior: 'auto' });
-        });
       })
       .catch((reason: unknown) => {
-        if (controller.signal.aborted || requestGeneration !== requestGenerationRef.current) return;
+        if (!isCurrent() || controller.signal.aborted || requestGeneration !== requestGenerationRef.current) return;
         setError(reason instanceof Error ? reason.message : 'The file list could not be loaded.');
       })
       .finally(() => {
-        if (!controller.signal.aborted && requestGeneration === requestGenerationRef.current) {
+        if (isCurrent() && !controller.signal.aborted && requestGeneration === requestGenerationRef.current) {
           setLoading(false);
         }
       });
     return () => controller.abort();
-  }, [listingRequestKey, refreshToken]);
+  }, [historyKey, listingRequestKey, refreshToken, remember, isCurrent, effectiveState]);
 
   useEffect(() => {
-    const onPopState = (event: PopStateEvent) => {
-      const restored = parseBrowserState(event.state) || defaultBrowserState();
-      requestGenerationRef.current += 1;
-      payloadRef.current = null;
-      setPayload(null);
-      setLoading(true);
-      restoreScrollRef.current = restored.scrollTop;
-      setSearchText(restored.query);
-      setState(restored);
-    };
-    const onPageHide = () => persistCurrentScroll();
-    window.addEventListener('popstate', onPopState);
-    window.addEventListener('pagehide', onPageHide);
-    return () => {
-      window.removeEventListener('popstate', onPopState);
-      window.removeEventListener('pagehide', onPageHide);
-    };
-  }, [persistCurrentScroll]);
+    setSearchText(state.query);
+  }, [historyKey, state.query]);
 
   const applyPreferences = (updates: Partial<BrowserHistoryState>) => {
     navigate({ ...effectiveState(), ...updates, page: 1, scrollTop: 0 });
@@ -186,10 +128,10 @@ export function useBrowserNavigation() {
     if (previousView === view) return;
 
     const updateLocalView = (nextView: BrowserView) => {
-      const nextState = { ...stateRef.current, view: nextView };
+      if (!isCurrent()) return;
+      const nextState = { ...effectiveState(), view: nextView };
       stateRef.current = nextState;
-      setState(nextState);
-      rememberBrowserState(nextState, true);
+      remember(nextState);
       setPayload((current) => {
         if (!current) return current;
         const updated = {
@@ -205,11 +147,11 @@ export function useBrowserNavigation() {
     try {
       const body = await postForm('/api/v1/browser-preferences/files/view', { view });
       const savedView = body?.view === 'grid' ? 'grid' : 'table';
-      if (stateRef.current.view === view && savedView !== view) {
+      if (isCurrent() && payloadRef.current?.preferences.view === view && savedView !== view) {
         updateLocalView(savedView);
       }
     } catch (reason) {
-      if (stateRef.current.view === view) updateLocalView(previousView);
+      if (isCurrent() && payloadRef.current?.preferences.view === view) updateLocalView(previousView);
       toastError(reason, 'View preference could not be saved.');
     }
   };
@@ -246,6 +188,6 @@ export function useBrowserNavigation() {
     applyView,
     applyPreferences,
     submitSearch,
-    reload: () => setRefreshToken((current) => current + 1),
+    reload,
   };
 }

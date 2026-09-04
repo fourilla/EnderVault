@@ -1,18 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { TransferBufferPanel } from '../files/TransferBufferPanel';
 import type { TransferBufferPayload } from '../files/types';
 import { togglePathFavorite } from '../shared/api/favorite-api';
 import { notify, postForm, toastError } from '../shared/api/form-api';
+import { canRetainSnapshot } from '../shared/api/snapshot-errors';
 import { icon } from '../shared/browser/BrowserEntries';
 import { PageBreadcrumbs } from '../shared/layout/PageHeader';
 import { FileTools } from './FileTools';
+import { detailQueryKey, loadFileDetail } from './file-detail-api';
 import type { FileDetailPayload, SharePayload } from './types';
 import './file-detail-app.css';
 
 function ShareSection({ payload, refresh }: { payload: FileDetailPayload; refresh: () => void }) {
   const [token, setToken] = useState('');
   const [days, setDays] = useState('');
+  const [previewEnabled, setPreviewEnabled] = useState(payload.shareDefaults.previewEnabled);
   const [submitting, setSubmitting] = useState(false);
   const mutate = async (action: 'revoke' | 'delete', share: SharePayload) => {
     try {
@@ -29,26 +32,36 @@ function ShareSection({ payload, refresh }: { payload: FileDetailPayload; refres
       event.preventDefault(); setSubmitting(true);
       try {
         const body = await postForm('/api/v1/shares', {
-          path: payload.detail.path, customToken: token, expiresInDays: days,
+          path: payload.detail.path, customToken: token, expiresInDays: days, previewEnabled,
         });
-        notify(body); setToken(''); setDays(''); refresh();
+        notify(body); setToken(''); setDays('');
+        setPreviewEnabled(payload.shareDefaults.previewEnabled); refresh();
       } catch (reason) {
         toastError(reason, 'Share link could not be created.');
       } finally { setSubmitting(false); }
     }}>
-      <label><span className="visually-hidden">Custom token</span>
-        <input type="text" value={token} onChange={(event) => setToken(event.target.value)} placeholder="Custom token" />
+      <div className="share-create-primary">
+        <label><span className="visually-hidden">Custom token</span>
+          <input type="text" value={token} onChange={(event) => setToken(event.target.value)} placeholder="Custom token" />
+        </label>
+        <label><span className="visually-hidden">Expiration days</span>
+          <input type="text" inputMode="numeric" value={days} onChange={(event) => setDays(event.target.value)} placeholder="Days" />
+        </label>
+        <button type="submit" disabled={submitting}>Create link</button>
+      </div>
+      <label className="share-preview-option">
+        <input type="checkbox" checked={previewEnabled}
+          onChange={(event) => setPreviewEnabled(event.target.checked)} />
+        <span>Allow previews for supported files</span>
       </label>
-      <label><span className="visually-hidden">Expiration days</span>
-        <input type="text" inputMode="numeric" value={days} onChange={(event) => setDays(event.target.value)} placeholder="Days" />
-      </label>
-      <button type="submit" disabled={submitting}>Create link</button>
     </form>
     <div className="table-wrap compact-table" aria-label="Shared links for this item">
-      <table><thead><tr><th>Link</th><th>Created</th><th>Expires</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody>{payload.shares.length === 0 ? <tr className="empty-row"><td colSpan={5} className="empty">No shared links yet.</td></tr>
+      <table><thead><tr><th>Link</th><th>Created</th><th>Expires</th><th>Preview</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>{payload.shares.length === 0 ? <tr className="empty-row"><td colSpan={6} className="empty">No shared links yet.</td></tr>
           : payload.shares.map((share) => <tr key={share.token}>
             <td><input readOnly value={share.url} /></td><td>{share.createdLabel}</td><td>{share.expiresLabel}</td>
+            <td><span className={`status-badge ${share.previewEnabled ? 'active' : 'info'}`}>
+              {share.previewEnabled ? 'Enabled' : 'Disabled'}</span></td>
             <td><span className={`status-badge ${share.statusClass}`}>{share.statusLabel}</span></td>
             <td><div className="table-actions">
               <button className="ghost icon-button action-icon" type="button" title="Copy link" aria-label="Copy link"
@@ -109,29 +122,42 @@ function DetailMetadata({ payload, onToggleFavorite }: {
 export function FileDetailApp() {
   const location = useLocation();
   const navigate = useNavigate();
-  const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const path = query.get('path') || '';
-  const [payload, setPayload] = useState<FileDetailPayload | null>(null);
+  const path = new URLSearchParams(location.search).get('path') || '';
+  // Comic page changes are client view state, not new file metadata requests.
+  const query = useMemo(() => new URLSearchParams({ path }), [path]);
+  const [snapshot, setSnapshot] = useState<{ path: string; payload: FileDetailPayload } | null>(null);
+  const payload = snapshot?.path === path ? snapshot.payload : null;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [rename, setRename] = useState('');
+  const [mutating, setMutating] = useState(false);
   const detailRequestVersion = useRef(0);
+  const currentQuery = useRef<URLSearchParams | null>(query);
+  const prefetchedDetail = useRef<{ key: string; payload: FileDetailPayload } | null>(null);
+  const mutationController = useRef<AbortController | null>(null);
+  const locationKey = useRef(location.key);
+  locationKey.current = location.key;
 
   const refresh = useCallback((signal?: AbortSignal) => {
+    if (currentQuery.current !== query) return;
     if (!path) { setError('A file path is required.'); setLoading(false); return; }
     const requestVersion = ++detailRequestVersion.current;
-    const url = new URL('/api/v1/fs/detail', window.location.origin);
-    url.searchParams.set('path', path);
-    const comicPage = query.get('comicPage');
-    if (comicPage) url.searchParams.set('comicPage', comicPage);
-    setPayload((current) => current?.detail.path === path ? current : null);
+    const prefetched = prefetchedDetail.current;
+    prefetchedDetail.current = null;
+    if (prefetched?.key === detailQueryKey(query)) {
+      setSnapshot({ path, payload: prefetched.payload }); setRename(prefetched.payload.detail.name);
+      setLoading(false); setError('');
+      return;
+    }
+    setSnapshot((current) => current?.path === path ? current : null);
     setLoading(true); setError('');
-    void window.EnderVault?.requestJson(url.toString(), { signal }).then((body) => {
+    void loadFileDetail(query, signal).then((body) => {
       if (signal?.aborted || requestVersion !== detailRequestVersion.current) return;
-      setPayload(body); setRename(body.detail.name);
+      setSnapshot({ path, payload: body }); setRename(body.detail.name);
     }).catch((reason) => {
       if (signal?.aborted || requestVersion !== detailRequestVersion.current
           || (reason instanceof DOMException && reason.name === 'AbortError')) return;
+      if (!canRetainSnapshot(reason)) setSnapshot(null);
       setError(reason instanceof Error ? reason.message : 'File details could not be loaded.');
     }).finally(() => {
       if (!signal?.aborted && requestVersion === detailRequestVersion.current) setLoading(false);
@@ -140,9 +166,15 @@ export function FileDetailApp() {
 
   useEffect(() => {
     const controller = new AbortController();
+    currentQuery.current = query;
     refresh(controller.signal);
-    return () => controller.abort();
+    return () => {
+      currentQuery.current = null;
+      detailRequestVersion.current += 1;
+      controller.abort();
+    };
   }, [refresh]);
+  useEffect(() => () => { mutationController.current?.abort(); }, [location.key]);
   useEffect(() => {
     if (!payload) return;
     document.title = `${payload.detail.name} - EnderVault`;
@@ -152,31 +184,72 @@ export function FileDetailApp() {
     }}));
   }, [payload]);
 
-  if (loading && !payload) return <main className="browser-load-state" aria-live="polite">
-    {icon('fas fa-spinner fa-spin')}<span>Loading file details...</span></main>;
-  if (error || !payload) return <main className="browser-load-state browser-load-error" role="alert">
-    <strong>File details unavailable</strong><span>{error}</span></main>;
+  if (!payload) return <main
+    className={'browser-load-state' + (error ? ' browser-load-error' : '')}
+    role={error ? 'alert' : 'status'} aria-live="polite">
+    {error ? <><strong>File details unavailable</strong><span>{error}</span></> : <>
+      {icon('fas fa-spinner fa-spin')}<span>Loading file details...</span>
+    </>}
+  </main>;
 
-  const mutate = async (endpoint: string, values: Record<string, string>, conflict = false) => {
-    const body = await postForm(endpoint, values, conflict);
-    notify(body);
-    if (body.redirectUrl) navigate(body.redirectUrl, { replace: true });
-    else refresh();
+  const mutate = async (endpoint: string, values: Record<string, string>, conflict = false, sameItem = false) => {
+    if (mutating) return;
+    const controller = new AbortController();
+    mutationController.current = controller;
+    const originKey = location.key;
+    const stillHere = () => !controller.signal.aborted && locationKey.current === originKey;
+    setMutating(true);
+    try {
+      const body = await postForm(endpoint, values, conflict);
+      notify(body);
+      if (!stillHere()) return;
+      if (!body.redirectUrl) { refresh(); return; }
+      const target = new URL(body.redirectUrl, window.location.href);
+      const preserve = sameItem && target.origin === window.location.origin
+        && target.pathname === '/files/detail' && Boolean(target.searchParams.get('path'));
+      if (preserve) {
+        try {
+          // Swap the route and its ready snapshot together, without collapsing File Tools.
+          const next = await loadFileDetail(target.searchParams, controller.signal);
+          if (!stillHere()) return;
+          detailRequestVersion.current += 1;
+          prefetchedDetail.current = location.search !== target.search
+            ? { key: detailQueryKey(new URLSearchParams({ path: target.searchParams.get('path') || '' })), payload: next } : null;
+          startTransition(() => {
+            setSnapshot({ path: target.searchParams.get('path')!, payload: next });
+            setRename(next.detail.name); setError(''); setLoading(false);
+            navigate(body.redirectUrl, { replace: true, preventScrollReset: true });
+          });
+          return;
+        } catch (reason) {
+          if (!stillHere()) return;
+          // The mutation succeeded. Follow the actual new path even if its snapshot failed.
+          if (!canRetainSnapshot(reason)) setSnapshot(null);
+          setError(reason instanceof Error ? reason.message : 'Updated file details could not be loaded.');
+          toastError(reason, 'Updated file details could not be loaded.');
+        }
+      }
+      navigate(body.redirectUrl, { replace: true, preventScrollReset: preserve });
+    } finally {
+      if (mutationController.current === controller) setMutating(false);
+    }
   };
   const bufferActions = {
     updateTransferBuffer: async (action: 'clear' | 'remove' | 'paste', values: Record<string, string>) => {
       try {
         const body = await postForm(`/api/v1/files/transfer-buffer/${action}`, values, action === 'paste');
         notify(body);
-        if (body.transferBuffer) setPayload((current) => current ? { ...current, transferBuffer: body.transferBuffer } : current);
-        if (body.task) window.EnderVaultServerTasks?.track(body.task);
+        if (body.transferBuffer) setSnapshot((current) => current?.path === path
+          ? { ...current, payload: { ...current.payload, transferBuffer: body.transferBuffer } } : current);
+        if (body.task) window.EnderVaultServerTasks?.track(body.task, { announceStart: true });
       } catch (reason) { toastError(reason, 'Transfer buffer action failed.'); }
     },
   };
   const toggleFavorite = async () => {
     try {
       const body = await togglePathFavorite(payload.detail.path);
-      setPayload((current) => current ? { ...current, favorite: Boolean(body.active) } : current);
+      setSnapshot((current) => current?.path === path
+        ? { ...current, payload: { ...current.payload, favorite: Boolean(body.active) } } : current);
     } catch (reason) {
       toastError(reason, 'Favorite could not be updated.');
     }
@@ -187,28 +260,32 @@ export function FileDetailApp() {
       parent={<Link to={payload.urls.parentDirectory}>{payload.detail.parentPath || 'Files'}</Link>}
       current={payload.detail.name}
     />
+    {error && <section className="browser-load-error" role="alert">{error} Showing the last loaded values.
+      <button className="ghost" type="button" disabled={loading} onClick={() => refresh()}>Retry</button>
+    </section>}
     <FileTools payload={payload} />
     <section className="detail-layout">
       <DetailMetadata payload={payload} onToggleFavorite={() => void toggleFavorite()} />
-      <aside className="detail-panel detail-manage"><h2>Manage</h2><div className="manage-stack">
+      <aside className="detail-panel detail-manage" inert={mutating} aria-busy={mutating}><h2>Manage</h2><div className="manage-stack">
         <form className="stack manage-form" onSubmit={async (event) => {
           event.preventDefault();
           try { await mutate('/api/v1/files/detail/rename', {
             path: payload.detail.path, newName: rename, conflictPolicy: 'ask',
-          }, true); } catch (reason) { toastError(reason, 'Item could not be renamed.'); }
+          }, true, true); } catch (reason) { toastError(reason, 'Item could not be renamed.'); }
         }}><label>Rename<input value={rename} onChange={(event) => setRename(event.target.value)} required /></label>
           <button type="submit">{icon('fas fa-pen-to-square')} Rename</button></form>
         <div className="stack manage-form"><button className="ghost" type="button" onClick={async () => {
           try {
             const body = await postForm('/api/v1/files/transfer-buffer/detail', { path: payload.detail.path });
             notify(body);
-            if (body.transferBuffer) setPayload((current) => current ? { ...current, transferBuffer: body.transferBuffer } : current);
+            if (body.transferBuffer) setSnapshot((current) => current?.path === path
+              ? { ...current, payload: { ...current.payload, transferBuffer: body.transferBuffer } } : current);
           } catch (reason) { toastError(reason, 'Item could not be added to the transfer buffer.'); }
         }}>{icon('fas fa-layer-group')} Add to transfer buffer</button></div>
         <div className="stack manage-form"><button className="ghost" type="button" onClick={async () => {
           try { await mutate('/api/v1/files/detail/hidden', {
             path: payload.detail.path, hidden: String(!payload.detail.hidden), conflictPolicy: 'ask',
-          }, true); } catch (reason) { toastError(reason, 'Visibility could not be changed.'); }
+          }, true, true); } catch (reason) { toastError(reason, 'Visibility could not be changed.'); }
         }}>{icon(payload.detail.hidden ? 'fas fa-eye' : 'fas fa-eye-slash')}
           {payload.detail.hidden ? 'Make visible' : 'Hide item'}</button></div>
         <div className="manage-delete"><div className="stack manage-form"><button className="danger" type="button" onClick={async () => {
@@ -224,6 +301,6 @@ export function FileDetailApp() {
       mode={payload.detail.directory ? 'browse' : undefined}
       path={payload.detail.directory ? payload.detail.path : payload.detail.parentPath}
       actions={bufferActions} />
-    <ShareSection payload={payload} refresh={refresh} />
+    <ShareSection key={payload.detail.path} payload={payload} refresh={refresh} />
   </>;
 }

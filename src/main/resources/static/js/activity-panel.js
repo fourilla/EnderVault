@@ -69,6 +69,22 @@
         return publicItem(next);
     };
 
+    // Only explicit starts announce; snapshots and progress updates stay silent.
+    const announceStarted = (ids) => {
+        const startedIds = [];
+        for (const id of ids) {
+            const item = state.items.get(id);
+            if (!item || item.startAnnounced) continue;
+            item.startAnnounced = true;
+            startedIds.push(id);
+        }
+        if (startedIds.length > 0) {
+            document.dispatchEvent(new CustomEvent("endervault:activity-started", {
+                detail: { ids: startedIds }
+            }));
+        }
+    };
+
     const remove = (id) => {
         const item = state.items.get(id);
         window.clearTimeout(item?.removeTimer);
@@ -105,6 +121,7 @@
 
     window.EnderVaultActivity = {
         upsert,
+        announceStarted,
         remove,
         scheduleRemoval,
         cancel,

@@ -30,12 +30,14 @@ class AdvancedSettingsServiceTest {
 
         MultiValueMap<String, String> runtimeUpdate = currentParameters(service);
         runtimeUpdate.set("shareDefaultExpirationDays", "5");
+        runtimeUpdate.remove("shareDefaultPreviewEnabled");
         runtimeUpdate.set("temporaryStaleMinutes", "45");
         runtimeUpdate.set("uploadChunkSizeMib", "16");
         boolean runtimeRestartRequired = service.save(service.updateFrom(runtimeUpdate));
 
         assertThat(runtimeRestartRequired).isFalse();
         assertThat(properties.getShare().getDefaultExpirationDays()).isEqualTo(5);
+        assertThat(properties.getShare().isDefaultPreviewEnabled()).isFalse();
         assertThat(properties.getTemporaryArtifacts().getStaleAfterMinutes()).isEqualTo(45);
         assertThat(properties.getUpload().getResumableChunkSizeBytes()).isEqualTo(16L * 1024L * 1024L);
 
@@ -49,6 +51,7 @@ class AdvancedSettingsServiceTest {
                 .contains("nas.upload.resumable-chunk-size-bytes=16777216")
                 .contains("nas.upload.max-concurrent-chunks=6")
                 .contains("nas.share.default-expiration-days=5")
+                .contains("nas.share.default-preview-enabled=false")
                 .contains("nas.temporary-artifacts.stale-after-minutes=45");
         assertThat(fieldValue(service.currentSettings(), "uploadChunkSizeMib")).isEqualTo("16");
     }
@@ -119,8 +122,10 @@ class AdvancedSettingsServiceTest {
         assertThat(snapshot.groups())
                 .extracting(AdvancedSettingsService.SettingGroup::id)
                 .containsExactly("sharing", "uploads", "thumbnails", "archive", "staging", "tasks", "metadata", "activity", "access");
-        assertThat(snapshot.groups().stream().mapToInt(group -> group.fields().size()).sum()).isEqualTo(47);
+        assertThat(snapshot.groups().stream().mapToInt(group -> group.fields().size()).sum()).isEqualTo(48);
         assertThat(field(snapshot, "shareDefaultExpirationDays").dependencies())
+                .containsExactly("shareEnabled");
+        assertThat(field(snapshot, "shareDefaultPreviewEnabled").dependencies())
                 .containsExactly("shareEnabled");
         assertThat(field(snapshot, "shareCustomTokenMinLength").dependencies())
                 .containsExactly("shareEnabled", "shareCustomTokenEnabled");

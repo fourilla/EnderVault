@@ -1,15 +1,13 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { icon } from '../shared/browser/BrowserEntries';
 import { useItemSelection } from '../shared/browser/useItemSelection';
+import { useNavigationScroll } from '../shared/browser/useNavigationScroll';
+import { useListingRefresh } from '../shared/browser/useListingRefresh';
 import { loadBookmarks } from './bookmark-api';
 import { BookmarkDialogs, type DialogKind } from './BookmarkDialogs';
 import { BookmarkBreadcrumbs, BookmarkTable } from './BookmarkEntries';
-import {
-  defaultBookmarkState,
-  initialBookmarkState,
-  parseBookmarkState,
-  rememberBookmarkState,
-} from './bookmark-history';
+import { bookmarkHistory } from './bookmark-history';
+import { useListingHistory, useListingSnapshot } from '../shared/browser/ListingHistoryContext';
 import type { BookmarkEntry, BookmarkHistoryState, BookmarkPayload } from './types';
 import { useBookmarkActions } from './useBookmarkActions';
 import { useBookmarkContextMenu } from './useBookmarkContextMenu';
@@ -19,8 +17,8 @@ const itemKey = (entry: BookmarkEntry) => entry.id;
 const requestKey = (state: BookmarkHistoryState) => state.directoryId + '\u0000' + state.query;
 
 export function BookmarksApp() {
-  const [state, setState] = useState<BookmarkHistoryState>(() => initialBookmarkState());
-  const [payload, setPayload] = useState<BookmarkPayload | null>(null);
+  const { state, key: historyKey, remember, navigate: navigateHistory, isCurrent, ready } = useListingHistory(bookmarkHistory);
+  const [payload, setPayload] = useListingSnapshot<BookmarkPayload>(historyKey);
   const [searchText, setSearchText] = useState(state.query);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -28,7 +26,7 @@ export function BookmarksApp() {
   const [dialog, setDialog] = useState<DialogKind>(null);
   const stateRef = useRef(state);
   const payloadRef = useRef(payload);
-  const restoreScrollRef = useRef(state.scrollTop);
+  useNavigationScroll(payload, loading, state.scrollTop, historyKey, ready);
   const requestGenerationRef = useRef(0);
   stateRef.current = state;
   payloadRef.current = payload;
@@ -44,32 +42,21 @@ export function BookmarksApp() {
     };
   }, []);
 
-  const persistCurrentScroll = useCallback(() => {
-    const current = { ...effectiveState(), scrollTop: Math.max(0, Math.round(window.scrollY)) };
-    rememberBookmarkState(current, true);
-    stateRef.current = current;
-    return current;
-  }, [effectiveState]);
-
   const reload = useCallback(() => {
-    const current = persistCurrentScroll();
-    restoreScrollRef.current = current.scrollTop;
     setRefreshToken((value) => value + 1);
-  }, [persistCurrentScroll]);
+  }, []);
 
   const navigate = useCallback((next: BookmarkHistoryState, replace = false) => {
-    persistCurrentScroll();
+    if (!isCurrent()) return;
     const normalized = { ...next, surface: 'bookmarks' as const, version: 1 as const };
-    const sameRequest = requestKey(stateRef.current) === requestKey(normalized);
+    const sameRequest = requestKey(effectiveState()) === requestKey(normalized);
+    remember(effectiveState());
+    navigateHistory(normalized, replace || sameRequest);
     requestGenerationRef.current += 1;
     payloadRef.current = null;
     setPayload(null);
     setLoading(true);
-    restoreScrollRef.current = normalized.scrollTop;
-    rememberBookmarkState(normalized, replace || sameRequest);
-    setState(normalized);
-    if (sameRequest) setRefreshToken((value) => value + 1);
-  }, [persistCurrentScroll]);
+  }, [effectiveState, remember, navigateHistory, isCurrent]);
 
   const browse = useCallback((directoryId: string) => {
     setSearchText('');
@@ -116,22 +103,23 @@ export function BookmarksApp() {
   });
 
   useEffect(() => {
+    if (!isCurrent()) return;
     const generation = ++requestGenerationRef.current;
-    rememberBookmarkState(state, true);
+    const requestState = effectiveState();
     const controller = new AbortController();
     setLoading(true);
     setError('');
-    void loadBookmarks(state, controller.signal)
+    void loadBookmarks(requestState, controller.signal)
       .then((nextPayload) => {
-        if (controller.signal.aborted || generation !== requestGenerationRef.current) return;
+        if (!isCurrent() || controller.signal.aborted || generation !== requestGenerationRef.current) return;
         setPayload(nextPayload);
         const resolved = {
-          ...state,
+          ...requestState,
           directoryId: nextPayload.currentDirectoryId || '',
           query: nextPayload.search.query,
         };
         stateRef.current = resolved;
-        rememberBookmarkState(resolved, true);
+        remember(resolved);
         const currentLabel = nextPayload.breadcrumbs.at(-1)?.label || 'Bookmarks';
         const stickyContext = nextPayload.currentDirectoryId ? {
           targetType: 'BOOKMARK', targetKey: nextPayload.currentDirectoryId,
@@ -141,65 +129,22 @@ export function BookmarksApp() {
         };
         void window.EnderVaultStickyNotes?.setContext(stickyContext);
         document.dispatchEvent(new CustomEvent('endervault:sticky-context-changed', { detail: stickyContext }));
-        window.requestAnimationFrame(() => window.scrollTo({
-          top: restoreScrollRef.current, behavior: 'auto',
-        }));
       })
       .catch((reason: unknown) => {
-        if (controller.signal.aborted || generation !== requestGenerationRef.current) return;
+        if (!isCurrent() || controller.signal.aborted || generation !== requestGenerationRef.current) return;
         setError(reason instanceof Error ? reason.message : 'Bookmarks could not be loaded.');
       })
       .finally(() => {
-        if (!controller.signal.aborted && generation === requestGenerationRef.current) setLoading(false);
+        if (isCurrent() && !controller.signal.aborted && generation === requestGenerationRef.current) setLoading(false);
       });
     return () => controller.abort();
-  }, [state.directoryId, state.query, refreshToken]);
+  }, [historyKey, state.directoryId, state.query, refreshToken, remember, isCurrent, effectiveState]);
 
   useEffect(() => {
-    const onPopState = (event: PopStateEvent) => {
-      const restored = parseBookmarkState(event.state) || defaultBookmarkState();
-      requestGenerationRef.current += 1;
-      payloadRef.current = null;
-      setPayload(null);
-      setLoading(true);
-      restoreScrollRef.current = restored.scrollTop;
-      setSearchText(restored.query);
-      setState(restored);
-    };
-    const onPageHide = () => persistCurrentScroll();
-    window.addEventListener('popstate', onPopState);
-    window.addEventListener('pagehide', onPageHide);
-    return () => {
-      window.removeEventListener('popstate', onPopState);
-      window.removeEventListener('pagehide', onPageHide);
-    };
-  }, [persistCurrentScroll]);
+    setSearchText(state.query);
+  }, [historyKey, state.query]);
 
-  useEffect(() => {
-    const refreshListing = async (url?: string) => {
-      if (url) {
-        const target = new URL(url, window.location.href);
-        if (target.pathname === '/files/bookmarks') {
-          const next = {
-            ...effectiveState(),
-            directoryId: target.searchParams.get('directory') || '',
-            query: target.searchParams.get('q') || '',
-            scrollTop: 0,
-          };
-          navigate(next);
-          return;
-        }
-      }
-      reload();
-    };
-    window.EnderVaultFileBrowser = {
-      refreshListing,
-      requestListingRefresh: (url?: string) => void refreshListing(url),
-      syncToolbarState: () => undefined,
-    };
-    document.dispatchEvent(new CustomEvent('endervault:files-ready'));
-    return () => { delete window.EnderVaultFileBrowser; };
-  }, [effectiveState, navigate, reload]);
+  useListingRefresh(reload);
 
   const submitSearch = (event: FormEvent) => {
     event.preventDefault();

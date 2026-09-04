@@ -5,7 +5,9 @@ const enderVault = () => {
   return window.EnderVault;
 };
 
-export const formData = (values: Record<string, string | string[] | number | undefined>) => {
+type FormValue = string | string[] | number | boolean | undefined;
+
+export const formData = (values: Record<string, FormValue>) => {
   const body = new FormData();
   const csrf = enderVault().csrfPair();
   if (csrf) body.append(csrf.name, csrf.value);
@@ -22,7 +24,7 @@ export const formData = (values: Record<string, string | string[] | number | und
 
 export const postForm = async (
   url: string,
-  values: Record<string, string | string[] | number | undefined>,
+  values: Record<string, FormValue>,
   resolveConflicts = false,
 ) => {
   const client = enderVault();

@@ -1,12 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
-import { togglePathFavorite } from '../shared/api/favorite-api';
 import { notify, postForm, toastError } from '../shared/api/form-api';
-import type {
-  BrowserEntry,
-  BrowserHistoryState,
-  BrowserPayload,
-  TransferBufferPayload,
-} from './types';
+import { createFileEntryActions } from '../shared/browser/file-entry-actions';
+import type { BrowserEntry, BrowserHistoryState, BrowserPayload, TransferBufferPayload } from './types';
 
 interface FileActionOptions {
   selectedEntries: BrowserEntry[];
@@ -18,16 +13,16 @@ interface FileActionOptions {
 }
 
 export function useFileActions({
-  selectedEntries,
-  setSelected,
-  setPayload,
-  effectiveState,
-  navigate,
-  reload,
+  selectedEntries, setSelected, setPayload, effectiveState, navigate, reload,
 }: FileActionOptions) {
   const [transferBuffer, setTransferBuffer] = useState<TransferBufferPayload | null>(null);
   const transferBufferRef = useRef(transferBuffer);
   transferBufferRef.current = transferBuffer;
+  const entryActions = createFileEntryActions({
+    selectedEntries, setSelected, setPayload, reload,
+    currentPath: () => effectiveState().path,
+    onTransferBuffer: setTransferBuffer,
+  });
 
   const loadTransferBuffer = useCallback(async () => {
     try {
@@ -47,10 +42,8 @@ export function useFileActions({
     });
     if (!name) return;
     try {
-      const body = await postForm(
-        directory ? '/api/v1/files/directories' : '/api/v1/files',
-        { path: effectiveState().path, name },
-      );
+      const body = await postForm(directory ? '/api/v1/files/directories' : '/api/v1/files',
+        { path: effectiveState().path, name });
       notify(body);
       reload();
     } catch (reason) {
@@ -58,53 +51,14 @@ export function useFileActions({
     }
   };
 
-  const toggleFavorite = async (entry: BrowserEntry) => {
+  const updateTransferBuffer = async (action: 'clear' | 'remove' | 'paste', values: Record<string, string>) => {
     try {
-      const body = await togglePathFavorite(entry.path);
-      const active = Boolean(body.active);
-      setPayload((current) => {
-        if (!current) return current;
-        const update = (item: BrowserEntry) =>
-          item.path === entry.path ? { ...item, favorite: active } : item;
-        return {
-          ...current,
-          directories: current.directories.map(update),
-          entries: current.entries.map(update),
-        };
-      });
-    } catch (reason) {
-      toastError(reason, 'Favorite could not be updated.');
-    }
-  };
-
-  const addEntriesToBuffer = async (entries = selectedEntries) => {
-    if (entries.length === 0) return;
-    try {
-      const body = await postForm('/api/v1/files/transfer-buffer', {
-        paths: entries.map((entry) => entry.path),
-      });
-      notify(body);
-      if (body.transferBuffer) setTransferBuffer(body.transferBuffer);
-      setSelected(new Set());
-    } catch (reason) {
-      toastError(reason, 'Items could not be added to the transfer buffer.');
-    }
-  };
-
-  const updateTransferBuffer = async (
-    action: 'clear' | 'remove' | 'paste',
-    values: Record<string, string>,
-  ) => {
-    try {
-      const body = await postForm(
-        '/api/v1/files/transfer-buffer/' + action,
-        values,
-        action === 'paste',
-      );
+      const body = await postForm('/api/v1/files/transfer-buffer/' + action, values, action === 'paste');
       notify(body);
       if (body.transferBuffer) setTransferBuffer(body.transferBuffer);
       if (body.task) {
         window.EnderVaultServerTasks?.track(body.task, {
+          announceStart: true,
           refreshUrl: '/files?path=' + encodeURIComponent(effectiveState().path),
         });
       }
@@ -113,66 +67,22 @@ export function useFileActions({
     }
   };
 
-  const moveEntriesToTrash = async (entries = selectedEntries) => {
-    if (entries.length === 0) return;
-    const confirmed = await window.EnderVault?.askConfirmation({
-      title: 'Move to trash',
-      message: 'Move the selected items to trash?',
-      confirmLabel: 'Move to trash',
-      danger: true,
-    });
-    if (!confirmed) return;
-    try {
-      const body = await postForm('/api/v1/files/trash', {
-        path: effectiveState().path,
-        paths: entries.map((entry) => entry.path),
-      });
-      notify(body);
-      setSelected(new Set());
-      if (body.task) {
-        window.EnderVaultServerTasks?.track(body.task, {
-          refreshUrl: '/files?path=' + encodeURIComponent(effectiveState().path),
-        });
-      } else {
-        reload();
-      }
-    } catch (reason) {
-      toastError(reason, 'Items could not be moved to trash.');
-    }
-  };
-
-  const downloadEntries = (entries = selectedEntries) => {
-    if (entries.length === 0) return;
-    if (entries.length === 1 && entries[0].type === 'file') {
-      window.location.assign(entries[0].downloadUrl || entries[0].detailUrl);
-      return;
-    }
-    const query = new URLSearchParams();
-    if (effectiveState().path) query.set('path', effectiveState().path);
-    entries.forEach((entry) => query.append('paths', entry.path));
-    window.location.assign('/files/download.zip?' + query.toString());
-  };
-
   const compressEntries = async (entries = selectedEntries) => {
     if (entries.length === 0) return;
     const outputName = await window.EnderVault?.askTextInput({
-      title: 'Compress to ZIP',
-      message: 'Create a ZIP archive in the current directory.',
-      label: 'Archive name',
-      placeholder: 'Archive.zip',
-      confirmLabel: 'Create ZIP',
+      title: 'Compress to ZIP', message: 'Create a ZIP archive in the current directory.',
+      label: 'Archive name', placeholder: 'Archive.zip', confirmLabel: 'Create ZIP',
     });
     if (!outputName) return;
     try {
       const body = await postForm('/api/v1/files/archives', {
-        path: effectiveState().path,
-        paths: entries.map((entry) => entry.path),
-        outputName,
+        path: effectiveState().path, paths: entries.map((entry) => entry.path), outputName,
       });
       notify(body);
       setSelected(new Set());
       if (body.task) {
         window.EnderVaultServerTasks?.track(body.task, {
+          announceStart: true,
           refreshUrl: '/files?path=' + encodeURIComponent(effectiveState().path),
         });
       }
@@ -181,74 +91,23 @@ export function useFileActions({
     }
   };
 
-  const renameEntry = async (entry: BrowserEntry) => {
-    const newName = await window.EnderVault?.askTextInput({
-      title: 'Rename',
-      label: 'New name',
-      initialValue: entry.name,
-      confirmLabel: 'Rename',
-    });
-    if (!newName || newName.trim() === entry.name) return;
-    const body = await postForm('/api/v1/files/rename', {
-      path: entry.parentPath,
-      item: entry.name,
-      newName: newName.trim(),
-      conflictPolicy: 'ask',
-    }, true);
-    notify(body);
-    reload();
-  };
-
-  const shareAndCopy = async (entry: BrowserEntry) => {
-    const body = await postForm('/api/v1/shares', {
-      path: entry.parentPath,
-      item: entry.name,
-    });
-    const url = body.shareLink?.url || body.notification?.actionValue || '';
-    if (url && await window.EnderVault?.copyText(url)) {
-      window.EnderVault?.showToast('success', 'Share link created and copied.');
-      return;
-    }
-    notify(body);
-  };
-
   const resetPreferences = async () => {
     try {
       const body = await postForm('/api/v1/browser-preferences/reset', { target: 'files' });
       notify(body);
-      navigate({
-        ...effectiveState(),
-        page: 1,
-        view: undefined,
-        sort: undefined,
-        direction: undefined,
-        hidden: undefined,
-        pageSize: undefined,
-        scrollTop: 0,
-      }, true);
+      navigate({ ...effectiveState(), page: 1, view: undefined, sort: undefined,
+        direction: undefined, hidden: undefined, pageSize: undefined, scrollTop: 0 }, true);
     } catch (reason) {
       toastError(reason, 'View preferences could not be reset.');
     }
   };
 
   return {
-    transferBuffer,
-    transferBufferRef,
-    loadTransferBuffer,
-    createItem,
-    toggleFavorite,
-    addEntriesToBuffer,
-    updateTransferBuffer,
-    moveEntriesToTrash,
-    downloadEntries,
-    compressEntries,
-    renameEntry,
-    shareAndCopy,
-    resetPreferences,
+    ...entryActions,
+    transferBuffer, transferBufferRef, loadTransferBuffer, createItem, updateTransferBuffer,
+    compressEntries, resetPreferences,
     paste: (operation: 'move' | 'copy') => updateTransferBuffer('paste', {
-      path: effectiveState().path,
-      operation,
-      conflictPolicy: 'ask',
+      path: effectiveState().path, operation, conflictPolicy: 'ask',
     }),
   };
 }

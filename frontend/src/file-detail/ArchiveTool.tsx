@@ -85,7 +85,7 @@ export function ArchiveTool({ payload }: { payload: FileDetailPayload }) {
         conflictPolicy,
       });
       notify(body);
-      if (body.task) window.EnderVaultServerTasks?.track(body.task);
+      if (body.task) window.EnderVaultServerTasks?.track(body.task, { announceStart: true });
     } catch (reason) {
       toastError(reason, 'Archive extraction could not be queued.');
     } finally {

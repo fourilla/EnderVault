@@ -46,6 +46,7 @@ class FileToolServiceTest {
         assertThat(descriptor.type()).isEqualTo(FileToolType.TEXT);
         assertThat(descriptor.editable()).isTrue();
         assertThat(descriptor.previewable()).isFalse();
+        assertThat(descriptor.sharedPreviewable()).isTrue();
         assertThat(content.loaded()).isTrue();
         assertThat(content.content()).isEqualTo("hello");
     }
@@ -143,6 +144,7 @@ class FileToolServiceTest {
         assertThat(descriptor.type()).isEqualTo(FileToolType.COMIC);
         assertThat(descriptor.editable()).isFalse();
         assertThat(descriptor.previewable()).isFalse();
+        assertThat(descriptor.sharedPreviewable()).isTrue();
     }
 
     @Test
@@ -156,5 +158,6 @@ class FileToolServiceTest {
         assertThat(descriptor.audio()).isTrue();
         assertThat(descriptor.previewable()).isTrue();
         assertThat(descriptor.previewPageAvailable()).isTrue();
+        assertThat(descriptor.sharedPreviewable()).isTrue();
     }
 }
