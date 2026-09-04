@@ -1471,7 +1471,7 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get(entryScript))
                 .andExpect(status().isOk())
-                .andExpect(content().contentType("application/javascript"));
+                .andExpect(content().contentType("text/javascript"));
     }
 
     @Test
@@ -2417,11 +2417,13 @@ class AdminNotificationFlowTest {
                         .param("conflictPolicy", "ask"))
                 .andExpect(status().isAccepted());
 
+        Path copiedFile = ROOT.resolve(target).resolve(filename);
         long deadline = System.currentTimeMillis() + 5_000L;
-        while (!Files.exists(ROOT.resolve(target).resolve(filename)) && System.currentTimeMillis() < deadline) {
+        while ((!Files.exists(copiedFile) || Files.size(copiedFile) < "buffer".length())
+                && System.currentTimeMillis() < deadline) {
             Thread.sleep(20L);
         }
-        assertThat(Files.readString(ROOT.resolve(target).resolve(filename))).isEqualTo("buffer");
+        assertThat(Files.readString(copiedFile)).isEqualTo("buffer");
     }
 
     @Test
