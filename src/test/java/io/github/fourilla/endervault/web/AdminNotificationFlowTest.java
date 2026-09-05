@@ -29,8 +29,8 @@ import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.bookmark.BookmarkItem;
 import io.github.fourilla.endervault.bookmark.BookmarkService;
@@ -53,7 +53,7 @@ import io.github.fourilla.endervault.web.support.ViteAssetService;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -1372,7 +1372,7 @@ class AdminNotificationFlowTest {
         for (String path : List.of("/api/v1/dashboard", "/api/v1/dashboard/runtime", "/api/v1/outbound-route")) {
             mockMvc.perform(get(path))
                     .andExpect(status().is3xxRedirection())
-                    .andExpect(redirectedUrl("http://localhost/login"));
+                    .andExpect(redirectedUrl("/login"));
         }
     }
 
@@ -1471,7 +1471,7 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get(entryScript))
                 .andExpect(status().isOk())
-                .andExpect(content().contentType("application/javascript"));
+                .andExpect(content().contentType("text/javascript"));
     }
 
     @Test
@@ -2417,11 +2417,13 @@ class AdminNotificationFlowTest {
                         .param("conflictPolicy", "ask"))
                 .andExpect(status().isAccepted());
 
+        Path copiedFile = ROOT.resolve(target).resolve(filename);
         long deadline = System.currentTimeMillis() + 5_000L;
-        while (!Files.exists(ROOT.resolve(target).resolve(filename)) && System.currentTimeMillis() < deadline) {
+        while ((!Files.exists(copiedFile) || Files.size(copiedFile) < "buffer".length())
+                && System.currentTimeMillis() < deadline) {
             Thread.sleep(20L);
         }
-        assertThat(Files.readString(ROOT.resolve(target).resolve(filename))).isEqualTo("buffer");
+        assertThat(Files.readString(copiedFile)).isEqualTo("buffer");
     }
 
     @Test

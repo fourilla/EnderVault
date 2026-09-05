@@ -39,6 +39,8 @@ export function OutboundRouteControl() {
       icon={route.iconClass}
       label={route.title}
       triggerClassName={`topbar-route-toggle route-${route.statusClass}`}
+      triggerDataAttributes={{ 'aria-pressed': String(route.vpnSelected), 'aria-busy': String(busy) }}
+      onTriggerClick={() => void toggle()}
     >
       <strong className="topbar-control-title">Outbound VPN</strong>
       <p>Routes supported NAS outbound requests through the configured VPN proxy.</p>
@@ -48,17 +50,12 @@ export function OutboundRouteControl() {
           {outbound.error ? 'Status unavailable' : statusLabel(route)}
         </strong>
       </div>
-      <small>{busy ? 'Changing route...' : 'Choose a route below or open the full VPN status page.'}</small>
+      {busy && <small>Changing route...</small>}
       <div className="topbar-control-menu-actions">
         <AppNavigationLink className="ghost button-link icon-text-button" href="/admin/vpn">
           <i className="fas fa-chart-line" aria-hidden="true" />
           <span>VPN status</span>
         </AppNavigationLink>
-        <button className="ghost icon-text-button" type="button" disabled={busy}
-          onClick={() => void toggle()}>
-          <i className={route.vpnSelected ? 'fas fa-globe' : 'fas fa-shield-halved'} aria-hidden="true" />
-          <span>{route.vpnSelected ? 'Use direct route' : 'Use VPN route'}</span>
-        </button>
       </div>
     </ShellPopover>
   );

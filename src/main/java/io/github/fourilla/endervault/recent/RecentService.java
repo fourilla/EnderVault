@@ -1,7 +1,7 @@
 package io.github.fourilla.endervault.recent;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import io.github.fourilla.endervault.common.JsonRegistry;
 import io.github.fourilla.endervault.common.NaturalNameComparator;
 import io.github.fourilla.endervault.common.StorageAccessException;

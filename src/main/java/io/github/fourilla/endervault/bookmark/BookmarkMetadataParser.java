@@ -1,9 +1,9 @@
 package io.github.fourilla.endervault.bookmark;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.json.JsonMapper;
-import java.io.IOException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.core.JacksonException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -86,7 +86,7 @@ final class BookmarkMetadataParser {
             }
             title = normalizeExtractedTitle(text(root.get("short_name")));
             return title.isBlank() ? Optional.empty() : Optional.of(title);
-        } catch (IOException | IllegalArgumentException ex) {
+        } catch (JacksonException | IllegalArgumentException ex) {
             return Optional.empty();
         }
     }
@@ -169,7 +169,7 @@ final class BookmarkMetadataParser {
             try {
                 JsonNode root = JSON.readTree(stripJsonScriptWrappers(matcher.group(2)));
                 collectJsonLdTitles(root, titles, 0);
-            } catch (IOException | IllegalArgumentException ignored) {
+            } catch (JacksonException | IllegalArgumentException ignored) {
                 // Ignore malformed structured data; plain HTML title candidates may still work.
             }
         }

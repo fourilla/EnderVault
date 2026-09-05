@@ -3,7 +3,8 @@ package io.github.fourilla.endervault.filecommit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.filetool.FileActionRegistry;
 import io.github.fourilla.endervault.storage.ArchiveCommitPlan;
@@ -40,7 +41,7 @@ class FileCommitBatchCoordinatorTest {
         );
         storageService.initialize();
         journalStore = new FileCommitJournalStore(
-                new ObjectMapper().findAndRegisterModules(), properties
+                JsonMapper.builder().findAndAddModules().build(), properties
         );
         journalStore.initialize();
         FileCommitCoordinator singleCoordinator = new FileCommitCoordinator(

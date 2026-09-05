@@ -3,7 +3,8 @@ package io.github.fourilla.endervault.metadata;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.filecommit.FileCommitBatchCoordinator;
@@ -48,7 +49,7 @@ class ArchiveStagingMetadataInspectorTest {
         storageService = new StorageService(properties, new FileActionRegistry(), registry);
         storageService.initialize();
         FileCommitJournalStore journalStore = new FileCommitJournalStore(
-                new ObjectMapper().findAndRegisterModules(), properties
+                JsonMapper.builder().findAndAddModules().build(), properties
         );
         journalStore.initialize();
         FileCommitCoordinator coordinator = new FileCommitCoordinator(journalStore, storageService, properties);

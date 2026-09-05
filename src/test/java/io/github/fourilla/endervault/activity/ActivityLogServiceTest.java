@@ -2,11 +2,17 @@ package io.github.fourilla.endervault.activity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.json.JsonMapper;
+import tools.jackson.core.exc.JacksonIOException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -133,6 +139,25 @@ class ActivityLogServiceTest {
 
         assertThat(futureOnly.matchedCount()).isZero();
         assertThat(futureOnly.entries()).isEmpty();
+    }
+
+    @Test
+    void serializationFailureDoesNotEscapeLoggingOrNotifyAnUnwrittenEntry() throws Exception {
+        NasProperties properties = new NasProperties();
+        properties.getStorage().setRoot(root);
+        ObjectMapper failingMapper = mock(ObjectMapper.class);
+        when(failingMapper.writeValueAsString(any(ActivityLogEntry.class)))
+                .thenThrow(JacksonIOException.construct(new IOException("Serialization failed")));
+        List<ActivityLogEntry> notifications = new ArrayList<>();
+        ActivityLogService service = new ActivityLogService(failingMapper, properties, notifications::add);
+        service.initialize();
+
+        assertThatCode(() -> service.record("UPLOAD", null, "a.txt", null, "Uploaded a.txt"))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> service.record("UPLOAD", "admin", "127.0.0.1", "a.txt", null,
+                true, "Uploaded a.txt", Map.of())).doesNotThrowAnyException();
+        assertThat(notifications).isEmpty();
+        assertThat(currentLogFile()).doesNotExist();
     }
 
     private Path currentLogFile() throws Exception {

@@ -1,8 +1,8 @@
 package io.github.fourilla.endervault.outbound.vpn.control;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import io.github.fourilla.endervault.config.NasProperties;
 import java.io.IOException;
 import java.net.URI;
@@ -61,7 +61,7 @@ public class GluetunControlClient {
         byte[] body;
         try {
             body = objectMapper.writeValueAsBytes(Map.of("status", running ? "running" : "stopped"));
-        } catch (JsonProcessingException ex) {
+        } catch (JacksonException ex) {
             throw new VpnControlException("The VPN control command could not be encoded.", ex);
         }
 
@@ -83,7 +83,7 @@ public class GluetunControlClient {
         String body = send(configuration, request);
         try {
             return objectMapper.readValue(body, responseType);
-        } catch (JsonProcessingException ex) {
+        } catch (JacksonException ex) {
             throw new VpnControlException("Gluetun returned an invalid Control API response.", ex);
         }
     }

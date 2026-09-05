@@ -2,7 +2,8 @@ package io.github.fourilla.endervault.filecommit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -27,7 +28,7 @@ class FileCommitReviewServiceTest {
     @BeforeEach
     void setUp() throws IOException {
         journalRoot = tempDirectory.resolve("commit-journal");
-        store = new FileCommitJournalStore(new ObjectMapper().findAndRegisterModules(), journalRoot);
+        store = new FileCommitJournalStore(JsonMapper.builder().findAndAddModules().build(), journalRoot);
         store.initialize();
         incidentRegistry = new FileCommitRecoveryIncidentRegistry();
         service = new FileCommitReviewService(store, incidentRegistry);

@@ -1,8 +1,9 @@
 package io.github.fourilla.endervault.common;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.exc.JacksonIOException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryStream;
@@ -54,7 +55,10 @@ public class JsonRegistry<T> {
         }
         try {
             return objectMapper.readValue(registryFile.toFile(), typeReference);
-        } catch (JsonProcessingException ex) {
+        } catch (JacksonIOException ex) {
+            // A storage read failure does not mean the registry is corrupt.
+            throw ex.getCause();
+        } catch (JacksonException ex) {
             Path backupFile = backupCorruptFile(corruptionPolicy == CorruptionPolicy.BACKUP_AND_RESET);
             if (corruptionPolicy == CorruptionPolicy.BACKUP_AND_RESET) {
                 T defaultValue = defaultValue();
@@ -76,6 +80,10 @@ public class JsonRegistry<T> {
         try {
             objectMapper.writerWithDefaultPrettyPrinter().writeValue(tempFile.toFile(), value);
             moveReplacing(tempFile, registryFile);
+        } catch (JacksonIOException ex) {
+            throw new IOException("Failed to write JSON registry " + registryFile, ex.getCause());
+        } catch (JacksonException ex) {
+            throw new IOException("Failed to write JSON registry " + registryFile, ex);
         } finally {
             Files.deleteIfExists(tempFile);
         }

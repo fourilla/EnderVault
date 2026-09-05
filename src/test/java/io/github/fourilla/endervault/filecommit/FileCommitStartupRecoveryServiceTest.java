@@ -2,7 +2,8 @@ package io.github.fourilla.endervault.filecommit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.pending.PendingFileDecisionRepository;
 import io.github.fourilla.endervault.pending.PendingFileDecision;
@@ -49,7 +50,7 @@ class FileCommitStartupRecoveryServiceTest {
                 temporaryArtifactRegistry
         );
         storageService.initialize();
-        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        ObjectMapper objectMapper = JsonMapper.builder().findAndAddModules().build();
         journalStore = new FileCommitJournalStore(objectMapper, properties);
         journalStore.initialize();
         coordinator = new FileCommitCoordinator(journalStore, storageService, properties);

@@ -9,7 +9,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import org.springframework.core.io.AbstractResource;
 import org.springframework.core.io.FileSystemResource;
@@ -52,11 +51,11 @@ public class FileResponseService {
     public void writeAttachment(Path file, HttpHeaders requestHeaders, HttpServletResponse response) throws IOException {
         ResponseEntity<Resource> entity = attachment(file, requestHeaders);
         response.setStatus(entity.getStatusCode().value());
-        for (Map.Entry<String, List<String>> header : entity.getHeaders().entrySet()) {
-            for (String value : header.getValue()) {
-                response.addHeader(header.getKey(), value);
+        entity.getHeaders().forEach((name, values) -> {
+            for (String value : values) {
+                response.addHeader(name, value);
             }
-        }
+        });
         Resource body = entity.getBody();
         if (body != null) {
             try (InputStream inputStream = body.getInputStream()) {

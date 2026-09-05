@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.activity;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
@@ -55,8 +56,13 @@ final class ActivityLogStore {
             return;
         }
         Files.createDirectories(logDirectory);
-        byte[] line = (objectMapper.writeValueAsString(entry) + System.lineSeparator())
-                .getBytes(StandardCharsets.UTF_8);
+        byte[] line;
+        try {
+            line = (objectMapper.writeValueAsString(entry) + System.lineSeparator())
+                    .getBytes(StandardCharsets.UTF_8);
+        } catch (JacksonException ex) {
+            throw new IOException("Failed to serialize activity log entry", ex);
+        }
         rollIfNeeded(line.length);
         Files.write(currentLogFile, line, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
     }
@@ -75,7 +81,7 @@ final class ActivityLogStore {
             }
             try {
                 entries.add(objectMapper.readValue(line, ActivityLogEntry.class));
-            } catch (IOException ignored) {
+            } catch (JacksonException ignored) {
                 // Skip malformed lines so one partial write does not hide the whole log.
             }
         }

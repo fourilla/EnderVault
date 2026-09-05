@@ -11,10 +11,14 @@ public record ShareLink(
         Instant createdAt,
         Instant expiresAt,
         boolean enabled,
-        boolean previewEnabled
+        Boolean previewEnabled
 ) {
     private static final DateTimeFormatter LABEL_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
+
+    public ShareLink {
+        previewEnabled = Boolean.TRUE.equals(previewEnabled);
+    }
 
     public boolean expired(Instant now) {
         return expiresAt != null && !expiresAt.isAfter(now);
