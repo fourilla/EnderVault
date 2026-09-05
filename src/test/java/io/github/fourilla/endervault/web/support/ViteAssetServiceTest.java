@@ -4,8 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
 import tools.jackson.databind.ObjectMapper;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.DefaultResourceLoader;
+import org.springframework.core.io.Resource;
 
 class ViteAssetServiceTest {
 
@@ -133,6 +137,28 @@ class ViteAssetServiceTest {
         assertThat(entry.available()).isTrue();
         assertThat(entry.entryScript()).startsWith("/react/assets/sharedComic-").endsWith(".js");
         assertThat(entry.modulePreloads()).noneMatch(url -> url.contains("adminApp-") || url.contains("shell-"));
+    }
+
+    @Test
+    void invalidManifestIsUnavailableAndCanBeReadAgainAfterRepair() {
+        AtomicReference<String> manifest = new AtomicReference<>("{not-json");
+        DefaultResourceLoader loader = new DefaultResourceLoader() {
+            @Override
+            public Resource getResource(String location) {
+                return new ByteArrayResource(new byte[0]) {
+                    @Override
+                    public java.io.InputStream getInputStream() {
+                        return new java.io.ByteArrayInputStream(manifest.get().getBytes(StandardCharsets.UTF_8));
+                    }
+                };
+            }
+        };
+        ViteAssetService service = new ViteAssetService(new ObjectMapper(), loader, "");
+
+        assertThat(service.entry("src/app/main.tsx").available()).isFalse();
+
+        manifest.set("{\"src/app/main.tsx\":{\"file\":\"assets/app.js\",\"isEntry\":true}}");
+        assertThat(service.entry("src/app/main.tsx").entryScript()).isEqualTo("/react/assets/app.js");
     }
 
     @Test

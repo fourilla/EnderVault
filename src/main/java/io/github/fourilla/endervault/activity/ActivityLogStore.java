@@ -56,8 +56,13 @@ final class ActivityLogStore {
             return;
         }
         Files.createDirectories(logDirectory);
-        byte[] line = (objectMapper.writeValueAsString(entry) + System.lineSeparator())
-                .getBytes(StandardCharsets.UTF_8);
+        byte[] line;
+        try {
+            line = (objectMapper.writeValueAsString(entry) + System.lineSeparator())
+                    .getBytes(StandardCharsets.UTF_8);
+        } catch (JacksonException ex) {
+            throw new IOException("Failed to serialize activity log entry", ex);
+        }
         rollIfNeeded(line.length);
         Files.write(currentLogFile, line, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
     }
