@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.temporary;
 
 public enum TemporaryArtifactType {
+    DIRECTORY_UPLOAD("Directory upload"),
     PENDING_FILE_DECISION("Pending file decision"),
     REMOTE_DOWNLOAD("Remote download"),
     FILE_COPY("File copy"),

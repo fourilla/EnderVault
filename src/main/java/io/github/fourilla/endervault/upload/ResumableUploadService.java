@@ -166,6 +166,27 @@ public class ResumableUploadService {
                 .orElseThrow(() -> new NoSuchFileException("Upload session was not found."));
     }
 
+    synchronized ResumableUploadSession admitDirectoryFile(
+            String groupId, String relativePath, String destination, ResumableUploadAdmissionRequest request,
+            String existingSessionId
+    ) throws IOException {
+        String reference = "directory:" + groupId + "/" + relativePath;
+        String fingerprint = cleanFingerprint(request.fingerprint());
+        if (existingSessionId != null) {
+            Optional<ResumableUploadSession> existing = repository.find(existingSessionId);
+            if (existing.isPresent()) {
+                ResumableUploadSession session = existing.get();
+                if (!session.directoryMember() || !reference.equals(session.sourceReference())
+                        || session.size() != request.size() || !session.fingerprint().equals(fingerprint)) {
+                    throw rejected(HttpStatus.CONFLICT, "The selected file differs from the directory upload.");
+                }
+                if (session.status() == ResumableUploadStatus.DIRECTORY_READY) return session;
+            }
+        }
+        return admit(ResumableUploadSource.ADMIN, reference, destination, cleanFilename(request.filename()),
+                cleanContentType(request.contentType()), request.size(), null, fingerprint, existingSessionId);
+    }
+
     public synchronized ResumableUploadSession authorizeProtocolAccess(String id, boolean adminAuthenticated)
             throws IOException {
         ResumableUploadSession session = require(id);
@@ -228,6 +249,19 @@ public class ResumableUploadService {
 
     public synchronized FinalizationResult finalizeStaged(String id) throws IOException {
         ResumableUploadSession session = require(id);
+        if (session.directoryMember()) {
+            if (session.status() == ResumableUploadStatus.DIRECTORY_READY) return FinalizationResult.from(session);
+            if (session.status() != ResumableUploadStatus.STAGED) {
+                throw new StorageAccessException("Directory upload member is not staged.");
+            }
+            Path staged = stagedFilePath(session);
+            if (!Files.isRegularFile(staged, LinkOption.NOFOLLOW_LINKS)) {
+                throw new NoSuchFileException("Directory upload member data is missing.");
+            }
+            ResumableUploadSession ready = session.directoryReady();
+            repository.save(ready);
+            return FinalizationResult.from(ready);
+        }
         if (session.status() == ResumableUploadStatus.COMPLETED) {
             fileCommitCoordinator.completeForOwnerIfPresent(commitOwner(session));
             return FinalizationResult.from(session);
@@ -350,7 +384,7 @@ public class ResumableUploadService {
         Instant now = Instant.now();
         java.util.HashSet<String> active = new java.util.HashSet<>();
         for (ResumableUploadSession session : repository.list()) {
-            if (session.status().terminal()) {
+            if (session.status().terminal() && session.status() != ResumableUploadStatus.DIRECTORY_READY) {
                 continue;
             }
             if (!session.expired(now) || fileCommitCoordinator.hasActiveJournal(commitOwner(session))) {

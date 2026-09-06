@@ -4,6 +4,7 @@ public enum ResumableUploadStatus {
     ADMITTED,
     UPLOADING,
     STAGED,
+    DIRECTORY_READY,
     FINALIZING,
     PENDING,
     COMPLETED,
@@ -11,7 +12,7 @@ public enum ResumableUploadStatus {
     FAILED;
 
     public boolean terminal() {
-        return this == PENDING || this == COMPLETED || this == CANCELED || this == FAILED;
+        return this == PENDING || this == COMPLETED || this == CANCELED || this == FAILED || this == DIRECTORY_READY;
     }
 
     public boolean reservesQuota() {

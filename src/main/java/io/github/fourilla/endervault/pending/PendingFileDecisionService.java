@@ -88,7 +88,7 @@ public class PendingFileDecisionService {
     ) throws IOException {
         String stagingFilename = storageService.fileStagingFilename(stagedFile);
         if (!validStagedFile(stagedFile)) {
-            throw new StorageAccessException("Pending file data must be a regular staging file.");
+            throw new StorageAccessException("Pending data must be a regular staging file or directory.");
         }
         storageService.validateVaultEntryName(originalFilename);
         PendingFileDecision decision = new PendingFileDecision(
@@ -101,7 +101,8 @@ public class PendingFileDecisionService {
                 Instant.now(),
                 targetSnapshot(destinationPath, originalFilename),
                 cleanOptional(sourceReference),
-                cleanOptional(submittedBy)
+                cleanOptional(submittedBy),
+                Files.isDirectory(stagedFile, LinkOption.NOFOLLOW_LINKS)
         );
         register(decision, stagedFile);
         try {
@@ -139,6 +140,11 @@ public class PendingFileDecisionService {
         return repository.find(cleanId(id));
     }
 
+    public synchronized boolean hasCommitJournal(String id) throws IOException {
+        return fileCommitCoordinator.hasActiveJournal(
+                new FileCommitOwner(FileCommitOwnerType.PENDING_FILE_DECISION, cleanId(id)));
+    }
+
     public synchronized PendingFileDecisionResult resolve(
             String id,
             PendingFileDecisionAction action,
@@ -146,6 +152,10 @@ public class PendingFileDecisionService {
             boolean replaceConfirmed
     ) throws IOException {
         PendingFileDecision decision = require(id);
+        if (decision.directory() && action == PendingFileDecisionAction.REPLACE) {
+            throw new StorageAccessException("Directory replacement is not supported.");
+        }
+        requireNoDirectoryCommitJournal(decision);
         Path stagedFile = storageService.resolveFileStagingFile(decision.stagingFilename());
         if (!validStagedFile(stagedFile)) {
             removeMissingData(decision.id());
@@ -153,7 +163,13 @@ public class PendingFileDecisionService {
         }
 
         if (action == PendingFileDecisionAction.DISCARD) {
-            Files.deleteIfExists(stagedFile);
+            release(decision.id());
+            try {
+                storageService.deleteFileStagingFile(decision.stagingFilename());
+            } catch (IOException | RuntimeException ex) {
+                register(decision, stagedFile);
+                throw ex;
+            }
             complete(decision.id());
             notifyResolved(decision, action, true, null);
             return new PendingFileDecisionResult(decision, null, true);
@@ -162,8 +178,8 @@ public class PendingFileDecisionService {
         String filename = decision.originalFilename();
         ConflictPolicy policy = switch (action) {
             case KEEP_BOTH -> {
-                filename = storageService.resolveAvailableVaultFilename(
-                        decision.destinationPath(), decision.originalFilename()
+                filename = storageService.resolveAvailableVaultEntryName(
+                        decision.destinationPath(), decision.originalFilename(), decision.directory()
                 );
                 yield ConflictPolicy.RENAME;
             }
@@ -184,7 +200,10 @@ public class PendingFileDecisionService {
 
         FileCommitCoordinator.StagedFileCommit commit;
         try {
-            commit = fileCommitCoordinator.commitSingleFile(
+            commit = decision.directory() ? fileCommitCoordinator.commitSingleDirectory(
+                    new FileCommitOwner(FileCommitOwnerType.PENDING_FILE_DECISION, decision.id()),
+                    stagedFile, decision.destinationPath(), filename, policy
+            ) : fileCommitCoordinator.commitSingleFile(
                     new FileCommitOwner(FileCommitOwnerType.PENDING_FILE_DECISION, decision.id()),
                     stagedFile,
                     decision.destinationPath(),
@@ -214,6 +233,7 @@ public class PendingFileDecisionService {
 
     public synchronized PendingFileDecision removeMissingData(String id) throws IOException {
         PendingFileDecision decision = require(id);
+        requireNoDirectoryCommitJournal(decision);
         Path stagedFile = storageService.resolveFileStagingFile(decision.stagingFilename());
         if (validStagedFile(stagedFile)) {
             throw new StorageAccessException("Pending file data still exists.");
@@ -281,6 +301,12 @@ public class PendingFileDecisionService {
         }
     }
 
+    private void requireNoDirectoryCommitJournal(PendingFileDecision decision) throws IOException {
+        if (decision.directory() && hasCommitJournal(decision.id())) {
+            throw new StorageAccessException("Pending directory is protected by a file commit journal; recover it first.");
+        }
+    }
+
     private String cleanId(String id) {
         if (id == null || id.isBlank()) {
             throw new StorageAccessException("Pending file decision id is required.");
@@ -322,7 +348,8 @@ public class PendingFileDecisionService {
     }
 
     private boolean validStagedFile(Path path) {
-        return Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) && !Files.isSymbolicLink(path);
+        return (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)
+                || Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) && !Files.isSymbolicLink(path);
     }
 
     public record PendingFileDecisionResult(

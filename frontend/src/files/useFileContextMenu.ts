@@ -32,6 +32,8 @@ export function useFileContextMenu({
   const backgroundActions: BrowserMenuAction<BrowserEntry>[] = [
     { id: 'upload', group: 'background', label: 'Upload files', icon: 'fas fa-upload',
       run: () => document.getElementById('uploadButton')?.click() },
+    { id: 'upload-directory', group: 'background', label: 'Upload directory', icon: 'fas fa-folder-open',
+      run: () => document.getElementById('directoryUploadButton')?.click() },
     { id: 'new-file', group: 'background', label: 'New file', icon: 'fas fa-file-circle-plus',
       run: () => actions.createItem(false) },
     { id: 'new-directory', group: 'background', label: 'New directory', icon: 'fas fa-folder-plus',

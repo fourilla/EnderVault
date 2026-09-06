@@ -76,7 +76,7 @@ declare global {
       };
     };
     EnderVaultResumableUpload?: {
-      create: (options: Record<string, unknown>) => EnderVaultUploadHandle;
+      create: (options: EnderVaultUploadOptions) => EnderVaultUploadHandle;
       fingerprint: (file: File, context: string) => Promise<string>;
     };
     EnderVaultStickyNotes?: {
@@ -111,7 +111,34 @@ declare global {
   }
 
   interface EnderVaultUploadHandle {
-    start: () => Promise<any>;
-    abort: () => Promise<void>;
+    start: () => Promise<EnderVaultUploadResult | null>;
+    abort: () => Promise<void | EnderVaultUploadResult>;
+  }
+
+  interface EnderVaultUploadResult {
+    status: 'RECEIVING' | 'COMMITTING' | 'DIRECTORY_READY' | 'PENDING' | 'COMPLETED' | 'CANCELING' | 'CANCELED';
+    message?: string;
+    pendingDecisionId?: string;
+    defaultConflictPolicy?: string;
+    redirectUrl?: string;
+    committedPath?: string;
+  }
+
+  interface EnderVaultUploadOptions {
+    file: File;
+    context: string;
+    admissionUrl: string;
+    uploaderName?: string;
+    onState?: (state: string, message?: string) => void;
+    onProgress?: (sent: number, total: number) => void;
+  }
+
+  interface EnderVaultUploadAdmission {
+    sessionId: string;
+    statusUrl: string;
+    endpoint: string;
+    uploadUrl?: string;
+    chunkSizeBytes: number;
+    ready?: boolean;
   }
 }

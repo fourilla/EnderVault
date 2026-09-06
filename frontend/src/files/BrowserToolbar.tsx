@@ -1,6 +1,6 @@
 import { type FormEvent, useRef } from 'react';
-import { useAdminApp } from '../app/AdminAppContext';
 import { useUploadManager } from '../app/uploads/UploadManagerContext';
+import { collectFileList } from '../app/uploads/collect-uploads';
 import { icon } from '../shared/browser/BrowserEntries';
 import type { BrowserEntry, BrowserHistoryState, BrowserPayload, BrowserView } from './types';
 import type { FileBrowserActions } from './useFileActions';
@@ -28,9 +28,9 @@ export function BrowserToolbar({
   selectedEntries: BrowserEntry[];
   actions: FileBrowserActions;
 }) {
-  const adminApp = useAdminApp();
   const uploadManager = useUploadManager();
   const uploadInputRef = useRef<HTMLInputElement>(null);
+  const directoryInputRef = useRef<HTMLInputElement>(null);
   const preferences = payload?.preferences;
   const searchMode = currentState.mode === 'search';
   return (
@@ -56,18 +56,6 @@ export function BrowserToolbar({
           className="toolbar-actions file-actions"
           aria-label="File management actions"
         >
-          <form
-            className="icon-form"
-            id="uploadForm"
-            hidden={searchMode}
-            data-max-concurrent-uploads={
-              adminApp.bootstrap.uploads.maxConcurrentUploads
-            }
-            data-admission-url={
-              '/api/v1/files/upload-sessions?path=' + encodeURIComponent(currentState.path)
-            }
-          >
-            <input type="hidden" name="path" value={currentState.path} readOnly />
             <input
               className="visually-hidden"
               id="fileUploadInput"
@@ -76,22 +64,51 @@ export function BrowserToolbar({
               multiple
               ref={uploadInputRef}
               onChange={(event) => {
-                const files = [...(event.currentTarget.files ?? [])];
-                if (files.length > 0) uploadManager.startFiles(files, currentState.path);
-                event.currentTarget.value = '';
+                try {
+                  uploadManager.startSelection(collectFileList([...(event.currentTarget.files ?? [])]), currentState.path);
+                } catch (reason) {
+                  window.EnderVault?.showToast('error', reason instanceof Error ? reason.message : 'Could not read files.');
+                } finally { event.currentTarget.value = ''; }
               }}
             />
-            <button
-              className="icon-button"
-              id="uploadButton"
-              type="button"
-              title="Upload files"
-              aria-label="Upload files"
-              onClick={() => uploadInputRef.current?.click()}
-            >
+
+          <input className="visually-hidden" id="directoryUploadInput" type="file" multiple
+            {...{ webkitdirectory: '' }} ref={directoryInputRef}
+            onChange={(event) => {
+              try {
+                const selection = collectFileList([...(event.currentTarget.files ?? [])]);
+                if (selection.files.length) throw new Error('This browser did not expose directory paths.');
+                uploadManager.startSelection(selection, currentState.path);
+                window.EnderVault?.showToast('info', 'Directory pickers cannot preserve empty directories.');
+              } catch (reason) {
+                window.EnderVault?.showToast('error', reason instanceof Error ? reason.message : 'Could not read directory.');
+              } finally { event.currentTarget.value = ''; }
+            }} />
+          <details className="settings-menu file-new-menu" hidden={searchMode}>
+            <summary className="icon-button menu-summary" title="Upload" aria-label="Upload">
               {icon('fas fa-upload')}
-            </button>
-          </form>
+            </summary>
+            <div className="settings-panel file-new-panel">
+              <div className="file-new-actions">
+                <button className="ghost icon-text-button" id="uploadButton" type="button"
+                  onClick={(event) => {
+                    event.currentTarget.closest('details')?.removeAttribute('open');
+                    uploadInputRef.current?.click();
+                  }}>
+                  {icon('fas fa-file-arrow-up')}
+                  <span>Upload files</span>
+                </button>
+                <button className="ghost icon-text-button" id="directoryUploadButton" type="button"
+                  onClick={(event) => {
+                    event.currentTarget.closest('details')?.removeAttribute('open');
+                    directoryInputRef.current?.click();
+                  }}>
+                  {icon('fas fa-folder-open')}
+                  <span>Upload directory</span>
+                </button>
+              </div>
+            </div>
+          </details>
 
           <details className="settings-menu file-new-menu" hidden={searchMode}>
             <summary className="icon-button menu-summary" title="Create new item" aria-label="Create new item">

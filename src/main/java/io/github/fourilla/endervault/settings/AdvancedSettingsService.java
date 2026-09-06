@@ -28,6 +28,9 @@ public class AdvancedSettingsService {
     private static final long GIB = 1024L * MIB;
     private static final Map<String, List<String>> FIELD_DEPENDENCIES = Map.ofEntries(
             Map.entry("shareDefaultExpirationDays", List.of("shareEnabled")),
+            Map.entry("directoryUploadMaxEntries", List.of("directoryUploadEnabled")),
+            Map.entry("directoryUploadMaxDepth", List.of("directoryUploadEnabled")),
+            Map.entry("directoryUploadMaxActive", List.of("directoryUploadEnabled")),
             Map.entry("shareAllowNeverExpires", List.of("shareEnabled")),
             Map.entry("shareMaxExpirationDays", List.of("shareEnabled")),
             Map.entry("shareCustomTokenEnabled", List.of("shareEnabled")),
@@ -180,6 +183,14 @@ public class AdvancedSettingsService {
 
                 scaledNumber("uploads", "nas.upload.resumable-chunk-size-bytes", "uploadChunkSizeMib", "Upload chunk size", "Size of each resumable upload request. Reverse-proxy limits must be larger.", "MiB", 1, 64, 1, MIB, ApplyMode.RUNTIME,
                         upload::getResumableChunkSizeBytes, upload::setResumableChunkSizeBytes),
+                bool("uploads", "nas.upload.directory-enabled", "directoryUploadEnabled", "Directory uploads", "Allow new administrator directory uploads. Already admitted uploads can continue and resume.", ApplyMode.RUNTIME,
+                        upload::isDirectoryEnabled, upload::setDirectoryEnabled),
+                number("uploads", "nas.upload.directory-max-entries", "directoryUploadMaxEntries", "Maximum entries per directory", "Counts the selected root, all subdirectories, and files. Applies to new uploads only.", "entries", 1, NasProperties.Upload.DIRECTORY_ENTRIES_CEILING, ApplyMode.RUNTIME,
+                        upload::getDirectoryMaxEntries, upload::setDirectoryMaxEntries),
+                number("uploads", "nas.upload.directory-max-depth", "directoryUploadMaxDepth", "Maximum relative path depth", "Levels below the selected root, including the file name. A direct child is level 1. Applies to new uploads only.", "levels", 1, NasProperties.Upload.DIRECTORY_DEPTH_CEILING, ApplyMode.RUNTIME,
+                        upload::getDirectoryMaxDepth, upload::setDirectoryMaxDepth),
+                number("uploads", "nas.upload.directory-max-active", "directoryUploadMaxActive", "Maximum active directory uploads", "Server-wide unfinished groups, including interrupted uploads. Completed and Pending groups do not count. Lowering this does not cancel existing groups.", "groups", 1, NasProperties.Upload.DIRECTORY_ACTIVE_CEILING, ApplyMode.RUNTIME,
+                        upload::getDirectoryMaxActive, upload::setDirectoryMaxActive),
                 number("uploads", "nas.upload.max-concurrent-chunks", "uploadConcurrentChunks", "Concurrent upload chunks", "Global number of chunks that may be written at once.", "chunks", 1, 16, ApplyMode.RESTART,
                         upload::getMaxConcurrentChunks, null),
                 number("uploads", "nas.upload.resumable-session-retention-hours", "uploadSessionRetentionHours", "Interrupted upload retention", "How long resumable upload state is kept after interruption.", "hours", 1, 168, ApplyMode.RUNTIME,

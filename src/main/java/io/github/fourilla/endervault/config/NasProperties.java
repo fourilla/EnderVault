@@ -1364,6 +1364,27 @@ public class NasProperties {
     }
 
     public static class Upload {
+        public static final int DIRECTORY_ENTRIES_CEILING = 10000;
+        public static final int DIRECTORY_DEPTH_CEILING = 64;
+        public static final int DIRECTORY_ACTIVE_CEILING = 16;
+
+        private volatile boolean directoryEnabled = true;
+        @Min(1) @Max(DIRECTORY_ENTRIES_CEILING)
+        private volatile int directoryMaxEntries = DIRECTORY_ENTRIES_CEILING;
+        @Min(1) @Max(DIRECTORY_DEPTH_CEILING)
+        private volatile int directoryMaxDepth = DIRECTORY_DEPTH_CEILING;
+        @Min(1) @Max(DIRECTORY_ACTIVE_CEILING)
+        private volatile int directoryMaxActive = DIRECTORY_ACTIVE_CEILING;
+
+        public boolean isDirectoryEnabled() { return directoryEnabled; }
+        public void setDirectoryEnabled(boolean value) { directoryEnabled = value; }
+        public int getDirectoryMaxEntries() { return directoryMaxEntries; }
+        public void setDirectoryMaxEntries(int value) { directoryMaxEntries = value; }
+        public int getDirectoryMaxDepth() { return directoryMaxDepth; }
+        public void setDirectoryMaxDepth(int value) { directoryMaxDepth = value; }
+        public int getDirectoryMaxActive() { return directoryMaxActive; }
+        public void setDirectoryMaxActive(int value) { directoryMaxActive = value; }
+
         @Min(1048576)
         @Max(67108864)
         private long resumableChunkSizeBytes = 33554432L;

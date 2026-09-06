@@ -23,6 +23,23 @@ class PendingFileDecisionMetadataInspectorTest {
     Path root;
 
     @Test
+    void validPendingDirectoryIsNotMissing() throws Exception {
+        PendingFileDecisionService pendingService = mock(PendingFileDecisionService.class);
+        StorageService storageService = mock(StorageService.class);
+        Path staged = Files.createDirectory(root.resolve("directory-upload-test"));
+        PendingFileDecision directory = new PendingFileDecision("directory", PendingFileDecisionSource.DIRECTORY_UPLOAD,
+                "directory-upload-test", "incoming", "photos", 0, Instant.now(), null, "group-1", null, true);
+        when(pendingService.list()).thenReturn(List.of(directory));
+        when(storageService.resolveFileStagingFile(directory.stagingFilename())).thenReturn(staged);
+        when(storageService.resolveVaultDirectory("incoming")).thenReturn(root);
+        var inspector = new PendingFileDecisionMetadataInspector(pendingService, storageService, new NasProperties());
+        assertThat(inspector.inspect()).isEmpty();
+        Files.delete(staged);
+        when(pendingService.hasCommitJournal(directory.id())).thenReturn(true);
+        assertThat(inspector.inspect()).extracting(MetadataIssue::action).containsExactly(MetadataIssueAction.NONE);
+    }
+
+    @Test
     void reportsMissingDataAsRepairableAndOldDataAsReviewOnly() throws Exception {
         PendingFileDecisionService pendingService = mock(PendingFileDecisionService.class);
         StorageService storageService = mock(StorageService.class);

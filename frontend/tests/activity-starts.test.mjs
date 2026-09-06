@@ -21,7 +21,7 @@ async function loadTsx(file, window, document, require, extra = '') {
   const output = (Array.isArray(result) ? result[0] : result).output;
   const module = { exports: {} };
   vm.runInNewContext(output.find((item) => item.type === 'chunk').code,
-    { module, exports: module.exports, window, document, require });
+    { module, exports: module.exports, window, document, require, File, CustomEvent });
   return module.exports;
 }
 
@@ -177,6 +177,61 @@ test('remote starts publish immediately; an older in-flight snapshot cannot eras
   state.paint();
   assert.equal(state.shows(), 1);
   assert.equal(state.activity.snapshot().items[0].percent, 40);
+});
+
+test('directory roots and loose files share bounded queue slots with one activity per root', async (t) => {
+  const state = setup(t);
+  const { TestUploadManager } = await loadTsx('app/uploads/UploadManagerContext.tsx', state.window, state.document,
+    () => ({ createContext: () => ({}), validateRoot() {}, rootSignature: (root) => root.name }), 'export { AdminUploadManager as TestUploadManager };');
+  const manager = new TestUploadManager(1, () => {});
+  const started = [], releases = [];
+  manager.send = (upload) => {
+    upload.status = 'uploading';
+    started.push(upload);
+    return new Promise((resolve) => releases.push(() => {
+      manager.finish(upload, 'complete');
+      resolve();
+    }));
+  };
+  manager.startSelection({ roots: ['one', 'two'].map((name) => ({ name,
+    files: [{ path: 'a', file: new File(['abc'], 'a') }, { path: 'b', file: new File(['de'], 'b') }], directories: [],
+  })), files: [new File(['x'], 'loose')] }, 'dest');
+  assert.equal(started.length, 1);
+  assert.equal(state.activity.snapshot().items.length, 3);
+  assert.equal(started[0].total, 5);
+  assert.equal(manager.hasActiveUploads(), true);
+  releases.shift()();
+  await new Promise(setImmediate);
+  assert.equal(started.length, 2);
+  assert.equal(started[1].root.name, 'two');
+  manager.setMaxConcurrentUploads(2);
+  assert.equal(started.length, 3);
+  assert.equal(started[2].file.name, 'loose');
+  releases.forEach((release) => release());
+  await new Promise(setImmediate);
+  assert.equal(manager.hasActiveUploads(), false);
+});
+
+test('directory cancellation displays the server terminal outcome rather than unconditional canceled', async (t) => {
+  const state = setup(t);
+  state.window.location = { href: '/files' };
+  state.window.EnderVault.showToast = () => {};
+  const { TestUploadManager } = await loadTsx('app/uploads/UploadManagerContext.tsx', state.window, state.document,
+    () => ({ createContext: () => ({}) }), 'export { AdminUploadManager as TestUploadManager };');
+  const manager = new TestUploadManager(1, () => {});
+  for (const [status, expected] of [['COMPLETED', 'complete'], ['PENDING', 'pending'], ['CANCELED', 'canceled']]) {
+    const upload = { id: manager.nextId++, file: new File([], 'root'), root: { files: [{}, {}] },
+      destinationPath: 'dest', loaded: 0, total: 5, completedCount: 0, status: 'uploading',
+      cancelRequested: false, handle: { abort: async () => ({ status }) } };
+    manager.uploads.set(upload.id, upload);
+    await manager.cancel(upload);
+    assert.equal(upload.status, expected);
+    assert.equal(upload.cancelRequested, status === 'CANCELED');
+    if (status !== 'CANCELED') {
+      assert.equal(upload.completedCount, 2);
+      assert.equal(upload.loaded, 5);
+    }
+  }
 });
 
 test('active menus, modals, fullscreen and background tabs take precedence with no delayed reopening', (t) => {

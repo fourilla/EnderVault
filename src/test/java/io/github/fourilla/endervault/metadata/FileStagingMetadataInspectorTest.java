@@ -55,6 +55,64 @@ class FileStagingMetadataInspectorTest {
     }
 
     @Test
+    void orphanDirectoryCleanupProtectsRegistryAndProtocolStorage() throws Exception {
+        Path staged = Files.createDirectory(storageService.resolveFileStagingFile("directory-upload-test"));
+        Files.createDirectories(staged.resolve("nested/empty"));
+        Path child = Files.writeString(staged.resolve("nested/data"), "payload");
+        Files.setLastModifiedTime(staged, FileTime.from(Instant.now().minusSeconds(3600)));
+        Path protocol = Files.createDirectories(root.resolve(".endervault/file-staging/resumable-protocol"));
+        Files.writeString(protocol.resolve("session"), "retained");
+        var issue = inspector.inspect().getFirst();
+        assertThat(inspector.inspect()).hasSize(1);
+        assertThat(issue.action()).isEqualTo(MetadataIssueAction.DELETE_FILE_STAGING);
+        try (var registration = temporaryArtifactRegistry.register(child, TemporaryArtifactType.PENDING_FILE_DECISION, "active")) {
+            assertThat(inspector.inspect().getFirst().action()).isEqualTo(MetadataIssueAction.NONE);
+            assertThatThrownBy(() -> inspector.repair(issue.action(), issue.subject()))
+                    .isInstanceOf(StorageAccessException.class);
+            assertThat(child).exists();
+        }
+        inspector.repair(issue.action(), issue.subject());
+        assertThat(staged).doesNotExist();
+        assertThatThrownBy(() -> storageService.deleteFileStagingFile("resumable-protocol"))
+                .isInstanceOf(StorageAccessException.class);
+        assertThatThrownBy(() -> storageService.deleteStagedDirectory(protocol))
+                .isInstanceOf(StorageAccessException.class);
+        assertThat(protocol.resolve("session")).exists();
+    }
+
+    @Test
+    void directoryCleanupDoesNotFollowSymbolicLinks() throws Exception {
+        Path staged = Files.createDirectory(storageService.resolveFileStagingFile("directory-upload-test"));
+        Path outside = Files.createDirectory(root.resolve("outside"));
+        Path retained = Files.writeString(outside.resolve("retained"), "original");
+        try {
+            Files.createSymbolicLink(staged.resolve("link"), outside);
+        } catch (java.io.IOException | UnsupportedOperationException ex) {
+            org.junit.jupiter.api.Assumptions.abort("Symbolic links unavailable: " + ex.getClass().getSimpleName());
+        }
+        storageService.deleteStagedDirectory(staged);
+        assertThat(staged).doesNotExist();
+        assertThat(Files.readString(retained)).isEqualTo("original");
+    }
+
+    @Test
+    void directoryDeleteHelperRejectsOutsideAndNestedPaths() throws Exception {
+        Path staged = Files.createDirectory(storageService.resolveFileStagingFile("directory-upload-test"));
+        Path nested = Files.createDirectory(staged.resolve("nested"));
+        assertThatThrownBy(() -> storageService.deleteStagedDirectory(nested))
+                .isInstanceOf(StorageAccessException.class);
+        assertThatThrownBy(() -> storageService.deleteStagedDirectory(root))
+                .isInstanceOf(StorageAccessException.class);
+        try (var registration = temporaryArtifactRegistry.register(staged, TemporaryArtifactType.PENDING_FILE_DECISION, "active")) {
+            assertThatThrownBy(() -> storageService.deleteStagedDirectory(staged))
+                    .isInstanceOf(StorageAccessException.class);
+        }
+        storageService.deleteStagedDirectory(staged);
+        storageService.deleteStagedDirectory(staged);
+        assertThat(staged).doesNotExist();
+    }
+
+    @Test
     void activeStaleArtifactIsInformationalAndCannotBeDeleted() throws Exception {
         Path temporaryFile = storageService.createFileStagingTemporaryFile("remote-download-", ".tmp");
         Files.writeString(temporaryFile, "in progress");

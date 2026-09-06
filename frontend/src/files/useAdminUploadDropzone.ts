@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { useUploadManager } from '../app/uploads/UploadManagerContext';
+import { collectDrop } from '../app/uploads/collect-uploads';
 
 type UploadManager = ReturnType<typeof useUploadManager>;
 
@@ -27,22 +28,6 @@ export function useAdminUploadDropzone(manager: UploadManager, destinationPath: 
     const reset = () => {
       internalDrag = false;
       hideOverlay();
-    };
-    const filesFrom = (transfer: DataTransfer) => {
-      const items = [...(transfer.items ?? [])];
-      let hasDirectory = false;
-      if (items.length === 0) return { files: [...transfer.files], hasDirectory };
-      const files = items.flatMap((item) => {
-        if (item.kind !== 'file') return [];
-        const entry = typeof item.webkitGetAsEntry === 'function' ? item.webkitGetAsEntry() : null;
-        if (entry?.isDirectory) {
-          hasDirectory = true;
-          return [];
-        }
-        const file = item.getAsFile();
-        return file ? [file] : [];
-      });
-      return { files, hasDirectory };
     };
 
     const onDragStart = (event: DragEvent) => {
@@ -75,13 +60,10 @@ export function useAdminUploadDropzone(manager: UploadManager, destinationPath: 
       event.preventDefault();
       event.stopPropagation();
       hideOverlay();
-      const { files, hasDirectory } = filesFrom(event.dataTransfer);
-      if (hasDirectory) {
-        window.EnderVault?.showToast('error', files.length
-          ? 'Directory items were skipped.'
-          : 'Directory uploads are not supported yet.');
-      }
-      if (files.length > 0) manager.startFiles(files, destinationPath);
+      void collectDrop(event.dataTransfer)
+        .then((selection) => manager.startSelection(selection, destinationPath))
+        .catch((reason) => window.EnderVault?.showToast('error',
+          reason instanceof Error ? reason.message : 'Could not read dropped items.'));
     };
     const preventOutsideDrop = (event: DragEvent) => {
       if (!isFileTransfer(event.dataTransfer)) return;

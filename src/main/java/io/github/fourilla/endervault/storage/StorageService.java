@@ -467,6 +467,17 @@ public class StorageService {
         fileStagingService.deleteFile(filename);
     }
 
+    /** Removes an inactive direct file-staging directory without following child symbolic links. */
+    public void deleteStagedDirectory(Path stagedPath) throws IOException {
+        String filename = fileStagingFilename(stagedPath);
+        Path source = resolveFileStagingFile(filename);
+        if (!Files.exists(source, LinkOption.NOFOLLOW_LINKS)) return;
+        if (!Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(source)) {
+            throw new StorageAccessException("Staging data is not a directory.");
+        }
+        fileStagingService.deleteFile(filename);
+    }
+
     public FileItem moveTemporaryFileIntoVault(Path temporaryFile, String directoryPath, String filename)
             throws IOException {
         return moveTemporaryFileIntoVault(temporaryFile, directoryPath, filename, null);
@@ -504,10 +515,27 @@ public class StorageService {
     }
 
     public String resolveAvailableVaultFilename(String directoryPath, String filename) throws IOException {
+        return resolveAvailableVaultEntryName(directoryPath, filename, false);
+    }
+
+    public String resolveAvailableVaultEntryName(String directoryPath, String filename, boolean directory)
+            throws IOException {
         Path target = pathResolver.resolveChild(StorageScope.VAULT, directoryPath, filename, false);
         StorageConflictResolver.StorageConflictTarget resolvedTarget =
-                conflictResolver.resolve(target, false, ConflictPolicy.RENAME);
+                conflictResolver.resolve(target, directory, ConflictPolicy.RENAME);
         return resolvedTarget.path().getFileName().toString();
+    }
+
+    public CommittedVaultFile commitStagedDirectoryNoReplace(
+            Path stagedPath, String directoryPath, String name
+    ) throws IOException {
+        Path source = resolveFileStagingFile(fileStagingFilename(stagedPath));
+        if (!Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(source)) {
+            throw new StorageAccessException("Directory staging data is unavailable.");
+        }
+        Path target = pathResolver.resolveChild(StorageScope.VAULT, directoryPath, name, false);
+        treeOperations.commitEntryNoReplace(source, target);
+        return new CommittedVaultFile(target.getFileName().toString(), pathResolver.toRelativePath(root, target));
     }
 
     public CommittedVaultFile commitStagedRegularFileNoReplace(

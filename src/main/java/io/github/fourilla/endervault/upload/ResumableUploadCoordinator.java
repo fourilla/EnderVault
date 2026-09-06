@@ -328,6 +328,7 @@ public class ResumableUploadCoordinator {
             FinalizationResult result,
             HttpServletRequest request
     ) {
+        if (session.directoryMember()) return;
         Map<String, String> metadata = new LinkedHashMap<>();
         metadata.put("uploadId", session.id());
         metadata.put("filename", session.originalFilename());

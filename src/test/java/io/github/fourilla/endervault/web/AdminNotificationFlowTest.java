@@ -111,6 +111,7 @@ class AdminNotificationFlowTest {
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         registry.add("nas.storage.root", ROOT::toString);
+        registry.add("nas.upload.directory-enabled", () -> true);
         registry.add("nas.sticky-notes.background-color", () -> "#1B3033");
         registry.add("nas.sticky-notes.border-color", () -> "#4E8F8A");
         registry.add("nas.sticky-notes.text-color", () -> "#EAF6F4");
@@ -2242,6 +2243,61 @@ class AdminNotificationFlowTest {
 
         assertThat(result.get("status").asText()).isEqualTo("COMPLETED");
         assertThat(Files.readAllBytes(ROOT.resolve(filename))).isEqualTo(content);
+    }
+
+    @Test
+    void directoryUploadUsesTheSameTusProtocolAndPublishesOnlyTheCompletedRoot() throws Exception {
+        String name = "directory-tus-" + System.nanoTime();
+        byte[] payload = "nested upload".getBytes(StandardCharsets.UTF_8);
+        byte[] manifest = objectMapper.writeValueAsBytes(Map.of("name", name, "directories", List.of("empty"),
+                "files", List.of(Map.of("path", "nested/data.txt", "size", payload.length, "lastModified", 0))));
+        mockMvc.perform(post("/api/v1/files/directory-uploads").contentType(MediaType.APPLICATION_JSON).content(manifest))
+                .andExpect(status().isForbidden());
+        var created = mockMvc.perform(post("/api/v1/files/directory-uploads").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(manifest))
+                .andExpect(status().isOk()).andReturn();
+        String id = objectMapper.readTree(created.getResponse().getContentAsByteArray()).get("id").asText();
+        assertThat(ROOT.resolve(name)).doesNotExist();
+        JsonNode member = admitAndUpload("/api/v1/files/directory-uploads/" + id + "/files?relativePath=nested/data.txt",
+                "data.txt", null, payload, "d".repeat(64));
+        assertThat(member.get("status").asText()).isEqualTo("DIRECTORY_READY");
+        mockMvc.perform(post("/api/v1/files/directory-uploads/{id}/complete", id).with(csrf()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("COMPLETED"));
+        assertThat(Files.readAllBytes(ROOT.resolve(name + "/nested/data.txt"))).isEqualTo(payload);
+        assertThat(ROOT.resolve(name + "/empty")).isEmptyDirectory();
+        mockMvc.perform(get("/api/v1/files/directory-uploads/{id}", id))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.committedPath").value(name));
+    }
+
+    @Test
+    void disabledDirectoryUploadReturnsAnActionableJsonReason(
+            @org.springframework.beans.factory.annotation.Autowired
+            io.github.fourilla.endervault.config.NasProperties properties) throws Exception {
+        boolean enabled = properties.getUpload().isDirectoryEnabled();
+        try {
+            properties.getUpload().setDirectoryEnabled(false);
+            mockMvc.perform(post("/api/v1/files/directory-uploads").with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"name\":\"disabled-root\",\"files\":[],\"directories\":[]}"))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.ok").value(false))
+                    .andExpect(jsonPath("$.notification.message").value(
+                            "New directory uploads are disabled. Existing uploads can still resume."));
+        } finally {
+            properties.getUpload().setDirectoryEnabled(enabled);
+        }
+    }
+
+    @Test
+    @WithAnonymousUser
+    void directoryUploadAdmissionAndStateAreNotPublic() throws Exception {
+        mockMvc.perform(post("/api/v1/files/directory-uploads").with(csrf())
+                        .accept(MediaType.APPLICATION_JSON).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"private\",\"files\":[],\"directories\":[]}"))
+                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/login"));
+        mockMvc.perform(get("/api/v1/files/directory-uploads/{id}", java.util.UUID.randomUUID())
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/login"));
     }
 
     @Test

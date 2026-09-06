@@ -115,26 +115,33 @@ final class FileStagingService {
     }
 
     String filename(Path path) {
+        requireSafeRoot();
         Path normalized = path.toAbsolutePath().normalize();
         pathResolver.ensureInsideFileStagingRoot(normalized);
         if (!normalized.getParent().equals(fileStagingRoot)) {
             throw new StorageAccessException("File staging paths must identify a direct child.");
         }
+        rejectProtocolRoot(normalized.getFileName().toString());
         return normalized.getFileName().toString();
     }
 
     Path resolveFile(String filename) {
+        requireSafeRoot();
         pathResolver.validateSingleName(filename);
+        rejectProtocolRoot(filename);
         Path resolved = fileStagingRoot.resolve(filename).normalize();
         pathResolver.ensureInsideFileStagingRoot(resolved);
         return resolved;
     }
 
     List<StorageService.FileStagingInfo> listFiles() throws IOException {
+        requireSafeRoot();
         Files.createDirectories(fileStagingRoot);
         try (Stream<Path> stream = Files.list(fileStagingRoot)) {
             return stream
-                    .filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))
+                    .filter(path -> !path.getFileName().toString().equalsIgnoreCase("resumable-protocol"))
+                    .filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)
+                            || Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS))
                     .filter(path -> !Files.isSymbolicLink(path))
                     .map(this::toFileStagingInfo)
                     .sorted(Comparator.comparing(StorageService.FileStagingInfo::modifiedAt).reversed())
@@ -143,29 +150,71 @@ final class FileStagingService {
     }
 
     void deleteFile(String filename) throws IOException {
+        requireSafeRoot();
         pathResolver.validateSingleName(filename);
+        rejectProtocolRoot(filename);
         Path temporaryFile = fileStagingRoot.resolve(filename).normalize();
         pathResolver.ensureInsideFileStagingRoot(temporaryFile);
-        if (temporaryArtifactRegistry.isActive(temporaryFile)) {
-            throw new StorageAccessException("File staging artifact is still in use.");
-        }
-        if (Files.isRegularFile(temporaryFile, LinkOption.NOFOLLOW_LINKS)
+        assertInactive(temporaryFile);
+        if (Files.isDirectory(temporaryFile, LinkOption.NOFOLLOW_LINKS)
+                && !Files.isSymbolicLink(temporaryFile)) {
+            Files.walkFileTree(temporaryFile, new java.nio.file.SimpleFileVisitor<>() {
+                @Override
+                public java.nio.file.FileVisitResult visitFile(Path file,
+                        java.nio.file.attribute.BasicFileAttributes attributes) throws IOException {
+                    assertInactive(file);
+                    Files.delete(file);
+                    return java.nio.file.FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public java.nio.file.FileVisitResult postVisitDirectory(Path directory, IOException failure)
+                        throws IOException {
+                    if (failure != null) throw failure;
+                    assertInactive(directory);
+                    Files.delete(directory);
+                    return java.nio.file.FileVisitResult.CONTINUE;
+                }
+            });
+        } else if (Files.isRegularFile(temporaryFile, LinkOption.NOFOLLOW_LINKS)
                 && !Files.isSymbolicLink(temporaryFile)) {
             Files.deleteIfExists(temporaryFile);
         }
     }
 
+    private void assertInactive(Path path) {
+        if (temporaryArtifactRegistry.activeArtifacts().stream()
+                .anyMatch(artifact -> artifact.path().startsWith(path) || path.startsWith(artifact.path()))) {
+            throw new StorageAccessException("File staging artifact is still in use.");
+        }
+    }
+
+    private void requireSafeRoot() {
+        if (Files.isSymbolicLink(fileStagingRoot) || Files.isSymbolicLink(fileStagingRoot.getParent())) {
+            throw new StorageAccessException("File staging storage cannot be a symbolic link.");
+        }
+    }
+
+    private void rejectProtocolRoot(String filename) {
+        if ("resumable-protocol".equalsIgnoreCase(filename)) {
+            throw new StorageAccessException("Resumable protocol storage is not a staging unit.");
+        }
+    }
+
     private StorageService.FileStagingInfo toFileStagingInfo(Path path) {
         try {
-            long size = Files.size(path);
+            boolean directory = Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS);
+            long size = directory ? 0 : Files.size(path);
             Instant modified = Files.getLastModifiedTime(path).toInstant();
-            String activeOperation = temporaryArtifactRegistry.find(path)
+            String activeOperation = temporaryArtifactRegistry.activeArtifacts().stream()
+                    .filter(artifact -> artifact.path().startsWith(path) || path.startsWith(artifact.path()))
+                    .findFirst()
                     .map(artifact -> artifact.type().label())
                     .orElse(null);
             return new StorageService.FileStagingInfo(
                     path.getFileName().toString(),
                     size,
-                    ByteSizeFormatter.humanSize(size),
+                    directory ? "Directory" : ByteSizeFormatter.humanSize(size),
                     modified,
                     MODIFIED_FORMATTER.format(modified),
                     activeOperation != null,
