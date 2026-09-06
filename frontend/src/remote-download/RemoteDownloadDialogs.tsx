@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { parseCurl } from './curl-parser';
 import type { RemoteDownloadInspection, RemoteDownloadTask } from './types';
+import { AppDialog } from '../shared/dialogs/AppDialog';
 
 export function CurlImportDialog({ open, close, apply }: {
   open: boolean;
@@ -119,14 +120,6 @@ export function RemoteDownloadTaskDialog({ task, close }: {
   task: RemoteDownloadTask | null;
   close: () => void;
 }) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (task && !dialog.open) dialog.showModal();
-    if (!task && dialog.open) dialog.close();
-  }, [task]);
-
   const connections = task
     ? task.actualConnections > 0
       ? `${task.actualConnections} active / ${task.requestedConnections} requested`
@@ -134,9 +127,8 @@ export function RemoteDownloadTaskDialog({ task, close }: {
     : '-';
 
   return (
-    <dialog ref={dialogRef} className="remote-confirm-dialog" aria-labelledby="remoteTaskDialogTitle"
-      onCancel={(event) => { event.preventDefault(); close(); }} onClose={close}
-      onClick={(event) => { if (event.target === event.currentTarget) close(); }}>
+    <AppDialog open={task !== null} className="remote-confirm-dialog" labelledBy="remoteTaskDialogTitle"
+      onDismiss={close} dismissOnBackdrop>
       <article className="remote-confirm-card">
         <header className="remote-confirm-header">
           <div><h2 id="remoteTaskDialogTitle">Download Details</h2><p>{task ? `Task ${task.id}` : '-'}</p></div>
@@ -157,6 +149,6 @@ export function RemoteDownloadTaskDialog({ task, close }: {
           <div><dt>Message</dt><dd>{task?.message || '-'}</dd></div>
         </dl>
       </article>
-    </dialog>
+    </AppDialog>
   );
 }
