@@ -189,6 +189,7 @@
             this.canceled = false;
             this.fingerprint = null;
             this.resumeSessionId = null;
+            this.settleCanceled = null;
         }
 
         async start() {
@@ -226,7 +227,19 @@
                 return { status: "CANCELED", message: "Upload was canceled." };
             }
 
+            if (admission.ready === true) {
+                try {
+                    const result = await readStatus(admission.statusUrl);
+                    forgetResumeSession(fingerprint, admission.sessionId);
+                    this.options.onProgress?.(file.size, file.size);
+                    return result;
+                } finally {
+                    claimedResumeSessions.delete(admission.sessionId);
+                }
+            }
+
             return await new Promise((resolve, reject) => {
+                this.settleCanceled = () => resolve({ status: "CANCELED", message: "Upload was canceled." });
                 const upload = new window.tus.Upload(file, {
                     endpoint: admission.endpoint,
                     uploadUrl: admission.uploadUrl || null,
@@ -244,6 +257,7 @@
                     onShouldRetry: shouldRetry,
                     onProgress: (sent, total) => this.options.onProgress?.(sent, total),
                     onError: error => {
+                        claimedResumeSessions.delete(admission.sessionId);
                         if (this.canceled) {
                             resolve({ status: "CANCELED", message: "Upload was canceled." });
                             return;
@@ -256,6 +270,7 @@
                             forgetResumeSession(fingerprint, admission.sessionId);
                             resolve(result);
                         } catch (error) {
+                            claimedResumeSessions.delete(admission.sessionId);
                             reject(error);
                         }
                     }
@@ -275,6 +290,7 @@
             if (this.upload) {
                 await this.upload.abort(true);
             }
+            this.settleCanceled?.();
             if (this.admission) {
                 await this.cancelAdmission();
             }

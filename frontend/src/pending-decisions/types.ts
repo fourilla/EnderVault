@@ -1,5 +1,6 @@
 export interface PendingFileDecision {
   id: string;
+  directory: boolean;
   originalFilename: string;
   submittedBy: string | null;
   sourceLabel: string;

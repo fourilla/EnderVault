@@ -31,12 +31,13 @@ export function PendingDecisionsApp() {
     action: PendingFileDecisionAction,
     filename?: string,
   ) => {
+    if (decision.directory && action === 'REPLACE') return;
     if (action === 'REPLACE' || action === 'DISCARD') {
       const confirmed = await window.EnderVault!.askConfirmation({
-        title: action === 'REPLACE' ? 'Replace existing file' : 'Discard pending file',
+        title: action === 'REPLACE' ? 'Replace existing file' : 'Discard pending item',
         message: action === 'REPLACE'
           ? 'Replace the existing destination file with this staged file?'
-          : 'Permanently discard this staged file?',
+          : decision.directory ? 'Permanently discard this staged directory and its contents?' : 'Permanently discard this staged file?',
         confirmLabel: action === 'REPLACE' ? 'Replace' : 'Discard',
         danger: true,
       });
@@ -51,7 +52,7 @@ export function PendingDecisionsApp() {
       });
       setDecisions((current) => current?.filter((item) => item.id !== result.removedId) ?? []);
     } catch (reason) {
-      toastError(reason, 'Pending file resolution failed.');
+      toastError(reason, 'Pending item resolution failed.');
     } finally {
       setBusyId('');
     }
@@ -59,9 +60,9 @@ export function PendingDecisionsApp() {
 
   const saveAs = async (decision: PendingFileDecision) => {
     const filename = await window.EnderVault!.askTextInput({
-      title: 'Save pending file as',
+      title: decision.directory ? 'Save pending directory as' : 'Save pending file as',
       message: 'Choose a new name in the requested destination.',
-      label: 'File name',
+      label: decision.directory ? 'Directory name' : 'File name',
       initialValue: decision.originalFilename,
       confirmLabel: 'Save',
     });
@@ -80,11 +81,11 @@ export function PendingDecisionsApp() {
         </section>
       )}
       {decisions && (
-        <section className="dashboard-panel" aria-label="Pending file decisions">
+        <section className="dashboard-panel" aria-label="Pending decisions">
           <header className="section-heading">
             <div>
-              <h2>Files Awaiting Review</h2>
-              <p>Resolve staged files that could not be placed at their requested destination.</p>
+              <h2>Items Awaiting Review</h2>
+              <p>Resolve staged items that could not be placed at their requested destination.</p>
             </div>
             <span className="status-badge warning">{decisions.length} pending</span>
           </header>
@@ -94,12 +95,12 @@ export function PendingDecisionsApp() {
           <div className="table-wrap compact-table">
             <table className="pending-decisions-table">
               <thead>
-                <tr><th>File</th><th>Source</th><th>Destination</th><th>Size</th><th>Received</th><th>Actions</th></tr>
+                <tr><th>Item</th><th>Source</th><th>Destination</th><th>Size</th><th>Received</th><th>Actions</th></tr>
               </thead>
               <tbody>
                 {decisions.map((decision) => (
                   <tr id={`decision-${decision.id}`} key={decision.id} tabIndex={-1}>
-                    <td><span className="table-primary-text" title={decision.originalFilename}>{decision.originalFilename}</span></td>
+                    <td>{decision.directory && icon('fas fa-folder')}<span className="table-primary-text" title={decision.originalFilename}>{decision.originalFilename}</span></td>
                     <td>
                       <span>{decision.sourceLabel}</span>
                       {decision.submittedBy && <small title={decision.submittedBy}>From {decision.submittedBy}</small>}
@@ -117,13 +118,13 @@ export function PendingDecisionsApp() {
                           disabled={Boolean(busyId)} onClick={() => void saveAs(decision)}>
                           {icon('fas fa-pen')}
                         </button>
-                        <button className="danger icon-button action-icon" type="button" title="Replace existing file"
+                        {!decision.directory && <button className="danger icon-button action-icon" type="button" title="Replace existing file"
                           aria-label="Replace existing file" disabled={Boolean(busyId)}
                           onClick={() => void resolve(decision, 'REPLACE')}>
                           {icon('fas fa-file-arrow-down')}
-                        </button>
-                        <button className="danger icon-button action-icon" type="button" title="Discard staged file"
-                          aria-label="Discard staged file" disabled={Boolean(busyId)}
+                        </button>}
+                        <button className="danger icon-button action-icon" type="button" title="Discard staged item"
+                          aria-label="Discard staged item" disabled={Boolean(busyId)}
                           onClick={() => void resolve(decision, 'DISCARD')}>
                           {icon('fas fa-trash-can')}
                         </button>
@@ -132,7 +133,7 @@ export function PendingDecisionsApp() {
                   </tr>
                 ))}
                 {decisions.length === 0 && (
-                  <tr className="empty-row"><td colSpan={6} className="empty">No files are awaiting review.</td></tr>
+                  <tr className="empty-row"><td colSpan={6} className="empty">No items are awaiting review.</td></tr>
                 )}
               </tbody>
             </table>

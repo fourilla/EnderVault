@@ -37,6 +37,15 @@ public record ResumableUploadSession(
                 committedPath, pendingDecisionId, failureMessage);
     }
 
+    public boolean directoryMember() {
+        return source == ResumableUploadSource.ADMIN && sourceReference != null
+                && sourceReference.startsWith("directory:");
+    }
+
+    public ResumableUploadSession directoryReady() {
+        return copy(ResumableUploadStatus.DIRECTORY_READY, protocolUploadUri, stagingFilename, null, null, null);
+    }
+
     public ResumableUploadSession withCommittedTarget(String path) {
         return copy(ResumableUploadStatus.FINALIZING, protocolUploadUri, stagingFilename,
                 path, pendingDecisionId, failureMessage);

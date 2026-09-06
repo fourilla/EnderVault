@@ -94,6 +94,9 @@ final class StorageTreeOperations {
         forceDirectory(source.getParent());
     }
 
+    // Java ATOMIC_MOVE has provider-specific replacement semantics. The existence check does not
+    // exclude external target writers, and fingerprints cannot lock the source tree against edits
+    // or same-directory renames between validation and move. Callers must control staging writers.
     void commitEntryNoReplace(Path source, Path target) throws IOException {
         rejectSymbolicLink(source);
         boolean validSource = Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)

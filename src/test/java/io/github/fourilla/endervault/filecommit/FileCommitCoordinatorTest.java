@@ -42,6 +42,71 @@ class FileCommitCoordinatorTest {
     }
 
     @Test
+    void commitsDirectoryAsSingleUnitAndReplaysTargetOnly() throws Exception {
+        Path staged = Files.createDirectory(storageService.resolveFileStagingFile("directory-upload-test"));
+        Files.createDirectories(staged.resolve("nested/empty"));
+        Files.writeString(staged.resolve("nested/data"), "payload");
+        FileCommitOwner owner = new FileCommitOwner(FileCommitOwnerType.DIRECTORY_UPLOAD, "group-1");
+        var commit = coordinator.commitSingleDirectory(owner, staged, "", "published");
+        var entry = journalStore.load(commit.operationId());
+        assertThat(entry.manifest().operationType()).isEqualTo(FileCommitOperationType.SINGLE_DIRECTORY);
+        assertThat(entry.manifest().items().getFirst().stagingFingerprint().directory()).isTrue();
+        assertThat(coordinator.activeStagingFilenames()).contains("directory-upload-test");
+        assertThat(coordinator.resumeSingleFile(commit.operationId()).file().path()).isEqualTo("published");
+        assertThat(coordinator.commitSingleDirectory(owner, staged, "", "published")).isEqualTo(commit);
+        assertThat(Files.readString(root.resolve("published/nested/data"))).isEqualTo("payload");
+        assertThat(root.resolve("published/nested/empty")).isDirectory();
+        coordinator.complete(commit.operationId());
+        assertThat(journalStore.list()).isEmpty();
+    }
+
+    @Test
+    void resumesDirectoryMovedBeforeJournalAdvanced() throws Exception {
+        Path staged = Files.createDirectory(storageService.resolveFileStagingFile("directory-upload-test"));
+        Files.writeString(staged.resolve("data"), "payload");
+        String id = UUID.randomUUID().toString();
+        journalStore.create(new FileCommitManifest(FileCommitManifest.CURRENT_SCHEMA_VERSION, id, owner(),
+                FileCommitOperationType.SINGLE_DIRECTORY, ConflictPolicy.CANCEL,
+                List.of(new FileCommitItem(0, ".endervault/file-staging/directory-upload-test", "published",
+                        FileCommitFingerprints.tree(staged, null), null)), Instant.now()));
+        journalStore.updateState(new FileCommitJournalState(id, FileCommitPhase.COMMITTING, 0, null, Instant.now()));
+        storageService.commitStagedDirectoryNoReplace(staged, "", "published");
+        coordinator.resumeSingleFile(id);
+        assertThat(journalStore.load(id).state().phase()).isEqualTo(FileCommitPhase.APPLYING_METADATA);
+        assertThat(root.resolve("published/data")).exists();
+    }
+
+    @Test
+    void directorySourceOnlyRecoveryAndChangedTargetRequireReview() throws Exception {
+        Path staged = Files.createDirectory(storageService.resolveFileStagingFile("directory-upload-test"));
+        Files.writeString(staged.resolve("data"), "payload");
+        String id = UUID.randomUUID().toString();
+        journalStore.create(new FileCommitManifest(FileCommitManifest.CURRENT_SCHEMA_VERSION, id, owner(),
+                FileCommitOperationType.SINGLE_DIRECTORY, ConflictPolicy.CANCEL,
+                List.of(new FileCommitItem(0, ".endervault/file-staging/directory-upload-test", "published",
+                        FileCommitFingerprints.tree(staged, null), null)), Instant.now()));
+        coordinator.resumeSingleFile(id);
+        Files.writeString(root.resolve("published/data"), "changed payload");
+        assertThatThrownBy(() -> coordinator.resumeSingleFile(id))
+                .isInstanceOf(FileCommitRecoveryRequiredException.class);
+        assertThat(journalStore.load(id).state().phase()).isEqualTo(FileCommitPhase.NEEDS_REVIEW);
+    }
+
+    @Test
+    void directoryCollisionNeverMergesAndOverwriteIsRejected() throws Exception {
+        Path staged = Files.createDirectory(storageService.resolveFileStagingFile("directory-upload-test"));
+        Files.writeString(staged.resolve("data"), "payload");
+        Files.createDirectory(root.resolve("published"));
+        assertThatThrownBy(() -> coordinator.commitSingleDirectory(owner(), staged, "", "published",
+                ConflictPolicy.OVERWRITE)).isInstanceOf(io.github.fourilla.endervault.common.StorageAccessException.class);
+        assertThat(journalStore.list()).isEmpty();
+        assertThatThrownBy(() -> coordinator.commitSingleDirectory(owner(), staged, "", "published"))
+                .isInstanceOf(FileCommitConflictException.class);
+        assertThat(staged.resolve("data")).exists();
+        assertThat(root.resolve("published")).isEmptyDirectory();
+    }
+
+    @Test
     void commitsAStagedFileAndKeepsJournalUntilOwnerMetadataCompletes() throws IOException {
         FileCommitOwner owner = owner();
         Path staged = stagedFile("payload");

@@ -1,6 +1,7 @@
 import { type FormEvent, useRef } from 'react';
 import { useAdminApp } from '../app/AdminAppContext';
 import { useUploadManager } from '../app/uploads/UploadManagerContext';
+import { collectFileList } from '../app/uploads/collect-uploads';
 import { icon } from '../shared/browser/BrowserEntries';
 import type { BrowserEntry, BrowserHistoryState, BrowserPayload, BrowserView } from './types';
 import type { FileBrowserActions } from './useFileActions';
@@ -31,6 +32,7 @@ export function BrowserToolbar({
   const adminApp = useAdminApp();
   const uploadManager = useUploadManager();
   const uploadInputRef = useRef<HTMLInputElement>(null);
+  const directoryInputRef = useRef<HTMLInputElement>(null);
   const preferences = payload?.preferences;
   const searchMode = currentState.mode === 'search';
   return (
@@ -76,9 +78,11 @@ export function BrowserToolbar({
               multiple
               ref={uploadInputRef}
               onChange={(event) => {
-                const files = [...(event.currentTarget.files ?? [])];
-                if (files.length > 0) uploadManager.startFiles(files, currentState.path);
-                event.currentTarget.value = '';
+                try {
+                  uploadManager.startSelection(collectFileList([...(event.currentTarget.files ?? [])]), currentState.path);
+                } catch (reason) {
+                  window.EnderVault?.showToast('error', reason instanceof Error ? reason.message : 'Could not read files.');
+                } finally { event.currentTarget.value = ''; }
               }}
             />
             <button
@@ -92,6 +96,24 @@ export function BrowserToolbar({
               {icon('fas fa-upload')}
             </button>
           </form>
+
+          <input className="visually-hidden" id="directoryUploadInput" type="file" multiple
+            {...{ webkitdirectory: '' }} ref={directoryInputRef}
+            onChange={(event) => {
+              try {
+                const selection = collectFileList([...(event.currentTarget.files ?? [])]);
+                if (selection.files.length) throw new Error('This browser did not expose directory paths.');
+                uploadManager.startSelection(selection, currentState.path);
+                window.EnderVault?.showToast('info', 'Directory pickers cannot preserve empty directories.');
+              } catch (reason) {
+                window.EnderVault?.showToast('error', reason instanceof Error ? reason.message : 'Could not read directory.');
+              } finally { event.currentTarget.value = ''; }
+            }} />
+          <button className="icon-button" id="directoryUploadButton" type="button" hidden={searchMode}
+            title="Upload directory" aria-label="Upload directory"
+            onClick={() => directoryInputRef.current?.click()}>
+            {icon('fas fa-folder-open')}
+          </button>
 
           <details className="settings-menu file-new-menu" hidden={searchMode}>
             <summary className="icon-button menu-summary" title="Create new item" aria-label="Create new item">

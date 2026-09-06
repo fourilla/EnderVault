@@ -13,11 +13,11 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.UUID;
 
-final class DurableJsonFileWriter {
+public final class DurableJsonFileWriter {
 
     private final ObjectMapper objectMapper;
 
-    DurableJsonFileWriter(ObjectMapper objectMapper) {
+    public DurableJsonFileWriter(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 
@@ -29,7 +29,7 @@ final class DurableJsonFileWriter {
         }
     }
 
-    void write(Path target, Object value) throws IOException {
+    public void write(Path target, Object value) throws IOException {
         Path parent = target.getParent();
         Files.createDirectories(parent);
         byte[] content;
@@ -58,7 +58,7 @@ final class DurableJsonFileWriter {
         }
     }
 
-    void forceDirectory(Path directory) throws IOException {
+    public void forceDirectory(Path directory) throws IOException {
         try (FileChannel channel = FileChannel.open(directory, StandardOpenOption.READ)) {
             channel.force(true);
         } catch (AccessDeniedException | UnsupportedOperationException ex) {

@@ -9,7 +9,8 @@ public record ResumableUploadAdmissionResponse(
         String uploadUrl,
         String statusUrl,
         long chunkSizeBytes,
-        Instant expiresAt
+        Instant expiresAt,
+        boolean ready
 ) {
 
     public static ResumableUploadAdmissionResponse from(
@@ -24,7 +25,8 @@ public record ResumableUploadAdmissionResponse(
                 session.protocolUploadUri(),
                 endpoint + "/status",
                 service.chunkSizeBytes(),
-                session.expiresAt()
+                session.expiresAt(),
+                session.status() == ResumableUploadStatus.DIRECTORY_READY
         );
     }
 }

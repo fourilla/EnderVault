@@ -54,6 +54,12 @@ public class PendingFileDecisionMetadataInspector implements MetadataInspector {
             Path stagedFile = storageService.resolveFileStagingFile(decision.stagingFilename());
             String detail = decision.originalFilename() + " / " + destinationLabel(decision.destinationPath())
                     + " / received " + decision.createdAt();
+            if (decision.directory() && pendingFileDecisionService.hasCommitJournal(decision.id())) {
+                issues.add(new MetadataIssue(area(), MetadataIssueSeverity.WARNING, MetadataIssueAction.NONE,
+                        decision.id(), "Pending directory commit requires recovery", detail,
+                        "Review its file commit journal before changing this decision."));
+                continue;
+            }
             if (!safeRegularFile(stagedFile)) {
                 issues.add(new MetadataIssue(
                         area(),
@@ -103,7 +109,8 @@ public class PendingFileDecisionMetadataInspector implements MetadataInspector {
     }
 
     private boolean safeRegularFile(Path path) {
-        return Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) && !Files.isSymbolicLink(path);
+        return (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)
+                || Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) && !Files.isSymbolicLink(path);
     }
 
     private String destinationLabel(String path) {

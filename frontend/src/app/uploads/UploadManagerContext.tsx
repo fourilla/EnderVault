@@ -9,6 +9,8 @@ import {
   useState,
 } from 'react';
 import { useAdminApp } from '../AdminAppContext';
+import { type DirectoryRoot, type UploadSelection, rootSignature, validateRoot } from './collect-uploads';
+import { DirectoryUpload } from './directory-upload';
 
 type UploadStatus =
   | 'queued'
@@ -33,6 +35,8 @@ interface UploadConflict {
 interface ManagedUpload {
   id: number;
   file: File;
+  root?: DirectoryRoot;
+  completedCount?: number;
   destinationPath: string;
   loaded: number;
   total: number;
@@ -48,6 +52,7 @@ interface ManagedUpload {
 interface UploadManagerValue {
   activeCount: number;
   startFiles: (files: File[], destinationPath: string) => void;
+  startSelection: (selection: UploadSelection, destinationPath: string) => void;
 }
 
 const activeStatuses = new Set<UploadStatus>([
@@ -99,6 +104,29 @@ class AdminUploadManager {
     window.EnderVaultActivity?.announceStarted(activityIds);
   }
 
+  startSelection(selection: UploadSelection, destinationPath: string) {
+    selection.roots.forEach(validateRoot);
+    const ids: string[] = [];
+    for (const root of selection.roots) {
+      const signature = rootSignature(root, destinationPath);
+      if ([...this.uploads.values()].some((item) => item.root && activeStatuses.has(item.status)
+        && rootSignature(item.root, item.destinationPath) === signature)) {
+        window.EnderVault?.showToast('info', `"${root.name}" already has an active directory upload.`);
+        continue;
+      }
+      const upload: ManagedUpload = {
+        id: this.nextId++, file: new File([], root.name), root, destinationPath,
+        loaded: 0, total: root.files.reduce((sum, item) => sum + item.file.size, 0),
+        completedCount: 0, status: 'queued', message: '', cancelRequested: false,
+      };
+      this.uploads.set(upload.id, upload);
+      this.queue.push(upload);
+      ids.push(`upload-${upload.id}`);
+    }
+    this.startFiles(selection.files, destinationPath);
+    window.EnderVaultActivity?.announceStarted(ids);
+  }
+
   private activeUploads() {
     return [...this.uploads.values()].filter((upload) => activeStatuses.has(upload.status));
   }
@@ -128,6 +156,14 @@ class AdminUploadManager {
   }
 
   private statusText(upload: ManagedUpload) {
+    const message = this.statusMessage(upload);
+    if (!upload.root) return message;
+    const format = window.EnderVaultActivity?.formatBytes ?? ((bytes: number) => `${bytes} B`);
+    return `${upload.completedCount} / ${upload.root.files.length} files; ${format(upload.loaded)} / ${format(upload.total)}; ${message}`;
+  }
+
+  private statusMessage(upload: ManagedUpload) {
+    if (upload.status === 'canceling') return 'Canceling...';
     if (upload.cancelRequested && upload.status === 'uploading') return 'Canceling...';
     if (upload.status === 'queued') return 'Waiting to upload';
     if (upload.status === 'complete') return 'Complete';
@@ -137,7 +173,8 @@ class AdminUploadManager {
     if (upload.status === 'resolving') return 'Applying conflict choice...';
     if (upload.status === 'pending') return upload.message || 'Waiting in Pending Decisions';
     const format = window.EnderVaultActivity?.formatBytes ?? ((bytes: number) => `${bytes} B`);
-    return upload.message || `${format(upload.loaded)} / ${format(upload.total)}`;
+    const progress = `${format(upload.loaded)} / ${format(upload.total)}`;
+    return upload.message || (upload.root ? 'Uploading directory' : progress);
   }
 
   private finish(upload: ManagedUpload, status: UploadStatus, message = '') {
@@ -169,8 +206,11 @@ class AdminUploadManager {
     upload.status = 'canceling';
     this.render();
     try {
-      await upload.handle?.abort();
-      this.finish(upload, 'canceled');
+      const result = await upload.handle?.abort();
+      if (upload.root && result) {
+        upload.cancelRequested = result.status === 'CANCELED';
+        this.finishDirectory(upload, result);
+      } else this.finish(upload, 'canceled');
     } catch (reason) {
       this.finish(upload, 'failed', reason instanceof Error ? reason.message : 'Cancel failed.');
     }
@@ -190,6 +230,7 @@ class AdminUploadManager {
   }
 
   private async send(upload: ManagedUpload) {
+    if (upload.root) return this.sendDirectory(upload);
     const client = window.EnderVaultResumableUpload;
     if (!client) {
       this.finish(upload, 'failed', 'Resumable upload support is unavailable.');
@@ -202,6 +243,7 @@ class AdminUploadManager {
         context: admissionUrl,
         admissionUrl,
         onState: (state: string, message?: string) => {
+          if (upload.cancelRequested) return;
           upload.status = state as UploadStatus;
           upload.message = message || '';
           this.render();
@@ -231,6 +273,39 @@ class AdminUploadManager {
     } catch (reason) {
       this.finish(upload, 'failed', reason instanceof Error ? reason.message : 'Upload failed.');
     }
+  }
+
+  private async sendDirectory(upload: ManagedUpload) {
+    upload.status = 'uploading';
+    try {
+      upload.handle = new DirectoryUpload(upload.root!, upload.destinationPath, (bytes, count) => {
+        upload.loaded = bytes;
+        upload.completedCount = count;
+        this.render();
+      }, (message) => { upload.message = message; this.render(); });
+      const result = await upload.handle.start();
+      if (upload.cancelRequested) return;
+      this.finishDirectory(upload, result);
+    } catch (reason) {
+      if (upload.cancelRequested) return;
+      const message = `${reason instanceof Error ? reason.message : 'Directory upload failed.'} Staged files are retained; reselect the same directory to retry before expiry.`;
+      window.EnderVault?.showToast('error', message);
+      this.finish(upload, 'failed', message);
+    }
+  }
+
+  private finishDirectory(upload: ManagedUpload, result: EnderVaultUploadResult | null) {
+    if (result && ['COMPLETED', 'PENDING'].includes(result.status)) {
+      upload.completedCount = upload.root!.files.length;
+      upload.loaded = upload.total;
+    }
+    if (result?.status === 'COMPLETED') this.finish(upload, 'complete');
+    else if (result?.status === 'PENDING') {
+      window.dispatchEvent(new CustomEvent('endervault:notifications-changed'));
+      window.EnderVault?.showToast('info', `"${upload.file.name}" is waiting in Pending Decisions.`);
+      this.finish(upload, 'pending', 'Waiting in Pending Decisions');
+    } else if (!result || result.status === 'CANCELED') this.finish(upload, 'canceled');
+    else throw new Error('Directory could not be finalized.');
   }
 
   private queueConflict(upload: ManagedUpload, conflict: UploadConflict) {
@@ -320,7 +395,10 @@ export function UploadManagerProvider({ children }: PropsWithChildren) {
   const startFiles = useCallback((files: File[], destinationPath: string) => {
     manager.startFiles(files, destinationPath);
   }, [manager]);
-  const value = useMemo(() => ({ activeCount, startFiles }), [activeCount, startFiles]);
+  const startSelection = useCallback((selection: UploadSelection, destinationPath: string) => {
+    manager.startSelection(selection, destinationPath);
+  }, [manager]);
+  const value = useMemo(() => ({ activeCount, startFiles, startSelection }), [activeCount, startFiles, startSelection]);
   return <UploadManagerContext.Provider value={value}>{children}</UploadManagerContext.Provider>;
 }
 

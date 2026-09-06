@@ -65,9 +65,10 @@ public class PendingFileDecisionApiController {
         );
         PendingFileDecision decision = result.decision();
         FileItem committedFile = result.committedFile();
+        String itemLabel = decision.directory() ? "Pending directory" : "Pending file";
         String message = result.discarded()
-                ? "Pending file discarded."
-                : "Pending file saved as " + committedFile.name() + ".";
+                ? itemLabel + " discarded."
+                : itemLabel + " saved as " + committedFile.name() + ".";
         activityLogService.record(
                 "PENDING_FILE_DECISION_RESOLVE",
                 request,
@@ -107,7 +108,8 @@ public class PendingFileDecisionApiController {
             String destinationLabel,
             String sizeLabel,
             String createdLabel,
-            String createdAt
+            String createdAt,
+            boolean directory
     ) {
         static PendingFileDecisionItemResponse from(PendingFileDecision decision) {
             return new PendingFileDecisionItemResponse(
@@ -120,7 +122,8 @@ public class PendingFileDecisionApiController {
                             : "/" + decision.destinationPath(),
                     ByteSizeFormatter.humanSize(decision.size()),
                     CREATED_AT_FORMATTER.format(decision.createdAt()),
-                    decision.createdAt().toString()
+                    decision.createdAt().toString(),
+                    decision.directory()
             );
         }
     }

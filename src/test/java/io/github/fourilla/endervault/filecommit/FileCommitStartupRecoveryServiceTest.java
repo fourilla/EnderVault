@@ -75,6 +75,37 @@ class FileCommitStartupRecoveryServiceTest {
     }
 
     @Test
+    void recoversPendingDirectoryButLeavesDirectoryUploadOwnerForGroupService() throws Exception {
+        Path group = Files.createDirectory(storageService.resolveFileStagingFile("directory-upload-group"));
+        Files.writeString(group.resolve("data"), "group");
+        var groupCommit = coordinator.commitSingleDirectory(
+                new FileCommitOwner(FileCommitOwnerType.DIRECTORY_UPLOAD, "group-1"), group, "", "group");
+        Path staged = Files.createDirectory(storageService.resolveFileStagingFile("directory-upload-pending"));
+        Files.writeString(staged.resolve("data"), "pending");
+        var pending = pendingFileDecisionService.create(staged, PendingFileDecisionSource.DIRECTORY_UPLOAD,
+                "", "pending", 7, "group-2", null);
+        String id = UUID.randomUUID().toString();
+        journalStore.create(new FileCommitManifest(FileCommitManifest.CURRENT_SCHEMA_VERSION, id,
+                new FileCommitOwner(FileCommitOwnerType.PENDING_FILE_DECISION, pending.id()),
+                FileCommitOperationType.SINGLE_DIRECTORY, ConflictPolicy.RENAME,
+                List.of(new FileCommitItem(0, ".endervault/file-staging/directory-upload-pending", "pending - 1",
+                        FileCommitFingerprints.tree(staged, null), null)), Instant.now()));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> pendingFileDecisionService.resolve(
+                pending.id(), PendingFileDecisionAction.DISCARD, null, false))
+                .isInstanceOf(io.github.fourilla.endervault.common.StorageAccessException.class);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> pendingFileDecisionService.removeMissingData(pending.id()))
+                .isInstanceOf(io.github.fourilla.endervault.common.StorageAccessException.class);
+        assertThat(staged.resolve("data")).exists();
+        var summary = recoveryService.recover();
+        assertThat(summary.recovered()).isEqualTo(1);
+        assertThat(pendingFileDecisionService.list()).isEmpty();
+        assertThat(root.resolve("pending - 1/data")).exists();
+        assertThat(journalStore.list()).extracting(entry -> entry.manifest().operationId())
+                .containsExactly(groupCommit.operationId());
+        assertThat(journalStore.load(groupCommit.operationId()).state().phase()).isEqualTo(FileCommitPhase.APPLYING_METADATA);
+    }
+
+    @Test
     void resumesRemoteDownloadCommitWithoutRestoringTheMemoryTask() throws Exception {
         Path staged = stagedFile("remote payload");
         createPreparedJournal(

@@ -58,6 +58,36 @@ public class FileCommitCoordinator {
     ) throws IOException {
         Objects.requireNonNull(owner, "owner");
         Objects.requireNonNull(conflictPolicy, "conflictPolicy");
+        return commitSingleEntry(owner, stagedFile, destinationPath, filename, conflictPolicy, false);
+    }
+
+    /**
+     * Publishes one direct file-staging child using a same-filesystem atomic move, never a merge.
+     * The owner must stop staging writers and complete owner metadata before calling complete().
+     * Java's precheck plus ATOMIC_MOVE cannot guarantee no replacement against external writers
+     * racing the destination, or exclude source mutations/same-directory renames after fingerprinting.
+     * DIRECTORY_UPLOAD recovery and completion belong to the upload group service.
+     */
+    public synchronized StagedFileCommit commitSingleDirectory(
+            FileCommitOwner owner, Path stagedPath, String destinationPath, String name
+    ) throws IOException {
+        return commitSingleDirectory(owner, stagedPath, destinationPath, name, ConflictPolicy.CANCEL);
+    }
+
+    // RENAME records a pending KEEP_BOTH choice; the caller supplies the already selected name.
+    public synchronized StagedFileCommit commitSingleDirectory(
+            FileCommitOwner owner, Path stagedPath, String destinationPath, String name, ConflictPolicy policy
+    ) throws IOException {
+        Objects.requireNonNull(owner, "owner");
+        if (policy != ConflictPolicy.CANCEL && policy != ConflictPolicy.RENAME) {
+            throw new StorageAccessException("Directory replacement is not supported.");
+        }
+        return commitSingleEntry(owner, stagedPath, destinationPath, name, policy, true);
+    }
+
+    private StagedFileCommit commitSingleEntry(FileCommitOwner owner, Path stagedFile,
+            String destinationPath, String filename, ConflictPolicy conflictPolicy, boolean directory)
+            throws IOException {
         CommitPaths paths = commitPaths(stagedFile, destinationPath, filename);
         Optional<FileCommitJournalEntry> existing = journalStore.findByOwner(owner);
         if (existing.isPresent() && existing.get().state().phase() == FileCommitPhase.COMPLETED) {
@@ -66,8 +96,8 @@ public class FileCommitCoordinator {
         }
 
         FileCommitJournalEntry entry = existing.isPresent()
-                ? requireMatchingPlan(existing.get(), owner, paths, conflictPolicy)
-                : createJournal(owner, paths, conflictPolicy);
+                ? requireMatchingPlan(existing.get(), owner, paths, conflictPolicy, directory)
+                : createJournal(owner, paths, conflictPolicy, directory);
         return resume(entry, paths);
     }
 
@@ -164,25 +194,38 @@ public class FileCommitCoordinator {
     private FileCommitJournalEntry createJournal(
             FileCommitOwner owner,
             CommitPaths paths,
-            ConflictPolicy conflictPolicy
+            ConflictPolicy conflictPolicy,
+            boolean directory
     ) throws IOException {
-        requireRegularFile(paths.stagedFile(), "File commit staging data is unavailable.");
+        if (directory) {
+            if (!Files.isDirectory(paths.stagedFile(), LinkOption.NOFOLLOW_LINKS)
+                    || Files.isSymbolicLink(paths.stagedFile())) {
+                throw new StorageAccessException("Directory commit staging data is unavailable.");
+            }
+        } else {
+            requireRegularFile(paths.stagedFile(), "File commit staging data is unavailable.");
+        }
         FileCommitFingerprint targetSnapshot = null;
         if (conflictPolicy == ConflictPolicy.OVERWRITE) {
             requireRegularFile(paths.targetFile(), "File replacement target is unavailable.");
             targetSnapshot = fingerprint(paths.targetFile());
         }
+        FileCommitFingerprint stagingFingerprint = directory
+                ? FileCommitFingerprints.tree(paths.stagedFile(), null) : fingerprint(paths.stagedFile());
+        if (stagingFingerprint.directory() != directory) {
+            throw new StorageAccessException("Staging entry kind changed before commit.");
+        }
         FileCommitManifest manifest = new FileCommitManifest(
                 FileCommitManifest.CURRENT_SCHEMA_VERSION,
                 UUID.randomUUID().toString(),
                 owner,
-                FileCommitOperationType.SINGLE_FILE,
+                directory ? FileCommitOperationType.SINGLE_DIRECTORY : FileCommitOperationType.SINGLE_FILE,
                 conflictPolicy,
                 List.of(new FileCommitItem(
                         0,
                         paths.stagingPath(),
                         paths.targetPath(),
-                        fingerprint(paths.stagedFile()),
+                        stagingFingerprint,
                         targetSnapshot
                 )),
                 Instant.now()
@@ -233,6 +276,10 @@ public class FileCommitCoordinator {
         boolean targetExists = Files.exists(paths.targetFile(), LinkOption.NOFOLLOW_LINKS);
 
         if (sourceExists && targetExists) {
+            if (expected.directory()) {
+                requireFingerprint(expected, paths.stagedFile(), entry, "Staging directory changed before commit.");
+                throw conflict(abort(entry, "Destination was occupied before commit completed."), paths.targetFile());
+            }
             requireRegularFile(paths.stagedFile(), "File commit staging data is unsafe.");
             requireRegularFile(paths.targetFile(), "File commit target is unsafe.");
             if (!Files.isSameFile(paths.stagedFile(), paths.targetFile())) {
@@ -246,9 +293,13 @@ public class FileCommitCoordinator {
         } else if (sourceExists) {
             requireFingerprint(expected, paths.stagedFile(), entry, "Staging data changed before commit.");
             try {
-                storageService.commitStagedRegularFileNoReplace(
-                        paths.stagedFile(), paths.destinationPath(), paths.filename()
-                );
+                if (expected.directory()) {
+                    storageService.commitStagedDirectoryNoReplace(
+                            paths.stagedFile(), paths.destinationPath(), paths.filename());
+                } else {
+                    storageService.commitStagedRegularFileNoReplace(
+                            paths.stagedFile(), paths.destinationPath(), paths.filename());
+                }
             } catch (FileAlreadyExistsException ex) {
                 FileCommitJournalEntry aborted = abort(entry, "Destination was occupied before commit completed.");
                 throw conflict(aborted, paths.targetFile());
@@ -332,13 +383,17 @@ public class FileCommitCoordinator {
             FileCommitJournalEntry entry,
             FileCommitOwner owner,
             CommitPaths paths,
-            ConflictPolicy conflictPolicy
+            ConflictPolicy conflictPolicy,
+            boolean directory
     ) throws IOException {
         FileCommitManifest manifest = entry.manifest();
         boolean matches = manifest.owner().equals(owner)
-                && manifest.operationType() == FileCommitOperationType.SINGLE_FILE
+                && manifest.operationType() == (directory
+                        ? FileCommitOperationType.SINGLE_DIRECTORY : FileCommitOperationType.SINGLE_FILE)
+                && (!directory || conflictPolicy != ConflictPolicy.OVERWRITE)
                 && manifest.conflictPolicy() == conflictPolicy
                 && manifest.items().size() == 1
+                && manifest.items().get(0).stagingFingerprint().directory() == directory
                 && manifest.items().get(0).stagingPath().equals(paths.stagingPath())
                 && manifest.items().get(0).targetPath().equals(paths.targetPath());
         if (!matches) {
@@ -368,7 +423,13 @@ public class FileCommitCoordinator {
     }
 
     private boolean matchesFingerprint(FileCommitFingerprint expected, Path path) throws IOException {
-        return FileCommitFingerprints.matchesRegularFile(expected, path);
+        try {
+            return expected != null && expected.directory()
+                    ? FileCommitFingerprints.matchesTree(expected, path)
+                    : FileCommitFingerprints.matchesRegularFile(expected, path);
+        } catch (StorageAccessException ex) {
+            return false;
+        }
     }
 
     private FileCommitJournalEntry abort(FileCommitJournalEntry entry, String detail) throws IOException {
@@ -420,7 +481,8 @@ public class FileCommitCoordinator {
 
     private CommitPaths recoveryPaths(FileCommitJournalEntry entry) throws IOException {
         FileCommitManifest manifest = entry.manifest();
-        if (manifest.operationType() != FileCommitOperationType.SINGLE_FILE || manifest.items().size() != 1) {
+        if ((manifest.operationType() != FileCommitOperationType.SINGLE_FILE
+                && manifest.operationType() != FileCommitOperationType.SINGLE_DIRECTORY) || manifest.items().size() != 1) {
             throw rejectRecoveryPlan(entry, "Stored file commit is not a single-file plan.");
         }
         FileCommitItem item = manifest.items().get(0);
@@ -447,7 +509,8 @@ public class FileCommitCoordinator {
         } catch (IllegalArgumentException | StorageAccessException ex) {
             throw rejectRecoveryPlan(entry, "Stored file commit path is invalid.");
         }
-        requireMatchingPlan(entry, manifest.owner(), paths, manifest.conflictPolicy());
+        requireMatchingPlan(entry, manifest.owner(), paths, manifest.conflictPolicy(),
+                manifest.operationType() == FileCommitOperationType.SINGLE_DIRECTORY);
         return paths;
     }
 

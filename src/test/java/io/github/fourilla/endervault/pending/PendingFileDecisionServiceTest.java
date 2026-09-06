@@ -43,6 +43,53 @@ class PendingFileDecisionServiceTest {
     }
 
     @Test
+    void directoryKeepBothPreservesWholeNameAndRestoresRegistration() throws Exception {
+        TemporaryArtifactRegistry artifacts = new TemporaryArtifactRegistry();
+        PendingFileDecisionService service = service(artifacts);
+        Path staged = Files.createDirectory(storageService.resolveFileStagingFile("directory-upload-test"));
+        Files.createDirectories(staged.resolve("nested/empty"));
+        Files.writeString(staged.resolve("nested/data.txt"), "payload");
+        Files.createDirectory(root.resolve("photos.v1"));
+        PendingFileDecision decision = service.create(staged, PendingFileDecisionSource.DIRECTORY_UPLOAD,
+                "", "photos.v1", 7, "group-1", null);
+        assertThat(decision.directory()).isTrue();
+        service.closeRegistrations();
+        service = service(artifacts);
+        assertThat(service.require(decision.id()).directory()).isTrue();
+        assertThat(artifacts.isActive(staged)).isTrue();
+        PendingFileDecisionService restarted = service;
+        assertThatThrownBy(() -> restarted.resolve(decision.id(), PendingFileDecisionAction.REPLACE, null, true))
+                .isInstanceOf(StorageAccessException.class);
+        assertThatThrownBy(() -> restarted.removeMissingData(decision.id()))
+                .isInstanceOf(StorageAccessException.class);
+        var result = service.resolve(decision.id(), PendingFileDecisionAction.KEEP_BOTH, null, false);
+        assertThat(result.committedFile().directory()).isTrue();
+        assertThat(result.committedFile().name()).isEqualTo("photos.v1 - 1");
+        assertThat(Files.readString(root.resolve("photos.v1 - 1/nested/data.txt"))).isEqualTo("payload");
+        assertThat(root.resolve("photos.v1 - 1/nested/empty")).isDirectory();
+        assertThat(root.resolve("photos.v1")).isEmptyDirectory();
+        assertThat(artifacts.isActive(staged)).isFalse();
+    }
+
+    @Test
+    void directorySaveAsConflictAndDiscardPreserveExistingDestination() throws Exception {
+        PendingFileDecisionService service = service(new TemporaryArtifactRegistry());
+        Path staged = Files.createDirectory(storageService.resolveFileStagingFile("directory-upload-test"));
+        Files.writeString(staged.resolve("data.txt"), "payload");
+        Files.writeString(root.resolve("occupied"), "original");
+        PendingFileDecision decision = service.create(staged, PendingFileDecisionSource.DIRECTORY_UPLOAD,
+                "", "occupied", 7);
+        assertThatThrownBy(() -> service.resolve(decision.id(), PendingFileDecisionAction.SAVE_AS, "occupied", false))
+                .isInstanceOf(java.nio.file.FileAlreadyExistsException.class);
+        assertThat(staged.resolve("data.txt")).exists();
+        assertThat(fileCommitJournalStore.list()).isEmpty();
+        service.resolve(decision.id(), PendingFileDecisionAction.DISCARD, null, false);
+        assertThat(staged).doesNotExist();
+        assertThat(Files.readString(root.resolve("occupied"))).isEqualTo("original");
+        assertThat(service.list()).isEmpty();
+    }
+
+    @Test
     void restoresPendingDecisionAndStagingRegistrationAfterRestart() throws Exception {
         Files.writeString(root.resolve("note.txt"), "existing");
         TemporaryArtifactRegistry firstArtifacts = new TemporaryArtifactRegistry();

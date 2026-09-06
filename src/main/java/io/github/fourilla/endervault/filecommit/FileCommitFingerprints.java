@@ -16,12 +16,12 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
 
-final class FileCommitFingerprints {
+public final class FileCommitFingerprints {
 
     private FileCommitFingerprints() {
     }
 
-    static FileCommitFingerprint regularFile(Path path) throws IOException {
+    public static FileCommitFingerprint regularFile(Path path) throws IOException {
         BasicFileAttributes attributes = attributes(path);
         if (!attributes.isRegularFile() || Files.isSymbolicLink(path)) {
             throw new StorageAccessException("File commit path is not a regular file.");
@@ -78,7 +78,7 @@ final class FileCommitFingerprints {
         );
     }
 
-    static boolean matchesRegularFile(FileCommitFingerprint expected, Path path) throws IOException {
+    public static boolean matchesRegularFile(FileCommitFingerprint expected, Path path) throws IOException {
         if (expected == null || expected.directory()) {
             return false;
         }

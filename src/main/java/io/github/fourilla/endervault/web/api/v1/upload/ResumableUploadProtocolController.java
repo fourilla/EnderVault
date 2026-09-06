@@ -101,6 +101,7 @@ public class ResumableUploadProtocolController {
             case ADMITTED -> "Upload is ready to start.";
             case UPLOADING -> "Upload is in progress.";
             case STAGED, FINALIZING -> "Upload is being finalized.";
+            case DIRECTORY_READY -> "File received for directory upload.";
             case PENDING -> "Upload was received and is waiting for an administrator decision.";
             case COMPLETED -> "Upload completed.";
             case CANCELED -> "Upload was canceled.";
