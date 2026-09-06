@@ -37,8 +37,8 @@ export function AdminSidebar() {
     .filter((entry) => navigationEntryAvailable(entry, bootstrap.capabilities));
 
   return (
-    <aside className="sidebar">
-      <NavLink className="sidebar-brand" to="/files">EnderVault</NavLink>
+    <aside id="admin-sidebar" className="sidebar">
+      <div id="sidebar-content" className="sidebar-content">
       <nav className="sidebar-nav" aria-label="Primary navigation">
         {entries.map((entry) => <ShellNavigationLink entry={entry} key={entry.id} />)}
       </nav>
@@ -46,7 +46,7 @@ export function AdminSidebar() {
       <div className="sidebar-favorites-shell">
         <section className={`sidebar-favorites${favoritesOpen ? ' is-open' : ''}`}>
           <div className="sidebar-favorites-header">
-            <NavLink to="/files/favorites">
+            <NavLink to="/files/favorites" title="Favorites">
               <i className="fas fa-star" aria-hidden="true" />
               <span>Favorites</span>
             </NavLink>
@@ -78,6 +78,7 @@ export function AdminSidebar() {
         <strong>{bootstrap.storage.usedLabel} / {bootstrap.storage.totalLabel}</strong>
         <span>{bootstrap.storage.usedPercent}% used / {bootstrap.storage.usableLabel} free</span>
       </section>
+      </div>
     </aside>
   );
 }

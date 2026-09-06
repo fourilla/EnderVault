@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { navigationEntryAvailable, navigationFor, type NavigationEntry } from './navigation';
 import { ActivityControl } from './ActivityControl';
 import { NotificationCenterControl } from './NotificationCenterControl';
@@ -56,7 +57,10 @@ function LogoutForm() {
   );
 }
 
-export function AdminTopbar() {
+export function AdminTopbar({ sidebarCollapsed, onToggleSidebar }: {
+  sidebarCollapsed: boolean;
+  onToggleSidebar: () => void;
+}) {
   const { bootstrap } = useAdminApp();
   const activeSessionCount = bootstrap.sessions.activeCount;
   const available = (placement: 'apps' | 'account') => navigationFor(placement)
@@ -64,6 +68,15 @@ export function AdminTopbar() {
 
   return (
     <header className="topbar app-topbar">
+      <div className="admin-shell-brand">
+        <button type="button" className="ghost icon-button sidebar-collapse-toggle"
+          aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-expanded={!sidebarCollapsed} aria-controls="admin-sidebar" onClick={onToggleSidebar}>
+          <i className="fas fa-bars" aria-hidden="true" />
+        </button>
+        <Link className="sidebar-brand" to="/files">EnderVault</Link>
+      </div>
       <div className="admin-shell-route-actions"><RouteActionSlot /></div>
       <div className="topbar-actions">
         <ShellPopover id="applications" icon="fas fa-grip" label="Applications">

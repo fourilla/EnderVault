@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Outlet, ScrollRestoration, useLocation } from 'react-router-dom';
 import { AdminSidebar } from './AdminSidebar';
 import { AdminTopbar } from './AdminTopbar';
@@ -12,6 +12,15 @@ import './app-shell.css';
 
 export function AppShell() {
   const location = useLocation();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem('endervault.sidebar.collapsed') === 'true'; }
+    catch { return false; }
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem('endervault.sidebar.collapsed', String(sidebarCollapsed)); }
+    catch { /* Navigation remains usable when browser storage is unavailable. */ }
+  }, [sidebarCollapsed]);
 
   useEffect(() => {
     const entry = navigationEntryForPathname(location.pathname);
@@ -40,14 +49,15 @@ export function AppShell() {
   return (
     <RemoteDownloadTasksProvider>
       <ShellStatusProvider>
-        <div className="app-shell admin-react-shell">
+        <div className={`app-shell admin-react-shell${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
           <SpaNavigationBridge />
           <DialogHost routeKey={location.key} />
+          <TopbarPopoverProvider>
+            <AdminTopbar sidebarCollapsed={sidebarCollapsed}
+              onToggleSidebar={() => setSidebarCollapsed((value) => !value)} />
+          </TopbarPopoverProvider>
           <AdminSidebar />
           <div className="app-main" data-file-dropzone>
-            <TopbarPopoverProvider>
-              <AdminTopbar />
-            </TopbarPopoverProvider>
             <main className="workspace">
               <Outlet />
             </main>
