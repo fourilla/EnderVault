@@ -63,18 +63,6 @@
         return payload;
     };
 
-    const prepareCreationOptions = (options) => {
-        const publicKey = options.publicKey || options;
-        publicKey.challenge = base64UrlToArrayBuffer(publicKey.challenge);
-        publicKey.user.id = base64UrlToArrayBuffer(publicKey.user.id);
-        if (publicKey.excludeCredentials) {
-            publicKey.excludeCredentials = publicKey.excludeCredentials.map((credential) => ({
-                ...credential,
-                id: base64UrlToArrayBuffer(credential.id)
-            }));
-        }
-        return options.publicKey ? options : { publicKey };
-    };
 
     const prepareRequestOptions = (options) => {
         const publicKey = options.publicKey || options;
@@ -101,12 +89,6 @@
             }
         };
 
-        if (response.attestationObject) {
-            json.response.attestationObject = arrayBufferToBase64Url(response.attestationObject);
-            if (typeof response.getTransports === "function") {
-                json.response.transports = response.getTransports();
-            }
-        }
 
         if (response.authenticatorData) {
             json.response.authenticatorData = arrayBufferToBase64Url(response.authenticatorData);
@@ -141,26 +123,6 @@
         return true;
     };
 
-    const registerPasskey = async (button) => {
-        const form = button.closest("[data-passkey-register-form]");
-        const label = form?.querySelector('input[name="label"]')?.value || "";
-        setButtonBusy(button, true);
-        try {
-            const options = prepareCreationOptions(await loadOptions(button.dataset.optionsUrl));
-            const credential = await navigator.credentials.create(options);
-            const body = await postJson(button.dataset.finishUrl, {
-                label,
-                credential: credentialToJson(credential)
-            });
-            if (!window.EnderVault?.navigateWithNotification?.(body)) {
-                window.location.reload();
-            }
-        } catch (error) {
-            showError(error);
-        } finally {
-            setButtonBusy(button, false);
-        }
-    };
 
     const loginWithPasskey = async (button) => {
         setButtonBusy(button, true);
@@ -180,30 +142,7 @@
         }
     };
 
-    const deletePasskey = async (form) => {
-        const button = form.querySelector("button[type='submit']");
-        setButtonBusy(button, true);
-        try {
-            const body = await window.EnderVault.submitJsonForm(form);
-            if (!window.EnderVault.navigateWithNotification(body)) {
-                window.location.reload();
-            }
-        } catch (error) {
-            showError(error);
-            setButtonBusy(button, false);
-        }
-    };
-
     document.addEventListener("click", (event) => {
-        const registerButton = event.target.closest("[data-passkey-register]");
-        if (registerButton) {
-            event.preventDefault();
-            if (canUsePasskeys()) {
-                registerPasskey(registerButton);
-            }
-            return;
-        }
-
         const loginButton = event.target.closest("[data-passkey-login]");
         if (loginButton) {
             event.preventDefault();
@@ -213,10 +152,4 @@
         }
     });
 
-    document.querySelectorAll("[data-passkey-delete-form]").forEach((form) => {
-        form.addEventListener("submit", (event) => {
-            event.preventDefault();
-            deletePasskey(form);
-        });
-    });
 })();
