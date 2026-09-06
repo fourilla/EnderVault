@@ -181,7 +181,7 @@
         }
     };
 
-    const navigate = (url) => {
+    const navigate = (url, notification = null) => {
         if (!url) {
             return false;
         }
@@ -191,7 +191,10 @@
             detail: { url }
         });
         if (document.dispatchEvent(event)) {
+            rememberNotification(notification);
             window.location.assign(url);
+        } else if (notification) {
+            showNotification(notification);
         }
         return true;
     };
@@ -201,8 +204,7 @@
             return false;
         }
 
-        rememberNotification(body.notification);
-        return navigate(body.redirectUrl);
+        return navigate(body.redirectUrl, body.notification);
     };
 
     const contextMenus = (() => {

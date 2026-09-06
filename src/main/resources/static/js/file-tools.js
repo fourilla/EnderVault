@@ -160,6 +160,7 @@ const initializeTextEditor = (form) => {
     const setDirty = (nextDirty) => {
         dirty = nextDirty;
         form.classList.toggle("is-dirty", dirty);
+        form.dispatchEvent(new Event("text-editor-dirty-change"));
     };
 
     const currentValue = () => codeMirror ? codeMirror.getValue() : textarea?.value || "";
