@@ -5,10 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>EnderVault Read-only</title>
     <th:block th:replace="~{fragments/assets :: styles(true)}"></th:block>
-    <script defer th:src="@{/js/endervault-core.js}"></script>
+    <th:block th:replace="~{fragments/assets :: viteEntry(${dialogsFrontend})}"></th:block>
     <script defer th:src="@{/js/notifications.js}"></script>
     <script defer th:src="@{/js/read-only.js}"></script>
-    <script defer th:src="@{/js/page-jump.js}"></script>
 </head>
 <body class="readonly-page">
 <div th:replace="~{fragments/notifications :: toasts}"></div>

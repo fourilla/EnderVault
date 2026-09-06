@@ -19,6 +19,7 @@ export default defineConfig({
         styles: 'src/styles/main.ts',
         shell: 'src/shell/main.ts',
         adminApp: 'src/app/main.tsx',
+        dialogs: 'src/dialogs/main.tsx',
         fileTools: 'src/file-tools/main.ts',
         sharedImage: 'src/shared-file/image.tsx',
         sharedComic: 'src/shared-file/comic.tsx',

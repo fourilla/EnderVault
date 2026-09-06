@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { AppDialog } from '../shared/dialogs/AppDialog';
 import { AppNavigationLink } from '../app/AppNavigationLink';
 import { useAdminApp } from '../app/AdminAppContext';
 import { toastError } from '../shared/api/form-api';
@@ -13,7 +14,6 @@ export function ActiveSessionsApp() {
   const [selectedSession, setSelectedSession] = useState<ActiveSession | null>(null);
   const [busyId, setBusyId] = useState('');
   const [error, setError] = useState('');
-  const detailDialog = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -28,13 +28,7 @@ export function ActiveSessionsApp() {
     return () => controller.abort();
   }, []);
 
-  useEffect(() => {
-    const dialog = detailDialog.current;
-    if (selectedSession && dialog && !dialog.open) dialog.showModal();
-  }, [selectedSession]);
-
   const closeDetails = () => {
-    detailDialog.current?.close();
     setSelectedSession(null);
   };
 
@@ -134,9 +128,8 @@ export function ActiveSessionsApp() {
         </section>
       )}
 
-      <dialog ref={detailDialog} className="admin-detail-modal" aria-labelledby="sessionDetailTitle"
-        onClose={() => setSelectedSession(null)}
-        onClick={(event) => { if (event.target === event.currentTarget) closeDetails(); }}>
+      <AppDialog open={selectedSession !== null} className="admin-detail-modal" labelledBy="sessionDetailTitle"
+        onDismiss={closeDetails} dismissOnBackdrop>
         <article className="admin-detail-modal-card">
           <header className="admin-detail-modal-header">
             <div>
@@ -160,7 +153,7 @@ export function ActiveSessionsApp() {
             <div><dt>User-Agent</dt><dd>{selectedSession?.userAgent || '-'}</dd></div>
           </dl>
         </article>
-      </dialog>
+      </AppDialog>
     </>
   );
 }

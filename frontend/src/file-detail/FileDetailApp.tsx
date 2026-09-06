@@ -209,15 +209,17 @@ export function FileDetailApp() {
         && target.pathname === '/files/detail' && Boolean(target.searchParams.get('path'));
       if (preserve) {
         try {
-          // Swap the route and its ready snapshot together, without collapsing File Tools.
+          // Keep the current editor mounted until the router accepts leaving it.
           const next = await loadFileDetail(target.searchParams, controller.signal);
           if (!stillHere()) return;
           detailRequestVersion.current += 1;
           prefetchedDetail.current = location.search !== target.search
             ? { key: detailQueryKey(new URLSearchParams({ path: target.searchParams.get('path') || '' })), payload: next } : null;
           startTransition(() => {
-            setSnapshot({ path: target.searchParams.get('path')!, payload: next });
-            setRename(next.detail.name); setError(''); setLoading(false);
+            if (location.search === target.search) {
+              setSnapshot({ path: target.searchParams.get('path')!, payload: next });
+              setRename(next.detail.name); setError(''); setLoading(false);
+            }
             navigate(body.redirectUrl, { replace: true, preventScrollReset: true });
           });
           return;

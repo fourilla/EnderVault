@@ -1,4 +1,5 @@
-import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { type FormEvent, useEffect, useState } from 'react';
+import { AppDialog } from '../shared/dialogs/AppDialog';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
@@ -39,7 +40,6 @@ export function ActivityLogsApp() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<ActivityLogEntry | null>(null);
-  const detailDialog = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -62,11 +62,6 @@ export function ActivityLogsApp() {
       });
     return () => controller.abort();
   }, [locationSearch, refreshToken]);
-
-  useEffect(() => {
-    const dialog = detailDialog.current;
-    if (selectedEntry && dialog && !dialog.open) dialog.showModal();
-  }, [selectedEntry]);
 
   const navigate = (params: URLSearchParams) => {
     const search = params.toString();
@@ -152,7 +147,7 @@ export function ActivityLogsApp() {
     }
   };
 
-  const closeDetails = () => detailDialog.current?.close();
+  const closeDetails = () => setSelectedEntry(null);
   const entries = payload?.entries ?? [];
 
   return (
@@ -320,9 +315,8 @@ export function ActivityLogsApp() {
         </section>
       )}
 
-      <dialog ref={detailDialog} className="admin-detail-modal" aria-labelledby="logDetailTitle"
-        onClose={() => setSelectedEntry(null)}
-        onClick={(event) => { if (event.target === event.currentTarget) closeDetails(); }}>
+      <AppDialog open={selectedEntry !== null} className="admin-detail-modal" labelledBy="logDetailTitle"
+        onDismiss={closeDetails} dismissOnBackdrop>
         <article className="admin-detail-modal-card">
           <header className="admin-detail-modal-header">
             <div>
@@ -345,7 +339,7 @@ export function ActivityLogsApp() {
             <div><dt>Metadata</dt><dd>{selectedEntry?.metadataLabel ?? '-'}</dd></div>
           </dl>
         </article>
-      </dialog>
+      </AppDialog>
     </>
   );
 }

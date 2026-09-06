@@ -224,13 +224,6 @@
         min-width: var(--table-action-icon-size);
     }
 
-    .settings-panel {
-        position: static;
-        width: min(280px, calc(100vw - 44px));
-        margin-top: var(--space-md);
-        box-shadow: none;
-    }
-
     .settings-save-bar {
         align-items: stretch;
         flex-direction: column;

@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { UnsavedChangesGuard } from '../shared/dialogs/UnsavedChangesGuard';
 import type { FileDetailPayload } from './types';
 
 function CsrfInput() {
@@ -8,11 +9,15 @@ function CsrfInput() {
 
 export function TextTool({ payload }: { payload: FileDetailPayload }) {
   const rootRef = useRef<HTMLFormElement>(null);
+  const [dirty, setDirty] = useState(false);
   const { detail, text, tool, urls } = payload;
 
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
+    const updateDirty = () => setDirty(root.classList.contains('is-dirty'));
+    updateDirty();
+    root.addEventListener('text-editor-dirty-change', updateDirty);
     let disposed = false;
     let destroy: ((root?: ParentNode) => void) | undefined;
     void (async () => {
@@ -26,6 +31,7 @@ export function TextTool({ payload }: { payload: FileDetailPayload }) {
     });
     return () => {
       disposed = true;
+      root.removeEventListener('text-editor-dirty-change', updateDirty);
       destroy?.(root);
     };
   }, [detail.path, tool.markdown]);
@@ -46,6 +52,8 @@ export function TextTool({ payload }: { payload: FileDetailPayload }) {
       data-text-name={detail.name}
       data-text-editor
     >
+      <UnsavedChangesGuard dirty={dirty}
+        message="Your changes have not been saved to the original file. Only successfully saved drafts will remain after leaving." />
       <CsrfInput />
       <input type="hidden" name="path" value={detail.path} />
       <input type="hidden" name="editorToken" value="" data-text-editor-token readOnly />

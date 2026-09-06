@@ -26,10 +26,20 @@ class ViteAssetServiceTest {
         assertThat(entry.development()).isFalse();
         assertThat(entry.entryScript()).startsWith("/react/assets/adminApp-").endsWith(".js");
         assertThat(entry.styles())
-                .singleElement()
-                .asString()
-                .startsWith("/react/assets/adminApp-")
-                .endsWith(".css");
+                .anyMatch(url -> url.startsWith("/react/assets/adminApp-") && url.endsWith(".css"))
+                .anyMatch(url -> url.contains("DialogHost-") && url.endsWith(".css"));
+    }
+
+    @Test
+    void resolvesStandaloneDialogsWithoutAdminRuntime() {
+        ViteAssetService service = new ViteAssetService(
+                new ObjectMapper(), new DefaultResourceLoader(), "");
+        ViteAssetService.ViteEntry entry = service.entry("src/dialogs/main.tsx");
+
+        assertThat(entry.available()).isTrue();
+        assertThat(entry.entryScript()).startsWith("/react/assets/dialogs-").endsWith(".js");
+        assertThat(entry.styles()).anyMatch(url -> url.contains("DialogHost-") && url.endsWith(".css"));
+        assertThat(entry.modulePreloads()).noneMatch(url -> url.contains("adminApp-") || url.contains("shell-"));
     }
 
     @Test

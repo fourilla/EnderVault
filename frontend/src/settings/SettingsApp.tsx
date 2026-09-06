@@ -10,6 +10,7 @@ import { SessionSettings } from './sections/SessionSettings';
 import { TelegramSettings } from './sections/TelegramSettings';
 import { VpnSettings } from './sections/VpnSettings';
 import { OverflowMarquee } from './components/OverflowMarquee';
+import { UnsavedChangesGuard } from '../shared/dialogs/UnsavedChangesGuard';
 import './settings-app.css';
 
 type InternalSectionId =
@@ -102,26 +103,14 @@ export function SettingsApp() {
   const [dirty, setDirty] = useState(false);
   const active = internalSections[section];
 
-  const confirmNavigation = useCallback(async () => {
-    if (!dirty) return true;
-    return window.EnderVault?.askConfirmation?.({
-      title: 'Discard unsaved changes?',
-      message: 'The current settings have not been saved. Leave this section and discard them?',
-      confirmLabel: 'Discard changes',
-      danger: true,
-    }) ?? Promise.resolve(window.confirm('Discard unsaved settings changes?'));
-  }, [dirty]);
-
-  const openInternal = useCallback(async (next: InternalSectionId) => {
-    if (next === section || !(await confirmNavigation())) return;
-    setDirty(false);
-    setSection(next);
+  const openInternal = useCallback((next: InternalSectionId) => {
+    if (next === section) return;
     const search = new URLSearchParams(location.search);
     search.set('section', next);
     navigate({ pathname: location.pathname, search: `?${search.toString()}` }, {
       state: { settingsSection: next },
     });
-  }, [confirmNavigation, location.pathname, location.search, navigate, section]);
+  }, [location.pathname, location.search, navigate, section]);
 
   useEffect(() => {
     if (!location.hash) return;
@@ -134,28 +123,10 @@ export function SettingsApp() {
 
   useEffect(() => {
     const next = sectionFromSearch(location.search);
-    if (next === section) return undefined;
-    let current = true;
-    if (!dirty) {
-      setSection(next);
-      return undefined;
-    }
-    void confirmNavigation().then((confirmed) => {
-      if (!current) return;
-      if (confirmed) {
-        setDirty(false);
-        setSection(next);
-        return;
-      }
-      const search = new URLSearchParams(location.search);
-      search.set('section', section);
-      navigate({ pathname: location.pathname, search: `?${search.toString()}` }, {
-        replace: true,
-        state: { settingsSection: section },
-      });
-    });
-    return () => { current = false; };
-  }, [confirmNavigation, dirty, location.pathname, location.search, navigate, section]);
+    if (next === section) return;
+    setDirty(false);
+    setSection(next);
+  }, [location.search, section]);
 
   const editor = useMemo(() => {
     const props = { onDirtyChange: setDirty };
@@ -184,6 +155,7 @@ export function SettingsApp() {
 
   return (
     <section className="dashboard-panel settings-spa-shell" aria-label="Application settings">
+      <UnsavedChangesGuard dirty={dirty} message="The current settings have not been saved. Leaving will discard these changes." />
       <aside className="settings-spa-sidebar" aria-label="Settings sections">
         <header className="settings-spa-sidebar-heading">
           <h2>Settings</h2>

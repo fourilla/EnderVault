@@ -26,12 +26,12 @@ export function PasskeySettings({ onDirtyChange }: { onDirtyChange: (dirty: bool
   };
 
   const remove = async (id: string, name: string) => {
-    const confirmed = await (window.EnderVault?.askConfirmation?.({
+    const confirmed = await window.EnderVault!.askConfirmation({
       title: 'Delete passkey?',
       message: `Delete ${name}? This device will no longer be able to use that credential.`,
       confirmLabel: 'Delete passkey',
       danger: true,
-    }) ?? Promise.resolve(window.confirm(`Delete ${name}?`)));
+    });
     if (!confirmed) return;
     try {
       const result = await postJson<ActionResponse>(`/api/v1/settings/passkeys/${encodeURIComponent(id)}/delete`);

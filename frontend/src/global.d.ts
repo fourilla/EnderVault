@@ -39,6 +39,8 @@ declare global {
         danger?: boolean;
       }) => Promise<boolean>;
       askFileConflictPolicy?: (options: Record<string, unknown>) => Promise<string>;
+      openDialog?: (dialog: HTMLDialogElement) => void;
+      closeDialog?: (dialog: HTMLDialogElement) => void;
       showNotification: (notification: unknown) => void;
       showToast: (type: string, message: string) => void;
       copyText: (text: string) => Promise<boolean>;

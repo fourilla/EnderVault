@@ -34,11 +34,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const close = () => {
         targetInput = null;
-        if (typeof dialog.close === "function" && dialog.open) {
-            dialog.close();
-        } else {
-            dialog.hidden = true;
-        }
+        window.EnderVault.closeDialog(dialog);
     };
 
     document.addEventListener("click", async (event) => {
@@ -51,11 +47,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!targetInput) {
             return;
         }
-        if (typeof dialog.showModal === "function") {
-            dialog.showModal();
-        } else {
-            dialog.hidden = false;
-        }
+        window.EnderVault.openDialog(dialog);
         await directoryTree.render(targetInput.value);
     });
 
@@ -72,6 +64,6 @@ document.addEventListener("DOMContentLoaded", () => {
         close();
     });
     dialog.addEventListener("close", () => {
-        targetInput = null;
+        if (!dialog.open) targetInput = null;
     });
 });

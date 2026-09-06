@@ -125,253 +125,15 @@
         return next;
     };
 
-    const ensureFileConflictDialog = () => {
-        let dialog = document.getElementById("fileConflictDialog");
-        if (dialog) {
-            return dialog;
-        }
-
-        dialog = document.createElement("dialog");
-        dialog.id = "fileConflictDialog";
-        dialog.className = "upload-conflict-dialog";
-        dialog.innerHTML = `
-            <form method="dialog" class="upload-conflict-card">
-                <header class="upload-conflict-header">
-                    <div>
-                        <h2>File name conflict</h2>
-                        <p data-conflict-message></p>
-                    </div>
-                    <button class="ghost icon-button action-icon" value="default" type="submit"
-                            data-conflict-close title="Use default policy" aria-label="Use default policy">
-                        <i class="fas fa-xmark" aria-hidden="true"></i>
-                    </button>
-                </header>
-                <div class="upload-conflict-actions">
-                    <button class="ghost icon-text-button" value="rename" type="submit">
-                        <span>Rename and Continue</span>
-                    </button>
-                    <button class="danger icon-text-button" value="overwrite" type="submit">
-                        <span>Overwrite</span>
-                    </button>
-                    <button class="ghost icon-text-button" value="cancel" type="submit">
-                        <span>Cancel</span>
-                    </button>
-                </div>
-            </form>
-        `;
-        document.body.append(dialog);
-        return dialog;
+    // DialogHost installs the shared renderer. Never confirm an action before it is ready.
+    const dialogUnavailable = () => {
+        const message = "Dialog controls are not ready. Reload the page and try again.";
+        showToast("error", message);
+        return new Error(message);
     };
-
-    const askFileConflictPolicy = (conflict) => new Promise((resolve) => {
-        const dialog = ensureFileConflictDialog();
-        const message = dialog.querySelector("[data-conflict-message]");
-        const defaultPolicy = conflict?.defaultPolicy || "cancel";
-        const closeValue = conflict?.closeValue || "default";
-        const deferOnClose = closeValue === "defer";
-        const closeButton = dialog.querySelector("[data-conflict-close]");
-        if (closeButton) {
-            closeButton.value = closeValue;
-            closeButton.title = deferOnClose ? "Decide later" : "Use default policy";
-            closeButton.setAttribute("aria-label", closeButton.title);
-        }
-        const closeMessage = deferOnClose
-                ? "Closing keeps the staged file in Pending Decisions."
-                : `Closing uses the default policy: ${defaultPolicy}.`;
-        message.textContent = conflict?.message
-                ? `${conflict.message} ${closeMessage}`
-                : `Choose how to handle this conflict. ${closeMessage}`;
-        dialog.returnValue = closeValue;
-
-        const onClose = () => {
-            dialog.removeEventListener("close", onClose);
-            resolve(dialog.returnValue || closeValue);
-        };
-        dialog.addEventListener("close", onClose);
-
-        if (typeof dialog.showModal === "function") {
-            dialog.showModal();
-            return;
-        }
-        resolve(closeValue);
-    });
-
-    const ensureTextInputDialog = () => {
-        let dialog = document.getElementById("textInputDialog");
-        if (dialog) {
-            return dialog;
-        }
-
-        dialog = document.createElement("dialog");
-        dialog.id = "textInputDialog";
-        dialog.className = "text-input-dialog";
-        dialog.innerHTML = `
-            <form method="dialog" class="text-input-card" novalidate>
-                <header class="text-input-header">
-                    <div>
-                        <h2 data-text-input-title>Input</h2>
-                        <p data-text-input-message hidden></p>
-                    </div>
-                    <button class="ghost icon-button action-icon" value="cancel" type="submit" title="Cancel" aria-label="Cancel">
-                        <i class="fas fa-xmark" aria-hidden="true"></i>
-                    </button>
-                </header>
-                <label class="text-input-field">
-                    <span data-text-input-label>Name</span>
-                    <input data-text-input-control type="text" autocomplete="off">
-                </label>
-                <p class="text-input-error" data-text-input-error hidden>Name is required.</p>
-                <div class="text-input-actions">
-                    <button class="ghost icon-text-button" value="cancel" type="submit">Cancel</button>
-                    <button class="primary icon-text-button" value="confirm" type="submit" data-text-input-confirm>Create</button>
-                </div>
-            </form>
-        `;
-        document.body.append(dialog);
-        return dialog;
-    };
-
-    const askTextInput = ({
-        title = "Input",
-        message = "",
-        label = "Name",
-        placeholder = "",
-        initialValue = "",
-        confirmLabel = "Create"
-    } = {}) => new Promise((resolve) => {
-        const dialog = ensureTextInputDialog();
-        const form = dialog.querySelector("form");
-        const titleElement = dialog.querySelector("[data-text-input-title]");
-        const messageElement = dialog.querySelector("[data-text-input-message]");
-        const labelElement = dialog.querySelector("[data-text-input-label]");
-        const input = dialog.querySelector("[data-text-input-control]");
-        const error = dialog.querySelector("[data-text-input-error]");
-        const confirm = dialog.querySelector("[data-text-input-confirm]");
-
-        if (typeof dialog.showModal !== "function") {
-            const fallback = window.prompt(title, initialValue || "");
-            resolve(fallback == null ? null : fallback.trim());
-            return;
-        }
-
-        titleElement.textContent = title;
-        labelElement.textContent = label;
-        confirm.textContent = confirmLabel;
-        input.value = initialValue || "";
-        input.placeholder = placeholder || "";
-        error.hidden = true;
-        if (message) {
-            messageElement.textContent = message;
-            messageElement.hidden = false;
-        } else {
-            messageElement.textContent = "";
-            messageElement.hidden = true;
-        }
-
-        const onSubmit = (event) => {
-            if (event.submitter?.value !== "confirm") {
-                return;
-            }
-            if (input.value.trim()) {
-                return;
-            }
-            event.preventDefault();
-            error.hidden = false;
-            input.focus();
-        };
-
-        const onInputKeydown = (event) => {
-            if (event.key !== "Enter" || event.isComposing || event.keyCode === 229) {
-                return;
-            }
-            event.preventDefault();
-            if (!input.value.trim()) {
-                error.hidden = false;
-                input.focus();
-                return;
-            }
-            dialog.close("confirm");
-        };
-
-        const onClose = () => {
-            form.removeEventListener("submit", onSubmit);
-            input.removeEventListener("keydown", onInputKeydown);
-            dialog.removeEventListener("close", onClose);
-            const value = dialog.returnValue === "confirm" ? input.value.trim() : null;
-            form.reset();
-            resolve(value);
-        };
-
-        form.addEventListener("submit", onSubmit);
-        input.addEventListener("keydown", onInputKeydown);
-        dialog.addEventListener("close", onClose);
-        dialog.returnValue = "cancel";
-        dialog.showModal();
-        input.focus();
-        input.select();
-    });
-
-    const ensureConfirmationDialog = () => {
-        let dialog = document.getElementById("actionConfirmationDialog");
-        if (dialog) {
-            return dialog;
-        }
-
-        dialog = document.createElement("dialog");
-        dialog.id = "actionConfirmationDialog";
-        dialog.className = "text-input-dialog";
-        dialog.innerHTML = `
-            <form method="dialog" class="text-input-card">
-                <header class="text-input-header">
-                    <div>
-                        <h2 data-confirmation-title>Confirm action</h2>
-                        <p data-confirmation-message></p>
-                    </div>
-                    <button class="ghost icon-button action-icon" value="cancel" type="submit"
-                            title="Cancel" aria-label="Cancel">
-                        <i class="fas fa-xmark" aria-hidden="true"></i>
-                    </button>
-                </header>
-                <div class="text-input-actions">
-                    <button class="ghost icon-text-button" value="cancel" type="submit">Cancel</button>
-                    <button class="danger icon-text-button" value="confirm" type="submit"
-                            data-confirmation-submit>Confirm</button>
-                </div>
-            </form>
-        `;
-        document.body.append(dialog);
-        return dialog;
-    };
-
-    const askConfirmation = ({
-        title = "Confirm action",
-        message = "Continue with this action?",
-        confirmLabel = "Confirm",
-        danger = false
-    } = {}) => new Promise((resolve) => {
-        const dialog = ensureConfirmationDialog();
-        const titleElement = dialog.querySelector("[data-confirmation-title]");
-        const messageElement = dialog.querySelector("[data-confirmation-message]");
-        const confirmButton = dialog.querySelector("[data-confirmation-submit]");
-
-        if (typeof dialog.showModal !== "function") {
-            resolve(window.confirm(message));
-            return;
-        }
-
-        titleElement.textContent = title;
-        messageElement.textContent = message;
-        confirmButton.textContent = confirmLabel;
-        confirmButton.className = `${danger ? "danger" : "primary"} icon-text-button`;
-        dialog.returnValue = "cancel";
-
-        const onClose = () => {
-            dialog.removeEventListener("close", onClose);
-            resolve(dialog.returnValue === "confirm");
-        };
-        dialog.addEventListener("close", onClose);
-        dialog.showModal();
-    });
+    const askTextInput = async () => { dialogUnavailable(); return null; };
+    const askConfirmation = async () => { dialogUnavailable(); return false; };
+    const askFileConflictPolicy = async () => { throw dialogUnavailable(); };
 
     const requestJsonResolvingConflicts = async (
             url,
@@ -385,7 +147,7 @@
                 if (error.status !== 409 || !error.payload?.conflict) {
                     throw error;
                 }
-                const policy = await askFileConflictPolicy(error.payload.conflict);
+                const policy = await window.EnderVault.askFileConflictPolicy(error.payload.conflict);
                 currentBody = formDataWithConflictPolicy(body, policy);
             }
         }
@@ -419,7 +181,7 @@
         }
     };
 
-    const navigate = (url) => {
+    const navigate = (url, notification = null) => {
         if (!url) {
             return false;
         }
@@ -429,7 +191,10 @@
             detail: { url }
         });
         if (document.dispatchEvent(event)) {
+            rememberNotification(notification);
             window.location.assign(url);
+        } else if (notification) {
+            showNotification(notification);
         }
         return true;
     };
@@ -439,8 +204,7 @@
             return false;
         }
 
-        rememberNotification(body.notification);
-        return navigate(body.redirectUrl);
+        return navigate(body.redirectUrl, body.notification);
     };
 
     const contextMenus = (() => {
@@ -471,52 +235,6 @@
         };
     })();
 
-    const closeDetails = (details) => {
-        if (!details.open) {
-            return;
-        }
-
-        details.open = false;
-    };
-
-    const enhanceDismissibleDetails = () => {
-        const menus = Array.from(document.querySelectorAll("details.settings-menu"));
-        if (menus.length === 0) {
-            return;
-        }
-
-        menus.forEach((menu) => {
-            menu.addEventListener("toggle", () => {
-                if (!menu.open) {
-                    return;
-                }
-
-                menus.forEach((otherMenu) => {
-                    if (otherMenu !== menu) {
-                        closeDetails(otherMenu);
-                    }
-                });
-            });
-        });
-
-        document.addEventListener("click", (event) => {
-            menus.forEach((menu) => {
-                if (menu.open && !menu.contains(event.target)) {
-                    closeDetails(menu);
-                }
-            });
-        });
-
-        document.addEventListener("keydown", (event) => {
-            if (event.key !== "Escape") {
-                return;
-            }
-
-            menus.forEach((menu) => closeDetails(menu));
-        });
-    };
-
-    document.addEventListener("DOMContentLoaded", enhanceDismissibleDetails);
 
     window.EnderVault = {
         requestJson,

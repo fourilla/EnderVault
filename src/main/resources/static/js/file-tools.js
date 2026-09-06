@@ -160,6 +160,7 @@ const initializeTextEditor = (form) => {
     const setDirty = (nextDirty) => {
         dirty = nextDirty;
         form.classList.toggle("is-dirty", dirty);
+        form.dispatchEvent(new Event("text-editor-dirty-change"));
     };
 
     const currentValue = () => codeMirror ? codeMirror.getValue() : textarea?.value || "";
@@ -485,7 +486,7 @@ const initializeTextEditor = (form) => {
         setDirty(currentValue() !== savedValue);
         draftResolved = true;
         form.dataset.draftResolved = "true";
-        draftDialog?.close();
+        if (draftDialog) window.EnderVault.closeDialog(draftDialog);
         setDraftState("Draft restored.", "saved");
 
         const editButton = form.querySelector("[data-text-edit-toggle]");
@@ -527,7 +528,7 @@ const initializeTextEditor = (form) => {
                     : "This draft is currently leased by another editor.";
         }
         if (!draftDialog.open) {
-            draftDialog.showModal();
+            window.EnderVault.openDialog(draftDialog);
         }
     };
 
@@ -559,7 +560,7 @@ const initializeTextEditor = (form) => {
             draftResolved = true;
             form.dataset.draftResolved = "true";
             lastDraftedValue = currentValue();
-            draftDialog?.close();
+            if (draftDialog) window.EnderVault.closeDialog(draftDialog);
             setDraftState(`Draft saved at ${new Date().toLocaleTimeString()}.`, "saved");
             if (body.notification) {
                 window.EnderVault.showNotification(body.notification);
@@ -580,7 +581,7 @@ const initializeTextEditor = (form) => {
             form.dataset.draftResolved = "true";
             lastDraftedValue = currentValue();
             takeoverPreservesLocalContent = false;
-            draftDialog?.close();
+            if (draftDialog) window.EnderVault.closeDialog(draftDialog);
             setDraftState("No saved draft.");
             window.EnderVault.showNotification(body.notification);
         } catch (error) {
@@ -697,7 +698,11 @@ const initializeTextEditor = (form) => {
                     return;
                 }
                 if (error.payload?.code !== "SOURCE_CHANGED"
-                        || !window.confirm("The original file changed after this draft was created. Overwrite it with this draft?")) {
+                        || !await window.EnderVault.askConfirmation({
+                            title: "Original file changed",
+                            message: "The original file changed after this draft was created. Overwrite it with this draft?",
+                            confirmLabel: "Overwrite", danger: true
+                        })) {
                     throw error;
                 }
                 if (forceOverwriteInput) {
@@ -734,7 +739,10 @@ const initializeTextEditor = (form) => {
         }
         const warning = form.querySelector("[data-text-load-panel] p")?.textContent
             || "Large files can slow down the page.";
-        if (!window.confirm(`${warning}\n\nLoad this text file into the browser editor?`)) {
+        if (!await window.EnderVault.askConfirmation({
+            title: "Load text file", message: `${warning}\n\nLoad this text file into the browser editor?`,
+            confirmLabel: "Load"
+        })) {
             return;
         }
 
@@ -782,14 +790,15 @@ const initializeTextEditor = (form) => {
 
     form.addEventListener("text-draft-resolution-required", () => {
         if (draftDialog && !draftDialog.open) {
-            draftDialog.showModal();
+            window.EnderVault.openDialog(draftDialog);
         }
     });
     draftDialog?.querySelector("[data-text-draft-restore]")?.addEventListener("click", () => restoreDraft(false));
     draftDialog?.querySelector("[data-text-draft-takeover]")?.addEventListener("click", takeOverDraft);
     draftDialog?.querySelector("[data-text-draft-discard]")?.addEventListener("click", discardDraft);
-    draftDialog?.querySelector("[data-text-draft-view-original]")?.addEventListener("click", () => draftDialog.close());
+    draftDialog?.querySelector("[data-text-draft-view-original]")?.addEventListener("click", () => window.EnderVault.closeDialog(draftDialog));
     form._endervaultFileToolsCleanup = () => {
+        if (draftDialog) window.EnderVault?.closeDialog?.(draftDialog);
         clearDraftTimers();
         window.removeEventListener("beforeunload", handleBeforeUnload);
         form._endervaultEditorControlsCleanup?.();

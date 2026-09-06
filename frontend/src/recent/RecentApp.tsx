@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 're
 import { Link, useNavigate } from 'react-router-dom';
 import { EntryGrid, EntryTable, icon } from '../shared/browser/BrowserEntries';
 import { BrowserPagination } from '../shared/browser/BrowserPagination';
+import { ViewOptionsControl } from '../shared/browser/ViewOptionsControl';
 import type { BrowserEntry } from '../shared/browser/types';
 import { useEntrySelection } from '../shared/browser/useEntrySelection';
 import { useNavigationScroll } from '../shared/browser/useNavigationScroll';
@@ -143,14 +144,10 @@ export function RecentApp() {
   const applyPreferences = (updates: Partial<RecentHistoryState>) =>
     navigate({ ...effectiveState(), ...updates, page: 1, scrollTop: 0 });
   const resetPreferences = async () => {
-    try {
-      const body = await postForm('/api/v1/browser-preferences/reset', { target: 'recent', q: state.query });
-      notify(body);
-      navigate({ ...effectiveState(), page: 1, view: undefined, sort: undefined,
-        direction: undefined, hidden: undefined, pageSize: undefined, scrollTop: 0 }, true);
-    } catch (reason) {
-      toastError(reason, 'View preferences could not be reset.');
-    }
+    const body = await postForm('/api/v1/browser-preferences/reset', { target: 'recent', q: state.query });
+    notify(body);
+    navigate({ ...effectiveState(), page: 1, view: undefined, sort: undefined,
+      direction: undefined, hidden: undefined, pageSize: undefined, scrollTop: 0 }, true);
   };
   const preferences = payload?.preferences;
   const current = effectiveState();
@@ -198,45 +195,15 @@ export function RecentApp() {
               onClick={() => applyPreferences({ view: preferences?.view === 'grid' ? 'table' : 'grid' })}>
               {icon(preferences?.view === 'grid' ? 'fas fa-bars' : 'fas fa-border-all')}
             </button>
-            <details className="settings-menu">
-              <summary className="icon-button menu-summary" title="View options" aria-label="View options">
-                {icon('fas fa-ellipsis-vertical')}
-              </summary>
-              <div className="settings-panel">
-                <div className="settings-form sort-form">
-                  <label>Sort
-                    <select value={preferences?.sort || current.sort || 'recent'}
-                      onChange={(event) => applyPreferences({ sort: event.target.value as RecentSort })}>
-                      <option value="recent">Recent</option><option value="name">Name</option>
-                      <option value="size">Size</option><option value="modified">Modified</option>
-                      <option value="type">Type</option>
-                    </select>
-                  </label>
-                  <label>Direction
-                    <select value={preferences?.direction || current.direction || 'desc'}
-                      onChange={(event) => applyPreferences({ direction: event.target.value as 'asc' | 'desc' })}>
-                      <option value="desc">Descending</option><option value="asc">Ascending</option>
-                    </select>
-                  </label>
-                  <label>Files/page
-                    <select value={preferences?.pageSize || current.pageSize || 200}
-                      onChange={(event) => applyPreferences({ pageSize: Number(event.target.value) })}>
-                      {(preferences?.pageSizeOptions || [50, 100, 200, 500]).map((size) =>
-                        <option value={size} key={size}>{size}</option>)}
-                    </select>
-                  </label>
-                  <label>Visibility
-                    <select value={preferences?.hidden || current.hidden || 'hide'}
-                      onChange={(event) => applyPreferences({ hidden: event.target.value as 'show' | 'hide' })}>
-                      <option value="hide">Visible only</option><option value="show">Show hidden</option>
-                    </select>
-                  </label>
-                  <button className="ghost icon-text-button" type="button" onClick={() => void resetPreferences()}>
-                    {icon('fas fa-rotate-left')}<span>Reset view options</span>
-                  </button>
-                </div>
-              </div>
-            </details>
+            <ViewOptionsControl<RecentSort> key={historyKey}
+              value={{ sort: preferences?.sort || current.sort || 'recent',
+                direction: preferences?.direction || current.direction || 'desc',
+                hidden: preferences?.hidden || current.hidden || 'hide',
+                pageSize: preferences?.pageSize || current.pageSize || 200 }}
+              sorts={[{ value: 'recent', label: 'Recent' }, { value: 'name', label: 'Name' },
+                { value: 'size', label: 'Size' }, { value: 'modified', label: 'Modified' }, { value: 'type', label: 'Type' }]}
+              pageSizes={preferences?.pageSizeOptions || [50, 100, 200, 500]}
+              apply={applyPreferences} reset={resetPreferences} />
           </div>
         </div>
       </section>

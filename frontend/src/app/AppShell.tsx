@@ -7,6 +7,7 @@ import { SpaNavigationBridge } from './SpaNavigationBridge';
 import { TopbarPopoverProvider } from './TopbarPopoverContext';
 import { RemoteDownloadTasksProvider } from './remote-downloads/RemoteDownloadTasksContext';
 import { ShellStatusProvider } from './ShellStatusContext';
+import { DialogHost } from '../shared/dialogs/DialogHost';
 import './app-shell.css';
 
 export function AppShell() {
@@ -41,6 +42,7 @@ export function AppShell() {
       <ShellStatusProvider>
         <div className="app-shell admin-react-shell">
           <SpaNavigationBridge />
+          <DialogHost routeKey={location.key} />
           <AdminSidebar />
           <div className="app-main" data-file-dropzone>
             <TopbarPopoverProvider>
