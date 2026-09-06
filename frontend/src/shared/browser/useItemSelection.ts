@@ -124,7 +124,8 @@ export function useItemSelection<T>({
     const clearSelectionFromBackground = (event: globalThis.MouseEvent) => {
       if (selectedRef.current.size === 0) return;
       const target = event.target as HTMLElement;
-      if (target.closest('[data-context-item="true"], .toolbar, .transfer-buffer-panel, .toast-region, .context-menu')) {
+      // Header controls are outside item rows, but are not background clicks.
+      if (target.closest('[data-context-item="true"], .select-all-checkbox, .select-all-label, dialog, .toolbar, .transfer-buffer-panel, .toast-region, .context-menu')) {
         return;
       }
       setSelected(new Set());
