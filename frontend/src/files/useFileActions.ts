@@ -33,6 +33,13 @@ export function useFileActions({
     }
   }, []);
 
+  const createNamedItem = async (directory: boolean, name: string) => {
+    const body = await postForm(directory ? '/api/v1/files/directories' : '/api/v1/files',
+      { path: effectiveState().path, name });
+    notify(body);
+    reload();
+  };
+
   const createItem = async (directory: boolean) => {
     const name = await window.EnderVault?.askTextInput({
       title: directory ? 'New directory' : 'New file',
@@ -42,10 +49,7 @@ export function useFileActions({
     });
     if (!name) return;
     try {
-      const body = await postForm(directory ? '/api/v1/files/directories' : '/api/v1/files',
-        { path: effectiveState().path, name });
-      notify(body);
-      reload();
+      await createNamedItem(directory, name);
     } catch (reason) {
       toastError(reason, directory ? 'Directory creation failed.' : 'File creation failed.');
     }
@@ -92,19 +96,15 @@ export function useFileActions({
   };
 
   const resetPreferences = async () => {
-    try {
-      const body = await postForm('/api/v1/browser-preferences/reset', { target: 'files' });
-      notify(body);
-      navigate({ ...effectiveState(), page: 1, view: undefined, sort: undefined,
-        direction: undefined, hidden: undefined, pageSize: undefined, scrollTop: 0 }, true);
-    } catch (reason) {
-      toastError(reason, 'View preferences could not be reset.');
-    }
+    const body = await postForm('/api/v1/browser-preferences/reset', { target: 'files' });
+    notify(body);
+    navigate({ ...effectiveState(), page: 1, view: undefined, sort: undefined,
+      direction: undefined, hidden: undefined, pageSize: undefined, scrollTop: 0 }, true);
   };
 
   return {
     ...entryActions,
-    transferBuffer, transferBufferRef, loadTransferBuffer, createItem, updateTransferBuffer,
+    transferBuffer, transferBufferRef, loadTransferBuffer, createItem, createNamedItem, updateTransferBuffer,
     compressEntries, resetPreferences,
     paste: (operation: 'move' | 'copy') => updateTransferBuffer('paste', {
       path: effectiveState().path, operation, conflictPolicy: 'ask',

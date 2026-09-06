@@ -104,12 +104,12 @@ export function SettingsApp() {
 
   const confirmNavigation = useCallback(async () => {
     if (!dirty) return true;
-    return window.EnderVault?.askConfirmation?.({
+    return window.EnderVault!.askConfirmation({
       title: 'Discard unsaved changes?',
       message: 'The current settings have not been saved. Leave this section and discard them?',
       confirmLabel: 'Discard changes',
       danger: true,
-    }) ?? Promise.resolve(window.confirm('Discard unsaved settings changes?'));
+    });
   }, [dirty]);
 
   const openInternal = useCallback(async (next: InternalSectionId) => {

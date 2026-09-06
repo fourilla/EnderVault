@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
+import { AppDialog } from '../shared/dialogs/AppDialog';
 
 type DialogKind = 'link' | 'bulk' | null;
 
@@ -13,18 +14,10 @@ export function BookmarkDialogs({
   createLink: (title: string, url: string) => Promise<void>;
   bulkAdd: (bulkText: string) => Promise<void>;
 }) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
   const [bulkText, setBulkText] = useState('');
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (kind && !dialog.open) dialog.showModal();
-    if (!kind && dialog.open) dialog.close();
-  }, [kind]);
 
   useEffect(() => {
     if (kind === 'link') {
@@ -52,21 +45,19 @@ export function BookmarkDialogs({
   };
 
   return (
-    <dialog
-      ref={dialogRef}
+    <AppDialog
+      open={kind !== null} busy={busy} onDismiss={close} labelledBy="bookmarkDialogTitle"
       className={'text-input-dialog bookmark-form-dialog' + (kind === 'bulk' ? ' bookmark-bulk-dialog' : '')}
-      onCancel={(event) => { event.preventDefault(); close(); }}
-      onClose={close}
     >
       <form className="text-input-card bookmark-dialog-card" onSubmit={submit}>
         <header className="text-input-header">
           <div>
-            <h2>{kind === 'bulk' ? 'Bulk add links' : 'Add link'}</h2>
+            <h2 id="bookmarkDialogTitle">{kind === 'bulk' ? 'Bulk add links' : 'Add link'}</h2>
             <p>{kind === 'bulk'
               ? 'Enter URLs or title and URL pairs, one value per line.'
               : 'Save a URL in the current bookmark directory.'}</p>
           </div>
-          <button className="ghost icon-button action-icon" type="button" onClick={close}
+          <button className="ghost icon-button action-icon" type="button" onClick={close} disabled={busy}
             title="Cancel" aria-label="Cancel">
             <i className="fas fa-xmark" aria-hidden="true" />
           </button>
@@ -92,13 +83,13 @@ export function BookmarkDialogs({
           </div>
         )}
         <div className="text-input-actions">
-          <button className="ghost icon-text-button" type="button" onClick={close}>Cancel</button>
+          <button className="ghost icon-text-button" type="button" onClick={close} disabled={busy}>Cancel</button>
           <button className="primary icon-text-button" type="submit" disabled={busy}>
             {kind === 'bulk' ? 'Add links' : 'Add link'}
           </button>
         </div>
       </form>
-    </dialog>
+    </AppDialog>
   );
 }
 

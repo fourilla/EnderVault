@@ -1,0 +1,32 @@
+/* Keep the viewport width stable when a dialog locks background scrolling. */
+html {
+  scrollbar-gutter: stable;
+}
+
+.dialog-fields {
+  display: grid;
+  gap: var(--space-md);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.dialog-kind-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.dialog-kind-options [aria-pressed="true"] {
+  border-color: var(--accent);
+}
+
+.dialog-upload-options {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.dialog-upload-options button {
+  justify-content: flex-start;
+}

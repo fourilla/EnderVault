@@ -1,3 +1,5 @@
+import { resolvePage } from './page-number';
+
 export interface PaginationPage {
   number: number;
   totalPages: number;
@@ -26,9 +28,7 @@ export function BrowserPagination({
     });
     if (requested == null) return;
 
-    const parsed = Number.parseInt(requested, 10);
-    const target = Number.isFinite(parsed) ? parsed : page.number;
-    onPageChange(Math.max(1, Math.min(page.totalPages, target)));
+    onPageChange(resolvePage(requested, page.number, page.totalPages));
   };
 
   return (

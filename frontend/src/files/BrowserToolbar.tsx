@@ -1,4 +1,8 @@
-import { type FormEvent, useRef } from 'react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
+import { AppDialog } from '../shared/dialogs/AppDialog';
+import { ViewOptionsControl } from '../shared/browser/ViewOptionsControl';
+import { CreateItemDialog } from './CreateItemDialog';
 import { useUploadManager } from '../app/uploads/UploadManagerContext';
 import { collectFileList } from '../app/uploads/collect-uploads';
 import { icon } from '../shared/browser/BrowserEntries';
@@ -33,6 +37,8 @@ export function BrowserToolbar({
   const directoryInputRef = useRef<HTMLInputElement>(null);
   const preferences = payload?.preferences;
   const searchMode = currentState.mode === 'search';
+  const [dialog, setDialog] = useState<'upload' | 'create' | null>(null);
+  useEffect(() => setDialog(null), [currentState.path, currentState.mode, currentState.query]);
   return (
     <section className="toolbar files-react-toolbar" aria-label="File tools">
       <form className="search-form" onSubmit={submitSearch}>
@@ -84,49 +90,12 @@ export function BrowserToolbar({
                 window.EnderVault?.showToast('error', reason instanceof Error ? reason.message : 'Could not read directory.');
               } finally { event.currentTarget.value = ''; }
             }} />
-          <details className="settings-menu file-new-menu" hidden={searchMode}>
-            <summary className="icon-button menu-summary" title="Upload" aria-label="Upload">
-              {icon('fas fa-upload')}
-            </summary>
-            <div className="settings-panel file-new-panel">
-              <div className="file-new-actions">
-                <button className="ghost icon-text-button" id="uploadButton" type="button"
-                  onClick={(event) => {
-                    event.currentTarget.closest('details')?.removeAttribute('open');
-                    uploadInputRef.current?.click();
-                  }}>
-                  {icon('fas fa-file-arrow-up')}
-                  <span>Upload files</span>
-                </button>
-                <button className="ghost icon-text-button" id="directoryUploadButton" type="button"
-                  onClick={(event) => {
-                    event.currentTarget.closest('details')?.removeAttribute('open');
-                    directoryInputRef.current?.click();
-                  }}>
-                  {icon('fas fa-folder-open')}
-                  <span>Upload directory</span>
-                </button>
-              </div>
-            </div>
-          </details>
-
-          <details className="settings-menu file-new-menu" hidden={searchMode}>
-            <summary className="icon-button menu-summary" title="Create new item" aria-label="Create new item">
-              {icon('fas fa-plus')}
-            </summary>
-            <div className="settings-panel file-new-panel">
-              <div className="file-new-actions">
-                <button className="ghost icon-text-button" type="button" onClick={() => void actions.createItem(false)}>
-                  {icon('fas fa-file-circle-plus')}
-                  <span>New file</span>
-                </button>
-                <button className="ghost icon-text-button" type="button" onClick={() => void actions.createItem(true)}>
-                  {icon('fas fa-folder-plus')}
-                  <span>New directory</span>
-                </button>
-              </div>
-            </div>
-          </details>
+          <button className="icon-button" hidden={searchMode} type="button" title="Upload" aria-label="Upload" onClick={() => setDialog('upload')}>
+            {icon('fas fa-upload')}
+          </button>
+          <button className="icon-button" hidden={searchMode} type="button" title="Create new item" aria-label="Create new item" onClick={() => setDialog('create')}>
+            {icon('fas fa-plus')}
+          </button>
 
           <button className="icon-button" type="button" disabled={selectedEntries.length === 0}
             title="Download selected" aria-label="Download selected"
@@ -166,57 +135,37 @@ export function BrowserToolbar({
           >
             {icon(preferences?.view === 'grid' ? 'fas fa-bars' : 'fas fa-border-all')}
           </button>
-          <details className="settings-menu">
-            <summary className="icon-button menu-summary" title="View options" aria-label="View options">
-              {icon('fas fa-ellipsis-vertical')}
-            </summary>
-            <div className="settings-panel">
-              <div className="settings-form sort-form">
-                <label>
-                  Sort
-                  <select value={preferences?.sort || currentState.sort || 'name'}
-                    onChange={(event) => applyPreferences({ sort: event.target.value as BrowserHistoryState['sort'] })}>
-                    <option value="name">Name</option>
-                    <option value="size">Size</option>
-                    <option value="modified">Modified</option>
-                    <option value="type">Type</option>
-                  </select>
-                </label>
-                <label>
-                  Direction
-                  <select value={preferences?.direction || currentState.direction || 'asc'}
-                    onChange={(event) => applyPreferences({ direction: event.target.value as BrowserHistoryState['direction'] })}>
-                    <option value="asc">Ascending</option>
-                    <option value="desc">Descending</option>
-                  </select>
-                </label>
-                <label>
-                  Files/page
-                  <select value={preferences?.pageSize || currentState.pageSize || 200}
-                    onChange={(event) => applyPreferences({ pageSize: Number(event.target.value) })}>
-                    {(preferences?.pageSizeOptions || [50, 100, 200, 500]).map((size) => (
-                      <option value={size} key={size}>{size}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Visibility
-                  <select value={preferences?.hidden || currentState.hidden || 'hide'}
-                    onChange={(event) => applyPreferences({ hidden: event.target.value as BrowserHistoryState['hidden'] })}>
-                    <option value="hide">Visible only</option>
-                    <option value="show">Show hidden</option>
-                  </select>
-                </label>
-                <button className="ghost icon-text-button files-reset-preferences" type="button"
-                  onClick={() => void actions.resetPreferences()}>
-                  {icon('fas fa-arrow-rotate-left')}
-                  <span>Reset view options</span>
-                </button>
-              </div>
-            </div>
-          </details>
+          <ViewOptionsControl<NonNullable<BrowserHistoryState['sort']>>
+            key={[currentState.mode, currentState.path, currentState.query].join(':')}
+            value={{ sort: preferences?.sort || currentState.sort || 'name',
+              direction: preferences?.direction || currentState.direction || 'asc',
+              hidden: preferences?.hidden || currentState.hidden || 'hide',
+              pageSize: preferences?.pageSize || currentState.pageSize || 200 }}
+            sorts={[{ value: 'name', label: 'Name' }, { value: 'size', label: 'Size' },
+              { value: 'modified', label: 'Modified' }, { value: 'type', label: 'Type' }]}
+            pageSizes={preferences?.pageSizeOptions || [50, 100, 200, 500]}
+            apply={applyPreferences} reset={actions.resetPreferences} />
         </div>
       </div>
+      <AppDialog open={dialog === 'upload'} onDismiss={() => setDialog(null)} labelledBy="uploadDialogTitle"
+        className="text-input-dialog" dismissOnBackdrop>
+        <div className="text-input-card">
+          <header className="text-input-header"><h2 id="uploadDialogTitle">Upload</h2>
+            <button className="ghost icon-button" type="button" title="Close" aria-label="Close" onClick={() => setDialog(null)}>{icon('fas fa-xmark')}</button>
+          </header>
+          <div className="dialog-upload-options">
+            <button className="ghost icon-text-button" id="uploadButton" type="button" onClick={() => {
+              flushSync(() => setDialog(null));
+              uploadInputRef.current?.click();
+            }}>{icon('fas fa-file-arrow-up')}<span>Upload files</span></button>
+            <button className="ghost icon-text-button" id="directoryUploadButton" type="button" onClick={() => {
+              flushSync(() => setDialog(null));
+              directoryInputRef.current?.click();
+            }}>{icon('fas fa-folder-open')}<span>Upload directory</span></button>
+          </div>
+        </div>
+      </AppDialog>
+      {dialog === 'create' && <CreateItemDialog close={() => setDialog(null)} create={actions.createNamedItem} />}
     </section>
   );
 }

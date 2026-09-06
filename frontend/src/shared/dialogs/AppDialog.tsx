@@ -1,6 +1,7 @@
 import { type PropsWithChildren, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { mountDialog } from './dialog-lifecycle';
+import './dialogs.css';
 
 interface AppDialogProps extends PropsWithChildren {
   open: boolean;

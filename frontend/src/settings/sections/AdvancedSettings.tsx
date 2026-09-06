@@ -24,12 +24,12 @@ function AdvancedSettingsEditor({ snapshot, groupIds, includeDeployment, onDirty
   const confirmSave = useCallback(async (values: FormValues, baseline: FormValues) => {
     const sensitiveChanged = [...sensitiveNames].some((name) => values[name] !== baseline[name]);
     if (!sensitiveChanged) return true;
-    return window.EnderVault?.askConfirmation?.({
+    return window.EnderVault!.askConfirmation({
       title: 'Confirm security settings',
       message: 'Trusted proxy or passkey identity changes can affect client IP validation and sign-in. Save these changes?',
       confirmLabel: 'Save settings',
       danger: true,
-    }) ?? Promise.resolve(window.confirm('These security settings can affect sign-in. Save these changes?'));
+    });
   }, [sensitiveNames]);
   const editor = useSettingsEditor(toValues(snapshot), '/api/v1/settings/advanced', onDirtyChange, confirmSave);
 
