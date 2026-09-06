@@ -45,8 +45,8 @@
 
 .sidebar-nav a:hover,
 .sidebar-nav a.active {
-    border-color: var(--line);
-    background: var(--panel-elevated);
+    border-color: var(--navigation-hover-border);
+    background: var(--navigation-hover-bg);
     text-decoration: none;
 }
 
@@ -98,7 +98,7 @@
 
 .sidebar-favorites-header:hover,
 .sidebar-favorites-header:has(a.active) {
-    background: var(--panel-elevated);
+    background: var(--navigation-hover-bg);
 }
 
 .sidebar-favorites-header > a {

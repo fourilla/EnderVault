@@ -13,6 +13,11 @@
     --accent-strong: #79d2c8;
     --accent-soft: #315a5c;
     --accent-contrast: #071617;
+    --button-primary-bg: var(--accent);
+    --button-primary-hover-bg: var(--accent-strong);
+    --button-primary-text: var(--accent-contrast);
+    --navigation-hover-bg: var(--panel-elevated);
+    --navigation-hover-border: var(--line);
     --danger: #ff7a70;
     --danger-bg: #321b20;
     --danger-line: #66313a;
@@ -92,7 +97,11 @@
     --table-primary-text-max-width: 34rem;
 
     --sidebar-width: 240px;
+    --sidebar-rail-width: 64px;
     --sidebar-icon-width: 18px;
+    --browser-card-min-width: 190px;
+    --browser-card-gap: var(--space-2xl);
+    --browser-card-aspect-ratio: 4 / 3;
     --workspace-max-width: 1180px;
     --settings-workspace-max-width: 1080px;
     --workspace-gutter: var(--space-page-gutter);
@@ -135,10 +144,10 @@ select {
 button,
 .primary {
     min-height: var(--control-height);
-    border: 1px solid var(--accent);
+    border: 1px solid var(--button-primary-bg);
     border-radius: var(--radius-control);
-    background: var(--accent);
-    color: var(--accent-contrast);
+    background: var(--button-primary-bg);
+    color: var(--button-primary-text);
     padding: 0 var(--button-padding-x);
     cursor: pointer;
 }
@@ -161,7 +170,7 @@ button,
 button:hover,
 .button-link:hover,
 .primary:hover {
-    background: var(--accent-strong);
+    background: var(--button-primary-hover-bg);
     text-decoration: none;
 }
 
@@ -175,10 +184,10 @@ button.ghost,
 
 .button-link {
     min-height: var(--control-height);
-    border: 1px solid var(--accent);
+    border: 1px solid var(--button-primary-bg);
     border-radius: var(--radius-control);
-    background: var(--accent);
-    color: var(--accent-contrast);
+    background: var(--button-primary-bg);
+    color: var(--button-primary-text);
     padding: 0 var(--button-padding-x);
 }
 

@@ -272,8 +272,8 @@ td input[readonly] {
 
 .browser-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-    gap: var(--space-2xl);
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--browser-card-min-width)), 1fr));
+    gap: var(--browser-card-gap);
 }
 
 .browser-card {
@@ -327,7 +327,7 @@ td input[readonly] {
 .card-thumb {
     display: grid;
     position: relative;
-    aspect-ratio: 4 / 3;
+    aspect-ratio: var(--browser-card-aspect-ratio);
     place-items: center;
     overflow: hidden;
     border-bottom: 1px solid var(--line);

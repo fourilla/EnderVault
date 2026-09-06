@@ -3,7 +3,6 @@ html:has(.admin-react-shell) {
 }
 
 .admin-react-shell {
-  --sidebar-rail-width: 64px;
   grid-template-rows: var(--topbar-height) minmax(0, 1fr);
 }
 
@@ -95,8 +94,8 @@ html:has(.admin-react-shell) {
 .admin-react-shell .app-topbar .icon-button:hover:not(:disabled),
 .admin-react-shell .app-topbar .icon-button:focus-visible,
 .admin-react-shell .app-topbar .topbar-control-trigger[aria-expanded="true"] {
-  border-color: var(--line);
-  background: var(--panel-elevated);
+  border-color: var(--navigation-hover-border);
+  background: var(--navigation-hover-bg);
   color: var(--text);
 }
 
