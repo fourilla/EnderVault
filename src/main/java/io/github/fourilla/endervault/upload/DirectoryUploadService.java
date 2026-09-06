@@ -75,9 +75,22 @@ public class DirectoryUploadService {
             if (!matches) throw new ResponseStatusException(HttpStatus.CONFLICT, "The selected directory differs from this upload.");
             return refresh(existing);
         }
+        NasProperties.Upload settings = properties.getUpload();
+        if (!settings.isDirectoryEnabled()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "New directory uploads are disabled. Existing uploads can still resume.");
+        }
+        int maxEntries = Math.max(1, Math.min(settings.getDirectoryMaxEntries(), NasProperties.Upload.DIRECTORY_ENTRIES_CEILING));
+        int maxDepth = Math.max(1, Math.min(settings.getDirectoryMaxDepth(), NasProperties.Upload.DIRECTORY_DEPTH_CEILING));
+        if (1L + manifest.files().size() + manifest.directories().size() > maxEntries) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Directory upload exceeds the configured limit of " + maxEntries + " entries.");
+        }
+        boolean tooDeep = java.util.stream.Stream.concat(manifest.directories().stream(), manifest.files().stream().map(DirectoryUploadManifest.File::path))
+                .anyMatch(entry -> entry.split("/", -1).length > maxDepth);
+        if (tooDeep) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Directory upload exceeds the configured depth of " + maxDepth + ".");
         long active = 0;
         for (String id : repository.ids()) if (!repository.require(id).terminal()) active++;
-        if (active >= 16) throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Too many directory uploads are active.");
+        int maxActive = Math.max(1, Math.min(settings.getDirectoryMaxActive(), NasProperties.Upload.DIRECTORY_ACTIVE_CEILING));
+        if (active >= maxActive) throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Too many directory uploads are active.");
         Instant now = Instant.now();
         DirectoryUpload upload = new DirectoryUpload(UUID.randomUUID().toString(), path, manifest.name(),
                 manifest.files().stream().map(f -> new DirectoryUpload.Entry(f.path(), f.size(), f.lastModified(), null, false)).toList(),

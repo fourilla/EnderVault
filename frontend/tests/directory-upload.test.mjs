@@ -31,6 +31,18 @@ function setup(request, create) {
 }
 const group = (status = 'RECEIVING', completedPaths = []) => ({ id: 'group-id', status, completedPaths });
 
+test('admission rejection keeps its reason without claiming staged files exist', async () => {
+  const state = setup(() => { throw Object.assign(Error('New directory uploads are disabled.'), { status: 403 }); },
+    () => { throw Error('must not upload'); });
+  await assert.rejects(state.make().start(), (error) => {
+    assert.equal(error.status, 403);
+    assert.match(error.message, /disabled/);
+    assert.equal(error.stagingRetained, false);
+    return true;
+  });
+  assert.equal(state.storage.size, 0);
+});
+
 test('completedPaths skip members; only DIRECTORY_READY members lead to complete and PENDING clears resume', async () => {
   const members = [];
   const state = setup((url) => url.endsWith('/complete') ? group('PENDING') : group('RECEIVING', ['a/x']),
@@ -52,7 +64,11 @@ test('partial failure retains group ID and never calls complete; reselect resume
       if (fail && ++sent === 2) throw Error('offline');
       return { status: 'DIRECTORY_READY' };
     } }));
-  await assert.rejects(state.make().start(), /offline/);
+  await assert.rejects(state.make().start(), (error) => {
+    assert.match(error.message, /offline/);
+    assert.equal(error.stagingRetained, true);
+    return true;
+  });
   assert.equal(state.storage.size, 1);
   assert.equal(state.calls.some((call) => call.url.endsWith('/complete')), false);
   fail = false;

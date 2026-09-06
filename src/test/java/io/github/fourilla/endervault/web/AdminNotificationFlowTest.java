@@ -111,6 +111,7 @@ class AdminNotificationFlowTest {
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         registry.add("nas.storage.root", ROOT::toString);
+        registry.add("nas.upload.directory-enabled", () -> true);
         registry.add("nas.sticky-notes.background-color", () -> "#1B3033");
         registry.add("nas.sticky-notes.border-color", () -> "#4E8F8A");
         registry.add("nas.sticky-notes.text-color", () -> "#EAF6F4");
@@ -2266,6 +2267,25 @@ class AdminNotificationFlowTest {
         assertThat(ROOT.resolve(name + "/empty")).isEmptyDirectory();
         mockMvc.perform(get("/api/v1/files/directory-uploads/{id}", id))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.committedPath").value(name));
+    }
+
+    @Test
+    void disabledDirectoryUploadReturnsAnActionableJsonReason(
+            @org.springframework.beans.factory.annotation.Autowired
+            io.github.fourilla.endervault.config.NasProperties properties) throws Exception {
+        boolean enabled = properties.getUpload().isDirectoryEnabled();
+        try {
+            properties.getUpload().setDirectoryEnabled(false);
+            mockMvc.perform(post("/api/v1/files/directory-uploads").with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"name\":\"disabled-root\",\"files\":[],\"directories\":[]}"))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.ok").value(false))
+                    .andExpect(jsonPath("$.notification.message").value(
+                            "New directory uploads are disabled. Existing uploads can still resume."));
+        } finally {
+            properties.getUpload().setDirectoryEnabled(enabled);
+        }
     }
 
     @Test

@@ -1,5 +1,4 @@
 import { type FormEvent, useRef } from 'react';
-import { useAdminApp } from '../app/AdminAppContext';
 import { useUploadManager } from '../app/uploads/UploadManagerContext';
 import { collectFileList } from '../app/uploads/collect-uploads';
 import { icon } from '../shared/browser/BrowserEntries';
@@ -29,7 +28,6 @@ export function BrowserToolbar({
   selectedEntries: BrowserEntry[];
   actions: FileBrowserActions;
 }) {
-  const adminApp = useAdminApp();
   const uploadManager = useUploadManager();
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const directoryInputRef = useRef<HTMLInputElement>(null);
@@ -58,18 +56,6 @@ export function BrowserToolbar({
           className="toolbar-actions file-actions"
           aria-label="File management actions"
         >
-          <form
-            className="icon-form"
-            id="uploadForm"
-            hidden={searchMode}
-            data-max-concurrent-uploads={
-              adminApp.bootstrap.uploads.maxConcurrentUploads
-            }
-            data-admission-url={
-              '/api/v1/files/upload-sessions?path=' + encodeURIComponent(currentState.path)
-            }
-          >
-            <input type="hidden" name="path" value={currentState.path} readOnly />
             <input
               className="visually-hidden"
               id="fileUploadInput"
@@ -85,17 +71,6 @@ export function BrowserToolbar({
                 } finally { event.currentTarget.value = ''; }
               }}
             />
-            <button
-              className="icon-button"
-              id="uploadButton"
-              type="button"
-              title="Upload files"
-              aria-label="Upload files"
-              onClick={() => uploadInputRef.current?.click()}
-            >
-              {icon('fas fa-upload')}
-            </button>
-          </form>
 
           <input className="visually-hidden" id="directoryUploadInput" type="file" multiple
             {...{ webkitdirectory: '' }} ref={directoryInputRef}
@@ -109,11 +84,31 @@ export function BrowserToolbar({
                 window.EnderVault?.showToast('error', reason instanceof Error ? reason.message : 'Could not read directory.');
               } finally { event.currentTarget.value = ''; }
             }} />
-          <button className="icon-button" id="directoryUploadButton" type="button" hidden={searchMode}
-            title="Upload directory" aria-label="Upload directory"
-            onClick={() => directoryInputRef.current?.click()}>
-            {icon('fas fa-folder-open')}
-          </button>
+          <details className="settings-menu file-new-menu" hidden={searchMode}>
+            <summary className="icon-button menu-summary" title="Upload" aria-label="Upload">
+              {icon('fas fa-upload')}
+            </summary>
+            <div className="settings-panel file-new-panel">
+              <div className="file-new-actions">
+                <button className="ghost icon-text-button" id="uploadButton" type="button"
+                  onClick={(event) => {
+                    event.currentTarget.closest('details')?.removeAttribute('open');
+                    uploadInputRef.current?.click();
+                  }}>
+                  {icon('fas fa-file-arrow-up')}
+                  <span>Upload files</span>
+                </button>
+                <button className="ghost icon-text-button" id="directoryUploadButton" type="button"
+                  onClick={(event) => {
+                    event.currentTarget.closest('details')?.removeAttribute('open');
+                    directoryInputRef.current?.click();
+                  }}>
+                  {icon('fas fa-folder-open')}
+                  <span>Upload directory</span>
+                </button>
+              </div>
+            </div>
+          </details>
 
           <details className="settings-menu file-new-menu" hidden={searchMode}>
             <summary className="icon-button menu-summary" title="Create new item" aria-label="Create new item">

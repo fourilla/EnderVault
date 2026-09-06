@@ -8,13 +8,23 @@ import io.github.fourilla.endervault.upload.ResumableUploadAdmissionResponse;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import io.github.fourilla.endervault.web.support.ActionResponse;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/v1/files/directory-uploads")
 public class DirectoryUploadApiController {
     private final DirectoryUploadService service;
     public DirectoryUploadApiController(DirectoryUploadService service) { this.service = service; }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ActionResponse> rejected(ResponseStatusException exception) {
+        String reason = exception.getReason();
+        return ResponseEntity.status(exception.getStatusCode()).body(ActionResponse.error(
+                reason == null ? "Directory upload request was rejected." : reason));
+    }
 
     @PostMapping
     public Response create(@RequestParam(value = "path", required = false) String path,

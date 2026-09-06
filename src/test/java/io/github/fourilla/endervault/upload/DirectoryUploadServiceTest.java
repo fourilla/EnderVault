@@ -87,6 +87,38 @@ class DirectoryUploadServiceTest {
         assertThat(service.complete(group.id())).isEqualTo(result);
     }
 
+    @Test void newLimitsAndDisableDoNotInvalidateAnAdmittedGroup() throws Exception {
+        var input = manifest("photos");
+        var group = service.create("", input);
+        properties.getUpload().setDirectoryEnabled(false);
+        properties.getUpload().setDirectoryMaxEntries(1);
+        properties.getUpload().setDirectoryMaxDepth(1);
+        properties.getUpload().setDirectoryMaxActive(1);
+        assertThatThrownBy(() -> service.create("", input)).isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        var resumed = service.create("", new DirectoryUploadManifest(input.name(), input.files(), input.directories(), group.id()));
+        assertThat(resumed.id()).isEqualTo(group.id());
+        receive(group, "nested/a.txt", 1);
+        receive(group, "b.txt", 2);
+        assertThat(service.complete(group.id()).status()).isEqualTo(DirectoryUpload.Status.COMPLETED);
+    }
+
+    @Test void newGroupsRespectConfiguredEntryDepthAndActiveLimits() throws Exception {
+        properties.getUpload().setDirectoryMaxEntries(4);
+        assertThatThrownBy(() -> service.create("", manifest("photos")))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class).hasMessageContaining("entries");
+        properties.getUpload().setDirectoryMaxEntries(10000);
+        properties.getUpload().setDirectoryMaxDepth(1);
+        assertThatThrownBy(() -> service.create("", manifest("photos")))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class).hasMessageContaining("depth");
+        properties.getUpload().setDirectoryMaxDepth(64);
+        properties.getUpload().setDirectoryMaxActive(1);
+        var group = service.create("", manifest("photos"));
+        assertThatThrownBy(() -> service.create("", manifest("other")))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class).hasMessageContaining("active");
+        service.cancel(group.id());
+        assertThat(service.create("", manifest("other")).status()).isEqualTo(DirectoryUpload.Status.RECEIVING);
+    }
+
     @Test void collisionKeepsWholeDirectoryPendingWithoutMerging() throws Exception {
         Files.createDirectory(root.resolve("photos"));
         Files.writeString(root.resolve("photos/existing.txt"), "original");

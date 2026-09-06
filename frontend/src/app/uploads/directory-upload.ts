@@ -41,7 +41,12 @@ export class DirectoryUpload {
   }
 
   start() {
-    this.starting = this.run();
+    this.starting = this.run().catch((error: unknown) => {
+      if (error && typeof error === 'object') {
+        Object.assign(error, { stagingRetained: Boolean(this.id) });
+      }
+      throw error;
+    });
     return this.starting;
   }
 

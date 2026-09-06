@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.TreeSet;
 
 public record DirectoryUploadManifest(String name, List<File> files, List<String> directories, String resumeId) {
-    public static final int MAX_ENTRIES = 10_000;
+    public static final int MAX_ENTRIES = io.github.fourilla.endervault.config.NasProperties.Upload.DIRECTORY_ENTRIES_CEILING;
     public record File(String path, long size, long lastModified) {}
 
     DirectoryUploadManifest validate(StorageService storage) {
@@ -59,7 +59,7 @@ public record DirectoryUploadManifest(String name, List<File> files, List<String
             throw new StorageAccessException("Invalid directory upload path.");
         }
         String[] parts = path.split("/", -1);
-        if (parts.length > 64) throw new StorageAccessException("Directory upload is too deeply nested.");
+        if (parts.length > io.github.fourilla.endervault.config.NasProperties.Upload.DIRECTORY_DEPTH_CEILING) throw new StorageAccessException("Directory upload is too deeply nested.");
         for (String part : parts) storage.validateVaultEntryName(part);
     }
 }

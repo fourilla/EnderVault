@@ -288,7 +288,9 @@ class AdminUploadManager {
       this.finishDirectory(upload, result);
     } catch (reason) {
       if (upload.cancelRequested) return;
-      const message = `${reason instanceof Error ? reason.message : 'Directory upload failed.'} Staged files are retained; reselect the same directory to retry before expiry.`;
+      const retained = (reason as { stagingRetained?: boolean } | null)?.stagingRetained;
+      const message = (reason instanceof Error ? reason.message : 'Directory upload failed.')
+        + (retained ? ' Staged files are retained; reselect the same directory to retry before expiry.' : '');
       window.EnderVault?.showToast('error', message);
       this.finish(upload, 'failed', message);
     }

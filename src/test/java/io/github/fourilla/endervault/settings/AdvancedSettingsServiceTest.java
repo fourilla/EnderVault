@@ -87,6 +87,36 @@ class AdvancedSettingsServiceTest {
     }
 
     @Test
+    void directoryUploadSettingsPersistAndApplyWithBoundedChildren() throws Exception {
+        Path config = tempDir.resolve("directory.properties");
+        Files.writeString(config, "nas.setup.accepted=true\n");
+        NasProperties properties = new NasProperties();
+        var service = new AdvancedSettingsService(properties, new LocalPropertiesFile(config));
+        var update = currentParameters(service);
+        update.remove("directoryUploadEnabled");
+        update.set("directoryUploadMaxEntries", "500");
+        update.set("directoryUploadMaxDepth", "12");
+        update.set("directoryUploadMaxActive", "4");
+        assertThat(service.save(service.updateFrom(update))).isFalse();
+        assertThat(properties.getUpload().isDirectoryEnabled()).isFalse();
+        assertThat(properties.getUpload().getDirectoryMaxEntries()).isEqualTo(500);
+        assertThat(properties.getUpload().getDirectoryMaxDepth()).isEqualTo(12);
+        assertThat(properties.getUpload().getDirectoryMaxActive()).isEqualTo(4);
+        assertThat(Files.readString(config)).contains("nas.upload.directory-enabled=false",
+                "nas.upload.directory-max-entries=500", "nas.upload.directory-max-depth=12", "nas.upload.directory-max-active=4");
+        var fields = service.currentSettings().groups().stream().filter(g -> g.id().equals("uploads")).findFirst().orElseThrow().fields();
+        assertThat(fields.stream().filter(f -> f.name().startsWith("directoryUploadMax")).toList())
+                .hasSize(3).allSatisfy(f -> assertThat(f.dependencies()).containsExactly("directoryUploadEnabled"));
+        for (var entry : java.util.Map.of("directoryUploadMaxEntries", "10001", "directoryUploadMaxDepth", "65", "directoryUploadMaxActive", "17").entrySet()) {
+            var invalid = currentParameters(service);
+            invalid.set(entry.getKey(), entry.getValue());
+            assertThatThrownBy(() -> service.updateFrom(invalid)).isInstanceOf(IllegalArgumentException.class);
+            invalid.set(entry.getKey(), "0");
+            assertThatThrownBy(() -> service.updateFrom(invalid)).isInstanceOf(IllegalArgumentException.class);
+        }
+    }
+
+    @Test
     void protectsLoginRecoveryAndCanonicalizesPasskeyOrigins() throws Exception {
         Path configFile = tempDir.resolve("endervault-nas.properties");
         Files.writeString(configFile, "nas.setup.accepted=true\n", StandardCharsets.UTF_8);
@@ -122,7 +152,7 @@ class AdvancedSettingsServiceTest {
         assertThat(snapshot.groups())
                 .extracting(AdvancedSettingsService.SettingGroup::id)
                 .containsExactly("sharing", "uploads", "thumbnails", "archive", "staging", "tasks", "metadata", "activity", "access");
-        assertThat(snapshot.groups().stream().mapToInt(group -> group.fields().size()).sum()).isEqualTo(48);
+        assertThat(snapshot.groups().stream().mapToInt(group -> group.fields().size()).sum()).isEqualTo(52);
         assertThat(field(snapshot, "shareDefaultExpirationDays").dependencies())
                 .containsExactly("shareEnabled");
         assertThat(field(snapshot, "shareDefaultPreviewEnabled").dependencies())

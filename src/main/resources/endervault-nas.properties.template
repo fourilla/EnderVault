@@ -67,9 +67,15 @@ nas.trash.cleanup-interval-ms=3600000
 # Upload
 # ---------------------------------------------------------------------------
 # Upload bytes use resumable tus chunks shared by the admin file browser and
-# public file requests. Directory upload is not currently supported.
+# public file requests. Directory uploads are available to administrators only.
 # Bytes per tus PATCH request. Reverse-proxy request limits must be higher than this value.
 nas.upload.resumable-chunk-size-bytes=33554432
+# Applies to new directory groups; existing uploads may still resume.
+nas.upload.directory-enabled=true
+# Runtime limits cannot exceed these built-in ceilings (root included in entries).
+nas.upload.directory-max-entries=10000
+nas.upload.directory-max-depth=64
+nas.upload.directory-max-active=16
 # Global number of upload chunks that may be written concurrently.
 nas.upload.max-concurrent-chunks=4
 # Durable sessions and partial data remain resumable for this many hours.

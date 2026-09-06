@@ -39,7 +39,7 @@ export const getSettings = async <T,>(endpoint: string): Promise<T> => {
 };
 
 export const saveSettings = async (endpoint: string, values: FormValues): Promise<ActionResponse> => {
-  const body = new FormData();
+  const body = new URLSearchParams();
   Object.entries(values).forEach(([name, value]) => {
     if (Array.isArray(value)) {
       value.forEach((item) => body.append(name, item));
