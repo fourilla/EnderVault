@@ -12,6 +12,23 @@ import tools.jackson.databind.ObjectMapper;
 
 class AppearanceThemeServiceTest {
     @Test
+    void reusesStylesheetForEqualSnapshotsAndRebuildsAfterChange() throws Exception {
+        var service = new AppearanceThemeService(new ObjectMapper());
+        var initial = AppearanceProperties.defaults();
+        String css = service.stylesheet(initial);
+        assertThat(service.stylesheet(initial)).isSameAs(css);
+        assertThat(service.stylesheet(AppearanceProperties.defaults())).isSameAs(css);
+
+        var changed = new Binder(new MapConfigurationPropertySource(Map.of(
+                "nas.appearance.accent", "#abcdef")))
+                .bind("nas.appearance", AppearanceProperties.class).get();
+        String updated = service.stylesheet(changed);
+        assertThat(updated).isNotSameAs(css).contains("--accent: #ABCDEF;");
+        assertThat(service.stylesheet(changed)).isSameAs(updated);
+        assertThat(service.stylesheet(initial)).isEqualTo(css);
+    }
+
+    @Test
     void rendersValidatedColorsAndEverySizeFromSharedDefinition() throws Exception {
         var service = new AppearanceThemeService(new ObjectMapper());
         for (String size : List.of("extra-small", "small", "medium", "large", "extra-large")) {

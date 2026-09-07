@@ -13,6 +13,7 @@ import tools.jackson.databind.ObjectMapper;
 public class AppearanceThemeService {
     private final ObjectMapper mapper;
     private final Definition definition;
+    private volatile CachedStylesheet cached;
 
     public AppearanceThemeService(ObjectMapper mapper) throws IOException {
         this.mapper = mapper;
@@ -22,6 +23,21 @@ public class AppearanceThemeService {
     }
 
     public String stylesheet(AppearanceProperties appearance) {
+        var current = cached;
+        if (current != null && current.appearance().equals(appearance)) {
+            return current.css();
+        }
+        synchronized (this) {
+            current = cached;
+            if (current == null || !current.appearance().equals(appearance)) {
+                current = new CachedStylesheet(appearance, renderStylesheet(appearance));
+                cached = current;
+            }
+            return current.css();
+        }
+    }
+
+    private String renderStylesheet(AppearanceProperties appearance) {
         // Only validated colors and bundled size/derived tokens enter the public document.
         var values = mapper.valueToTree(appearance);
         Map<String, String> tokens = new LinkedHashMap<>();
@@ -32,6 +48,9 @@ public class AppearanceThemeService {
         return ":root { " + tokens.entrySet().stream()
                 .map(entry -> entry.getKey() + ": " + entry.getValue() + ";")
                 .collect(Collectors.joining(" ")) + " }";
+    }
+
+    private record CachedStylesheet(AppearanceProperties appearance, String css) {
     }
 
     record Definition(Map<String, String> colors, Map<String, String> derived,

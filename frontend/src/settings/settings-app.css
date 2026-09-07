@@ -367,6 +367,7 @@ button.settings-spa-nav-item.is-active {
 .appearance-editor-fields .settings-unit-slot.is-empty { display: none; }
 
 /* Inspection must not change the sample state being described. */
+.appearance-preview .appearance-preview-primary,
 .appearance-preview .appearance-preview-primary:hover { background: var(--button-primary-bg); border-color: var(--button-primary-bg); color: var(--button-primary-text); }
 .appearance-preview .appearance-preview-hover,
 .appearance-preview .appearance-preview-hover:hover { background: var(--button-primary-hover-bg); border-color: var(--button-primary-hover-bg); color: var(--button-primary-text); }
@@ -375,7 +376,9 @@ button.settings-spa-nav-item.is-active {
 .appearance-preview .table-wrap tbody tr:not(.is-selected):hover td { background: transparent; }
 .appearance-preview .table-wrap tbody tr:not(.is-selected):hover .item-name { color: var(--text); }
 .appearance-preview .settings-spa-nav-item.is-active:hover { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 52%, var(--line)); }
-.appearance-preview .appearance-preview-focus:hover { background: var(--panel-elevated); color: var(--text); }
-.appearance-preview button:disabled { pointer-events: none; }
+.appearance-preview .settings-spa-nav-item > span { width: fit-content; justify-self: start; }
+/* aria-disabled keeps sample regions inspectable; capture handlers block activation. */
+.appearance-preview .appearance-preview-disabled,
+.appearance-preview .appearance-preview-disabled:hover { background: var(--panel); border-color: var(--line); color: var(--text); opacity: 0.55; }
 .appearance-preview-focus-target { display: inline-flex; padding: 4px; }
 .appearance-color-field { scroll-margin-block: calc(var(--topbar-height) + var(--space-xl)); }

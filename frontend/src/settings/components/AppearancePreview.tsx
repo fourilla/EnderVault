@@ -35,10 +35,10 @@ export function AppearancePreview({ appearance, valid, onInspectColor }: {
     <h3 className="settings-preview-title" data-preview-color="mutedText">Preview</h3>
     <div className="appearance-preview-samples">
       <div className="appearance-preview-actions">
-        <button type="button" tabIndex={-1} className="appearance-preview-primary" data-preview-color="button" data-preview-border="button"><span data-preview-color="buttonText">Create</span></button>
+        <button type="button" tabIndex={-1} className="appearance-preview-primary" data-preview-color="button" data-preview-border="button"><span data-preview-color="buttonText">Normal</span></button>
         <button type="button" tabIndex={-1} className="appearance-preview-hover" data-preview-color="buttonHover" data-preview-border="buttonHover"><span data-preview-color="buttonText">Hover</span></button>
-        <span className="appearance-preview-focus-target" data-preview-color="accentStrong"><button type="button" tabIndex={-1} className="ghost appearance-preview-focus" data-preview-color="panelElevated" data-preview-border="border"><span data-preview-color="text">Focus</span></button></span>
-        <span data-preview-color="fixed"><button type="button" className="ghost" disabled>Disabled</button></span>
+        <span className="appearance-preview-focus-target" data-preview-color="accentStrong"><button type="button" tabIndex={-1} className="appearance-preview-primary appearance-preview-focus" data-preview-color="button" data-preview-border="button"><span data-preview-color="buttonText">Focus</span></button></span>
+        <button type="button" tabIndex={-1} className="ghost appearance-preview-disabled" aria-disabled="true" data-preview-color="panel" data-preview-border="border"><span data-preview-color="text">Disabled</span></button>
       </div>
       <div className="appearance-preview-fields">
         <input type="text" tabIndex={-1} data-preview-color="panelElevated" data-preview-border="border" value="Example.txt" readOnly aria-label="Sample filename" />
@@ -50,7 +50,7 @@ export function AppearancePreview({ appearance, valid, onInspectColor }: {
       <div className="browser-grid appearance-preview-cards">
         {[false, true].map((selected) => <article key={String(selected)} className={`browser-card${selected ? ' is-selected' : ''}`}
           data-preview-color={selected ? 'selection' : 'panel'} data-preview-border={selected ? 'accent' : 'border'}>
-          <div className="card-thumb" data-preview-color="panelMuted"><i className={`fas ${selected ? 'fa-file-image' : 'fa-file-lines'}`} aria-hidden="true" data-preview-color="mutedText" /></div>
+          <div className="card-thumb" data-preview-color="panelMuted"><i className={`fas ${selected ? 'fa-file-image' : 'fa-file-lines'}`} aria-hidden="true" data-preview-color="text" /></div>
           <div className="card-body"><span className="card-name" data-preview-color={selected ? 'accentStrong' : 'text'}>{selected ? 'Selected.png' : 'Example.txt'}</span>
             <div className="card-meta"><span data-preview-color="mutedText">{selected ? 'Image' : 'Text'}</span><span data-preview-color="mutedText">{selected ? '2.4 MB' : '12 KB'}</span></div>
           </div>
