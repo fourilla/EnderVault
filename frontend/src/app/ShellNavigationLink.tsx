@@ -20,6 +20,7 @@ export function ShellNavigationLink({ entry, className, onNavigate }: ShellNavig
       <NavLink
         className={({ isActive }) => `${className ?? ''}${isActive ? ' active' : ''}`.trim()}
         end
+        title={entry.label}
         onClick={onNavigate}
         to={entry.path}
       >
@@ -28,5 +29,5 @@ export function ShellNavigationLink({ entry, className, onNavigate }: ShellNavig
     );
   }
 
-  return <Link className={className} onClick={onNavigate} to={entry.path}>{content}</Link>;
+  return <Link className={className} title={entry.label} onClick={onNavigate} to={entry.path}>{content}</Link>;
 }

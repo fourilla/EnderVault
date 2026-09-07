@@ -18,6 +18,7 @@ export interface AdminAppFavorite {
 }
 
 export interface AdminAppBootstrap {
+  appearance: import('../shared/appearance/presets').Appearance;
   username: string;
   capabilities: AdminAppCapabilities;
   storage: {

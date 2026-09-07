@@ -16,7 +16,8 @@ public record AdminAppBootstrapPayload(
         AdminShellStateService.UploadUiConfig uploads,
         SessionPayload sessions,
         OutboundRoutePayload outboundRoute,
-        AdminShellStateService.StickyNoteThemeView stickyNoteTheme
+        AdminShellStateService.StickyNoteThemeView stickyNoteTheme,
+        io.github.fourilla.endervault.config.AppearanceProperties appearance
 ) {
 
     static AdminAppBootstrapPayload from(
@@ -40,7 +41,8 @@ public record AdminAppBootstrapPayload(
                 shellStateService.uploadUiConfig(),
                 new SessionPayload(shellStateService.activeSessionCount()),
                 OutboundRoutePayload.from(shellStateService.outboundRoute()),
-                shellStateService.stickyNoteTheme()
+                shellStateService.stickyNoteTheme(),
+                shellStateService.appearance()
         );
     }
 

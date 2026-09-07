@@ -11,6 +11,7 @@ import {
 import { AdminAppAccessDeniedError, AdminAppSessionExpiredError, fetchAdminAppBootstrap } from './app-api';
 import { bootstrapReducer, initialBootstrapState } from './bootstrap-state';
 import type { AdminAppBootstrap } from './types';
+import { applyAppearance } from '../shared/appearance/presets';
 
 interface AdminAppContextValue {
   bootstrap: AdminAppBootstrap;
@@ -33,7 +34,10 @@ export function AdminAppProvider({ children }: PropsWithChildren) {
     dispatch({ type: 'start', requestId: id });
     try {
       const next = await fetchAdminAppBootstrap(controller.signal);
-      if (!controller.signal.aborted) dispatch({ type: 'success', requestId: id, bootstrap: next });
+      if (!controller.signal.aborted) {
+        applyAppearance(next.appearance);
+        dispatch({ type: 'success', requestId: id, bootstrap: next });
+      }
     } catch (reason) {
       if (controller.signal.aborted || (reason instanceof DOMException && reason.name === 'AbortError')) return;
       dispatch({ type: 'failure', requestId: id, failure: {

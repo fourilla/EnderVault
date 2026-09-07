@@ -6,6 +6,11 @@
     padding: 0;
 }
 
+.file-request-form .form-actions.end {
+    display: flex;
+    justify-content: flex-end;
+}
+
 .file-request-field-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

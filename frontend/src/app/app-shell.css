@@ -2,10 +2,114 @@ html:has(.admin-react-shell) {
   scroll-padding-top: calc(var(--topbar-height) + var(--space-md));
 }
 
+.admin-react-shell {
+  grid-template-rows: var(--topbar-height) minmax(0, 1fr);
+}
+
+.admin-shell-brand {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: var(--space-md);
+}
+
+.admin-shell-brand .sidebar-brand {
+  min-width: 0;
+  padding-inline: 0;
+  white-space: nowrap;
+}
+
+.sidebar-collapse-toggle { flex: 0 0 auto; }
+
+.sidebar-content {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-5xl);
+  min-height: 0;
+}
+
+@media (min-width: 721px) {
+  .admin-react-shell > .sidebar {
+    top: var(--topbar-height);
+    height: calc(100dvh - var(--topbar-height));
+    min-height: 0;
+    overflow-y: auto;
+    padding-inline: var(--space-sm);
+  }
+  .admin-react-shell .sidebar-nav a,
+  .admin-react-shell .sidebar-favorites-header > a {
+    gap: 0;
+    padding-inline: 0;
+  }
+  .admin-react-shell .sidebar-nav a > i {
+    flex: 0 0 calc(var(--sidebar-rail-width) - 2 * var(--space-sm) - 2px);
+    width: calc(var(--sidebar-rail-width) - 2 * var(--space-sm) - 2px);
+  }
+  .admin-react-shell .sidebar-favorites-header > a > i {
+    flex: 0 0 calc(var(--sidebar-rail-width) - 2 * var(--space-sm) - 2px);
+    width: calc(var(--sidebar-rail-width) - 2 * var(--space-sm) - 2px);
+  }
+  .admin-react-shell.sidebar-collapsed { --sidebar-width: var(--sidebar-rail-width); }
+  .sidebar-collapsed .sidebar-favorites-toggle,
+  .sidebar-collapsed .sidebar-favorites-list,
+  .sidebar-collapsed .sidebar-usage { display: none; }
+  .sidebar-collapsed .sidebar-nav a,
+  .sidebar-collapsed .sidebar-favorites-header > a {
+    justify-content: flex-start;
+    gap: 0;
+    padding-inline: 0;
+  }
+  .sidebar-collapsed .sidebar-nav a > span,
+  .sidebar-collapsed .sidebar-favorites-header > a > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .sidebar-collapsed .sidebar-favorites-header { border-bottom: 0; }
+}
+
+@media (max-width: 720px) {
+  .admin-react-shell { grid-template-rows: auto auto minmax(0, 1fr); }
+  .sidebar-collapse-toggle { display: none; }
+}
+
 .admin-react-shell .app-topbar {
+  grid-column: 1 / -1;
   position: sticky;
   top: 0;
   z-index: var(--z-topbar);
+  padding-inline: calc((var(--sidebar-rail-width) - var(--icon-button-size)) / 2) var(--space-2xl);
+}
+
+.admin-react-shell .app-topbar .icon-button {
+  border-color: transparent;
+  background: transparent;
+  color: var(--topbar-control-color, var(--text));
+}
+
+.admin-react-shell .app-topbar .icon-button:hover:not(:disabled),
+.admin-react-shell .app-topbar .icon-button:focus-visible,
+.admin-react-shell .app-topbar .topbar-control-trigger[aria-expanded="true"] {
+  border-color: var(--navigation-hover-border);
+  background: var(--navigation-hover-bg);
+  color: var(--topbar-control-color, var(--text));
+}
+
+.admin-react-shell .app-topbar .icon-button.route-vpn-ready,
+.admin-react-shell .app-topbar .icon-button.sticky-note-visibility-toggle.is-active {
+  --topbar-control-color: var(--success);
+}
+
+.admin-react-shell .app-topbar .icon-button.route-vpn-unavailable {
+  --topbar-control-color: var(--danger);
+}
+
+.admin-react-shell .drop-upload-overlay {
+  top: var(--topbar-height);
 }
 
 body:has(.admin-react-shell) .toast-region {

@@ -312,3 +312,73 @@ button.settings-spa-nav-item.is-active {
     justify-content: flex-end;
   }
 }
+.appearance-presets,
+.appearance-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+.appearance-swatch { gap: var(--space-md); }
+.settings-spa-form .settings-preview-title {
+  margin: 0 0 var(--space-lg);
+  color: var(--muted);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  line-height: 1.4;
+  justify-self: start;
+  align-self: start;
+}
+.sticky-note-theme-preview-stage { grid-template-rows: auto minmax(0, 1fr); }
+.appearance-preview-actions select { width: auto; max-width: 100%; height: var(--control-height); }
+.appearance-swatch > span { width: 18px; height: 18px; border: 1px solid var(--line); border-radius: 50%; }
+.appearance-color-input { display: grid; grid-template-columns: minmax(0, 1fr) var(--control-height); gap: var(--space-md); }
+.appearance-color-input input[type="color"] { width: 100%; height: var(--control-height); padding: 2px; border: 1px solid var(--line); background: var(--panel); }
+.appearance-editor {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 350px), 1fr));
+  gap: var(--space-xl);
+  margin-bottom: var(--space-lg);
+}
+.appearance-preview {
+  min-width: 0;
+  align-self: start;
+  padding: var(--panel-padding);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--bg);
+  color: var(--text);
+}
+.appearance-preview-samples { display: grid; gap: var(--space-lg); }
+.appearance-preview-actions { margin: 0; }
+.appearance-preview-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-md); }
+.appearance-preview-focus { outline: 2px solid var(--focus); outline-offset: 2px; }
+.appearance-preview-cards { margin: 0; }
+.appearance-preview-table { --table-min-width: 0; }
+.appearance-preview-table table { table-layout: fixed; }
+.appearance-preview-notifications { display: grid; gap: var(--space-md); }
+.appearance-preview-notifications .toast { box-shadow: none; }
+.appearance-preview-contrast { color: var(--muted); margin: var(--space-lg) 0 0; }
+.appearance-preview-warning { color: var(--warning); margin: var(--space-md) 0 0; }
+.appearance-editor-fields { min-width: 0; align-content: start; }
+.appearance-editor-fields .appearance-color-field { display: grid; gap: var(--space-xs); min-width: 0; }
+.appearance-editor-fields .settings-control-row { grid-template-columns: minmax(0, 1fr); gap: var(--space-sm); }
+.appearance-editor-fields .settings-unit-field { grid-template-columns: minmax(0, 1fr); }
+.appearance-editor-fields .settings-unit-slot.is-empty { display: none; }
+
+/* Inspection must not change the sample state being described. */
+.appearance-preview .appearance-preview-primary,
+.appearance-preview .appearance-preview-primary:hover { background: var(--button-primary-bg); border-color: var(--button-primary-bg); color: var(--button-primary-text); }
+.appearance-preview .appearance-preview-hover,
+.appearance-preview .appearance-preview-hover:hover { background: var(--button-primary-hover-bg); border-color: var(--button-primary-hover-bg); color: var(--button-primary-text); }
+.appearance-preview .browser-card:not(.is-selected):hover { background: var(--panel); border-color: var(--line); box-shadow: none; }
+.appearance-preview .browser-card:not(.is-selected):hover .card-name { color: var(--text); }
+.appearance-preview .table-wrap tbody tr:not(.is-selected):hover td { background: transparent; }
+.appearance-preview .table-wrap tbody tr:not(.is-selected):hover .item-name { color: var(--text); }
+.appearance-preview .settings-spa-nav-item.is-active:hover { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 52%, var(--line)); }
+.appearance-preview .settings-spa-nav-item > span { width: fit-content; justify-self: start; }
+/* aria-disabled keeps sample regions inspectable; capture handlers block activation. */
+.appearance-preview .appearance-preview-disabled,
+.appearance-preview .appearance-preview-disabled:hover { background: var(--panel); border-color: var(--line); color: var(--text); opacity: 0.55; }
+.appearance-preview-focus-target { display: inline-flex; padding: 4px; }
+.appearance-color-field { scroll-margin-block: calc(var(--topbar-height) + var(--space-xl)); }

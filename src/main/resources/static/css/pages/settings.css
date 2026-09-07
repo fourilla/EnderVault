@@ -389,16 +389,16 @@
     align-items: center;
     gap: var(--space-xl);
     width: 100%;
-    height: 56px;
+    min-height: calc(var(--control-height) + 2 * var(--settings-row-padding-y) + 2px);
     min-width: 0;
     border: 1px solid var(--line);
     border-radius: var(--radius-panel);
     background: var(--panel-muted);
-    padding: 8px var(--space-lg);
+    padding: var(--settings-row-padding-y) var(--space-lg);
 }
 
 .settings-control-row.is-multiline {
-    height: 96px;
+    min-height: calc(72px + 2 * var(--settings-row-padding-y) + 2px);
 }
 
 .settings-control-copy {
@@ -411,7 +411,7 @@
 .settings-control-copy > strong,
 .settings-control-copy .settings-field-label {
     color: var(--text);
-    font-size: var(--font-size-sm);
+    font-size: var(--field-font-size);
     font-weight: 700;
 }
 
@@ -498,7 +498,8 @@
 }
 
 .settings-switch-input:focus-visible {
-    box-shadow: var(--focus-ring);
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
 }
 
 .settings-dependent-locked {
@@ -521,11 +522,11 @@
         grid-template-columns: minmax(0, 1fr);
         gap: var(--space-md);
         height: auto;
-        min-height: 92px;
+        min-height: 0;
     }
 
     .settings-control-row.is-multiline {
-        min-height: 132px;
+        min-height: 0;
     }
 
     .settings-unit-field {

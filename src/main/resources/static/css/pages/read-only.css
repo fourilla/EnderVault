@@ -160,7 +160,7 @@
 
 .readonly-file-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--browser-card-min-width)), 1fr));
     gap: var(--space-xl);
 }
 
@@ -197,12 +197,12 @@
 
 .readonly-file-name {
     display: -webkit-box;
-    min-height: 44px;
+    min-height: calc(2.7em + 2 * var(--card-body-padding));
     min-width: 0;
     border-top: 1px solid var(--line);
-    padding: var(--space-md);
+    padding: var(--card-body-padding);
     color: var(--text);
-    font-size: var(--font-size-sm);
+    font-size: var(--card-title-font-size);
     font-weight: 700;
     line-height: 1.35;
     overflow: hidden;
