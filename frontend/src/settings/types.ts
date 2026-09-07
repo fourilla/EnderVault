@@ -16,6 +16,7 @@ export type FormValue = string | boolean | string[];
 export type FormValues = Record<string, FormValue>;
 
 export type GeneralSettingsSnapshot = {
+  appearance: import('../shared/appearance/presets').Appearance;
   browser: {
     defaultView: string;
     defaultSort: string;

@@ -17,6 +17,10 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @ConfigurationProperties(prefix = "nas")
 public class NasProperties {
+    private volatile AppearanceProperties appearance = AppearanceProperties.defaults();
+
+    public AppearanceProperties getAppearance() { return appearance; }
+    public void setAppearance(AppearanceProperties appearance) { this.appearance = appearance; }
 
     @Valid
     private Storage storage = new Storage();

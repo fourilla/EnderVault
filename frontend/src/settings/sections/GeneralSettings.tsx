@@ -1,4 +1,8 @@
 import { useCallback, type CSSProperties } from 'react';
+import { contrastRatio } from '../../shared/appearance/presets';
+import { applyAppearance } from '../../shared/appearance/presets';
+import { useAdminApp } from '../../app/AdminAppContext';
+import { AppearanceFields, appearanceValues, appearanceFromValues } from '../components/AppearanceFields';
 import type { FormValue, FormValues, GeneralSettingsSnapshot } from '../types';
 import {
   SettingsDirectoryField,
@@ -40,6 +44,7 @@ const comicToolFields: FieldDefinition[] = [
 ];
 
 const toValues = (snapshot: GeneralSettingsSnapshot): FormValues => ({
+  ...appearanceValues(snapshot.appearance),
   defaultView: snapshot.browser.defaultView,
   defaultSort: snapshot.browser.defaultSort,
   defaultDirection: snapshot.browser.defaultDirection,
@@ -76,20 +81,6 @@ const toValues = (snapshot: GeneralSettingsSnapshot): FormValues => ({
   remoteDefaultTargetDirectory: snapshot.remoteDownload.defaultTargetDirectory,
 });
 
-const relativeLuminance = (hex: string) => {
-  const channels = [1, 3, 5].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16) / 255);
-  const linear = channels.map((channel) => channel <= 0.04045
-    ? channel / 12.92
-    : ((channel + 0.055) / 1.055) ** 2.4);
-  return (0.2126 * linear[0]) + (0.7152 * linear[1]) + (0.0722 * linear[2]);
-};
-
-const contrastRatio = (first: string, second: string) => {
-  const brighter = Math.max(relativeLuminance(first), relativeLuminance(second));
-  const darker = Math.min(relativeLuminance(first), relativeLuminance(second));
-  return (brighter + 0.05) / (darker + 0.05);
-};
-
 export type GeneralSettingsScope = 'appearance' | 'files' | 'file-tools' | 'remote-downloads';
 
 function GeneralSettingsEditor({ snapshot, scope, onDirtyChange }: {
@@ -97,11 +88,14 @@ function GeneralSettingsEditor({ snapshot, scope, onDirtyChange }: {
   scope: GeneralSettingsScope;
   onDirtyChange: (dirty: boolean) => void;
 }) {
+  const { refreshBootstrap } = useAdminApp();
   const applyStickyNoteTheme = useCallback((values: FormValues) => {
+    applyAppearance(appearanceFromValues(values));
+    void refreshBootstrap();
     document.documentElement.style.setProperty('--sticky-note-bg', String(values.stickyNoteBackgroundColor));
     document.documentElement.style.setProperty('--sticky-note-border', String(values.stickyNoteBorderColor));
     document.documentElement.style.setProperty('--sticky-note-text', String(values.stickyNoteTextColor));
-  }, []);
+  }, [refreshBootstrap]);
   const editor = useSettingsEditor(
     toValues(snapshot),
     '/api/v1/settings/general',
@@ -144,6 +138,7 @@ function GeneralSettingsEditor({ snapshot, scope, onDirtyChange }: {
   return (
     <form className="general-settings-form settings-spa-form" onSubmit={(event) => { event.preventDefault(); void editor.save(); }}>
       <SettingsSaveBar {...editor} onSave={() => void editor.save()} onDiscard={editor.discard} />
+      {scope === 'appearance' && <AppearanceFields values={editor.values} change={editor.change} />}
 
       {scope === 'appearance' && <SettingsSection title="Browser Defaults" description="Used when the browser has no saved preference cookie.">
         <div className="settings-field-grid">{browserFields.map(field)}</div>

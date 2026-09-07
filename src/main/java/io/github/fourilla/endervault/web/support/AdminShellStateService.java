@@ -96,6 +96,10 @@ public class AdminShellStateService {
         );
     }
 
+    public io.github.fourilla.endervault.config.AppearanceProperties appearance() {
+        return nasProperties.getAppearance();
+    }
+
     private boolean showHiddenFavorites(HttpServletRequest request) {
         String requestedHidden = request.getParameter("hidden");
         String hidden = requestedHidden == null

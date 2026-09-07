@@ -175,6 +175,32 @@ class GeneralSettingsServiceTest {
                 .hasMessageContaining("#RRGGBB");
     }
 
+    @Test
+    void appearancePersistsAndAppliesOnlyAfterSuccessfulSave() throws Exception {
+        Path config = tempDir.resolve("appearance.properties");
+        Files.writeString(config, "# Settings\n");
+        NasProperties properties = new NasProperties();
+        GeneralSettingsService service = service(properties, config);
+        var params = validParameters();
+        params.set("appearanceAccent", "#72b7f5");
+        params.set("appearanceAccentStrong", "#9ACFFF");
+        params.set("appearanceButton", "#72B7F5");
+        params.set("appearanceButtonHover", "#9ACFFF");
+        params.set("appearanceButtonText", "#101820");
+        params.set("appearanceControlSize", "small");
+        params.set("appearanceCardSize", "large");
+        var update = service.updateFrom(params);
+        assertThat(properties.getAppearance().controlSize()).isEqualTo("medium");
+        service.save(update);
+        assertThat(properties.getAppearance().accent()).isEqualTo("#72B7F5");
+        assertThat(Files.readString(config)).contains("nas.appearance.control-size=small");
+        params.set("appearanceControlSize", "400px");
+        assertThatThrownBy(() -> service.updateFrom(params)).isInstanceOf(IllegalArgumentException.class);
+        params.set("appearanceControlSize", "small");
+        params.set("appearanceAccent", "red;display:none");
+        assertThatThrownBy(() -> service.updateFrom(params)).isInstanceOf(IllegalArgumentException.class);
+    }
+
     private MultiValueMap<String, String> validParameters() {
         MultiValueMap<String, String> parameters = new LinkedMultiValueMap<>();
         parameters.add("defaultView", "table");

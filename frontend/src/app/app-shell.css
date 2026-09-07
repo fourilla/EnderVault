@@ -88,7 +88,7 @@ html:has(.admin-react-shell) {
 .admin-react-shell .app-topbar .icon-button {
   border-color: transparent;
   background: transparent;
-  color: var(--text);
+  color: var(--topbar-control-color, var(--text));
 }
 
 .admin-react-shell .app-topbar .icon-button:hover:not(:disabled),
@@ -96,16 +96,16 @@ html:has(.admin-react-shell) {
 .admin-react-shell .app-topbar .topbar-control-trigger[aria-expanded="true"] {
   border-color: var(--navigation-hover-border);
   background: var(--navigation-hover-bg);
-  color: var(--text);
+  color: var(--topbar-control-color, var(--text));
 }
 
 .admin-react-shell .app-topbar .icon-button.route-vpn-ready,
 .admin-react-shell .app-topbar .icon-button.sticky-note-visibility-toggle.is-active {
-  color: var(--success);
+  --topbar-control-color: var(--success);
 }
 
 .admin-react-shell .app-topbar .icon-button.route-vpn-unavailable {
-  color: var(--danger);
+  --topbar-control-color: var(--danger);
 }
 
 .admin-react-shell .drop-upload-overlay {

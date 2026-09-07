@@ -312,3 +312,15 @@ button.settings-spa-nav-item.is-active {
     justify-content: flex-end;
   }
 }
+.appearance-presets,
+.appearance-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+.appearance-swatch { gap: var(--space-md); }
+.appearance-swatch > span { width: 18px; height: 18px; border: 1px solid var(--line); border-radius: 50%; }
+.appearance-color-input { display: grid; grid-template-columns: minmax(0, 1fr) var(--control-height); gap: var(--space-md); }
+.appearance-color-input input[type="color"] { width: 100%; height: var(--control-height); padding: 2px; border: 1px solid var(--line); background: var(--panel); }
+.appearance-preview { margin-block: var(--space-lg); padding: var(--panel-padding); border: 1px solid var(--line); border-radius: var(--radius-panel); }

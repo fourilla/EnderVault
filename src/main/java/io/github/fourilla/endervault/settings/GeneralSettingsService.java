@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.settings;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.github.fourilla.endervault.config.AppearanceProperties;
 import io.github.fourilla.endervault.config.LocalPropertiesFile;
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
@@ -53,6 +54,7 @@ public class GeneralSettingsService {
         NasProperties.RemoteDownload remoteDownload = nasProperties.getRemoteDownload();
 
         return new GeneralSettingsSnapshot(
+                nasProperties.getAppearance(),
                 new BrowserSettings(
                         browser.getDefaultView(),
                         browser.getDefaultSort(),
@@ -184,6 +186,11 @@ public class GeneralSettingsService {
         );
 
         return new GeneralSettingsUpdate(
+                parameters.keySet().stream().anyMatch(key -> key.startsWith("appearance"))
+                        ? new AppearanceProperties(first(parameters, "appearanceAccent"), first(parameters, "appearanceAccentStrong"),
+                            first(parameters, "appearanceButton"), first(parameters, "appearanceButtonHover"),
+                            first(parameters, "appearanceButtonText"), first(parameters, "appearanceControlSize"), first(parameters, "appearanceCardSize"))
+                        : nasProperties.getAppearance(),
                 new BrowserSettings(defaultView, defaultSort, defaultDirection, defaultPageSize),
                 stickyNotes,
                 new StorageSettings(defaultConflictPolicy),
@@ -231,6 +238,7 @@ public class GeneralSettingsService {
 
     private void persist(GeneralSettingsUpdate update) throws IOException {
         Map<String, String> updates = new LinkedHashMap<>();
+        updates.putAll(update.appearance().propertyValues());
         BrowserSettings browser = update.browser();
         updates.put("nas.browser.default-view", browser.defaultView());
         updates.put("nas.browser.default-sort", browser.defaultSort());
@@ -289,6 +297,7 @@ public class GeneralSettingsService {
     }
 
     private void applyToRuntime(GeneralSettingsUpdate update) {
+        nasProperties.setAppearance(update.appearance());
         NasProperties.Browser browser = nasProperties.getBrowser();
         browser.setDefaultView(update.browser().defaultView());
         browser.setDefaultSort(update.browser().defaultSort());
@@ -431,6 +440,7 @@ public class GeneralSettingsService {
     }
 
     public record GeneralSettingsSnapshot(
+            AppearanceProperties appearance,
             BrowserSettings browser,
             StickyNoteSettings stickyNotes,
             StorageSettings storage,
@@ -443,6 +453,7 @@ public class GeneralSettingsService {
     }
 
     public record GeneralSettingsUpdate(
+            AppearanceProperties appearance,
             BrowserSettings browser,
             StickyNoteSettings stickyNotes,
             StorageSettings storage,
