@@ -147,6 +147,7 @@ function GeneralSettingsEditor({ snapshot, scope, onDirtyChange }: {
       {scope === 'appearance' && <SettingsSection id="sticky-note-theme" title="Sticky Notes" description="Sets one shared note theme for every administrator device.">
         <div className="sticky-note-theme-editor">
           <div className="sticky-note-theme-preview-stage">
+            <h3 className="settings-preview-title">Preview</h3>
             <article className="sticky-note-theme-preview" style={stickyStyle}>
               <header><strong>Project note</strong><i className="fas fa-note-sticky" aria-hidden="true" /></header>
               <p>Keep the next maintenance task visible without leaving this page.</p>

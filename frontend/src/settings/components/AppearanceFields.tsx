@@ -1,7 +1,7 @@
-import type { CSSProperties } from 'react';
-import { appearanceSizes, appearanceTokens, appearanceColorFields, colorPresets, colorPresetLabels, contrastRatio, type Appearance } from '../../shared/appearance/presets';
+import { appearanceSizes, appearanceColorFields, colorPresets, colorPresetLabels, type Appearance } from '../../shared/appearance/presets';
 import type { FormValues, FormValue } from '../types';
 import { SettingsField, SettingsSection } from './SettingsControls';
+import { AppearancePreview } from './AppearancePreview';
 
 export const appearanceValues = (appearance: Appearance): FormValues => Object.fromEntries(
   Object.entries(appearance).map(([key, value]) => [`appearance${key[0].toUpperCase()}${key.slice(1)}`, value]),
@@ -16,19 +16,20 @@ export function AppearanceFields({ values, change }: { values: FormValues; chang
   const appearance = appearanceFromValues(values);
   const valid = (Object.keys(appearanceColorFields) as (keyof typeof appearanceColorFields)[]).map((key) => appearance[key])
     .every((value) => /^#[0-9a-f]{6}$/i.test(value));
-  const style = valid ? appearanceTokens(appearance) as CSSProperties : undefined;
   const applyPreset = (preset: typeof colorPresets[keyof typeof colorPresets]) => {
     Object.entries(appearanceValues({ ...appearance, ...preset })).forEach(([key, value]) => change(key, value));
   };
   const options = appearanceSizes.map((value, index) => ({ value, label: ['Extra small', 'Small', 'Medium', 'Large', 'Extra large'][index] }));
-  return <SettingsSection title="Interface Appearance" description="Shared administrator colors and sizing.">
+  return <SettingsSection title="Interface Appearance" description="Shared interface colors and sizing.">
     <div className="appearance-presets" role="group" aria-label="Color presets">
       {Object.entries(colorPresets).map(([name, preset]) => <button type="button" className="ghost appearance-swatch"
         key={name} title={`${colorPresetLabels[name as keyof typeof colorPresets]} colors`} aria-label={`${colorPresetLabels[name as keyof typeof colorPresets]} colors`} onClick={() => applyPreset(preset)}>
         <span style={{ backgroundColor: preset.background }} /><span style={{ backgroundColor: preset.button }} />{colorPresetLabels[name as keyof typeof colorPresets]}
       </button>)}
     </div>
-    <div className="settings-field-grid">
+    <div className="appearance-editor">
+    <AppearancePreview appearance={appearance} valid={valid} />
+    <div className="settings-field-grid appearance-editor-fields">
       {Object.entries(appearanceColorFields).map(([key, label]) => {
         const name = `appearance${key[0].toUpperCase()}${key.slice(1)}`;
         return <label className="settings-field appearance-color-field" key={name}>
@@ -45,20 +46,7 @@ export function AppearanceFields({ values, change }: { values: FormValues; chang
       <SettingsField field={{ name: 'appearanceControlSize', label: 'Button size', type: 'select', options }} values={values} onChange={change} />
       <SettingsField field={{ name: 'appearanceCardSize', label: 'File card size', type: 'select', options }} values={values} onChange={change} />
     </div>
-    {valid && <div className="appearance-preview" style={style}>
-      <div className="appearance-preview-panel"><strong>Workspace</strong><span className="muted">Files and directories</span></div>
-      <div className="appearance-preview-actions"><button type="button">Create</button><button type="button" className="ghost">Cancel</button>
-        <button type="button" className="ghost icon-button" aria-label="Sample directory"><i className="fas fa-folder" aria-hidden="true" /></button>
-        <select aria-label="Sample view" defaultValue="grid"><option value="grid">Grid view</option><option value="table">Table view</option></select></div>
-      <div className="browser-grid">
-        <article className="browser-card"><div className="card-thumb"><i className="fas fa-file-image" aria-hidden="true" /></div><div className="card-body"><span className="card-name">Example.png</span><div className="card-meta"><span>Image</span><span>2.4 MB</span></div></div></article>
-      </div>
-      <p className="muted">Button contrast: {contrastRatio(appearance.button, appearance.buttonText).toFixed(2)}:1
-        {(contrastRatio(appearance.button, appearance.buttonText) < 4.5 || contrastRatio(appearance.buttonHover, appearance.buttonText) < 4.5) && ' - Low text contrast. Consider another color combination.'}</p>
-      {[appearance.background, appearance.panel, appearance.panelElevated, appearance.panelMuted].some((background) =>
-        contrastRatio(background, appearance.text) < 4.5 || contrastRatio(background, appearance.mutedText) < 4.5)
-        && <p role="status">Low contrast between text and backgrounds. Consider another color combination.</p>}
-    </div>}
+    </div>
     <button type="button" className="ghost icon-text-button" onClick={() => {
       Object.entries(appearanceValues({ ...colorPresets.endervault, controlSize: 'medium', cardSize: 'medium' })).forEach(([key, value]) => change(key, value));
     }}><i className="fas fa-arrow-rotate-left" aria-hidden="true" /><span>Reset appearance</span></button>
