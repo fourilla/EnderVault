@@ -6,6 +6,7 @@
           th:href="@{/webjars/fortawesome__fontawesome-free/6.7.2/css/all.min.css}">
     <link rel="stylesheet" th:if="${!stylesFrontend.available()}" th:href="@{/css/app.css}">
     <link rel="stylesheet" th:each="style : ${stylesFrontend.styles()}" th:href="${style}">
+    <style id="endervault-appearance" th:text="${appearanceStylesheet}"></style>
     <link rel="modulepreload" th:each="preload : ${stylesFrontend.modulePreloads()}" th:href="${preload}">
     <script type="module" th:if="${stylesFrontend.development()}" th:src="${stylesFrontend.clientScript()}"></script>
     <script type="module" th:if="${stylesFrontend.development()}" th:src="${stylesFrontend.entryScript()}"></script>

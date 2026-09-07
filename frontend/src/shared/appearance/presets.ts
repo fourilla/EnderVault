@@ -1,3 +1,5 @@
+import tokenDefinition from '../../../../src/main/resources/appearance-tokens.json' with { type: 'json' };
+
 export const appearanceSizes = ['extra-small', 'small', 'medium', 'large', 'extra-large'] as const;
 export type AppearanceSize = typeof appearanceSizes[number];
 export const appearanceColorFields = {
@@ -10,23 +12,9 @@ export type Appearance = Record<keyof typeof appearanceColorFields, string> & { 
 export function appearanceTokens(value: Appearance): Record<string, string> {
   return {
     ...appearanceSizeTokens(value.controlSize, value.cardSize),
-    '--accent': normalizeAppearanceColor(value.accent),
-    '--accent-strong': normalizeAppearanceColor(value.accentStrong),
-    '--focus': normalizeAppearanceColor(value.accentStrong),
-    '--accent-soft': 'color-mix(in srgb, var(--accent) 24%, var(--panel))',
-    '--item-selected-bg': 'color-mix(in srgb, var(--accent) 18%, var(--panel))',
-    '--item-selected-shadow': 'color-mix(in srgb, var(--accent) 28%, transparent)',
-    '--button-primary-bg': normalizeAppearanceColor(value.button),
-    '--button-primary-hover-bg': normalizeAppearanceColor(value.buttonHover),
-    '--button-primary-text': normalizeAppearanceColor(value.buttonText),
-    '--bg': normalizeAppearanceColor(value.background),
-    '--panel': normalizeAppearanceColor(value.panel),
-    '--panel-elevated': normalizeAppearanceColor(value.panelElevated),
-    '--panel-muted': normalizeAppearanceColor(value.panelMuted),
-    '--line': normalizeAppearanceColor(value.border),
-    '--text': normalizeAppearanceColor(value.text),
-    '--muted': normalizeAppearanceColor(value.mutedText),
-    '--thumb-bg': normalizeAppearanceColor(value.panelMuted),
+    ...tokenDefinition.derived,
+    ...Object.fromEntries(Object.entries(tokenDefinition.colors).map(([token, field]) =>
+      [token, normalizeAppearanceColor(value[field as keyof typeof appearanceColorFields])])),
   };
 }
 
@@ -55,31 +43,6 @@ export const colorPresets = {
 } as const;
 export const colorPresetLabels = { endervault: 'EnderVault', blue: 'Electric Blue', rose: 'Black & Hot Pink', olive: 'Olive', graphite: 'Graphite', gunmetal: 'Gunmetal', frost: 'EnderVault Frost', amethyst: 'Amethyst' } as const;
 
-const controlDimensions = {
-  'extra-small': [30, 34, 32, 26, 24, 50, 56],
-  small: [34, 38, 36, 30, 28, 54, 60],
-  medium: [38, 42, 40, 36, 30, 58, 64],
-  large: [42, 46, 44, 40, 34, 62, 68],
-  'extra-large': [46, 50, 48, 44, 38, 66, 72],
-} as const;
-
-const cardWidths: Record<AppearanceSize, number> = {
-  'extra-small': 150, small: 170, medium: 190, large: 230, 'extra-large': 270,
-};
-const controlTypography = {
-  'extra-small': [13, 15, 12, 10], small: [14, 16, 13, 12], medium: [15, 17, 14, 14],
-  large: [16, 18, 15, 16], 'extra-large': [17, 19, 16, 18],
-} as const;
-const cardTypography = {
-  'extra-small': [13, 11, 8, 6], small: [14, 12, 10, 7], medium: [15, 13, 12, 8],
-  large: [16, 14, 14, 9], 'extra-large': [17, 15, 16, 10],
-} as const;
-
-const dimensionTokens = [
-  '--control-height', '--icon-button-size', '--nav-row-height', '--action-icon-size',
-  '--table-action-icon-size', '--topbar-height', '--sidebar-rail-width',
-] as const;
-
 export function normalizeAppearanceColor(value: string): string {
   if (!/^#[0-9a-f]{6}$/i.test(value)) throw new Error('Use a six-digit hexadecimal color.');
   return value.toUpperCase();
@@ -90,22 +53,8 @@ export function appearanceSizeTokens(controls: AppearanceSize, cards: Appearance
     throw new Error('Unknown appearance size.');
   }
   return {
-    ...Object.fromEntries(dimensionTokens.map((token, index) => [token, `${controlDimensions[controls][index]}px`])),
-    '--browser-card-min-width': `${cardWidths[cards]}px`,
-    '--button-font-size': `${controlTypography[controls][0]}px`,
-    '--field-font-size': `${controlTypography[controls][0]}px`,
-    '--field-line-height': '1.4',
-    '--table-font-size': `${controlTypography[controls][0]}px`,
-    '--table-cell-padding': `${[5, 7, 10, 12, 14][appearanceSizes.indexOf(controls)]}px 12px`,
-    '--settings-row-padding-y': `${[4, 6, 8, 10, 12][appearanceSizes.indexOf(controls)]}px`,
-    '--field-padding': `${[4, 5, 7, 8, 9][appearanceSizes.indexOf(controls)]}px 10px`,
-    '--icon-button-font-size': `${controlTypography[controls][1]}px`,
-    '--table-action-icon-font-size': `${controlTypography[controls][2]}px`,
-    '--button-padding-x': `${controlTypography[controls][3]}px`,
-    '--card-title-font-size': `${cardTypography[cards][0]}px`,
-    '--card-meta-font-size': `${cardTypography[cards][1]}px`,
-    '--card-body-padding': `${cardTypography[cards][2]}px`,
-    '--card-body-gap': `${cardTypography[cards][3]}px`,
+    ...tokenDefinition.controls[controls],
+    ...tokenDefinition.cards[cards],
   };
 }
 

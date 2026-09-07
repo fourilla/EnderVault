@@ -137,6 +137,36 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void standaloneAndAdminDocumentsIncludeThemeBeforeJavascript(
+            @Autowired io.github.fourilla.endervault.config.NasProperties properties) throws Exception {
+        var original = properties.getAppearance();
+        String token = "theme_" + java.util.UUID.randomUUID().toString().replace("-", "_");
+        var request = fileRequestService.create("Theme", "", "", UploaderNamePolicy.OPTIONAL,
+                1024, 4096, 3, List.of(), 7, token);
+        Files.writeString(ROOT.resolve(token + ".txt"), "Theme test");
+        var share = shareLinkService.create("", token + ".txt", null);
+        try {
+            properties.setAppearance(new org.springframework.boot.context.properties.bind.Binder(
+                    new org.springframework.boot.context.properties.source.MapConfigurationPropertySource(
+                            Map.of("nas.appearance.accent", "#FF3891", "nas.appearance.control-size", "small")))
+                    .bind("nas.appearance", io.github.fourilla.endervault.config.AppearanceProperties.class).get());
+            for (String path : List.of("/files", "/files/read-only", "/login", "/r/" + token, "/s/" + share.token())) {
+                var builder = get(path);
+                if (path.equals("/login") || path.startsWith("/r/") || path.startsWith("/s/")) {
+                    builder.with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.anonymous());
+                }
+                String html = mockMvc.perform(builder).andExpect(status().isOk())
+                        .andReturn().getResponse().getContentAsString();
+                assertThat(html).contains("id=\"endervault-appearance\"", "--accent: #FF3891;", "--control-height: 34px;");
+                assertThat(html.indexOf("--accent: #FF3891;")).isLessThan(html.indexOf("</head>"));
+                assertThat(html).doesNotContain("nas.admin.password", "proxy-password");
+            }
+        } finally {
+            properties.setAppearance(original);
+        }
+    }
+
+    @Test
     void authenticatedAppBootstrapExposesShellStateWithoutSecrets() throws Exception {
         mockMvc.perform(get("/api/v1/app/bootstrap"))
                 .andExpect(status().isOk())
