@@ -7,8 +7,11 @@ const preview = readFileSync(new URL('../src/settings/components/AppearancePrevi
 const fields = readFileSync(new URL('../src/settings/components/AppearanceFields.tsx', import.meta.url), 'utf8');
 const toastCss = readFileSync(new URL('../../src/main/resources/static/css/components/toasts.css', import.meta.url), 'utf8');
 
-test('preview uses isolated inert samples instead of real operations or form values', () => {
-  assert.match(preview, /appearance-preview-samples" inert/);
+test('preview intercepts sample operations and only requests color field inspection', () => {
+  assert.match(preview, /onPointerDownCapture/);
+  assert.match(preview, /onClickCapture/);
+  assert.match(preview, /event.preventDefault\(\)/);
+  assert.match(preview, /if \(target.field\) onInspectColor\(target.field\)/);
   assert.doesNotMatch(preview, /name=|autoFocus|\.focus\(|fetch\(|dispatchEvent\(/);
   for (const button of preview.matchAll(/<button\b[^>]*>/g)) assert.match(button[0], /type="button"/);
   assert.match(preview, /appearanceTokens\(value\)/);

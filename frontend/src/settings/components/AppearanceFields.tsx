@@ -2,6 +2,8 @@ import { appearanceSizes, appearanceColorFields, colorPresets, colorPresetLabels
 import type { FormValues, FormValue } from '../types';
 import { SettingsField, SettingsSection } from './SettingsControls';
 import { AppearancePreview } from './AppearancePreview';
+import { useRef } from 'react';
+import type { AppearanceColor } from '../appearancePreviewTargets';
 
 export const appearanceValues = (appearance: Appearance): FormValues => Object.fromEntries(
   Object.entries(appearance).map(([key, value]) => [`appearance${key[0].toUpperCase()}${key.slice(1)}`, value]),
@@ -13,6 +15,14 @@ export const appearanceFromValues = (values: FormValues): Appearance => ({
 });
 
 export function AppearanceFields({ values, change }: { values: FormValues; change: (name: string, value: FormValue) => void }) {
+  const colorInputs = useRef<Partial<Record<AppearanceColor, HTMLInputElement | null>>>({});
+  const inspectColor = (field: AppearanceColor) => {
+    const input = colorInputs.current[field];
+    if (!input) return;
+    input.scrollIntoView({ block: 'center', behavior: 'auto' });
+    input.focus({ preventScroll: true });
+    input.select();
+  };
   const appearance = appearanceFromValues(values);
   const valid = (Object.keys(appearanceColorFields) as (keyof typeof appearanceColorFields)[]).map((key) => appearance[key])
     .every((value) => /^#[0-9a-f]{6}$/i.test(value));
@@ -28,7 +38,7 @@ export function AppearanceFields({ values, change }: { values: FormValues; chang
       </button>)}
     </div>
     <div className="appearance-editor">
-    <AppearancePreview appearance={appearance} valid={valid} />
+    <AppearancePreview appearance={appearance} valid={valid} onInspectColor={inspectColor} />
     <div className="settings-field-grid appearance-editor-fields">
       {Object.entries(appearanceColorFields).map(([key, label]) => {
         const name = `appearance${key[0].toUpperCase()}${key.slice(1)}`;
@@ -36,6 +46,7 @@ export function AppearanceFields({ values, change }: { values: FormValues; chang
           <span className="settings-field-label">{label}</span>
           <span className="appearance-color-input">
             <input type="text" required pattern="#[0-9A-Fa-f]{6}" maxLength={7} aria-label={`${label} hex color`}
+              ref={(input) => { colorInputs.current[key as AppearanceColor] = input; }}
               value={String(values[name])} onChange={(event) => change(name, event.target.value)} />
             <input type="color" aria-label={`Choose ${label.toLowerCase()}`}
               value={/^#[0-9a-f]{6}$/i.test(String(values[name])) ? String(values[name]) : '#000000'}
