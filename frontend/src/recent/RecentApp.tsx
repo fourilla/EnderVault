@@ -11,6 +11,7 @@ import { fileEntryMenuActions } from '../shared/browser/file-entry-menu-actions'
 import { useBrowserContextMenu } from '../shared/browser/useBrowserContextMenu';
 import { useListingRefresh } from '../shared/browser/useListingRefresh';
 import { useAdminApp } from '../app/AdminAppContext';
+import { useRouteSearch } from '../app/RouteSearch';
 import { notify, postForm, toastError } from '../shared/api/form-api';
 import { canonicalRecentState, loadRecentPayload } from './recent-api';
 import { recentHistory } from './recent-history';
@@ -151,6 +152,8 @@ export function RecentApp() {
   };
   const preferences = payload?.preferences;
   const current = effectiveState();
+  useRouteSearch({ label: 'Search in recent', value: searchText,
+    onChange: setSearchText, onSubmit: submitSearch });
   return (
     <>
       <section className="breadcrumb-panel" aria-label="Current path">
@@ -161,17 +164,6 @@ export function RecentApp() {
       </section>
 
       <section className="toolbar" aria-label="Recent tools">
-        <form className="search-form" onSubmit={submitSearch}>
-          <label className="search-field">
-            <span className="visually-hidden">Search in recent</span>
-            {icon('fas fa-magnifying-glass')}
-            <input value={searchText} onChange={(event) => setSearchText(event.target.value)}
-              placeholder="Search in recent" autoComplete="off" />
-          </label>
-          <button className="icon-button" type="submit" title="Search in recent" aria-label="Search in recent">
-            {icon('fas fa-magnifying-glass')}
-          </button>
-        </form>
         <div className="toolbar-cluster" aria-label="Recent browser controls">
           <div className="toolbar-actions file-actions" aria-label="Recent actions">
             <button className="icon-button" type="button" disabled={selection.selectedEntries.length === 0}

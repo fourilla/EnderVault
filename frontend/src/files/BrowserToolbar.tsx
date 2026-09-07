@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { AppDialog } from '../shared/dialogs/AppDialog';
 import { ViewOptionsControl } from '../shared/browser/ViewOptionsControl';
@@ -12,9 +12,6 @@ import type { FileBrowserActions } from './useFileActions';
 export function BrowserToolbar({
   payload,
   currentState,
-  searchText,
-  setSearchText,
-  submitSearch,
   applyView,
   applyPreferences,
   browse,
@@ -23,9 +20,6 @@ export function BrowserToolbar({
 }: {
   payload: BrowserPayload | null;
   currentState: BrowserHistoryState;
-  searchText: string;
-  setSearchText: (value: string) => void;
-  submitSearch: (event: FormEvent) => void;
   applyView: (view: BrowserView) => Promise<void>;
   applyPreferences: (updates: Partial<BrowserHistoryState>) => void;
   browse: (path: string) => void;
@@ -41,22 +35,6 @@ export function BrowserToolbar({
   useEffect(() => setDialog(null), [currentState.path, currentState.mode, currentState.query]);
   return (
     <section className="toolbar files-react-toolbar" aria-label="File tools">
-      <form className="search-form" onSubmit={submitSearch}>
-        <label className="search-field">
-          <span className="visually-hidden">Search keyword</span>
-          {icon('fas fa-magnifying-glass')}
-          <input
-            value={searchText}
-            onChange={(event) => setSearchText(event.target.value)}
-            placeholder="Search current directory"
-            autoComplete="off"
-          />
-        </label>
-        <button className="icon-button" type="submit" title="Search" aria-label="Search">
-          {icon('fas fa-magnifying-glass')}
-        </button>
-      </form>
-
       <div className="toolbar-cluster">
         <div
           className="toolbar-actions file-actions"

@@ -3,7 +3,7 @@ import { navigationEntryAvailable, navigationFor, type NavigationEntry } from '.
 import { ActivityControl } from './ActivityControl';
 import { NotificationCenterControl } from './NotificationCenterControl';
 import { OutboundRouteControl } from './OutboundRouteControl';
-import { RouteActionSlot } from './RouteActions';
+import { TopbarSearch } from './RouteSearch';
 import { ShellNavigationLink } from './ShellNavigationLink';
 import { ShellPopover } from './ShellPopover';
 import { StickyNoteControl } from './StickyNoteControl';
@@ -77,7 +77,7 @@ export function AdminTopbar({ sidebarCollapsed, onToggleSidebar }: {
         </button>
         <Link className="sidebar-brand" to="/files">EnderVault</Link>
       </div>
-      <div className="admin-shell-route-actions"><RouteActionSlot /></div>
+      <TopbarSearch />
       <div className="topbar-actions">
         <ShellPopover id="applications" icon="fas fa-grip" label="Applications">
           <strong className="topbar-control-title">Applications</strong>

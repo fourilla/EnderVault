@@ -10,6 +10,7 @@ import { useEntrySelection } from '../shared/browser/useEntrySelection';
 import { useFileActions } from './useFileActions';
 import { useFileContextMenu } from './useFileContextMenu';
 import { useAdminApp } from '../app/AdminAppContext';
+import { useRouteSearch } from '../app/RouteSearch';
 import { useUploadManager } from '../app/uploads/UploadManagerContext';
 import { useAdminUploadDropzone } from './useAdminUploadDropzone';
 import './files-app.css';
@@ -55,6 +56,9 @@ export function BrowserApp() {
   });
   const currentState = effectiveState();
 
+  useRouteSearch({ label: 'Search current directory', value: searchText,
+    onChange: setSearchText, onSubmit: submitSearch });
+
   useAdminUploadDropzone(uploadManager, currentState.path);
 
   useEffect(() => {
@@ -87,9 +91,6 @@ export function BrowserApp() {
       <BrowserToolbar
         payload={payload}
         currentState={currentState}
-        searchText={searchText}
-        setSearchText={setSearchText}
-        submitSearch={submitSearch}
         applyView={applyView}
         applyPreferences={applyPreferences}
         browse={browse}

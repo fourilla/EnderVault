@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useRouteSearch } from '../app/RouteSearch';
 import { AppNavigationLink } from '../app/AppNavigationLink';
 import { toastError } from '../shared/api/form-api';
 import { PageHeader } from '../shared/layout/PageHeader';
@@ -45,6 +46,10 @@ export function StickyNoteListApp() {
     setSearchParams(trimmed ? { q: trimmed } : {});
   };
 
+  useRouteSearch({ label: 'Search sticky notes', placeholder: 'Search notes or contexts',
+    value: query, onChange: setQuery, onSubmit: search,
+    onReset: activeQuery ? () => setSearchParams({}) : undefined });
+
   const remove = async (note: StickyNoteCatalogItem) => {
     const confirmed = await window.EnderVault?.askConfirmation({
       title: 'Delete sticky note',
@@ -77,24 +82,6 @@ export function StickyNoteListApp() {
           <div><h2>All Notes</h2><p>Review notes attached to pages, files, directories, and bookmarks.</p></div>
           <span className="status-badge info">{notes?.length ?? 0} note(s)</span>
         </header>
-
-        <form className="search-form" role="search" onSubmit={search}>
-          <label className="search-field">
-            <span className="visually-hidden">Search sticky notes</span>
-            <i className="fas fa-magnifying-glass" aria-hidden="true" />
-            <input type="search" value={query} placeholder="Search notes or contexts" aria-label="Search sticky notes"
-              onChange={(event) => setQuery(event.currentTarget.value)} />
-          </label>
-          <button className="icon-button" type="submit" title="Search sticky notes" aria-label="Search sticky notes">
-            <i className="fas fa-magnifying-glass" aria-hidden="true" />
-          </button>
-          {activeQuery && (
-            <button className="ghost icon-button" type="button" title="Reset search" aria-label="Reset search"
-              onClick={() => setSearchParams({})}>
-              <i className="fas fa-rotate-left" aria-hidden="true" />
-            </button>
-          )}
-        </form>
 
         {error && <div className="browser-load-error" role="alert">{error}</div>}
         {!notes && !error && (
