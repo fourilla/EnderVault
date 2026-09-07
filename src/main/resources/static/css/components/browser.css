@@ -89,6 +89,7 @@ td input[readonly] {
     width: 100%;
     min-width: var(--table-min-width);
     border-collapse: collapse;
+    font-size: var(--table-font-size);
 }
 
 .table-wrap th,
@@ -302,7 +303,7 @@ td input[readonly] {
     .readonly-file-card:hover {
         border-color: var(--item-hover-line);
         background: var(--panel-muted);
-        box-shadow: 0 0 0 1px rgba(121, 210, 200, 0.12);
+        box-shadow: 0 0 0 1px var(--item-hover-shadow);
     }
 
     .browser-card:not(.is-selected):not(.is-context-target):hover .card-name,
@@ -401,12 +402,13 @@ td input[readonly] {
 
 .card-body {
     display: grid;
-    gap: var(--space-md);
+    gap: var(--card-body-gap);
     min-width: 0;
-    padding: var(--panel-padding);
+    padding: var(--card-body-padding);
 }
 
 .card-name {
+    font-size: var(--card-title-font-size);
     display: block;
     min-width: 0;
     overflow: hidden;
@@ -423,7 +425,7 @@ td input[readonly] {
     gap: var(--space-sm);
     margin: 0;
     color: var(--muted);
-    font-size: var(--font-size-sm);
+    font-size: var(--card-meta-font-size);
 }
 
 .js-selection-enhanced .browser-card,
@@ -433,15 +435,15 @@ td input[readonly] {
 
 .browser-card.is-selected {
     border-color: var(--accent);
-    background: #173636;
-    box-shadow: 0 0 0 1px rgba(91, 189, 180, 0.28);
+    background: var(--item-selected-bg);
+    box-shadow: 0 0 0 1px var(--item-selected-shadow);
 }
 
 .browser-card.is-selected .card-thumb::after {
     content: "";
     position: absolute;
     inset: 0;
-    border: 2px solid rgba(121, 210, 200, 0.8);
+    border: 2px solid color-mix(in srgb, var(--accent-strong) 80%, transparent);
     pointer-events: none;
 }
 
@@ -450,7 +452,7 @@ td input[readonly] {
 }
 
 tbody tr.is-selected td {
-    background: #173636;
+    background: var(--item-selected-bg);
 }
 
 tbody tr.is-selected .item-name {
@@ -459,19 +461,19 @@ tbody tr.is-selected .item-name {
 
 .browser-card.is-context-target {
     border-color: var(--focus);
-    box-shadow: 0 0 0 1px rgba(214, 184, 107, 0.36);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--focus) 36%, transparent);
 }
 
 .browser-card.is-context-target .card-thumb::after {
     content: "";
     position: absolute;
     inset: 0;
-    border: 2px solid rgba(214, 184, 107, 0.72);
+    border: 2px solid color-mix(in srgb, var(--focus) 72%, transparent);
     pointer-events: none;
 }
 
 tbody tr.is-context-target td {
-    background: rgba(214, 184, 107, 0.1);
+    background: color-mix(in srgb, var(--focus) 10%, transparent);
 }
 
 tbody tr.is-context-target .item-name {

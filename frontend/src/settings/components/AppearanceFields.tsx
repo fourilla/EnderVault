@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { appearanceSizes, appearanceTokens, colorPresets, contrastRatio, type Appearance } from '../../shared/appearance/presets';
+import { appearanceSizes, appearanceTokens, appearanceColorFields, colorPresets, colorPresetLabels, contrastRatio, type Appearance } from '../../shared/appearance/presets';
 import type { FormValues, FormValue } from '../types';
 import { SettingsField, SettingsSection } from './SettingsControls';
 
@@ -7,16 +7,14 @@ export const appearanceValues = (appearance: Appearance): FormValues => Object.f
   Object.entries(appearance).map(([key, value]) => [`appearance${key[0].toUpperCase()}${key.slice(1)}`, value]),
 );
 export const appearanceFromValues = (values: FormValues): Appearance => ({
-  accent: String(values.appearanceAccent), accentStrong: String(values.appearanceAccentStrong),
-  button: String(values.appearanceButton), buttonHover: String(values.appearanceButtonHover),
-  buttonText: String(values.appearanceButtonText),
+  ...Object.fromEntries(Object.keys(appearanceColorFields).map((key) => [key, String(values[`appearance${key[0].toUpperCase()}${key.slice(1)}`])])) as Pick<Appearance, keyof typeof appearanceColorFields>,
   controlSize: values.appearanceControlSize as Appearance['controlSize'],
   cardSize: values.appearanceCardSize as Appearance['cardSize'],
 });
 
 export function AppearanceFields({ values, change }: { values: FormValues; change: (name: string, value: FormValue) => void }) {
   const appearance = appearanceFromValues(values);
-  const valid = [appearance.accent, appearance.accentStrong, appearance.button, appearance.buttonHover, appearance.buttonText]
+  const valid = (Object.keys(appearanceColorFields) as (keyof typeof appearanceColorFields)[]).map((key) => appearance[key])
     .every((value) => /^#[0-9a-f]{6}$/i.test(value));
   const style = valid ? appearanceTokens(appearance) as CSSProperties : undefined;
   const applyPreset = (preset: typeof colorPresets[keyof typeof colorPresets]) => {
@@ -26,13 +24,13 @@ export function AppearanceFields({ values, change }: { values: FormValues; chang
   return <SettingsSection title="Interface Appearance" description="Shared administrator colors and sizing.">
     <div className="appearance-presets" role="group" aria-label="Color presets">
       {Object.entries(colorPresets).map(([name, preset]) => <button type="button" className="ghost appearance-swatch"
-        key={name} title={`${name} colors`} aria-label={`${name} colors`} onClick={() => applyPreset(preset)}>
-        <span style={{ backgroundColor: preset.button }} />{name}
+        key={name} title={`${colorPresetLabels[name as keyof typeof colorPresets]} colors`} aria-label={`${colorPresetLabels[name as keyof typeof colorPresets]} colors`} onClick={() => applyPreset(preset)}>
+        <span style={{ backgroundColor: preset.background }} /><span style={{ backgroundColor: preset.button }} />{colorPresetLabels[name as keyof typeof colorPresets]}
       </button>)}
     </div>
     <div className="settings-field-grid">
-      {[['Accent', 'Accent'], ['AccentStrong', 'Accent highlight'], ['Button', 'Button background'], ['ButtonHover', 'Button hover'], ['ButtonText', 'Button text']].map(([key, label]) => {
-        const name = `appearance${key}`;
+      {Object.entries(appearanceColorFields).map(([key, label]) => {
+        const name = `appearance${key[0].toUpperCase()}${key.slice(1)}`;
         return <label className="settings-field appearance-color-field" key={name}>
           <span className="settings-field-label">{label}</span>
           <span className="appearance-color-input">
@@ -48,13 +46,18 @@ export function AppearanceFields({ values, change }: { values: FormValues; chang
       <SettingsField field={{ name: 'appearanceCardSize', label: 'File card size', type: 'select', options }} values={values} onChange={change} />
     </div>
     {valid && <div className="appearance-preview" style={style}>
+      <div className="appearance-preview-panel"><strong>Workspace</strong><span className="muted">Files and directories</span></div>
       <div className="appearance-preview-actions"><button type="button">Create</button><button type="button" className="ghost">Cancel</button>
-        <button type="button" className="ghost icon-button" aria-label="Sample directory"><i className="fas fa-folder" aria-hidden="true" /></button></div>
+        <button type="button" className="ghost icon-button" aria-label="Sample directory"><i className="fas fa-folder" aria-hidden="true" /></button>
+        <select aria-label="Sample view" defaultValue="grid"><option value="grid">Grid view</option><option value="table">Table view</option></select></div>
       <div className="browser-grid">
-        <article className="browser-card"><div className="card-thumb"><i className="fas fa-file-image" aria-hidden="true" /></div><div className="card-body"><span className="card-name">Example.png</span><span className="muted">Image</span></div></article>
+        <article className="browser-card"><div className="card-thumb"><i className="fas fa-file-image" aria-hidden="true" /></div><div className="card-body"><span className="card-name">Example.png</span><div className="card-meta"><span>Image</span><span>2.4 MB</span></div></div></article>
       </div>
       <p className="muted">Button contrast: {contrastRatio(appearance.button, appearance.buttonText).toFixed(2)}:1
         {(contrastRatio(appearance.button, appearance.buttonText) < 4.5 || contrastRatio(appearance.buttonHover, appearance.buttonText) < 4.5) && ' - Low text contrast. Consider another color combination.'}</p>
+      {[appearance.background, appearance.panel, appearance.panelElevated, appearance.panelMuted].some((background) =>
+        contrastRatio(background, appearance.text) < 4.5 || contrastRatio(background, appearance.mutedText) < 4.5)
+        && <p role="status">Low contrast between text and backgrounds. Consider another color combination.</p>}
     </div>}
     <button type="button" className="ghost icon-text-button" onClick={() => {
       Object.entries(appearanceValues({ ...colorPresets.endervault, controlSize: 'medium', cardSize: 'medium' })).forEach(([key, value]) => change(key, value));

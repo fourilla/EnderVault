@@ -187,6 +187,13 @@ class GeneralSettingsServiceTest {
         params.set("appearanceButton", "#72B7F5");
         params.set("appearanceButtonHover", "#9ACFFF");
         params.set("appearanceButtonText", "#101820");
+        params.set("appearanceBackground", "#101012");
+        params.set("appearancePanel", "#19181C");
+        params.set("appearancePanelElevated", "#242126");
+        params.set("appearancePanelMuted", "#2D282F");
+        params.set("appearanceBorder", "#493E48");
+        params.set("appearanceText", "#F8EEF3");
+        params.set("appearanceMutedText", "#BDADB8");
         params.set("appearanceControlSize", "small");
         params.set("appearanceCardSize", "large");
         var update = service.updateFrom(params);
@@ -194,7 +201,12 @@ class GeneralSettingsServiceTest {
         service.save(update);
         assertThat(properties.getAppearance().accent()).isEqualTo("#72B7F5");
         assertThat(Files.readString(config)).contains("nas.appearance.control-size=small");
+        assertThat(Files.readString(config)).contains("nas.appearance.background=#101012");
+        assertThat(service.currentSettings().appearance().background()).isEqualTo("#101012");
         params.set("appearanceControlSize", "400px");
+        assertThatThrownBy(() -> service.updateFrom(params)).isInstanceOf(IllegalArgumentException.class);
+        params.set("appearanceAccent", "#72B7F5");
+        params.set("appearanceBackground", "#101012;display:none");
         assertThatThrownBy(() -> service.updateFrom(params)).isInstanceOf(IllegalArgumentException.class);
         params.set("appearanceControlSize", "small");
         params.set("appearanceAccent", "red;display:none");

@@ -189,7 +189,11 @@ public class GeneralSettingsService {
                 parameters.keySet().stream().anyMatch(key -> key.startsWith("appearance"))
                         ? new AppearanceProperties(first(parameters, "appearanceAccent"), first(parameters, "appearanceAccentStrong"),
                             first(parameters, "appearanceButton"), first(parameters, "appearanceButtonHover"),
-                            first(parameters, "appearanceButtonText"), first(parameters, "appearanceControlSize"), first(parameters, "appearanceCardSize"))
+                            first(parameters, "appearanceButtonText"), first(parameters, "appearanceBackground"),
+                            first(parameters, "appearancePanel"), first(parameters, "appearancePanelElevated"),
+                            first(parameters, "appearancePanelMuted"), first(parameters, "appearanceBorder"),
+                            first(parameters, "appearanceText"), first(parameters, "appearanceMutedText"),
+                            first(parameters, "appearanceControlSize"), first(parameters, "appearanceCardSize"))
                         : nasProperties.getAppearance(),
                 new BrowserSettings(defaultView, defaultSort, defaultDirection, defaultPageSize),
                 stickyNotes,

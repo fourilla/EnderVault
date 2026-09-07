@@ -17,6 +17,10 @@ class AppearancePropertiesTest {
         assertThat(properties.getAppearance().controlSize()).isEqualTo("large");
         assertThat(properties.getAppearance().cardSize()).isEqualTo("medium");
         assertThat(properties.getAppearance().accent()).isEqualTo("#ABCDEF");
+        assertThat(properties.getAppearance().background()).isEqualTo("#0F141A");
+        var restored = new Binder(new MapConfigurationPropertySource(properties.getAppearance().propertyValues()))
+                .bind("nas.appearance", AppearanceProperties.class).get();
+        assertThat(restored).isEqualTo(properties.getAppearance());
     }
 
     @Test

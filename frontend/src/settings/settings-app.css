@@ -320,7 +320,9 @@ button.settings-spa-nav-item.is-active {
   margin-bottom: var(--space-lg);
 }
 .appearance-swatch { gap: var(--space-md); }
+.appearance-preview-actions select { width: auto; max-width: 100%; height: var(--control-height); }
 .appearance-swatch > span { width: 18px; height: 18px; border: 1px solid var(--line); border-radius: 50%; }
 .appearance-color-input { display: grid; grid-template-columns: minmax(0, 1fr) var(--control-height); gap: var(--space-md); }
 .appearance-color-input input[type="color"] { width: 100%; height: var(--control-height); padding: 2px; border: 1px solid var(--line); background: var(--panel); }
-.appearance-preview { margin-block: var(--space-lg); padding: var(--panel-padding); border: 1px solid var(--line); border-radius: var(--radius-panel); }
+.appearance-preview { margin-block: var(--space-lg); padding: var(--panel-padding); border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--bg); color: var(--text); }
+.appearance-preview-panel { display: flex; flex-wrap: wrap; gap: var(--space-md); padding: var(--panel-padding); background: var(--panel); border: 1px solid var(--line); margin-bottom: var(--space-lg); }

@@ -11,6 +11,13 @@ public record AppearanceProperties(
         @DefaultValue("#5BBDB4") String button,
         @DefaultValue("#79D2C8") String buttonHover,
         @DefaultValue("#071617") String buttonText,
+        @DefaultValue("#0F141A") String background,
+        @DefaultValue("#171D24") String panel,
+        @DefaultValue("#1D2530") String panelElevated,
+        @DefaultValue("#202933") String panelMuted,
+        @DefaultValue("#2F3A47") String border,
+        @DefaultValue("#EDF3F7") String text,
+        @DefaultValue("#9BA8B7") String mutedText,
         @DefaultValue("medium") String controlSize,
         @DefaultValue("medium") String cardSize
 ) {
@@ -22,20 +29,32 @@ public record AppearanceProperties(
         button = color(button);
         buttonHover = color(buttonHover);
         buttonText = color(buttonText);
+        background = color(background);
+        panel = color(panel);
+        panelElevated = color(panelElevated);
+        panelMuted = color(panelMuted);
+        border = color(border);
+        text = color(text);
+        mutedText = color(mutedText);
         if (!SIZES.contains(controlSize) || !SIZES.contains(cardSize)) {
             throw new IllegalArgumentException("Appearance size is invalid.");
         }
     }
 
     public static AppearanceProperties defaults() {
-        return new AppearanceProperties("#5BBDB4", "#79D2C8", "#5BBDB4", "#79D2C8", "#071617", "medium", "medium");
+        return new AppearanceProperties("#5BBDB4", "#79D2C8", "#5BBDB4", "#79D2C8", "#071617",
+                "#0F141A", "#171D24", "#1D2530", "#202933", "#2F3A47", "#EDF3F7", "#9BA8B7", "medium", "medium");
     }
 
     public Map<String, String> propertyValues() {
-        return Map.of("nas.appearance.accent", accent, "nas.appearance.accent-strong", accentStrong,
-                "nas.appearance.button", button, "nas.appearance.button-hover", buttonHover,
-                "nas.appearance.button-text", buttonText, "nas.appearance.control-size", controlSize,
-                "nas.appearance.card-size", cardSize);
+        return Map.ofEntries(
+                Map.entry("nas.appearance.accent", accent), Map.entry("nas.appearance.accent-strong", accentStrong),
+                Map.entry("nas.appearance.button", button), Map.entry("nas.appearance.button-hover", buttonHover),
+                Map.entry("nas.appearance.button-text", buttonText), Map.entry("nas.appearance.control-size", controlSize),
+                Map.entry("nas.appearance.card-size", cardSize), Map.entry("nas.appearance.background", background),
+                Map.entry("nas.appearance.panel", panel), Map.entry("nas.appearance.panel-elevated", panelElevated),
+                Map.entry("nas.appearance.panel-muted", panelMuted), Map.entry("nas.appearance.border", border),
+                Map.entry("nas.appearance.text", text), Map.entry("nas.appearance.muted-text", mutedText));
     }
 
     private static String color(String value) {

@@ -5,13 +5,16 @@
     --panel-elevated: #1d2530;
     --panel-muted: #202933;
     --line: #2f3a47;
-    --item-hover-bg: rgba(91, 189, 180, 0.08);
-    --item-hover-line: rgba(121, 210, 200, 0.45);
+    --item-hover-bg: color-mix(in srgb, var(--accent) 8%, transparent);
+    --item-hover-line: color-mix(in srgb, var(--accent-strong) 45%, transparent);
+    --item-hover-shadow: color-mix(in srgb, var(--accent-strong) 12%, transparent);
+    --item-selected-bg: color-mix(in srgb, var(--accent) 18%, var(--panel));
+    --item-selected-shadow: color-mix(in srgb, var(--accent) 28%, transparent);
     --text: #edf3f7;
     --muted: #9ba8b7;
     --accent: #5bbdb4;
     --accent-strong: #79d2c8;
-    --accent-soft: #315a5c;
+    --accent-soft: color-mix(in srgb, var(--accent) 24%, var(--panel));
     --accent-contrast: #071617;
     --button-primary-bg: var(--accent);
     --button-primary-hover-bg: var(--accent-strong);
@@ -89,9 +92,18 @@
     --card-checkbox-size: 18px;
 
     --button-padding-x: 14px;
+    --button-font-size: var(--font-size-base);
+    --card-title-font-size: var(--font-size-base);
+    --card-meta-font-size: var(--font-size-sm);
+    --card-body-padding: var(--panel-padding);
+    --card-body-gap: var(--space-md);
     --field-padding: 7px 10px;
+    --field-font-size: var(--font-size-base);
+    --field-line-height: 1.4;
     --panel-padding: 12px;
     --table-cell-padding: 10px 12px;
+    --table-font-size: var(--font-size-base);
+    --settings-row-padding-y: 8px;
     --table-min-width: 900px;
     --table-select-col-width: 72px;
     --table-primary-text-max-width: 34rem;
@@ -155,6 +167,7 @@ button,
 button,
 .button-link,
 .primary {
+    font-size: var(--button-font-size);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -205,6 +218,8 @@ input[type="url"],
 input[type="datetime-local"],
 input:not([type]),
 select {
+    font-size: var(--field-font-size);
+    line-height: var(--field-line-height);
     width: 100%;
     min-height: var(--control-height);
     border: 1px solid var(--line);
