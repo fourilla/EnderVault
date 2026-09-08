@@ -58,7 +58,7 @@ export function FloatingPageActions(props: FloatingPageActionsProps) {
     };
   }, [open, closeAll]);
 
-  return createPortal(<div className="floating-page-actions" ref={root}>
+  return createPortal(<div className="floating-page-actions" data-mode={props.mode} ref={root}>
     {props.mode === 'menu' && <div className="floating-actions-panel" id={panelId} ref={panel}
       role="dialog" aria-label={props.label} hidden={!open}
       onClickCapture={(event) => {
@@ -86,7 +86,7 @@ export function FloatingPageActions(props: FloatingPageActionsProps) {
         if (open) closeAll();
         else { openedRoute.current = routeKey; keyboardOpen.current = event.detail === 0; show(id); }
       }}>
-      <i className={props.mode === 'single' ? props.icon : open ? 'fas fa-xmark' : 'fas fa-sliders'} aria-hidden="true" />
+      <i className={props.mode === 'single' ? props.icon : open ? 'fas fa-angles-down' : 'fas fa-angles-up'} aria-hidden="true" />
       {props.mode === 'menu' && Boolean(props.selectedCount) &&
         <span className="floating-actions-count" aria-label={`${props.selectedCount} selected`}>{props.selectedCount}</span>}
     </button>
