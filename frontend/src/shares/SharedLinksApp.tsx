@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
 import { PageHeader } from '../shared/layout/PageHeader';
+import { FloatingPageActions } from '../app/FloatingPageActions';
 import { deleteExpiredShares, deleteShare, loadShares, revokeShare } from './share-api';
 import type { ShareLink } from './types';
 
@@ -51,15 +52,10 @@ export function SharedLinksApp() {
 
   return (
     <>
-      <PageHeader
-        title="Shared Links"
-        actions={shares && shares.length > 0 ? (
-            <button className="ghost" type="button" disabled={Boolean(busy)}
-              onClick={() => void run('expired', deleteExpiredShares, 'Expired links could not be deleted.')}>
-              Delete expired links
-            </button>
-        ) : undefined}
-      />
+      <PageHeader title="Shared Links" />
+      {shares && shares.length > 0 && <FloatingPageActions mode="single" label="Delete expired links"
+        icon="fas fa-broom" disabled={Boolean(busy)}
+        onAction={() => void run('expired', deleteExpiredShares, 'Expired links could not be deleted.')} />}
 
       {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
       {!shares && !error && (

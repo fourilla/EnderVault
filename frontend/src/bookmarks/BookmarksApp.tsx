@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { icon } from '../shared/browser/BrowserEntries';
 import { useRouteSearch } from '../app/RouteSearch';
+import { FloatingPageActions } from '../app/FloatingPageActions';
 import { useItemSelection } from '../shared/browser/useItemSelection';
 import { useNavigationScroll } from '../shared/browser/useNavigationScroll';
 import { useListingRefresh } from '../shared/browser/useListingRefresh';
@@ -159,7 +160,7 @@ export function BookmarksApp() {
     <>
       <BookmarkBreadcrumbs breadcrumbs={payload?.breadcrumbs || [{ id: null, label: 'Bookmarks' }]}
         browse={browse} />
-      <section className="toolbar" aria-label="Bookmark tools">
+      <FloatingPageActions mode="menu" label="Bookmark actions" selectedCount={selection.selectedItems.length}>
         <div className="toolbar-cluster" aria-label="Bookmark controls">
           <div className="toolbar-actions file-actions bookmark-actions" aria-label="Bookmark actions">
             <button className="icon-button" type="button" title="New directory" aria-label="New directory"
@@ -173,7 +174,7 @@ export function BookmarksApp() {
               onClick={() => void actions.deleteEntries()}>{icon('fas fa-trash-can')}</button>
           </div>
         </div>
-      </section>
+      </FloatingPageActions>
 
       <BookmarkDialogs kind={dialog} close={() => setDialog(null)}
         createLink={actions.createLink} bulkAdd={actions.bulkAdd} />

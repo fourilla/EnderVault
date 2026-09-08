@@ -93,7 +93,6 @@ export function BrowserApp() {
         currentState={currentState}
         applyView={applyView}
         applyPreferences={applyPreferences}
-        browse={browse}
         selectedEntries={selection.selectedEntries}
         actions={actions}
       />

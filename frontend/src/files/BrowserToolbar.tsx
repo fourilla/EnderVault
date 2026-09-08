@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { AppDialog } from '../shared/dialogs/AppDialog';
+import { FloatingPageActions } from '../app/FloatingPageActions';
 import { ViewOptionsControl } from '../shared/browser/ViewOptionsControl';
 import { CreateItemDialog } from './CreateItemDialog';
 import { useUploadManager } from '../app/uploads/UploadManagerContext';
@@ -14,7 +15,6 @@ export function BrowserToolbar({
   currentState,
   applyView,
   applyPreferences,
-  browse,
   selectedEntries,
   actions,
 }: {
@@ -22,7 +22,6 @@ export function BrowserToolbar({
   currentState: BrowserHistoryState;
   applyView: (view: BrowserView) => Promise<void>;
   applyPreferences: (updates: Partial<BrowserHistoryState>) => void;
-  browse: (path: string) => void;
   selectedEntries: BrowserEntry[];
   actions: FileBrowserActions;
 }) {
@@ -34,7 +33,8 @@ export function BrowserToolbar({
   const [dialog, setDialog] = useState<'upload' | 'create' | null>(null);
   useEffect(() => setDialog(null), [currentState.path, currentState.mode, currentState.query]);
   return (
-    <section className="toolbar files-react-toolbar" aria-label="File tools">
+    <>
+    <FloatingPageActions mode="menu" label="File actions and view options" selectedCount={selectedEntries.length}>
       <div className="toolbar-cluster">
         <div
           className="toolbar-actions file-actions"
@@ -96,13 +96,6 @@ export function BrowserToolbar({
             {icon('fas fa-trash-can')}
           </button>
         </div>
-        {searchMode && (
-          <button className="ghost icon-text-button files-exit-search" type="button"
-            onClick={() => browse(currentState.path)}>
-            {icon('fas fa-xmark')}
-            <span>Exit search</span>
-          </button>
-        )}
         <div className="toolbar-actions browser-controls">
           <button
             className="ghost icon-button"
@@ -125,6 +118,7 @@ export function BrowserToolbar({
             apply={applyPreferences} reset={actions.resetPreferences} />
         </div>
       </div>
+    </FloatingPageActions>
       <AppDialog open={dialog === 'upload'} onDismiss={() => setDialog(null)} labelledBy="uploadDialogTitle"
         className="text-input-dialog" dismissOnBackdrop>
         <div className="text-input-card">
@@ -144,6 +138,6 @@ export function BrowserToolbar({
         </div>
       </AppDialog>
       {dialog === 'create' && <CreateItemDialog close={() => setDialog(null)} create={actions.createNamedItem} />}
-    </section>
+    </>
   );
 }

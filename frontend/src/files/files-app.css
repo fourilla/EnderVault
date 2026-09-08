@@ -2,14 +2,6 @@
   min-width: 0;
 }
 
-.files-react-toolbar {
-  align-items: center;
-}
-
-.files-exit-search {
-  white-space: nowrap;
-}
-
 .files-directory-thumb {
   color: var(--accent);
   font-size: 3rem;
@@ -39,11 +31,4 @@
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-@media (max-width: 760px) {
-  .files-react-toolbar,
-  .files-react-toolbar .toolbar-cluster {
-    align-items: stretch;
-  }
 }

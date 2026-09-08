@@ -12,6 +12,7 @@ import { useBrowserContextMenu } from '../shared/browser/useBrowserContextMenu';
 import { useListingRefresh } from '../shared/browser/useListingRefresh';
 import { useAdminApp } from '../app/AdminAppContext';
 import { useRouteSearch } from '../app/RouteSearch';
+import { FloatingPageActions } from '../app/FloatingPageActions';
 import { notify, postForm, toastError } from '../shared/api/form-api';
 import { canonicalRecentState, loadRecentPayload } from './recent-api';
 import { recentHistory } from './recent-history';
@@ -163,7 +164,7 @@ export function RecentApp() {
         </div>
       </section>
 
-      <section className="toolbar" aria-label="Recent tools">
+      <FloatingPageActions mode="menu" label="Recent actions and view options" selectedCount={selection.selectedEntries.length}>
         <div className="toolbar-cluster" aria-label="Recent browser controls">
           <div className="toolbar-actions file-actions" aria-label="Recent actions">
             <button className="icon-button" type="button" disabled={selection.selectedEntries.length === 0}
@@ -198,7 +199,7 @@ export function RecentApp() {
               apply={applyPreferences} reset={resetPreferences} />
           </div>
         </div>
-      </section>
+      </FloatingPageActions>
 
       {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
       {loading && !payload && <p className="empty browser-grid-empty">Loading recent items...</p>}

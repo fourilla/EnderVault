@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
 import { PageHeader } from '../shared/layout/PageHeader';
+import { FloatingPageActions } from '../app/FloatingPageActions';
 import { deleteTrashItem, emptyTrash, loadTrash, restoreTrashItem } from './trash-api';
 import type { TrashItem, TrashPayload } from './types';
 import './trash-app.css';
@@ -85,15 +86,9 @@ export function TrashApp() {
   const items = payload?.items ?? [];
   return (
     <>
-      <PageHeader
-        title="Trash"
-        actions={items.length > 0 ? (
-            <button className="danger icon-button" type="button" disabled={Boolean(busyAction)}
-              title="Empty trash" aria-label="Empty trash" onClick={() => void empty()}>
-              {icon('fas fa-broom')}
-            </button>
-        ) : undefined}
-      />
+      <PageHeader title="Trash" />
+      {items.length > 0 && <FloatingPageActions mode="single" label="Empty trash" icon="fas fa-broom"
+        danger disabled={Boolean(busyAction)} onAction={() => void empty()} />}
 
       {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
       {loading && !payload && (
@@ -103,9 +98,7 @@ export function TrashApp() {
         </section>
       )}
       {payload && items.length > 0 && (
-        <section className="browser-section" aria-label="Trash items">
-          <header className="section-heading"><h2>Items ({items.length})</h2></header>
-          <div className="table-wrap">
+        <section className="table-wrap" aria-label="Trash items">
             <table>
               <thead>
                 <tr>
@@ -145,7 +138,6 @@ export function TrashApp() {
                 ))}
               </tbody>
             </table>
-          </div>
         </section>
       )}
       {payload && items.length === 0 && <p className="empty browser-grid-empty">No trash items.</p>}
