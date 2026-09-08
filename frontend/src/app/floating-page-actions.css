@@ -1,20 +1,21 @@
 :root {
   --floating-action-size: calc(var(--icon-button-size) + 2 * var(--space-lg) + 2px);
-  --floating-action-inset: calc(2 * var(--space-xl));
+  --floating-action-right: calc(clamp(24px, 3vw, 72px) + env(safe-area-inset-right));
+  --floating-action-bottom: calc(clamp(24px, 5dvh, 64px) + env(safe-area-inset-bottom));
   --z-floating-actions: 90;
 }
 
 .floating-page-actions {
   position: fixed;
-  right: calc(var(--floating-action-inset) + env(safe-area-inset-right));
-  bottom: calc(var(--floating-action-inset) + env(safe-area-inset-bottom));
+  right: var(--floating-action-right);
+  bottom: var(--floating-action-bottom);
   z-index: var(--z-floating-actions);
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: 0;
   width: var(--floating-action-size);
-  max-width: calc(100vw - 2 * var(--floating-action-inset) - env(safe-area-inset-left) - env(safe-area-inset-right));
+  max-width: calc(100vw - var(--floating-action-right) - 24px - env(safe-area-inset-left));
 }
 
 .floating-actions-trigger.icon-button {
@@ -50,7 +51,7 @@
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
-  max-height: calc(100dvh - var(--topbar-height) - var(--floating-action-size) - 4 * var(--space-xl));
+  max-height: calc(100dvh - var(--topbar-height) - var(--floating-action-size) - var(--floating-action-bottom) - var(--space-xl));
   overflow: auto;
   overscroll-behavior: contain;
   padding: var(--space-lg);
@@ -88,7 +89,7 @@
 }
 
 body:has(.floating-page-actions) .workspace {
-  padding-bottom: calc(var(--floating-action-size) + var(--floating-action-inset) + var(--space-xl));
+  padding-bottom: calc(var(--floating-action-size) + var(--floating-action-bottom) + var(--space-xl));
 }
 
 body:has(dialog[open], [aria-modal="true"]:not([hidden]), .is-editor-fullscreen, .is-comic-fullscreen, .is-image-fullscreen) .floating-page-actions {
@@ -98,6 +99,6 @@ body:has(dialog[open], [aria-modal="true"]:not([hidden]), .is-editor-fullscreen,
 /* The existing left dock stretches across the screen at this breakpoint. Keep the trigger reachable. */
 @media (max-width: 1180px) {
   body:has(.floating-page-actions).transfer-buffer-dock-enabled [data-transfer-buffer-region] {
-    right: calc(var(--floating-action-size) + var(--floating-action-inset) + var(--space-xl) + env(safe-area-inset-right));
+    right: calc(var(--floating-action-size) + var(--floating-action-right) + var(--space-xl));
   }
 }
