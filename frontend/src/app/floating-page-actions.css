@@ -1,0 +1,104 @@
+:root {
+  --floating-action-size: calc(var(--icon-button-size) + 2 * var(--space-lg) + 2px);
+  --floating-action-right: calc(clamp(24px, 3vw, 72px) + env(safe-area-inset-right));
+  --floating-action-bottom: calc(clamp(24px, 5dvh, 64px) + env(safe-area-inset-bottom));
+  --z-floating-actions: 90;
+}
+
+.floating-page-actions {
+  position: fixed;
+  right: var(--floating-action-right);
+  bottom: var(--floating-action-bottom);
+  z-index: var(--z-floating-actions);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  width: var(--floating-action-size);
+  max-width: calc(100vw - var(--floating-action-right) - 24px - env(safe-area-inset-left));
+}
+
+.floating-actions-trigger.icon-button {
+  position: relative;
+  width: 100%;
+  height: var(--floating-action-size);
+  flex: 0 0 var(--floating-action-size);
+  border-radius: var(--radius-panel);
+  box-shadow: 0 4px 16px var(--shadow);
+}
+
+.floating-actions-trigger.is-open {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.floating-actions-count {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 20px;
+  padding: 0 var(--space-xs);
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--panel);
+  font-size: var(--font-size-xs);
+}
+
+.floating-actions-panel {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  max-height: calc(100dvh - var(--topbar-height) - var(--floating-action-size) - var(--floating-action-bottom) - var(--space-xl));
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-lg);
+  scrollbar-width: thin;
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+  background: var(--panel-elevated);
+  box-shadow: 0 8px 24px var(--shadow);
+}
+
+.floating-actions-panel .toolbar-cluster {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: auto;
+  margin: 0;
+}
+
+.floating-actions-panel .toolbar-actions {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.floating-actions-panel .browser-controls {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-md);
+}
+
+body:has(.floating-page-actions) .workspace {
+  padding-bottom: calc(var(--floating-action-size) + var(--floating-action-bottom) + var(--space-xl));
+}
+
+body:has(dialog[open], [aria-modal="true"]:not([hidden]), .is-editor-fullscreen, .is-comic-fullscreen, .is-image-fullscreen) .floating-page-actions {
+  visibility: hidden;
+}
+
+/* The existing left dock stretches across the screen at this breakpoint. Keep the trigger reachable. */
+@media (max-width: 1180px) {
+  body:has(.floating-page-actions).transfer-buffer-dock-enabled [data-transfer-buffer-region] {
+    right: calc(var(--floating-action-size) + var(--floating-action-right) + var(--space-xl));
+  }
+}

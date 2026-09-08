@@ -55,14 +55,14 @@ export function AppShell() {
           <TopbarPopoverProvider>
             <AdminTopbar sidebarCollapsed={sidebarCollapsed}
               onToggleSidebar={() => setSidebarCollapsed((value) => !value)} />
+            <AdminSidebar />
+            <div className="app-main" data-file-dropzone>
+              <main className="workspace">
+                <Outlet />
+              </main>
+              <ScrollRestoration />
+            </div>
           </TopbarPopoverProvider>
-          <AdminSidebar />
-          <div className="app-main" data-file-dropzone>
-            <main className="workspace">
-              <Outlet />
-            </main>
-            <ScrollRestoration />
-          </div>
         </div>
       </ShellStatusProvider>
     </RemoteDownloadTasksProvider>

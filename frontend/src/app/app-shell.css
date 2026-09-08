@@ -1,4 +1,6 @@
 html:has(.admin-react-shell) {
+  --topbar-row-height: max(32px, var(--icon-button-size), var(--control-height));
+  --topbar-height: max(58px, calc(var(--topbar-row-height) + 2 * var(--space-sm) + 1px));
   scroll-padding-top: calc(var(--topbar-height) + var(--space-md));
 }
 
@@ -78,6 +80,10 @@ html:has(.admin-react-shell) {
 }
 
 .admin-react-shell .app-topbar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-lg);
   grid-column: 1 / -1;
   position: sticky;
   top: 0;
@@ -116,11 +122,59 @@ body:has(.admin-react-shell) .toast-region {
   top: calc(var(--topbar-height) + var(--space-3xl));
 }
 
-.admin-shell-route-actions {
-  display: flex;
-  flex: 1 1 auto;
-  align-items: center;
+.admin-react-shell .topbar-search {
+  width: 100%;
+  max-width: 640px;
   min-width: 0;
+  justify-self: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  margin: 0;
+}
+
+.topbar-search .search-field input {
+  min-width: 0;
+  padding: var(--field-padding);
+}
+
+.topbar-search input:disabled {
+  color: var(--muted);
+  background: var(--panel-muted);
+  cursor: not-allowed;
+}
+
+.admin-react-shell .topbar-search .icon-button:disabled {
+  color: var(--muted);
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media (max-width: 1040px) {
+  html:has(.admin-react-shell) {
+    --topbar-height: calc(2 * var(--topbar-row-height) + 3 * var(--space-sm) + 1px);
+  }
+  .admin-react-shell .app-topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: repeat(2, var(--topbar-row-height));
+    row-gap: var(--space-sm);
+    padding-block: var(--space-sm);
+  }
+  .admin-react-shell .topbar-search { grid-column: 1 / -1; grid-row: 2; max-width: none; }
+  .admin-react-shell .topbar-actions { grid-column: 2; grid-row: 1; }
+}
+
+@media (max-width: 600px) {
+  html:has(.admin-react-shell) {
+    --topbar-height: calc(3 * var(--topbar-row-height) + 4 * var(--space-sm) + 1px);
+  }
+  .admin-react-shell .app-topbar {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: repeat(3, var(--topbar-row-height));
+    padding-inline: var(--space-sm);
+  }
+  .admin-react-shell .topbar-search { grid-row: 3; }
+  .admin-react-shell .topbar-actions { grid-column: 1; grid-row: 2; justify-content: space-between; gap: 0; }
 }
 
 .admin-shell-popover.is-open .topbar-control-popover {
