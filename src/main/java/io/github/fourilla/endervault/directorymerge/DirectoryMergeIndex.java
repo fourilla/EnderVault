@@ -39,8 +39,7 @@ final class DirectoryMergeIndex {
 
     String targetPath(DirectoryMergePlan.Item item, Map<String, DirectoryMergeResult> results) {
         var parent = parent(item);
-        String name = plan.targetNames().getOrDefault(item.relativePath(),
-                item.relativePath().substring(item.relativePath().lastIndexOf('/') + 1));
+        String name = targetName(item);
         if (parent == null) {
             if (!plan.targetNames().containsKey("")) return plan.destinationPath();
             int slash = plan.destinationPath().lastIndexOf('/');
@@ -49,5 +48,16 @@ final class DirectoryMergeIndex {
         var result = results.get(parent.id());
         if (result == null || result.status() != DirectoryMergeResult.Status.PUBLISHED) throw new StorageAccessException("Merge parent is unavailable.");
         return result.targetPath() + "/" + name;
+    }
+
+    /** Planned destination, before a new KEEP_BOTH choice allocates its final name. */
+    String plannedTargetPath(DirectoryMergePlan.Item item) {
+        var parent = parent(item);
+        return parent == null ? targetPath(item, Map.of()) : plannedTargetPath(parent) + "/" + targetName(item);
+    }
+
+    private String targetName(DirectoryMergePlan.Item item) {
+        return plan.targetNames().getOrDefault(item.relativePath(),
+                item.relativePath().substring(item.relativePath().lastIndexOf('/') + 1));
     }
 }

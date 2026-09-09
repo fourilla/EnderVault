@@ -1,0 +1,64 @@
+package io.github.fourilla.endervault.directorymerge;
+
+import java.io.IOException;
+import java.time.Instant;
+import java.util.List;
+import org.springframework.stereotype.Service;
+
+/** Deliberately excludes filesystem identity, staging paths, and journal internals from browser responses. */
+@Service
+public class DirectoryMergeQueryService {
+    private final DirectoryMergeReviewStore reviews;
+
+    public DirectoryMergeQueryService(DirectoryMergeReviewStore reviews) { this.reviews = reviews; }
+
+    public Page<Summary> list(int page, int size) throws IOException {
+        checkPage(page, size);
+        synchronized (reviews) {
+            var ids = reviews.reviewIds();
+            var selected = ids.stream().skip((long) page * size).limit(size).toList();
+            var values = new java.util.ArrayList<Summary>();
+            for (String id : selected) values.add(summary(reviews.require(id)));
+            return new Page<>(page, size, ids.size(), List.copyOf(values));
+        }
+    }
+
+    public Detail get(String id, int page, int size, boolean conflictsOnly) throws IOException {
+        checkPage(page, size);
+        synchronized (reviews) {
+            var review = reviews.require(id);
+            var index = new DirectoryMergeIndex(review.plan());
+            var items = review.plan().items().stream()
+                    .filter(item -> !conflictsOnly || item.requiresDecision()).toList();
+            var rows = items.stream().skip((long) page * size).limit(size)
+                    .map(item -> new Entry(item.id(), item.relativePath(), index.plannedTargetPath(item), item.source().kind(), item.source().size(),
+                            item.source().modifiedAt(), item.target() == null ? null : item.target().kind(),
+                            item.target() == null ? null : item.target().size(),
+                            item.target() == null ? null : item.target().modifiedAt(), item.conflict(), item.blockedBy(),
+                            review.choices().get(item.id()))).toList();
+            return new Detail(summary(review), new Page<>(page, size, items.size(), rows));
+        }
+    }
+
+    private Summary summary(DirectoryMergeReview review) throws IOException {
+        var plan = review.plan();
+        var run = reviews.run(plan.id());
+        return new Summary(plan.id(), plan.operation(), plan.sourceReference(), plan.destinationPath(), plan.createdAt(),
+                review.revision(), plan.items().size(),
+                plan.items().stream().filter(DirectoryMergePlan.Item::requiresDecision).count(),
+                review.fullyReviewed(), !reviews.frozen(plan.id()), run, reviews.successor(plan.id()));
+    }
+
+    private static void checkPage(int page, int size) {
+        if (page < 0 || size < 1 || size > 200) throw new IllegalArgumentException("Invalid review page or page size (1-200).");
+    }
+
+    public record Page<T>(int page, int size, long total, List<T> items) {}
+    public record Summary(String id, DirectoryMergePlan.Operation operation, String sourceReference,
+            String destinationPath, Instant createdAt, long revision, int itemCount, long conflictCount,
+            boolean fullyReviewed, boolean editable, DirectoryMergeRun run, String successorId) {}
+    public record Entry(String id, String relativePath, String plannedTargetPath, DirectoryMergePlan.Kind sourceKind, long sourceSize,
+            Instant sourceModifiedAt, DirectoryMergePlan.Kind targetKind, Long targetSize, Instant targetModifiedAt,
+            DirectoryMergePlan.Conflict conflict, String blockedBy, DirectoryMergeReview.Choice choice) {}
+    public record Detail(Summary review, Page<Entry> entries) {}
+}

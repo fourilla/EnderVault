@@ -12,6 +12,8 @@ public class TaskContext {
         return task.id();
     }
 
+    public void resultReference(String reference) { task.setResultReference(reference); }
+
     public void setTotalBytes(long totalBytes) {
         task.setTotalBytes(totalBytes);
     }

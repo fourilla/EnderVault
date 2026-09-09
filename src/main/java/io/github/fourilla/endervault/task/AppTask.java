@@ -21,6 +21,7 @@ public class AppTask {
     private volatile Instant startedAt;
     private volatile Instant finishedAt;
     private volatile String targetPath;
+    private volatile String resultReference;
     private volatile String message = "Waiting to start.";
     private volatile boolean cancelRequested;
     private final AtomicLong processedBytes = new AtomicLong();
@@ -41,6 +42,10 @@ public class AppTask {
     public String id() {
         return id;
     }
+
+    public String resultReference() { return resultReference; }
+
+    void setResultReference(String reference) { resultReference = reference; }
 
     public String shortId() {
         return id.length() <= 8 ? id : id.substring(0, 8);

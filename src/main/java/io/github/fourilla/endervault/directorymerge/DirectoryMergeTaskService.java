@@ -93,9 +93,11 @@ public class DirectoryMergeTaskService {
             var next = isPending ? pendingReplanning.replan(id, revision, listener)
                     : transferReplanning.replan(id, revision, listener);
             context.targetPath(next.plan().destinationPath());
+            context.resultReference(next.plan().id());
             return TaskOutcome.pending("Directory merge review is ready. Review the remaining items before continuing.");
         }
         DirectoryMergeRun result;
+        context.resultReference(id);
         if (isPending) {
             pending.execute(id, revision, listener);
             result = reviews.run(id);

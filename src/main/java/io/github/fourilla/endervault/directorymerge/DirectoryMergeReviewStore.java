@@ -249,6 +249,19 @@ public class DirectoryMergeReviewStore {
         }
     }
 
+    synchronized List<String> reviewIds() throws IOException {
+        ensureRoot();
+        try (var paths = Files.list(root)) {
+            return paths.map(p -> p.getFileName().toString())
+                    .filter(name -> name.matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.json"))
+                    .map(name -> name.substring(0, 36)).sorted().toList();
+        }
+    }
+
+    synchronized boolean frozen(String id) throws IOException {
+        return Files.exists(executionPath(id), LinkOption.NOFOLLOW_LINKS);
+    }
+
     private Path runPath(String id) throws IOException {
         path(id);
         Path file = root.resolve("runs").resolve(id + ".json");

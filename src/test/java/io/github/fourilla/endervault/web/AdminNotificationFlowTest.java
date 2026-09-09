@@ -108,6 +108,9 @@ class AdminNotificationFlowTest {
     @Autowired
     ViteAssetService viteAssetService;
 
+    @Autowired
+    io.github.fourilla.endervault.task.TaskManagerService taskManagerService;
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         registry.add("nas.storage.root", ROOT::toString);
@@ -2533,6 +2536,93 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.transferBuffer.active").value(true))
                 .andExpect(jsonPath("$.detail.directory").value(true));
+    }
+
+    @Test
+    void directoryMergeApiPreparesReviewsAndExecutesThroughAuthenticatedTasks() throws Exception {
+        String base = "merge-api-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(base + "/source/photos"));
+        Files.createDirectories(ROOT.resolve(base + "/target/photos"));
+        Files.writeString(ROOT.resolve(base + "/source/photos/a.txt"), "new content");
+        Files.writeString(ROOT.resolve(base + "/target/photos/a.txt"), "old content");
+        String prefix = "/api/v1/files/directory-merges";
+        var queued = mockMvc.perform(post(prefix + "/transfers").with(csrf())
+                        .param("operation", "COPY").param("source", base + "/source/photos")
+                        .param("destination", base + "/target"))
+                .andExpect(status().isAccepted()).andExpect(jsonPath("$.type").value("DIRECTORY_MERGE"))
+                .andReturn();
+        String taskId = objectMapper.readTree(queued.getResponse().getContentAsString()).path("id").asText();
+        var scanTask = awaitMergeTask(taskId);
+        assertThat(scanTask.status()).isEqualTo(io.github.fourilla.endervault.task.TaskStatus.PENDING);
+        String id = scanTask.resultReference();
+        assertThat(id).isNotBlank();
+        assertThat(Files.readString(ROOT.resolve(base + "/target/photos/a.txt"))).isEqualTo("old content");
+        mockMvc.perform(get("/api/v1/tasks").param("ids", taskId)).andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].resultReference").value(id));
+        var detail = mockMvc.perform(get(prefix + "/" + id).param("conflictsOnly", "true"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.entries.total").value(1))
+                .andExpect(jsonPath("$.review.editable").value(true)).andReturn();
+        String itemId = objectMapper.readTree(detail.getResponse().getContentAsString())
+                .path("entries").path("items").get(0).path("id").asText();
+        mockMvc.perform(post(prefix + "/" + id + "/execute").with(csrf()).param("revision", "0"))
+                .andExpect(status().isConflict());
+        mockMvc.perform(post(prefix + "/" + id + "/choices").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("revision", 0, "choices", Map.of(itemId, "OVERWRITE")))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.revision").value(1))
+                .andExpect(jsonPath("$.fullyReviewed").value(true));
+        mockMvc.perform(post(prefix + "/" + id + "/choices").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("revision", 0, "choices", Map.of(itemId, "SKIP")))))
+                .andExpect(status().isConflict());
+        var execution = mockMvc.perform(post(prefix + "/" + id + "/execute").with(csrf()).param("revision", "1"))
+                .andExpect(status().isAccepted()).andReturn();
+        var completed = awaitMergeTask(objectMapper.readTree(execution.getResponse().getContentAsString()).path("id").asText());
+        assertThat(completed.status()).isEqualTo(io.github.fourilla.endervault.task.TaskStatus.COMPLETE);
+        assertThat(Files.readString(ROOT.resolve(base + "/target/photos/a.txt"))).isEqualTo("new content");
+        assertThat(Files.readString(ROOT.resolve(base + "/source/photos/a.txt"))).isEqualTo("new content");
+        mockMvc.perform(get(prefix + "/" + id)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.review.run.phase").value("COMPLETE"))
+                .andExpect(jsonPath("$.review.editable").value(false));
+    }
+
+    @Test
+    void directoryMergeApiMutationsRequireCsrfAndValidatePayloads() throws Exception {
+        String prefix = "/api/v1/files/directory-merges";
+        for (String suffix : List.of("/transfers", "/pending/test", "/test/choices", "/test/execute", "/test/replan")) {
+            mockMvc.perform(post(prefix + suffix)).andExpect(status().isForbidden());
+        }
+        mockMvc.perform(post(prefix + "/transfers").with(csrf()).param("operation", "PENDING").param("source", "test"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post(prefix + "/test/choices").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"choices\":{\"x\":\"SKIP\"}}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post(prefix + "/test/choices").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"revision\":0,\"choices\":{\"x\":null}}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get(prefix).param("size", "201")).andExpect(status().isBadRequest());
+        mockMvc.perform(get(prefix + "/" + java.util.UUID.randomUUID())).andExpect(status().isNotFound());
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    void directoryMergeApiIsNotAvailableToNonAdminUsers() throws Exception {
+        mockMvc.perform(get("/api/v1/files/directory-merges")).andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/files/directory-merges/transfers").with(csrf())
+                        .param("operation", "COPY").param("source", "test"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithAnonymousUser
+    void directoryMergeApiRequiresLogin() throws Exception {
+        mockMvc.perform(get("/api/v1/files/directory-merges")).andExpect(status().is3xxRedirection());
+    }
+
+    private io.github.fourilla.endervault.task.AppTask awaitMergeTask(String id) throws Exception {
+        long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(15);
+        var task = taskManagerService.listTasks(List.of(id)).getFirst();
+        while (task.active() && System.nanoTime() < deadline) Thread.sleep(10);
+        assertThat(task.active()).isFalse();
+        return task;
     }
 
     private static Path createTempRoot() {
