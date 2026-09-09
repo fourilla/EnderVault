@@ -39,6 +39,11 @@ public class DirectoryMergePlanner {
 
     public DirectoryMergePlan planTransfer(Operation operation, String sourcePath,
             String destinationDirectory, StorageProgressListener listener) throws IOException {
+        return planTransfer(operation, sourcePath, destinationDirectory, listener, Map.of(), java.util.Set.of());
+    }
+
+    DirectoryMergePlan planTransfer(Operation operation, String sourcePath, String destinationDirectory,
+            StorageProgressListener listener, Map<String, String> targetNames, java.util.Set<String> excluded) throws IOException {
         if (operation != Operation.COPY && operation != Operation.MOVE) {
             throw new StorageAccessException("A transfer must be copy or move.");
         }
@@ -49,7 +54,7 @@ public class DirectoryMergePlanner {
         storage.validateVaultEntryName(name);
         String targetPath = join(destination, name);
         Path target = storage.resolveVaultCommitTarget(targetPath);
-        return scan(operation, relative(vault, source), source, targetPath, target, listener);
+        return scan(operation, relative(vault, source), source, targetPath, target, listener, targetNames, excluded);
     }
 
     /** The caller must obtain this decision from the server repository, never from request JSON. */
@@ -76,6 +81,12 @@ public class DirectoryMergePlanner {
 
     private DirectoryMergePlan scan(Operation operation, String reference, Path source, String targetPath,
             Path target, StorageProgressListener listener, Map<String, String> targetNames) throws IOException {
+        return scan(operation, reference, source, targetPath, target, listener, targetNames, java.util.Set.of());
+    }
+
+    private DirectoryMergePlan scan(Operation operation, String reference, Path source, String targetPath,
+            Path target, StorageProgressListener listener, Map<String, String> targetNames,
+            java.util.Set<String> excluded) throws IOException {
         StorageProgressListener progress = listener == null ? StorageProgressListener.NOOP : listener;
         rejectLinks(source);
         rejectLinks(target);
@@ -89,11 +100,14 @@ public class DirectoryMergePlanner {
         java.util.Set<Path> usedDestinations = new java.util.HashSet<>();
         Files.walkFileTree(source, new SimpleFileVisitor<>() {
             @Override public FileVisitResult preVisitDirectory(Path path, BasicFileAttributes attrs) throws IOException {
+                progress.checkCanceled();
+                if (!path.equals(source) && excluded.contains(relative(source, path))) return FileVisitResult.SKIP_SUBTREE;
                 add(path);
                 return FileVisitResult.CONTINUE;
             }
             @Override public FileVisitResult visitFile(Path path, BasicFileAttributes attrs) throws IOException {
-                add(path);
+                progress.checkCanceled();
+                if (!excluded.contains(relative(source, path))) add(path);
                 return FileVisitResult.CONTINUE;
             }
             private void add(Path path) throws IOException {
@@ -143,7 +157,7 @@ public class DirectoryMergePlanner {
         items.sort(Comparator.comparing(Item::relativePath, NaturalNameComparator.INSTANCE));
         var retainedNames = new HashMap<String, String>();
         for (var item : items) if (targetNames.containsKey(item.relativePath())) retainedNames.put(item.relativePath(), targetNames.get(item.relativePath()));
-        return new DirectoryMergePlan(UUID.randomUUID().toString(), operation, reference, targetPath, Instant.now(), items, retainedNames);
+        return new DirectoryMergePlan(UUID.randomUUID().toString(), operation, reference, targetPath, Instant.now(), items, retainedNames, excluded);
     }
 
     static Snapshot snapshot(Path path) throws IOException {

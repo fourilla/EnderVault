@@ -9,11 +9,16 @@ import java.util.UUID;
 /** A read-only snapshot, not permission to overwrite files without execution-time validation. */
 public record DirectoryMergePlan(
         String id, Operation operation, String sourceReference, String destinationPath,
-        Instant createdAt, List<Item> items, java.util.Map<String, String> targetNames
+        Instant createdAt, List<Item> items, java.util.Map<String, String> targetNames, java.util.Set<String> excludedSources
 ) {
     public DirectoryMergePlan(String id, Operation operation, String sourceReference, String destinationPath,
             Instant createdAt, List<Item> items) {
-        this(id, operation, sourceReference, destinationPath, createdAt, items, java.util.Map.of());
+        this(id, operation, sourceReference, destinationPath, createdAt, items, java.util.Map.of(), java.util.Set.of());
+    }
+
+    public DirectoryMergePlan(String id, Operation operation, String sourceReference, String destinationPath,
+            Instant createdAt, List<Item> items, java.util.Map<String, String> targetNames) {
+        this(id, operation, sourceReference, destinationPath, createdAt, items, targetNames, java.util.Set.of());
     }
 
     public DirectoryMergePlan {
@@ -24,12 +29,24 @@ public record DirectoryMergePlan(
         Objects.requireNonNull(createdAt);
         items = List.copyOf(items);
         targetNames = targetNames == null ? java.util.Map.of() : java.util.Map.copyOf(targetNames);
-        if (!targetNames.isEmpty() && operation != Operation.PENDING) throw new IllegalArgumentException("Target names require a pending review.");
+        excludedSources = excludedSources == null ? java.util.Set.of() : java.util.Set.copyOf(excludedSources);
+        if (operation == Operation.PENDING && !excludedSources.isEmpty()) throw new IllegalArgumentException("Pending plans cannot exclude upload sources.");
+        for (String path : excludedSources) {
+            if (path.isBlank() || path.contains("\\") || path.contains(":")) throw new IllegalArgumentException("Invalid excluded source.");
+            for (String part : path.split("/", -1)) {
+                if (part.isEmpty() || part.equals(".") || part.equals("..")) throw new IllegalArgumentException("Invalid excluded source.");
+            }
+        }
         if (!UUID.fromString(id).toString().equals(id)) throw new IllegalArgumentException("Invalid plan ID.");
         if (items.isEmpty() || items.size() > DirectoryMergePlanner.MAX_ENTRIES) throw new IllegalArgumentException("Invalid merge entry count.");
         var byPath = new HashMap<String, Item>();
         var byId = new HashMap<String, Item>();
         for (Item item : items) {
+            for (String path = item.relativePath(); !path.isEmpty();) {
+                if (excludedSources.contains(path)) throw new IllegalArgumentException("Excluded source is present in the plan.");
+                int slash = path.lastIndexOf('/');
+                path = slash < 0 ? "" : path.substring(0, slash);
+            }
             if (byPath.put(item.relativePath(), item) != null || byId.put(item.id(), item) != null) {
                 throw new IllegalArgumentException("Duplicate merge entry.");
             }

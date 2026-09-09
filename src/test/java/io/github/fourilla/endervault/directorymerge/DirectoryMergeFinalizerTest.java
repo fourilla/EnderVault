@@ -311,4 +311,81 @@ class DirectoryMergeFinalizerTest {
         assertThat(root.resolve("from/photos/a.txt")).hasContent("a");
         assertThat(reviews.run(review.plan().id()).phase()).isEqualTo(DirectoryMergeRun.Phase.NEEDS_REVIEW);
     }
+
+    DirectoryMergeTransferReplanningService replanner() {
+        return new DirectoryMergeTransferReplanningService(reviews, new DirectoryMergePlanner(storage, properties), storage);
+    }
+
+    void approveFile(String relative) throws IOException {
+        var item = review.plan().items().stream().filter(i -> i.relativePath().equals(relative)).findFirst().orElseThrow();
+        review = reviews.choose(review.plan().id(), review.revision(), Map.of(item.id(), DirectoryMergeReview.Choice.OVERWRITE));
+    }
+
+    @Test void copyReplanDoesNotCopySuccessfulSourcesAgainAcrossGenerations() throws Exception {
+        file("from/photos/b.txt", "b");
+        publish(Operation.COPY, Map.of());
+        file("to/photos/a.txt", "external change");
+        assertThat(transfers().execute(review.plan().id(), review.revision(), null).phase()).isEqualTo(DirectoryMergeRun.Phase.NEEDS_REVIEW);
+        var first = review;
+        review = replanner().replan(first.plan().id(), first.revision(), null);
+        assertThat(review.plan().items()).extracting(Item::relativePath).doesNotContain("b.txt");
+        assertThat(review.plan().excludedSources()).contains("b.txt");
+        assertThat(replanner().replan(first.plan().id(), first.revision(), null)).isEqualTo(review);
+        approveFile("a.txt");
+        execution.publishTransfer(review.plan().id(), review.revision(), null);
+        file("to/photos/a.txt", "another external change");
+        transfers().execute(review.plan().id(), review.revision(), null);
+        review = replanner().replan(review.plan().id(), review.revision(), null);
+        assertThat(review.plan().items()).extracting(Item::relativePath).doesNotContain("b.txt");
+        assertThat(review.choices()).isEmpty();
+        approveFile("a.txt");
+        assertThat(transfers().execute(review.plan().id(), review.revision(), null).phase()).isEqualTo(DirectoryMergeRun.Phase.COMPLETE);
+        assertThat(root.resolve("from/photos/a.txt")).hasContent("a");
+        assertThat(root.resolve("to/photos/a.txt")).hasContent("a");
+        assertThat(root.resolve("to/photos/b.txt")).hasContent("b");
+    }
+
+    @Test void moveReplanFinishesRemainingFilesWithoutRepeatingSuccessfulMetadata() throws Exception {
+        file("from/photos/b.txt", "b");
+        publish(Operation.MOVE, Map.of());
+        file("from/photos/a.txt", "changed original");
+        transfers().execute(review.plan().id(), review.revision(), null);
+        review = replanner().replan(review.plan().id(), review.revision(), null);
+        assertThat(review.plan().items()).extracting(Item::relativePath).doesNotContain("b.txt");
+        approveFile("a.txt");
+        transfers().execute(review.plan().id(), review.revision(), null);
+        assertThat(root.resolve("from/photos")).doesNotExist();
+        assertThat(root.resolve("to/photos/a.txt")).hasContent("changed original");
+        verify(lifecycle, times(1)).applyMovedPathMetadata("from/photos/b.txt", "to/photos/b.txt");
+    }
+
+    @Test void skippedSourceDoesNotReturnOnReplanOrCauseParentMetadataMove() throws Exception {
+        file("from/photos/b.txt", "b");
+        file("to/photos/b.txt", "old b");
+        publish(Operation.MOVE, Map.of("b.txt", DirectoryMergeReview.Choice.SKIP));
+        file("from/photos/a.txt", "changed original");
+        transfers().execute(review.plan().id(), review.revision(), null);
+        review = replanner().replan(review.plan().id(), review.revision(), null);
+        assertThat(review.plan().excludedSources()).contains("b.txt");
+        Files.delete(root.resolve("from/photos/b.txt"));
+        approveFile("a.txt");
+        transfers().execute(review.plan().id(), review.revision(), null);
+        assertThat(root.resolve("from/photos")).isEmptyDirectory();
+        verify(lifecycle, never()).applyMovedPathMetadata("from/photos", "to/photos");
+        assertThat(root.resolve("to/photos/b.txt")).hasContent("old b");
+    }
+
+    @Test void transferReplanKeepsPreviouslyRenamedRoot() throws Exception {
+        file("to/photos", "existing file");
+        publish(Operation.COPY, Map.of("", DirectoryMergeReview.Choice.KEEP_BOTH));
+        file("to/photos - 1/a.txt", "externally changed");
+        transfers().execute(review.plan().id(), review.revision(), null);
+        review = replanner().replan(review.plan().id(), review.revision(), null);
+        assertThat(review.plan().targetNames().get("")).isEqualTo("photos - 1");
+        approveFile("a.txt");
+        transfers().execute(review.plan().id(), review.revision(), null);
+        assertThat(root.resolve("to/photos")).hasContent("existing file");
+        assertThat(root.resolve("to/photos - 1/a.txt")).hasContent("a");
+        assertThat(root.resolve("to/photos - 2")).doesNotExist();
+    }
 }

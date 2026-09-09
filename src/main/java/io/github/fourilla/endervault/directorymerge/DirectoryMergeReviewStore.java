@@ -276,8 +276,7 @@ public class DirectoryMergeReviewStore {
         var replacement = require(next);
         var run = run(id);
         if (run == null || run.phase() != DirectoryMergeRun.Phase.NEEDS_REVIEW
-                || old.plan().operation() != DirectoryMergePlan.Operation.PENDING
-                || replacement.plan().operation() != DirectoryMergePlan.Operation.PENDING
+                || old.plan().operation() != replacement.plan().operation()
                 || !old.plan().sourceReference().equals(replacement.plan().sourceReference())
                 || !old.plan().destinationPath().equals(replacement.plan().destinationPath())
                 || !replacement.choices().isEmpty() || Files.exists(executionPath(next), LinkOption.NOFOLLOW_LINKS)) {

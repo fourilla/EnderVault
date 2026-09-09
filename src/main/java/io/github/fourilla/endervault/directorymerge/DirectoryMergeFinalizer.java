@@ -71,6 +71,15 @@ public class DirectoryMergeFinalizer {
         var index = new DirectoryMergeIndex(review.plan());
         var progress = listener == null ? StorageProgressListener.NOOP : listener;
         var completed = new HashMap<String, DirectoryMergeCompletion>();
+        var excludedParents = new java.util.HashSet<String>();
+        for (String excluded : review.plan().excludedSources()) {
+            String path = excluded;
+            while (!path.isEmpty()) {
+                int slash = path.lastIndexOf('/');
+                path = slash < 0 ? "" : path.substring(0, slash);
+                excludedParents.add(path);
+            }
+        }
         // Children must finish before an empty original directory and its own metadata can move.
         var ordered = review.plan().items().stream()
                 .sorted(Comparator.comparingInt((Item item) -> depth(item.relativePath())).reversed()).toList();
@@ -95,8 +104,9 @@ public class DirectoryMergeFinalizer {
                 try {
                     boolean unfinishedChild = item.source().kind() == Kind.DIRECTORY
                             && review.plan().operation() != Operation.COPY
-                            && index.children(item).stream().anyMatch(child -> !completed.containsKey(child.id())
-                                    || completed.get(child.id()).phase() != Phase.COMPLETE);
+                            && (index.children(item).stream().anyMatch(child -> !completed.containsKey(child.id())
+                                    || completed.get(child.id()).phase() != Phase.COMPLETE)
+                                || excludedParents.contains(item.relativePath()));
                     state = unfinishedChild ? update(id, item.id(), state, Phase.RETAINED,
                             "Original directory has unfinished or retained children.")
                             : finishItem(review, index, item, result, results, state, sourceRoot, discard);
