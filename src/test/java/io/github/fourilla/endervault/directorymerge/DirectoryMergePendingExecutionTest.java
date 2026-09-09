@@ -33,6 +33,7 @@ class DirectoryMergePendingExecutionTest {
     DirectoryMergeReview review;
     DirectoryMergeExecution execution;
     DirectoryMergeFinalizer finalizer;
+    PendingFileDecisionResolutionObserver observer;
 
     @BeforeEach void setup() throws Exception {
         var properties = new NasProperties();
@@ -46,7 +47,9 @@ class DirectoryMergePendingExecutionTest {
         var commits = new FileCommitCoordinator(journals, storage, properties);
         var repository = new PendingFileDecisionRepository(mapper, properties);
         repository.initialize();
-        pending = new PendingFileDecisionService(repository, storage, commits, artifacts, List.of());
+        observer = mock(PendingFileDecisionResolutionObserver.class);
+        when(observer.supports(any())).thenReturn(true);
+        pending = spy(new PendingFileDecisionService(repository, storage, commits, artifacts, List.of(observer)));
         staged = Files.createDirectory(storage.resolveFileStagingFile("pending-merge-test"));
         Files.writeString(staged.resolve("a.txt"), "uploaded");
         Files.createDirectory(root.resolve("to"));
@@ -80,7 +83,8 @@ class DirectoryMergePendingExecutionTest {
         assertThat(staged).doesNotExist();
         verifyNoInteractions(lifecycle);
         assertThat(execute().values()).allMatch(c -> c.phase() == DirectoryMergeCompletion.Phase.COMPLETE);
-        assertThat(pending.require(decision.id())).isEqualTo(decision);
+        assertThat(pending.find(decision.id())).isEmpty();
+        assertThat(reviews.run(review.plan().id()).phase()).isEqualTo(DirectoryMergeRun.Phase.COMPLETE);
     }
 
     @Test void explicitDiscardPreservesDestinationAndDeletesOnlyApprovedUpload() throws Exception {
@@ -131,5 +135,56 @@ class DirectoryMergePendingExecutionTest {
         assertThat(execute().values()).allMatch(c -> c.phase() == DirectoryMergeCompletion.Phase.COMPLETE);
         assertThat(root.resolve("to/photos/a.txt")).hasContent("uploaded");
         assertThat(staged).doesNotExist();
+    }
+
+    DirectoryMergeStartupRecoveryService recovery() {
+        return new DirectoryMergeStartupRecoveryService(reviews, null, service);
+    }
+
+    @Test void startupResumesAfterPendingRemovalBeforeRunCompletion() throws Exception {
+        prepare(Map.of());
+        var once = new AtomicBoolean();
+        doAnswer(call -> {
+            call.callRealMethod();
+            if (!once.getAndSet(true)) throw new IOException("after pending removal");
+            return null;
+        }).when(pending).completeDirectoryMerge(anyString(), anyString(), any(), anyBoolean());
+        assertThatThrownBy(this::execute).isInstanceOf(IOException.class);
+        assertThat(pending.find(decision.id())).isEmpty();
+        assertThat(reviews.run(review.plan().id()).phase()).isEqualTo(DirectoryMergeRun.Phase.OWNER_COMPLETING);
+        assertThat(recovery().recover().recovered()).isEqualTo(1);
+        assertThat(recovery().recover().recovered()).isZero();
+        assertThat(root.resolve("to/photos/a.txt")).hasContent("uploaded");
+        assertThat(staged).doesNotExist();
+    }
+
+    @Test void observerFailureIsRetriedAfterPendingRemoval() throws Exception {
+        prepare(Map.of());
+        doThrow(new IOException("observer unavailable")).doNothing().when(observer)
+                .afterResolved(any(), eq(PendingFileDecisionAction.MERGE), eq(false), any());
+        assertThatThrownBy(this::execute).isInstanceOf(IOException.class);
+        assertThat(pending.find(decision.id())).isEmpty();
+        assertThat(recovery().recover().recovered()).isEqualTo(1);
+        verify(observer, times(2)).afterResolved(any(), eq(PendingFileDecisionAction.MERGE), eq(false), any());
+    }
+
+    @Test void retainedUploadRemainsPendingAndDoesNotNotifyCompletion() throws Exception {
+        prepare(Map.of());
+        Files.writeString(staged.resolve("new.txt"), "new data");
+        execute();
+        assertThat(reviews.run(review.plan().id()).phase()).isEqualTo(DirectoryMergeRun.Phase.NEEDS_REVIEW);
+        assertThat(pending.find(decision.id())).isPresent();
+        assertThat(staged.resolve("new.txt")).hasContent("new data");
+        verify(observer, never()).afterResolved(any(), any(), anyBoolean(), any());
+        assertThat(recovery().recover().recovered()).isZero();
+    }
+
+    @Test void rootDiscardCompletesWithoutRequiringDestinationDirectory() throws Exception {
+        Files.writeString(root.resolve("to/photos"), "existing file");
+        prepare(Map.of("", DirectoryMergeReview.Choice.DISCARD_UPLOAD));
+        execute();
+        assertThat(pending.find(decision.id())).isEmpty();
+        assertThat(root.resolve("to/photos")).hasContent("existing file");
+        verify(observer).afterResolved(any(), eq(PendingFileDecisionAction.MERGE), eq(true), isNull());
     }
 }

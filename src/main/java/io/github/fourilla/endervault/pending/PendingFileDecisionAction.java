@@ -4,5 +4,6 @@ public enum PendingFileDecisionAction {
     KEEP_BOTH,
     SAVE_AS,
     REPLACE,
-    DISCARD
+    DISCARD,
+    MERGE
 }

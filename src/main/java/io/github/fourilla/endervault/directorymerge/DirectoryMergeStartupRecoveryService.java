@@ -12,10 +12,13 @@ public class DirectoryMergeStartupRecoveryService {
     private static final Logger logger = LoggerFactory.getLogger(DirectoryMergeStartupRecoveryService.class);
     private final DirectoryMergeReviewStore reviews;
     private final DirectoryMergeTransferService transfers;
+    private final DirectoryMergePendingExecutionService pending;
 
-    public DirectoryMergeStartupRecoveryService(DirectoryMergeReviewStore reviews, DirectoryMergeTransferService transfers) {
+    public DirectoryMergeStartupRecoveryService(DirectoryMergeReviewStore reviews, DirectoryMergeTransferService transfers,
+            DirectoryMergePendingExecutionService pending) {
         this.reviews = reviews;
         this.transfers = transfers;
+        this.pending = pending;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -37,7 +40,8 @@ public class DirectoryMergeStartupRecoveryService {
             try {
                 var before = reviews.run(id);
                 if (before == null || before.paused() || before.terminal()) continue;
-                var after = transfers.recover(id);
+                var after = reviews.require(id).plan().operation() == DirectoryMergePlan.Operation.PENDING
+                        ? pending.recover(id) : transfers.recover(id);
                 if (after.phase() == DirectoryMergeRun.Phase.COMPLETE) recovered++;
                 else if (after.phase() == DirectoryMergeRun.Phase.NEEDS_REVIEW) review++;
             } catch (IOException | RuntimeException ex) {

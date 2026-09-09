@@ -220,8 +220,11 @@ public class DirectoryMergeReviewStore {
             case PUBLISHING -> next.phase() == DirectoryMergeRun.Phase.PUBLISHING
                     || next.phase() == DirectoryMergeRun.Phase.FINALIZING;
             case FINALIZING -> next.phase() == DirectoryMergeRun.Phase.FINALIZING
+                    || next.phase() == DirectoryMergeRun.Phase.OWNER_COMPLETING
                     || next.phase() == DirectoryMergeRun.Phase.COMPLETE
                     || next.phase() == DirectoryMergeRun.Phase.NEEDS_REVIEW;
+            case OWNER_COMPLETING -> next.phase() == DirectoryMergeRun.Phase.OWNER_COMPLETING
+                    || next.phase() == DirectoryMergeRun.Phase.COMPLETE;
             default -> false;
         };
         if (previous != null && (previous.revision() != next.revision() || !allowed)) {

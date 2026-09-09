@@ -233,7 +233,7 @@ class DirectoryMergeFinalizerTest {
 
     @Test void startupIgnoresFrozenReviewsWithoutExplicitRun() throws Exception {
         publish(Operation.MOVE, Map.of());
-        var summary = new DirectoryMergeStartupRecoveryService(reviews, transfers()).recover();
+        var summary = new DirectoryMergeStartupRecoveryService(reviews, transfers(), null).recover();
         assertThat(summary.recovered()).isZero();
         assertThat(root.resolve("from/photos/a.txt")).hasContent("a");
         verifyNoInteractions(lifecycle);
@@ -243,7 +243,7 @@ class DirectoryMergeFinalizerTest {
         publish(Operation.MOVE, Map.of());
         reviews.saveRun(null, new DirectoryMergeRun(review.plan().id(), review.revision(),
                 DirectoryMergeRun.Phase.PUBLISHING, false));
-        var recovery = new DirectoryMergeStartupRecoveryService(reviews, transfers());
+        var recovery = new DirectoryMergeStartupRecoveryService(reviews, transfers(), null);
         assertThat(recovery.recover().recovered()).isEqualTo(1);
         assertThat(root.resolve("from/photos")).doesNotExist();
         assertThat(recovery.recover().recovered()).isZero();
@@ -259,7 +259,7 @@ class DirectoryMergeFinalizerTest {
                 .isInstanceOf(IOException.class);
         assertThat(reviews.run(review.plan().id()).phase()).isEqualTo(DirectoryMergeRun.Phase.FINALIZING);
         restart();
-        assertThat(new DirectoryMergeStartupRecoveryService(reviews, transfers()).recover().recovered()).isEqualTo(1);
+        assertThat(new DirectoryMergeStartupRecoveryService(reviews, transfers(), null).recover().recovered()).isEqualTo(1);
         verify(execution, times(1)).publishTransfer(anyString(), anyLong(), any());
         assertThat(root.resolve("from/photos")).doesNotExist();
     }
@@ -272,7 +272,7 @@ class DirectoryMergeFinalizerTest {
         assertThatThrownBy(() -> transfers().execute(review.plan().id(), review.revision(), listener))
                 .isInstanceOf(io.github.fourilla.endervault.task.TaskCanceledException.class);
         assertThat(reviews.run(review.plan().id()).paused()).isTrue();
-        assertThat(new DirectoryMergeStartupRecoveryService(reviews, transfers()).recover().recovered()).isZero();
+        assertThat(new DirectoryMergeStartupRecoveryService(reviews, transfers(), null).recover().recovered()).isZero();
         assertThat(transfers().execute(review.plan().id(), review.revision(), null).phase())
                 .isEqualTo(DirectoryMergeRun.Phase.COMPLETE);
     }
@@ -283,7 +283,7 @@ class DirectoryMergeFinalizerTest {
                 DirectoryMergeRun.Phase.PUBLISHING, false));
         Files.writeString(root.resolve(properties.getStorage().getMetadataDirectory())
                 .resolve("directory-merges/runs/" + review.plan().id() + ".json"), "broken");
-        assertThat(new DirectoryMergeStartupRecoveryService(reviews, transfers()).recover().deferred()).isEqualTo(1);
+        assertThat(new DirectoryMergeStartupRecoveryService(reviews, transfers(), null).recover().deferred()).isEqualTo(1);
         assertThat(root.resolve("from/photos/a.txt")).hasContent("a");
         verifyNoInteractions(lifecycle);
     }
@@ -305,7 +305,7 @@ class DirectoryMergeFinalizerTest {
         reviews.saveRun(null, new DirectoryMergeRun(review.plan().id(), review.revision(),
                 DirectoryMergeRun.Phase.PUBLISHING, false));
         file("to/photos/a.txt", "externally changed");
-        var summary = new DirectoryMergeStartupRecoveryService(reviews, transfers()).recover();
+        var summary = new DirectoryMergeStartupRecoveryService(reviews, transfers(), null).recover();
         assertThat(summary.review()).isEqualTo(1);
         assertThat(summary.recovered()).isZero();
         assertThat(root.resolve("from/photos/a.txt")).hasContent("a");
