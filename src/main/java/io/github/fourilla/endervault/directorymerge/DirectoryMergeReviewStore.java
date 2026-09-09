@@ -256,6 +256,46 @@ public class DirectoryMergeReviewStore {
         return file;
     }
 
+    synchronized String successor(String id) throws IOException {
+        Path file = successorPath(id);
+        if (!Files.exists(file, LinkOption.NOFOLLOW_LINKS)) return null;
+        var value = new JsonRegistry<Successor>(mapper, file, new TypeReference<>() {}, () -> null,
+                JsonRegistry.CorruptionPolicy.BACKUP_AND_THROW).read();
+        if (value == null || !id.equals(value.previous())) throw new StorageAccessException("Invalid merge successor.");
+        path(value.next());
+        return value.next();
+    }
+
+    synchronized void recordSuccessor(String id, String next) throws IOException {
+        var existing = successor(id);
+        if (existing != null) {
+            if (!existing.equals(next)) throw new StorageAccessException("Merge already has a successor.");
+            return;
+        }
+        var old = require(id);
+        var replacement = require(next);
+        var run = run(id);
+        if (run == null || run.phase() != DirectoryMergeRun.Phase.NEEDS_REVIEW
+                || old.plan().operation() != DirectoryMergePlan.Operation.PENDING
+                || replacement.plan().operation() != DirectoryMergePlan.Operation.PENDING
+                || !old.plan().sourceReference().equals(replacement.plan().sourceReference())
+                || !old.plan().destinationPath().equals(replacement.plan().destinationPath())
+                || !replacement.choices().isEmpty() || Files.exists(executionPath(next), LinkOption.NOFOLLOW_LINKS)) {
+            throw new StorageAccessException("Invalid pending merge successor.");
+        }
+        writer.write(successorPath(id), new Successor(id, next));
+        writer.forceDirectory(root);
+    }
+
+    private Path successorPath(String id) throws IOException {
+        path(id);
+        Path file = root.resolve("successors").resolve(id + ".json");
+        DirectoryMergePlanner.rejectLinks(file);
+        return file;
+    }
+
+    private record Successor(String previous, String next) {}
+
     private Path path(String id) throws IOException {
         try {
             if (id == null || !UUID.fromString(id).toString().equals(id)) throw new IllegalArgumentException();

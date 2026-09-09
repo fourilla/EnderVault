@@ -55,17 +55,27 @@ public class DirectoryMergePlanner {
     /** The caller must obtain this decision from the server repository, never from request JSON. */
     public DirectoryMergePlan planPending(PendingFileDecision decision, StorageProgressListener listener)
             throws IOException {
+        return planPending(decision, listener, Map.of());
+    }
+
+    DirectoryMergePlan planPending(PendingFileDecision decision, StorageProgressListener listener,
+            Map<String, String> targetNames) throws IOException {
         if (!decision.directory()) throw new StorageAccessException("Pending item is not a directory.");
         storage.validateVaultEntryName(decision.originalFilename());
         Path source = storage.resolveFileStagingFile(decision.stagingFilename());
         String destination = storage.normalizeVaultDirectory(decision.destinationPath());
         String targetPath = join(destination, decision.originalFilename());
         return scan(Operation.PENDING, decision.id(), source, targetPath,
-                storage.resolveVaultCommitTarget(targetPath), listener);
+                storage.resolveVaultCommitTarget(targetPath), listener, targetNames);
     }
 
     private DirectoryMergePlan scan(Operation operation, String reference, Path source, String targetPath,
             Path target, StorageProgressListener listener) throws IOException {
+        return scan(operation, reference, source, targetPath, target, listener, Map.of());
+    }
+
+    private DirectoryMergePlan scan(Operation operation, String reference, Path source, String targetPath,
+            Path target, StorageProgressListener listener, Map<String, String> targetNames) throws IOException {
         StorageProgressListener progress = listener == null ? StorageProgressListener.NOOP : listener;
         rejectLinks(source);
         rejectLinks(target);
@@ -75,6 +85,8 @@ public class DirectoryMergePlanner {
         if (snapshot(source).kind() != Kind.DIRECTORY) throw new StorageAccessException("Source is not a directory.");
         List<Item> items = new ArrayList<>();
         Map<String, String> blockedDirectories = new HashMap<>();
+        Map<String, Path> destinations = new HashMap<>();
+        java.util.Set<Path> usedDestinations = new java.util.HashSet<>();
         Files.walkFileTree(source, new SimpleFileVisitor<>() {
             @Override public FileVisitResult preVisitDirectory(Path path, BasicFileAttributes attrs) throws IOException {
                 add(path);
@@ -96,12 +108,17 @@ public class DirectoryMergePlanner {
                 Snapshot from = snapshot(path);
                 String parent = relative.isEmpty() ? null : relative(source, path.getParent());
                 String blockedBy = parent == null ? null : blockedDirectories.get(parent);
+                String targetName = targetNames.getOrDefault(relative, path.getFileName().toString());
+                storage.validateVaultEntryName(targetName);
+                Path destination = parent == null ? targetNames.containsKey("") ? target.resolveSibling(targetName) : target
+                        : destinations.get(parent).resolve(targetName);
+                if (!usedDestinations.add(destination)) throw new StorageAccessException("Pending target names overlap; manual review is required.");
+                destinations.put(relative, destination);
                 Snapshot to = null;
                 Conflict conflict;
                 if (blockedBy != null) {
                     conflict = Conflict.BLOCKED_BY_PARENT;
                 } else {
-                    Path destination = target.resolve(relative);
                     rejectLinks(destination);
                     to = snapshotIfPresent(destination);
                     conflict = to == null ? Conflict.ADD : from.kind() != to.kind() ? Conflict.TYPE_CONFLICT
@@ -124,7 +141,9 @@ public class DirectoryMergePlanner {
             if (!item.source().equals(snapshot(path))) throw new StorageAccessException("Source changed during directory scan. Scan again.");
         }
         items.sort(Comparator.comparing(Item::relativePath, NaturalNameComparator.INSTANCE));
-        return new DirectoryMergePlan(UUID.randomUUID().toString(), operation, reference, targetPath, Instant.now(), items);
+        var retainedNames = new HashMap<String, String>();
+        for (var item : items) if (targetNames.containsKey(item.relativePath())) retainedNames.put(item.relativePath(), targetNames.get(item.relativePath()));
+        return new DirectoryMergePlan(UUID.randomUUID().toString(), operation, reference, targetPath, Instant.now(), items, retainedNames);
     }
 
     static Snapshot snapshot(Path path) throws IOException {

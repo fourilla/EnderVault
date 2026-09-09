@@ -34,6 +34,7 @@ class DirectoryMergePendingExecutionTest {
     DirectoryMergeExecution execution;
     DirectoryMergeFinalizer finalizer;
     PendingFileDecisionResolutionObserver observer;
+    DirectoryMergePendingReplanningService replanning;
 
     @BeforeEach void setup() throws Exception {
         var properties = new NasProperties();
@@ -56,6 +57,7 @@ class DirectoryMergePendingExecutionTest {
         decision = pending.create(staged, PendingFileDecisionSource.DIRECTORY_UPLOAD, "to", "photos", 8);
         reviews = spy(new DirectoryMergeReviewStore(mapper, properties));
         preparation = new DirectoryMergePendingPreparationService(pending, new DirectoryMergePlanner(storage, properties), reviews);
+        replanning = new DirectoryMergePendingReplanningService(reviews, pending, new DirectoryMergePlanner(storage, properties), storage);
         execution = new DirectoryMergeExecution(reviews, new DirectoryMergeFilePublisher(reviews, storage, commits, artifacts),
                 commits, storage, artifacts);
         lifecycle = mock(FileLifecycleService.class);
@@ -186,5 +188,89 @@ class DirectoryMergePendingExecutionTest {
         assertThat(pending.find(decision.id())).isEmpty();
         assertThat(root.resolve("to/photos")).hasContent("existing file");
         verify(observer).afterResolved(any(), eq(PendingFileDecisionAction.MERGE), eq(true), isNull());
+    }
+
+    @Test void replanUsesOnlyRemainingUploadAndDropsOldDecisions() throws Exception {
+        Files.createDirectory(root.resolve("to/photos"));
+        Files.writeString(root.resolve("to/photos/a.txt"), "existing");
+        Files.writeString(staged.resolve("b.txt"), "second");
+        prepare(Map.of("a.txt", DirectoryMergeReview.Choice.OVERWRITE));
+        Files.writeString(staged.resolve("a.txt"), "changed after review");
+        execute();
+        var old = review;
+        review = replanning.replan(old.plan().id(), old.revision(), null);
+        assertThat(review.choices()).isEmpty();
+        assertThat(review.fullyReviewed()).isFalse();
+        assertThat(review.plan().items()).extracting(DirectoryMergePlan.Item::relativePath).doesNotContain("b.txt");
+        assertThat(replanning.replan(old.plan().id(), old.revision(), null)).isEqualTo(review);
+        var item = review.plan().items().stream().filter(i -> i.relativePath().equals("a.txt")).findFirst().orElseThrow();
+        review = reviews.choose(review.plan().id(), 0, Map.of(item.id(), DirectoryMergeReview.Choice.OVERWRITE));
+        execute();
+        assertThat(root.resolve("to/photos/a.txt")).hasContent("changed after review");
+        assertThat(root.resolve("to/photos/b.txt")).hasContent("second");
+        assertThat(pending.find(decision.id())).isEmpty();
+    }
+
+    @Test void replanPreservesNestedKeepBothDestination() throws Exception {
+        Files.createDirectory(root.resolve("to/photos"));
+        Files.writeString(root.resolve("to/photos/nested"), "existing file");
+        Files.createDirectory(staged.resolve("nested"));
+        Files.writeString(staged.resolve("nested/b.txt"), "first child");
+        prepare(Map.of("nested", DirectoryMergeReview.Choice.KEEP_BOTH));
+        Files.writeString(staged.resolve("nested/new.txt"), "late child");
+        execute();
+        review = replanning.replan(review.plan().id(), review.revision(), null);
+        assertThat(review.plan().targetNames().get("nested")).isEqualTo("nested - 1");
+        execute();
+        assertThat(root.resolve("to/photos/nested")).hasContent("existing file");
+        assertThat(root.resolve("to/photos/nested - 1/b.txt")).hasContent("first child");
+        assertThat(root.resolve("to/photos/nested - 1/new.txt")).hasContent("late child");
+        assertThat(root.resolve("to/photos/nested - 2")).doesNotExist();
+    }
+
+    @Test void failedOwnerHandoffResumesSameSuccessor() throws Exception {
+        prepare(Map.of());
+        Files.writeString(staged.resolve("new.txt"), "late child");
+        execute();
+        var old = review;
+        var once = new AtomicBoolean();
+        doAnswer(call -> {
+            if (!once.getAndSet(true)) throw new IOException("before claim replacement");
+            return call.callRealMethod();
+        }).when(pending).transferDirectoryMergeOwner(anyString(), anyString(), anyString());
+        assertThatThrownBy(() -> replanning.replan(old.plan().id(), old.revision(), null)).isInstanceOf(IOException.class);
+        String next = reviews.successor(old.plan().id());
+        assertThat(pending.directoryMergeOwner(decision.id())).contains(old.plan().id());
+        review = replanning.replan(old.plan().id(), old.revision(), null);
+        assertThat(review.plan().id()).isEqualTo(next);
+        assertThat(reviews.ids()).hasSize(2);
+        assertThat(pending.directoryMergeOwner(decision.id())).contains(next);
+        execute();
+        assertThat(root.resolve("to/photos/new.txt")).hasContent("late child");
+    }
+
+    @Test void replanPreservesRootKeepBothDestination() throws Exception {
+        Files.writeString(root.resolve("to/photos"), "original root file");
+        prepare(Map.of("", DirectoryMergeReview.Choice.KEEP_BOTH));
+        Files.writeString(staged.resolve("new.txt"), "late child");
+        execute();
+        review = replanning.replan(review.plan().id(), review.revision(), null);
+        assertThat(review.plan().targetNames().get("")).isEqualTo("photos - 1");
+        execute();
+        assertThat(root.resolve("to/photos")).hasContent("original root file");
+        assertThat(root.resolve("to/photos - 1/a.txt")).hasContent("uploaded");
+        assertThat(root.resolve("to/photos - 1/new.txt")).hasContent("late child");
+        assertThat(root.resolve("to/photos - 2")).doesNotExist();
+    }
+
+    @Test void unresolvedMissingSourceCannotDisappearFromNewReview() throws Exception {
+        prepare(Map.of());
+        Files.writeString(staged.resolve("a.txt"), "changed upload");
+        execute();
+        Files.delete(staged.resolve("a.txt"));
+        assertThatThrownBy(() -> replanning.replan(review.plan().id(), review.revision(), null))
+                .hasMessageContaining("manual recovery");
+        assertThat(pending.directoryMergeOwner(decision.id())).contains(review.plan().id());
+        assertThat(reviews.successor(review.plan().id())).isNull();
     }
 }

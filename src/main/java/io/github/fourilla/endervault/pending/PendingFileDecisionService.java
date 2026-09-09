@@ -331,6 +331,14 @@ public class PendingFileDecisionService {
         return Optional.of(claim.mergeId());
     }
 
+    /** A persisted successor must exist before this atomic owner replacement. Never release between owners. */
+    public synchronized void transferDirectoryMergeOwner(String id, String expectedOwner, String nextOwner) throws IOException {
+        var decision = require(id);
+        var claim = repository.mergeClaim(decision.id());
+        if (claim == null || !claim.decision().equals(decision)) throw new StorageAccessException("Pending merge claim changed.");
+        repository.transferMerge(id, expectedOwner, nextOwner);
+    }
+
     /** Called only after durable OWNER_COMPLETING; the immutable claim also survives pending removal. */
     public synchronized void completeDirectoryMerge(String id, String mergeId, String committedPath,
             boolean discarded) throws IOException {

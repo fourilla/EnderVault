@@ -93,6 +93,14 @@ public class PendingFileDecisionRepository {
         writer.forceDirectory(path.getParent());
     }
 
+    synchronized void transferMerge(String id, String expectedOwner, String nextOwner) throws IOException {
+        var claim = mergeClaim(id);
+        if (claim == null) throw new IOException("Pending merge claim is missing.");
+        if (claim.mergeId().equals(nextOwner)) return;
+        if (!claim.mergeId().equals(expectedOwner)) throw new IOException("Pending merge owner changed.");
+        writer.write(claimPath(id), new MergeClaim(nextOwner, claim.decision()));
+    }
+
     private java.nio.file.Path claimPath(String id) throws IOException {
         if (id == null || !java.util.UUID.fromString(id).toString().equals(id)) throw new IOException("Invalid pending ID.");
         var path = registry.path().getParent().resolve("pending-directory-merges").resolve(id + ".json");

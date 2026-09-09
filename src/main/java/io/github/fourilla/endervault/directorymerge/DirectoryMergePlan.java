@@ -9,8 +9,13 @@ import java.util.UUID;
 /** A read-only snapshot, not permission to overwrite files without execution-time validation. */
 public record DirectoryMergePlan(
         String id, Operation operation, String sourceReference, String destinationPath,
-        Instant createdAt, List<Item> items
+        Instant createdAt, List<Item> items, java.util.Map<String, String> targetNames
 ) {
+    public DirectoryMergePlan(String id, Operation operation, String sourceReference, String destinationPath,
+            Instant createdAt, List<Item> items) {
+        this(id, operation, sourceReference, destinationPath, createdAt, items, java.util.Map.of());
+    }
+
     public DirectoryMergePlan {
         Objects.requireNonNull(id);
         Objects.requireNonNull(operation);
@@ -18,6 +23,8 @@ public record DirectoryMergePlan(
         Objects.requireNonNull(destinationPath);
         Objects.requireNonNull(createdAt);
         items = List.copyOf(items);
+        targetNames = targetNames == null ? java.util.Map.of() : java.util.Map.copyOf(targetNames);
+        if (!targetNames.isEmpty() && operation != Operation.PENDING) throw new IllegalArgumentException("Target names require a pending review.");
         if (!UUID.fromString(id).toString().equals(id)) throw new IllegalArgumentException("Invalid plan ID.");
         if (items.isEmpty() || items.size() > DirectoryMergePlanner.MAX_ENTRIES) throw new IllegalArgumentException("Invalid merge entry count.");
         var byPath = new HashMap<String, Item>();
@@ -29,6 +36,13 @@ public record DirectoryMergePlan(
         }
         if (!byPath.containsKey("") || byPath.get("").source().kind() != Kind.DIRECTORY) {
             throw new IllegalArgumentException("Merge source root is required.");
+        }
+        for (var entry : targetNames.entrySet()) {
+            String name = entry.getValue();
+            if (!byPath.containsKey(entry.getKey()) || name.isBlank() || name.contains("/") || name.contains("\\")
+                    || name.contains(":") || name.equals(".") || name.equals("..")) {
+                throw new IllegalArgumentException("Invalid pending target name.");
+            }
         }
         for (Item item : items) {
             if (item.relativePath().isEmpty()) continue;

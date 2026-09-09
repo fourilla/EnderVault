@@ -90,6 +90,9 @@ public class DirectoryMergeFilePublisher {
                 review.plan().id() + ":" + itemId);
         StorageProgressListener progress = listener == null ? StorageProgressListener.NOOP : listener;
         progress.checkCanceled();
+        if (results == null && !review.plan().targetNames().isEmpty()) {
+            throw new StorageAccessException("Remapped pending plans require tree execution.");
+        }
         String targetPath = results == null ? join(review.plan().destinationPath(), item.relativePath())
                 : index.targetPath(item, results);
         var existing = commits.findByOwner(owner);
