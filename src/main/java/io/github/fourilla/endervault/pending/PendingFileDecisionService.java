@@ -152,6 +152,7 @@ public class PendingFileDecisionService {
             boolean replaceConfirmed
     ) throws IOException {
         PendingFileDecision decision = require(id);
+        requireNoMergeClaim(decision.id());
         if (decision.directory() && action == PendingFileDecisionAction.REPLACE) {
             throw new StorageAccessException("Directory replacement is not supported.");
         }
@@ -226,6 +227,7 @@ public class PendingFileDecisionService {
             PendingFileDecisionAction action,
             String committedPath
     ) throws IOException {
+        requireNoMergeClaim(decision.id());
         FileItem committed = storageService.describeVaultPath(committedPath);
         complete(decision.id());
         notifyResolved(decision, action, false, committed);
@@ -233,6 +235,7 @@ public class PendingFileDecisionService {
 
     public synchronized PendingFileDecision removeMissingData(String id) throws IOException {
         PendingFileDecision decision = require(id);
+        requireNoMergeClaim(decision.id());
         requireNoDirectoryCommitJournal(decision);
         Path stagedFile = storageService.resolveFileStagingFile(decision.stagingFilename());
         if (validStagedFile(stagedFile)) {
@@ -287,11 +290,48 @@ public class PendingFileDecisionService {
     }
 
     private void complete(String id) throws IOException {
-        try {
-            repository.remove(id);
-        } finally {
-            release(id);
+        repository.remove(id);
+        release(id);
+    }
+
+    /** Claim before scanning so another session cannot move or discard the staging tree. */
+    public synchronized PendingFileDecision claimDirectoryMerge(String id, String mergeId) throws IOException {
+        var decision = require(id);
+        if (!decision.directory()) throw new StorageAccessException("Pending item is not a directory.");
+        requireNoDirectoryCommitJournal(decision);
+        Path staged = storageService.resolveFileStagingFile(decision.stagingFilename());
+        if (!Files.isDirectory(staged, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(staged)) {
+            throw new StorageAccessException("Pending directory data is unavailable.");
         }
+        repository.claimMerge(decision, mergeId);
+        return decision;
+    }
+
+    public synchronized PendingFileDecision requireDirectoryMergeOwner(String id, String mergeId) throws IOException {
+        var decision = require(id);
+        var claim = repository.mergeClaim(decision.id());
+        if (claim == null || !claim.mergeId().equals(mergeId) || !claim.decision().equals(decision)) {
+            throw new StorageAccessException("Pending directory merge owner changed.");
+        }
+        return decision;
+    }
+
+    public synchronized Optional<String> directoryMergeOwner(String id) throws IOException {
+        var decision = require(id);
+        var claim = repository.mergeClaim(decision.id());
+        if (claim == null) return Optional.empty();
+        if (!claim.decision().equals(decision)) throw new StorageAccessException("Pending directory merge owner changed.");
+        return Optional.of(claim.mergeId());
+    }
+
+    /** Internal owner operation; only safe before a plan has been persisted or after owner finalization. */
+    public synchronized void releaseDirectoryMergeClaim(String id, String mergeId) throws IOException {
+        requireDirectoryMergeOwner(id, mergeId);
+        repository.releaseMerge(id, mergeId);
+    }
+
+    private void requireNoMergeClaim(String id) throws IOException {
+        if (repository.mergeClaim(id) != null) throw new StorageAccessException("Pending directory is owned by a merge; resolve that merge first.");
     }
 
     private void release(String id) {

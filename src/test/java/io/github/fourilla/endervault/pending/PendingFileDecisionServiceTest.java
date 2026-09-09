@@ -30,6 +30,90 @@ class PendingFileDecisionServiceTest {
     private FileCommitCoordinator fileCommitCoordinator;
     private FileCommitJournalStore fileCommitJournalStore;
 
+    @Test void mergeClaimSurvivesRestartAndBlocksCompetingResolutions() throws Exception {
+        var artifacts = new TemporaryArtifactRegistry();
+        var first = service(artifacts);
+        Path staged = Files.createDirectory(storageService.resolveFileStagingFile("merge-owner-test"));
+        Files.writeString(staged.resolve("a.txt"), "data");
+        var decision = first.create(staged, PendingFileDecisionSource.DIRECTORY_UPLOAD, "", "photos", 4);
+        String mergeId = java.util.UUID.randomUUID().toString();
+        first.claimDirectoryMerge(decision.id(), mergeId);
+        first.closeRegistrations();
+        var restarted = service(artifacts);
+        assertThat(restarted.requireDirectoryMergeOwner(decision.id(), mergeId)).isEqualTo(decision);
+        assertThat(artifacts.isActive(staged)).isTrue();
+        for (var action : PendingFileDecisionAction.values()) {
+            assertThatThrownBy(() -> restarted.resolve(decision.id(), action, "other", true))
+                    .isInstanceOf(StorageAccessException.class).hasMessageContaining("owned by a merge");
+        }
+        assertThatThrownBy(() -> restarted.removeMissingData(decision.id())).hasMessageContaining("owned by a merge");
+        assertThatThrownBy(() -> restarted.completeRecoveredCommit(decision, PendingFileDecisionAction.KEEP_BOTH, "photos"))
+                .hasMessageContaining("owned by a merge");
+        assertThat(staged.resolve("a.txt")).hasContent("data");
+    }
+
+    @Test void onlyMatchingOwnerCanReleaseClaim() throws Exception {
+        var service = service(new TemporaryArtifactRegistry());
+        Path staged = Files.createDirectory(storageService.resolveFileStagingFile("merge-owner-test"));
+        var decision = service.create(staged, PendingFileDecisionSource.DIRECTORY_UPLOAD, "", "photos", 0);
+        String owner = java.util.UUID.randomUUID().toString();
+        service.claimDirectoryMerge(decision.id(), owner);
+        assertThat(service.claimDirectoryMerge(decision.id(), owner)).isEqualTo(decision);
+        String other = java.util.UUID.randomUUID().toString();
+        assertThatThrownBy(() -> service.claimDirectoryMerge(decision.id(), other)).isInstanceOf(StorageAccessException.class);
+        assertThatThrownBy(() -> service.releaseDirectoryMergeClaim(decision.id(), other)).isInstanceOf(StorageAccessException.class);
+        service.releaseDirectoryMergeClaim(decision.id(), owner);
+        service.resolve(decision.id(), PendingFileDecisionAction.DISCARD, null, false);
+        assertThat(staged).doesNotExist();
+    }
+
+    @Test void preparationProtectsStagingAndPersistsOwnerMatchedPlan() throws Exception {
+        var service = service(new TemporaryArtifactRegistry());
+        Path staged = Files.createDirectory(storageService.resolveFileStagingFile("merge-owner-test"));
+        Files.writeString(staged.resolve("a.txt"), "data");
+        var decision = service.create(staged, PendingFileDecisionSource.DIRECTORY_UPLOAD, "", "photos", 4);
+        var reviews = new io.github.fourilla.endervault.directorymerge.DirectoryMergeReviewStore(objectMapper, properties);
+        var preparation = new io.github.fourilla.endervault.directorymerge.DirectoryMergePendingPreparationService(service,
+                new io.github.fourilla.endervault.directorymerge.DirectoryMergePlanner(storageService, properties), reviews);
+        var review = preparation.prepare(decision.id(), null);
+        assertThat(service.requireDirectoryMergeOwner(decision.id(), review.plan().id())).isEqualTo(decision);
+        assertThat(reviews.require(review.plan().id())).isEqualTo(review);
+        assertThat(preparation.prepare(decision.id(), null)).isEqualTo(review);
+        assertThat(root.resolve("photos")).doesNotExist();
+        assertThat(staged.resolve("a.txt")).hasContent("data");
+    }
+
+    @Test void canceledScanReleasesClaimButFailedPlanWriteRetainsIt() throws Exception {
+        var service = service(new TemporaryArtifactRegistry());
+        Path staged = Files.createDirectory(storageService.resolveFileStagingFile("merge-owner-test"));
+        var decision = service.create(staged, PendingFileDecisionSource.DIRECTORY_UPLOAD, "", "photos", 0);
+        var reviews = org.mockito.Mockito.spy(new io.github.fourilla.endervault.directorymerge.DirectoryMergeReviewStore(objectMapper, properties));
+        var preparation = new io.github.fourilla.endervault.directorymerge.DirectoryMergePendingPreparationService(service,
+                new io.github.fourilla.endervault.directorymerge.DirectoryMergePlanner(storageService, properties), reviews);
+        var cancel = new io.github.fourilla.endervault.storage.StorageProgressListener() {
+            @Override public void checkCanceled() { throw new io.github.fourilla.endervault.task.TaskCanceledException(); }
+        };
+        assertThatThrownBy(() -> preparation.prepare(decision.id(), cancel))
+                .isInstanceOf(io.github.fourilla.endervault.task.TaskCanceledException.class);
+        org.mockito.Mockito.doThrow(new java.io.IOException("uncertain plan write")).when(reviews).create(org.mockito.ArgumentMatchers.any());
+        assertThatThrownBy(() -> preparation.prepare(decision.id(), null)).isInstanceOf(java.io.IOException.class);
+        assertThatThrownBy(() -> service.resolve(decision.id(), PendingFileDecisionAction.DISCARD, null, false))
+                .hasMessageContaining("owned by a merge");
+        assertThat(staged).isDirectory();
+    }
+
+    @Test void corruptClaimFailsClosed() throws Exception {
+        var service = service(new TemporaryArtifactRegistry());
+        Path staged = Files.createDirectory(storageService.resolveFileStagingFile("merge-owner-test"));
+        var decision = service.create(staged, PendingFileDecisionSource.DIRECTORY_UPLOAD, "", "photos", 0);
+        service.claimDirectoryMerge(decision.id(), java.util.UUID.randomUUID().toString());
+        Files.writeString(root.resolve(properties.getStorage().getMetadataDirectory())
+                .resolve("pending-directory-merges/" + decision.id() + ".json"), "invalid");
+        assertThatThrownBy(() -> service.resolve(decision.id(), PendingFileDecisionAction.DISCARD, null, false))
+                .isInstanceOf(java.io.IOException.class);
+        assertThat(staged).isDirectory();
+    }
+
     @BeforeEach
     void setUp() throws Exception {
         properties = new NasProperties();

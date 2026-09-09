@@ -18,8 +18,12 @@ public class PendingFileDecisionRepository {
     };
 
     private final JsonRegistry<List<PendingFileDecision>> registry;
+    private final ObjectMapper mapper;
+    private final io.github.fourilla.endervault.filecommit.DurableJsonFileWriter writer;
 
     public PendingFileDecisionRepository(ObjectMapper objectMapper, NasProperties nasProperties) {
+        mapper = objectMapper;
+        writer = new io.github.fourilla.endervault.filecommit.DurableJsonFileWriter(objectMapper);
         this.registry = new JsonRegistry<>(
                 objectMapper,
                 nasProperties.getStorage().getRoot()
@@ -56,6 +60,52 @@ public class PendingFileDecisionRepository {
         List<PendingFileDecision> decisions = new ArrayList<>(registry.read());
         if (decisions.removeIf(decision -> decision.id().equals(id))) {
             registry.write(List.copyOf(decisions));
+        }
+    }
+
+    synchronized MergeClaim mergeClaim(String id) throws IOException {
+        var path = claimPath(id);
+        if (!java.nio.file.Files.exists(path, java.nio.file.LinkOption.NOFOLLOW_LINKS)) return null;
+        var claim = new JsonRegistry<MergeClaim>(mapper, path, new TypeReference<>() {}, () -> null,
+                JsonRegistry.CorruptionPolicy.BACKUP_AND_THROW).read();
+        if (claim == null || !id.equals(claim.decision().id())) throw new IOException("Invalid pending merge claim.");
+        return claim;
+    }
+
+    synchronized void claimMerge(PendingFileDecision decision, String mergeId) throws IOException {
+        var next = new MergeClaim(mergeId, decision);
+        var previous = mergeClaim(decision.id());
+        if (previous != null) {
+            if (!previous.equals(next)) throw new io.github.fourilla.endervault.common.StorageAccessException("Pending directory belongs to another merge.");
+            return;
+        }
+        writer.write(claimPath(decision.id()), next);
+        writer.forceDirectory(registry.path().getParent());
+    }
+
+    synchronized void releaseMerge(String id, String mergeId) throws IOException {
+        var claim = mergeClaim(id);
+        if (claim == null || !claim.mergeId().equals(mergeId)) {
+            throw new io.github.fourilla.endervault.common.StorageAccessException("Pending merge owner changed.");
+        }
+        var path = claimPath(id);
+        java.nio.file.Files.delete(path);
+        writer.forceDirectory(path.getParent());
+    }
+
+    private java.nio.file.Path claimPath(String id) throws IOException {
+        if (id == null || !java.util.UUID.fromString(id).toString().equals(id)) throw new IOException("Invalid pending ID.");
+        var path = registry.path().getParent().resolve("pending-directory-merges").resolve(id + ".json");
+        for (var parent = path; parent != null; parent = parent.getParent()) {
+            if (java.nio.file.Files.isSymbolicLink(parent)) throw new IOException("Pending merge claim path contains a symbolic link.");
+        }
+        return path;
+    }
+
+    public record MergeClaim(String mergeId, PendingFileDecision decision) {
+        public MergeClaim {
+            if (mergeId == null || !java.util.UUID.fromString(mergeId).toString().equals(mergeId)
+                    || decision == null || !decision.directory()) throw new IllegalArgumentException("Invalid pending merge claim.");
         }
     }
 }
