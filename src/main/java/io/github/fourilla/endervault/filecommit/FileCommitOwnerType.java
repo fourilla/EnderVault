@@ -9,5 +9,6 @@ public enum FileCommitOwnerType {
     ARCHIVE_EXTRACT,
     TEXT_DRAFT,
     FILE_COPY,
+    DIRECTORY_MERGE,
     TRASH
 }

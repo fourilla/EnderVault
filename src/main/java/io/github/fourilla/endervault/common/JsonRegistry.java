@@ -5,11 +5,14 @@ import tools.jackson.core.exc.JacksonIOException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.nio.channels.FileChannel;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -79,7 +82,16 @@ public class JsonRegistry<T> {
         );
         try {
             objectMapper.writerWithDefaultPrettyPrinter().writeValue(tempFile.toFile(), value);
+            // Owner journals may record completion immediately after this write returns.
+            try (FileChannel channel = FileChannel.open(tempFile, StandardOpenOption.WRITE)) {
+                channel.force(true);
+            }
             moveReplacing(tempFile, registryFile);
+            try (FileChannel channel = FileChannel.open(registryFile.getParent(), StandardOpenOption.READ)) {
+                channel.force(true);
+            } catch (AccessDeniedException | UnsupportedOperationException ex) {
+                // Windows generally does not expose directory fsync through FileChannel.
+            }
         } catch (JacksonIOException ex) {
             throw new IOException("Failed to write JSON registry " + registryFile, ex.getCause());
         } catch (JacksonException ex) {

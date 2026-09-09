@@ -50,13 +50,13 @@ public class FileLifecycleService {
 
     public void recordRename(HttpServletRequest request, String oldPath, String newPath, String message)
             throws IOException {
-        afterVaultPathMoved(oldPath, newPath);
+        applyMovedPathMetadata(oldPath, newPath);
         activityLogService.record("RENAME", request, oldPath, newPath, message);
     }
 
     public void recordMove(HttpServletRequest request, String oldPath, String newPath, String message)
             throws IOException {
-        afterVaultPathMoved(oldPath, newPath);
+        applyMovedPathMetadata(oldPath, newPath);
         activityLogService.record("MOVE", request, oldPath, newPath, message);
     }
 
@@ -68,7 +68,7 @@ public class FileLifecycleService {
             String message
     ) throws IOException {
         if (!oldPath.equals(newPath)) {
-            afterVaultPathMoved(oldPath, newPath);
+            applyMovedPathMetadata(oldPath, newPath);
         }
         activityLogService.record(
                 "HIDDEN_CHANGE",
@@ -82,7 +82,7 @@ public class FileLifecycleService {
 
     public void recordMove(String actor, String ip, String oldPath, String newPath, String message)
             throws IOException {
-        afterVaultPathMoved(oldPath, newPath);
+        applyMovedPathMetadata(oldPath, newPath);
         activityLogService.record("MOVE", actor, ip, oldPath, newPath, true, message, Map.of());
     }
 
@@ -134,7 +134,8 @@ public class FileLifecycleService {
         );
     }
 
-    private void afterVaultPathMoved(String oldPath, String newPath) throws IOException {
+    /** Metadata only: durable operation owners record completion before emitting their activity event. */
+    public void applyMovedPathMetadata(String oldPath, String newPath) throws IOException {
         thumbnailService.migrateThumbnails(storageService.resolveVaultPath(newPath), oldPath, newPath);
         shareLinkService.moveVaultPath(oldPath, newPath);
         favoriteService.moveVaultPath(oldPath, newPath);
