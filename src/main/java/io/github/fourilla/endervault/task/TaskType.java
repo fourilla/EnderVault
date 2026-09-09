@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.task;
 
 public enum TaskType {
+    DIRECTORY_MERGE("Directory merge", "fas fa-folder-tree"),
     FILE_COPY("File copy", "fas fa-copy"),
     FILE_MOVE("File move", "fas fa-file-import"),
     FILE_TRASH("Move to trash", "fas fa-trash-can"),
