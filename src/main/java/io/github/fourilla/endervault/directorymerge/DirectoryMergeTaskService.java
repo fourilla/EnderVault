@@ -89,6 +89,7 @@ public class DirectoryMergeTaskService {
         // Publication and cleanup count the same entries; do not report these as one percentage.
         context.message(replan ? "Scanning remaining directory items." : "Applying reviewed directory merge.");
         boolean isPending = operation == DirectoryMergePlan.Operation.PENDING;
+        context.resultReference(id);
         if (replan) {
             var next = isPending ? pendingReplanning.replan(id, revision, listener)
                     : transferReplanning.replan(id, revision, listener);
@@ -97,7 +98,6 @@ public class DirectoryMergeTaskService {
             return TaskOutcome.pending("Directory merge review is ready. Review the remaining items before continuing.");
         }
         DirectoryMergeRun result;
-        context.resultReference(id);
         if (isPending) {
             pending.execute(id, revision, listener);
             result = reviews.run(id);

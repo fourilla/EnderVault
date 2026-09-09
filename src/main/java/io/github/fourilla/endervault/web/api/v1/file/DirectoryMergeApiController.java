@@ -57,6 +57,11 @@ public class DirectoryMergeApiController {
         return query.get(id, page, size, conflictsOnly);
     }
 
+    @GetMapping("/unresolved")
+    public java.util.List<DirectoryMergeQueryService.Summary> unresolved() throws IOException {
+        return query.unresolved();
+    }
+
     @PostMapping("/{id}/choices")
     public ChoiceResult choose(@PathVariable String id, @RequestBody Choices request) throws IOException {
         if (request.revision() == null || request.revision() < 0 || request.choices() == null

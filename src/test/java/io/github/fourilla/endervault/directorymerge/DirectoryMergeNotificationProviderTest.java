@@ -1,0 +1,44 @@
+package io.github.fourilla.endervault.directorymerge;
+
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.Mockito.*;
+import io.github.fourilla.endervault.pending.PendingFileDecision;
+import io.github.fourilla.endervault.pending.PendingFileDecisionService;
+import io.github.fourilla.endervault.task.AppTask;
+import io.github.fourilla.endervault.task.TaskManagerService;
+import io.github.fourilla.endervault.task.TaskType;
+import java.time.Instant;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+
+class DirectoryMergeNotificationProviderTest {
+    @Test void livePendingAndRunningTasksAreNotDuplicatedButOwnerCompletionIsRecoverable() throws Exception {
+        var query = mock(DirectoryMergeQueryService.class);
+        var tasks = mock(TaskManagerService.class);
+        var pending = mock(PendingFileDecisionService.class);
+        var live = mock(PendingFileDecision.class);
+        when(live.id()).thenReturn("live");
+        when(pending.list()).thenReturn(List.of(live));
+        var running = mock(AppTask.class);
+        when(running.resultReference()).thenReturn(id("running"));
+        when(tasks.activeTasks(TaskType.DIRECTORY_MERGE)).thenReturn(List.of(running));
+        when(query.unresolved()).thenReturn(List.of(
+                summary("copy", DirectoryMergePlan.Operation.COPY, null),
+                summary("running", DirectoryMergePlan.Operation.MOVE, null),
+                summary("live", DirectoryMergePlan.Operation.PENDING, DirectoryMergeRun.Phase.OWNER_COMPLETING),
+                summary("removed", DirectoryMergePlan.Operation.PENDING, DirectoryMergeRun.Phase.OWNER_COMPLETING),
+                summary("orphan", DirectoryMergePlan.Operation.PENDING, null)));
+        var provider = new DirectoryMergeNotificationProvider(query, tasks, pending);
+        var notifications = provider.items();
+        assertThat(notifications).extracting(item -> item.id()).containsExactly("directory-merge-" + id("copy"), "directory-merge-" + id("removed"));
+        assertThat(notifications.getFirst().href()).isEqualTo("/admin/pending-decisions#merge-" + id("copy"));
+        assertThat(provider.reviewAllHref()).isEqualTo("/admin/pending-decisions");
+    }
+
+    private DirectoryMergeQueryService.Summary summary(String id, DirectoryMergePlan.Operation operation, DirectoryMergeRun.Phase phase) {
+        return new DirectoryMergeQueryService.Summary(id(id), operation, id, "target/photos", Instant.now(), 0, 2, 1,
+                false, phase == null, phase == null ? null : new DirectoryMergeRun(id(id), 0, phase, false), null);
+    }
+
+    private String id(String name) { return java.util.UUID.nameUUIDFromBytes(name.getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString(); }
+}

@@ -1,0 +1,8 @@
+.directory-merge-dialog { width: min(56rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); }
+.directory-merge-dialog .text-input-card { min-width: 0; }
+.directory-merge-dialog .text-input-header p { overflow-wrap: anywhere; }
+.directory-merge-entries { max-height: 45dvh; overflow: auto; }
+.directory-merge-entries table { table-layout: fixed; width: 100%; }
+.directory-merge-entries td { min-width: 0; }
+.directory-merge-entries select { width: 100%; min-width: 0; }
+.directory-merge-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-sm); }

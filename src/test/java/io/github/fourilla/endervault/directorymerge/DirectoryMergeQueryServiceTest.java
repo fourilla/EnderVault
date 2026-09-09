@@ -70,6 +70,19 @@ class DirectoryMergeQueryServiceTest {
         assertThatIllegalArgumentException().isThrownBy(() -> query.get(review.plan().id(), 0, 0, false));
     }
 
+    @Test void unresolvedIncludesPausedWorkButExcludesCompletedReviews() throws Exception {
+        String id = review.plan().id();
+        assertThat(query.unresolved()).hasSize(1);
+        var publishing = new DirectoryMergeRun(id, 0, DirectoryMergeRun.Phase.PUBLISHING, true);
+        store.saveRun(null, publishing);
+        assertThat(query.unresolved().getFirst().run().paused()).isTrue();
+        var finalizing = new DirectoryMergeRun(id, 0, DirectoryMergeRun.Phase.FINALIZING, false);
+        store.saveRun(publishing, finalizing);
+        store.saveRun(finalizing, new DirectoryMergeRun(id, 0, DirectoryMergeRun.Phase.COMPLETE, false));
+        assertThat(query.unresolved()).isEmpty();
+        assertThat(query.list(0, 10).total()).isEqualTo(1);
+    }
+
     @Test void exposesRemappedDestinationWithoutExposingMutableInternalMapping() throws Exception {
         var plan = review.plan();
         var remapped = new DirectoryMergePlan(java.util.UUID.randomUUID().toString(), plan.operation(),

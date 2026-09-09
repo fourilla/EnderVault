@@ -42,11 +42,14 @@ public class PendingFileDecisionApiController {
 
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     public PendingFileDecisionListResponse list() throws IOException {
-        return new PendingFileDecisionListResponse(
-                pendingFileDecisionService.list().stream()
-                        .map(PendingFileDecisionItemResponse::from)
-                        .toList()
-        );
+        var items = new java.util.ArrayList<PendingFileDecisionItemResponse>();
+        synchronized (pendingFileDecisionService) {
+            for (var decision : pendingFileDecisionService.list()) {
+                String owner = decision.directory() ? pendingFileDecisionService.directoryMergeOwner(decision.id()).orElse(null) : null;
+                items.add(PendingFileDecisionItemResponse.from(decision, owner));
+            }
+        }
+        return new PendingFileDecisionListResponse(List.copyOf(items));
     }
 
     @PostMapping(value = "/{id}/resolve", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -109,9 +112,10 @@ public class PendingFileDecisionApiController {
             String sizeLabel,
             String createdLabel,
             String createdAt,
-            boolean directory
+            boolean directory,
+            String mergeId
     ) {
-        static PendingFileDecisionItemResponse from(PendingFileDecision decision) {
+        static PendingFileDecisionItemResponse from(PendingFileDecision decision, String mergeId) {
             return new PendingFileDecisionItemResponse(
                     decision.id(),
                     decision.originalFilename(),
@@ -123,7 +127,8 @@ public class PendingFileDecisionApiController {
                     ByteSizeFormatter.humanSize(decision.size()),
                     CREATED_AT_FORMATTER.format(decision.createdAt()),
                     decision.createdAt().toString(),
-                    decision.directory()
+                    decision.directory(),
+                    mergeId
             );
         }
     }

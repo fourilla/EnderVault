@@ -12,6 +12,18 @@ public class DirectoryMergeQueryService {
 
     public DirectoryMergeQueryService(DirectoryMergeReviewStore reviews) { this.reviews = reviews; }
 
+    public List<Summary> unresolved() throws IOException {
+        synchronized (reviews) {
+            var result = new java.util.ArrayList<Summary>();
+            for (String id : reviews.reviewIds()) {
+                var run = reviews.run(id);
+                if (run != null && run.phase() == DirectoryMergeRun.Phase.COMPLETE || reviews.successor(id) != null) continue;
+                result.add(summary(reviews.require(id)));
+            }
+            return List.copyOf(result);
+        }
+    }
+
     public Page<Summary> list(int page, int size) throws IOException {
         checkPage(page, size);
         synchronized (reviews) {

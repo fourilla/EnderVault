@@ -5,11 +5,25 @@ import { icon } from '../shared/browser/BrowserEntries';
 import { PageHeader } from '../shared/layout/PageHeader';
 import { loadPendingDecisions, resolvePendingDecision } from './pending-decision-api';
 import type { PendingFileDecision, PendingFileDecisionAction } from './types';
+import { DirectoryMergePanel } from '../directory-merges/DirectoryMergePanel';
+import { AppNavigationLink } from '../app/AppNavigationLink';
+import { PrepareDirectoryMergeButton } from '../directory-merges/PrepareDirectoryMergeButton';
 
 export function PendingDecisionsApp() {
   const [decisions, setDecisions] = useState<PendingFileDecision[] | null>(null);
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState('');
+  const [refresh, reload] = useState(0);
+
+  useEffect(() => {
+    const update = () => reload((value) => value + 1);
+    document.addEventListener('endervault:task-terminal', update);
+    window.addEventListener('endervault:notifications-changed', update);
+    return () => {
+      document.removeEventListener('endervault:task-terminal', update);
+      window.removeEventListener('endervault:notifications-changed', update);
+    };
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -22,7 +36,7 @@ export function PendingDecisionsApp() {
         }
       });
     return () => controller.abort();
-  }, []);
+  }, [refresh]);
 
   useHashTarget(decisions, '#decision-', true);
 
@@ -72,6 +86,7 @@ export function PendingDecisionsApp() {
   return (
     <>
       <PageHeader title="Pending Decisions" />
+      <DirectoryMergePanel />
 
       {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
       {!decisions && !error && (
@@ -110,6 +125,11 @@ export function PendingDecisionsApp() {
                     <td title={decision.createdAt}>{decision.createdLabel}</td>
                     <td>
                       <div className="table-actions">
+                        {decision.mergeId ? <AppNavigationLink className="button-link ghost icon-button action-icon"
+                          title="Review merge" aria-label="Review merge" href={`/admin/pending-decisions#merge-${decision.mergeId}`}>
+                          {icon('fas fa-list-check')}
+                        </AppNavigationLink> : <>
+                        {decision.directory && <PrepareDirectoryMergeButton pendingId={decision.id} disabled={Boolean(busyId)} />}
                         <button className="ghost icon-button action-icon" type="button" title="Keep both" aria-label="Keep both"
                           disabled={Boolean(busyId)} onClick={() => void resolve(decision, 'KEEP_BOTH')}>
                           {icon('fas fa-copy')}
@@ -128,6 +148,7 @@ export function PendingDecisionsApp() {
                           onClick={() => void resolve(decision, 'DISCARD')}>
                           {icon('fas fa-trash-can')}
                         </button>
+                        </>}
                       </div>
                     </td>
                   </tr>
