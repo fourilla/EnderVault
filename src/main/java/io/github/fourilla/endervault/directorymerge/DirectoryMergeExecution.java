@@ -88,14 +88,15 @@ public class DirectoryMergeExecution {
             var parentResult = parent == null ? null : results.get(parent.id());
             if (parent != null && (parentResult == null || parentResult.status() != DirectoryMergeResult.Status.PUBLISHED)) {
                 var status = parentResult != null && parentResult.status() == DirectoryMergeResult.Status.SKIPPED
-                        ? DirectoryMergeResult.Status.SKIPPED : DirectoryMergeResult.Status.NEEDS_REVIEW;
+                        ? DirectoryMergeResult.Status.SKIPPED
+                        : parentResult != null && parentResult.status() == DirectoryMergeResult.Status.DISCARD_APPROVED
+                                ? DirectoryMergeResult.Status.DISCARD_APPROVED : DirectoryMergeResult.Status.NEEDS_REVIEW;
                 result = new DirectoryMergeResult(item.id(), status, null, null, null, "Parent was not published.");
             } else if (review.choices().get(item.id()) == DirectoryMergeReview.Choice.SKIP) {
                 result = new DirectoryMergeResult(item.id(), DirectoryMergeResult.Status.SKIPPED, null, null, null, null);
             } else if (review.choices().get(item.id()) == DirectoryMergeReview.Choice.DISCARD_UPLOAD) {
-                // Do not discard the only uploaded copy before pending-owner completion is connected.
-                result = new DirectoryMergeResult(item.id(), DirectoryMergeResult.Status.NEEDS_REVIEW,
-                        null, null, null, "Upload discard is waiting for owner completion.");
+                result = new DirectoryMergeResult(item.id(), DirectoryMergeResult.Status.DISCARD_APPROVED,
+                        null, null, null, "Explicit upload discard approved; source cleanup is separate.");
             } else {
                 try {
                     var existing = commits.findByOwner(new FileCommitOwner(FileCommitOwnerType.DIRECTORY_MERGE,

@@ -6,7 +6,7 @@ import java.util.UUID;
 /** Publication is not source cleanup or lifecycle completion. */
 public record DirectoryMergeResult(String itemId, Status status, String targetPath,
         DirectoryMergePlan.Snapshot target, String commitId, String detail) {
-    public enum Status { PUBLISHED, SKIPPED, NEEDS_REVIEW }
+    public enum Status { PUBLISHED, SKIPPED, NEEDS_REVIEW, DISCARD_APPROVED }
 
     public DirectoryMergeResult {
         if (itemId == null || !UUID.fromString(itemId).toString().equals(itemId)) {

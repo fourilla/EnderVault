@@ -46,7 +46,24 @@ public class DirectoryMergeFinalizer {
             StorageProgressListener listener) throws IOException {
         var review = reviews.require(id);
         if (review.plan().operation() == Operation.PENDING) throw new StorageAccessException("Pending completion belongs to its upload owner.");
-        review = reviews.freeze(id, revision);
+        return complete(reviews.freeze(id, revision), null, listener);
+    }
+
+    /** Trusted pending record must be protected by its durable merge owner. */
+    synchronized Map<String, DirectoryMergeCompletion> completePending(String id, long revision,
+            io.github.fourilla.endervault.pending.PendingFileDecision pending, StorageProgressListener listener) throws IOException {
+        var review = reviews.freeze(id, revision);
+        if (review.plan().operation() != Operation.PENDING || !pending.directory()
+                || !review.plan().sourceReference().equals(pending.id())
+                || !review.plan().destinationPath().equals(join(storage.normalizeVaultDirectory(pending.destinationPath()), pending.originalFilename()))) {
+            throw new StorageAccessException("Pending owner changed.");
+        }
+        return complete(review, storage.resolveFileStagingFile(pending.stagingFilename()), listener);
+    }
+
+    private Map<String, DirectoryMergeCompletion> complete(DirectoryMergeReview review, Path sourceRoot,
+            StorageProgressListener listener) throws IOException {
+        String id = review.plan().id();
         var results = reviews.results(review);
         if (review.plan().items().stream().anyMatch(item -> !results.containsKey(item.id()))) {
             throw new StorageAccessException("Finish publication before completing the merge.");
@@ -67,18 +84,22 @@ public class DirectoryMergeFinalizer {
                 completed.put(item.id(), state);
                 continue;
             }
-            if (result.status() != DirectoryMergeResult.Status.PUBLISHED) {
+            boolean discard = result.status() == DirectoryMergeResult.Status.DISCARD_APPROVED;
+            if (discard && (review.plan().operation() != Operation.PENDING || !discardApproved(index, item, review))) {
+                throw new StorageAccessException("Upload discard was not approved.");
+            }
+            if (result.status() != DirectoryMergeResult.Status.PUBLISHED && !discard) {
                 state = update(id, item.id(), state, result.status() == DirectoryMergeResult.Status.SKIPPED
                         ? Phase.RETAINED : Phase.NEEDS_REVIEW, result.detail());
             } else {
                 try {
                     boolean unfinishedChild = item.source().kind() == Kind.DIRECTORY
-                            && review.plan().operation() == Operation.MOVE
+                            && review.plan().operation() != Operation.COPY
                             && index.children(item).stream().anyMatch(child -> !completed.containsKey(child.id())
                                     || completed.get(child.id()).phase() != Phase.COMPLETE);
                     state = unfinishedChild ? update(id, item.id(), state, Phase.RETAINED,
                             "Original directory has unfinished or retained children.")
-                            : finishItem(review, index, item, result, results, state);
+                            : finishItem(review, index, item, result, results, state, sourceRoot, discard);
                 } catch (StorageAccessException | NoSuchFileException ex) {
                     // Journals and source data remain owned for explicit review; no automatic retry with new approval.
                     state = reviews.completion(id, item.id());
@@ -93,13 +114,13 @@ public class DirectoryMergeFinalizer {
 
     private DirectoryMergeCompletion finishItem(DirectoryMergeReview review, DirectoryMergeIndex index,
             Item item, DirectoryMergeResult result, Map<String, DirectoryMergeResult> results,
-            DirectoryMergeCompletion state) throws IOException {
+            DirectoryMergeCompletion state, Path sourceRoot, boolean discard) throws IOException {
         String id = review.plan().id();
         if (state == null) {
-            validateTarget(index, item, result, results);
-            if (review.plan().operation() == Operation.MOVE) {
-                Path source = sourcePath(review.plan(), item);
-                validateSourceParents(index, review.plan(), item);
+            if (!discard) validateTarget(index, item, result, results);
+            if (review.plan().operation() != Operation.COPY) {
+                Path source = sourcePath(review.plan(), item, sourceRoot);
+                validateSourceParents(index, review.plan(), item, sourceRoot);
                 validateSource(item, source);
                 if (item.source().kind() == Kind.DIRECTORY && !empty(source)) {
                     return update(id, item.id(), null, Phase.RETAINED, "Original directory still contains entries.");
@@ -108,10 +129,10 @@ public class DirectoryMergeFinalizer {
             state = update(id, item.id(), null, Phase.PREPARED, null);
         }
         if (state.phase() == Phase.PREPARED) {
-            validateTarget(index, item, result, results);
-            if (review.plan().operation() == Operation.MOVE) {
-                Path source = sourcePath(review.plan(), item);
-                validateSourceParents(index, review.plan(), item);
+            if (!discard) validateTarget(index, item, result, results);
+            if (review.plan().operation() != Operation.COPY) {
+                Path source = sourcePath(review.plan(), item, sourceRoot);
+                validateSourceParents(index, review.plan(), item, sourceRoot);
                 DirectoryMergePlanner.rejectLinks(source);
                 if (Files.exists(source, LinkOption.NOFOLLOW_LINKS)) {
                     validateSource(item, source);
@@ -128,12 +149,14 @@ public class DirectoryMergeFinalizer {
             }
         }
         if (state.phase() == Phase.SOURCE_REMOVED) {
-            validateTarget(index, item, result, results);
-            Path source = sourcePath(review.plan(), item);
-            validateSourceParents(index, review.plan(), item);
+            if (!discard) validateTarget(index, item, result, results);
+            Path source = sourcePath(review.plan(), item, sourceRoot);
+            validateSourceParents(index, review.plan(), item, sourceRoot);
             DirectoryMergePlanner.rejectLinks(source);
             if (Files.exists(source, LinkOption.NOFOLLOW_LINKS)) throw new StorageAccessException("A new source entry appeared after merge cleanup.");
-            lifecycle.applyMovedPathMetadata(join(review.plan().sourceReference(), item.relativePath()), result.targetPath());
+            if (review.plan().operation() == Operation.MOVE) {
+                lifecycle.applyMovedPathMetadata(join(review.plan().sourceReference(), item.relativePath()), result.targetPath());
+            }
             state = update(id, item.id(), state, Phase.METADATA_APPLIED, null);
         }
         if (state.phase() == Phase.METADATA_APPLIED) {
@@ -169,13 +192,19 @@ public class DirectoryMergeFinalizer {
         }
     }
 
-    private Path sourcePath(DirectoryMergePlan plan, Item item) throws IOException {
+    private Path sourcePath(DirectoryMergePlan plan, Item item, Path sourceRoot) throws IOException {
+        if (sourceRoot != null) {
+            Path source = sourceRoot.resolve(item.relativePath()).normalize();
+            if (!source.startsWith(sourceRoot)) throw new StorageAccessException("Invalid pending source path.");
+            DirectoryMergePlanner.rejectLinks(source);
+            return source;
+        }
         return storage.resolveVaultCommitTarget(join(plan.sourceReference(), item.relativePath()));
     }
 
-    private void validateSourceParents(DirectoryMergeIndex index, DirectoryMergePlan plan, Item item) throws IOException {
+    private void validateSourceParents(DirectoryMergeIndex index, DirectoryMergePlan plan, Item item, Path sourceRoot) throws IOException {
         for (Item parent = index.parent(item); parent != null; parent = index.parent(parent)) {
-            DirectoryMergeFilePublisher.requireDirectoryIdentity(sourcePath(plan, parent), parent.source());
+            DirectoryMergeFilePublisher.requireDirectoryIdentity(sourcePath(plan, parent, sourceRoot), parent.source());
         }
     }
 
@@ -185,6 +214,13 @@ public class DirectoryMergeFinalizer {
         else if (!Objects.equals(item.source(), DirectoryMergePlanner.snapshotIfPresent(source))) {
             throw new StorageAccessException("Original file changed before merge cleanup.");
         }
+    }
+
+    private boolean discardApproved(DirectoryMergeIndex index, Item item, DirectoryMergeReview review) {
+        for (Item current = item; current != null; current = index.parent(current)) {
+            if (review.choices().get(current.id()) == DirectoryMergeReview.Choice.DISCARD_UPLOAD) return true;
+        }
+        return false;
     }
 
     private boolean empty(Path directory) throws IOException {
