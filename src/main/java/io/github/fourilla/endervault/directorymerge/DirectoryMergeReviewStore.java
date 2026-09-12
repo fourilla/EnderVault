@@ -23,6 +23,8 @@ public class DirectoryMergeReviewStore {
     private final ObjectMapper mapper;
     private final DurableJsonFileWriter writer;
 
+    Path inspectionRoot() { return root; }
+
     public DirectoryMergeReviewStore(ObjectMapper mapper, NasProperties properties) {
         this.mapper = mapper;
         writer = new DurableJsonFileWriter(mapper);

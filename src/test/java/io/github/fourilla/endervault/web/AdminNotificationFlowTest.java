@@ -2549,6 +2549,9 @@ class AdminNotificationFlowTest {
 
     @Test
     void directoryMergeApiPreparesReviewsAndExecutesThroughAuthenticatedTasks() throws Exception {
+        mockMvc.perform(get("/api/v1/metadata")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.areas[?(@.name == 'DIRECTORY_MERGES')].label").value(
+                        org.hamcrest.Matchers.hasItem("Directory merges")));
         String base = "merge-api-" + System.nanoTime();
         Files.createDirectories(ROOT.resolve(base + "/source/photos"));
         Files.createDirectories(ROOT.resolve(base + "/target/photos"));
