@@ -1,6 +1,9 @@
 package io.github.fourilla.endervault.directorymerge;
 
 import io.github.fourilla.endervault.metadata.*;
+import io.github.fourilla.endervault.filecommit.FileCommitJournalStore;
+import io.github.fourilla.endervault.filecommit.FileCommitJournalInspection;
+import io.github.fourilla.endervault.filecommit.FileCommitOwnerType;
 import io.github.fourilla.endervault.task.TaskContext;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -23,10 +26,13 @@ public class DirectoryMergeMetadataInspector implements MetadataInspector {
     private static final int MAX_FILES = 1_000_000;
     private final DirectoryMergeReviewStore store;
     private final ObjectMapper mapper;
+    private final FileCommitJournalStore journals;
 
-    public DirectoryMergeMetadataInspector(DirectoryMergeReviewStore store, ObjectMapper mapper) {
+    public DirectoryMergeMetadataInspector(DirectoryMergeReviewStore store, ObjectMapper mapper,
+            FileCommitJournalStore journals) {
         this.store = store;
         this.mapper = mapper;
+        this.journals = journals;
     }
 
     @Override public MetadataArea area() { return MetadataArea.DIRECTORY_MERGES; }
@@ -35,13 +41,18 @@ public class DirectoryMergeMetadataInspector implements MetadataInspector {
         check(context);
         var issues = new ArrayList<MetadataIssue>();
         Path root = store.inspectionRoot();
+        // Snapshot journals before taking the merge-store lock; never nest the journal lock inside it.
+        var journalSnapshot = journals.inspectJournals();
         synchronized (store) {
             try { DirectoryMergePlanner.rejectLinks(root); }
             catch (IOException | RuntimeException ex) {
                 issue(issues, "directory-merges", "Merge metadata directory cannot be safely inspected");
                 return issues;
             }
-            if (!Files.exists(root, LinkOption.NOFOLLOW_LINKS)) return List.of();
+            if (!Files.exists(root, LinkOption.NOFOLLOW_LINKS)) {
+                inspectJournals(root, journalSnapshot, issues, context);
+                return List.copyOf(issues);
+            }
             if (!Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS)) {
                 issue(issues, "directory-merges", "Merge metadata root is not a directory");
                 return issues;
@@ -81,8 +92,70 @@ public class DirectoryMergeMetadataInspector implements MetadataInspector {
                 check(context);
                 inspectPlan(root, id, issues, context);
             }
+            inspectJournals(root, journalSnapshot, issues, context);
         }
         return List.copyOf(issues);
+    }
+
+    private void inspectJournals(Path root, List<FileCommitJournalInspection> snapshot,
+            List<MetadataIssue> issues, TaskContext context) {
+        var groups = new java.util.HashMap<String, List<FileCommitJournalInspection>>();
+        for (var inspected : snapshot) {
+            check(context);
+            // Unreadable journals cannot be assigned to a merge; the existing journal inspector reports them.
+            if (!inspected.readable() || inspected.entry().manifest().owner().type() != FileCommitOwnerType.DIRECTORY_MERGE) continue;
+            String[] owner = inspected.entry().manifest().owner().id().split(":", -1);
+            if (owner.length != 2 || !uuid(owner[0]) || !uuid(owner[1])) {
+                issue(issues, inspected.operationId(), "Journal has an invalid directory merge owner");
+                continue;
+            }
+            groups.computeIfAbsent(owner[0], ignored -> new ArrayList<>()).add(inspected);
+        }
+        for (var group : groups.entrySet()) {
+            check(context);
+            String id = group.getKey();
+            try {
+                var review = read(root.resolve(id + ".json"), DirectoryMergeReview.class);
+                var frozen = read(root.resolve("executions").resolve(id + ".json"), DirectoryMergeReview.class);
+                if (!id.equals(review.plan().id()) || !review.equals(frozen) || !frozen.fullyReviewed()) {
+                    throw new IOException("Journal approval mismatch");
+                }
+                var items = review.plan().items().stream().collect(Collectors.toMap(DirectoryMergePlan.Item::id, item -> item));
+                var results = new java.util.HashMap<String, DirectoryMergeResult>();
+                for (var item : review.plan().items()) {
+                    check(context);
+                    var result = optional(root.resolve("results").resolve(id).resolve(item.id() + ".json"), DirectoryMergeResult.class);
+                    if (result != null) {
+                        if (!item.id().equals(result.itemId())) throw new IOException("Result identity mismatch");
+                        results.put(item.id(), result);
+                    }
+                }
+                var index = new DirectoryMergeIndex(review.plan());
+                var seen = new HashSet<String>();
+                for (var inspected : group.getValue()) {
+                    check(context);
+                    String itemId = inspected.entry().manifest().owner().id().split(":", -1)[1];
+                    try {
+                        var item = items.get(itemId);
+                        if (item == null || !seen.add(itemId)) throw new IOException("Unknown or duplicate journal owner");
+                        DirectoryMergeJournalGuard.requireMatches(inspected.entry(), review, item, index.targetPath(item, results));
+                        var result = results.get(itemId);
+                        if (result != null && result.commitId() != null && !result.commitId().equals(inspected.operationId())) {
+                            throw new IOException("Result refers to a different journal");
+                        }
+                        if (result != null && result.status() == DirectoryMergeResult.Status.PUBLISHED
+                                && !result.targetPath().equals(inspected.entry().manifest().items().getFirst().targetPath())) {
+                            throw new IOException("Published target differs from its journal");
+                        }
+                    } catch (IOException | RuntimeException ex) {
+                        issue(issues, inspected.operationId(), "Journal does not match its approved merge item");
+                    }
+                }
+            } catch (IOException | RuntimeException ex) {
+                if (ex instanceof io.github.fourilla.endervault.task.TaskCanceledException canceled) throw canceled;
+                issue(issues, id, "Merge journal has no readable matching approval or result context");
+            }
+        }
     }
 
     private void inspectPlan(Path root, String id, List<MetadataIssue> issues, TaskContext context) {
