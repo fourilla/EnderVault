@@ -98,6 +98,8 @@ class FileOperationDirectoryMergeTest {
                 new TransferBufferItem("source/file", "file", false), new TransferBufferItem("source/b", "b", true));
         assertEquals(TaskStatus.PENDING, outcome.status());
         assertTrue(outcome.message().contains("2 directory merge(s)"));
+        verify(context).directoryMergeReview("a");
+        verify(context).directoryMergeReview("b");
         verify(lifecycle).recordMove(anyString(), anyString(), eq("source/file"), eq("target/file"), anyString());
         verify(context, atLeast(2)).resultReference("a");
     }

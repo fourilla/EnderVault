@@ -4,6 +4,8 @@ import io.github.fourilla.endervault.common.ByteSizeFormatter;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class AppTask {
@@ -22,6 +24,7 @@ public class AppTask {
     private volatile Instant finishedAt;
     private volatile String targetPath;
     private volatile String resultReference;
+    private final Set<String> directoryMergeReviews = ConcurrentHashMap.newKeySet();
     private volatile String message = "Waiting to start.";
     private volatile boolean cancelRequested;
     private final AtomicLong processedBytes = new AtomicLong();
@@ -46,6 +49,19 @@ public class AppTask {
     public String resultReference() { return resultReference; }
 
     void setResultReference(String reference) { resultReference = reference; }
+
+    public Set<String> directoryMergeReviews() { return Set.copyOf(directoryMergeReviews); }
+
+    void addDirectoryMergeReview(String id) {
+        if (id == null || id.isBlank()) throw new IllegalArgumentException("Merge review ID is required.");
+        directoryMergeReviews.add(id);
+    }
+
+    synchronized void completeDirectoryMergeReviews(Set<String> expected) {
+        if (status != TaskStatus.PENDING || expected.isEmpty() || !directoryMergeReviews.equals(expected)) return;
+        resultReference = null;
+        markComplete("All directory merge reviews completed (including approved skips or discards).");
+    }
 
     public String shortId() {
         return id.length() <= 8 ? id : id.substring(0, 8);
@@ -175,11 +191,11 @@ public class AppTask {
         this.message = blankToDefault(message, "Complete.");
     }
 
-    void markPending(String message) {
-        status = TaskStatus.PENDING;
+    synchronized void markPending(String message) {
         finishedAt = Instant.now();
         cancelRequested = false;
         this.message = blankToDefault(message, "Waiting for review.");
+        status = TaskStatus.PENDING;
     }
 
     void markPartial(String message) {

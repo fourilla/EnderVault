@@ -41,6 +41,7 @@ class DirectoryMergePreparationTaskServiceTest {
         var order = inOrder(reviews, context);
         order.verify(reviews).create(plan);
         order.verify(context).resultReference("review-id");
+        verify(context).directoryMergeReview("review-id");
     }
 
     @Test void failedPersistenceDoesNotAnnounceReview() throws Exception {

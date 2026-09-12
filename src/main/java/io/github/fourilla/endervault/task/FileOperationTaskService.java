@@ -145,6 +145,7 @@ public class FileOperationTaskService {
                             source.path(), destination, cancellationListener(context));
                     var review = mergeReviews.create(plan);
                     savedReview = plan.id();
+                    context.directoryMergeReview(plan.id());
                     context.resultReference(plan.id());
                     boolean complete = review.fullyReviewed()
                             && mergeTransfers.execute(plan.id(), review.revision(), cancellationListener(context))

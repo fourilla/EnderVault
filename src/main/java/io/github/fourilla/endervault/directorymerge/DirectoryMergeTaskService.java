@@ -90,6 +90,7 @@ public class DirectoryMergeTaskService {
         context.message(replan ? "Scanning remaining directory items." : "Applying reviewed directory merge.");
         boolean isPending = operation == DirectoryMergePlan.Operation.PENDING;
         context.resultReference(id);
+        context.directoryMergeReview(id);
         if (replan) {
             var next = isPending ? pendingReplanning.replan(id, revision, listener)
                     : transferReplanning.replan(id, revision, listener);

@@ -5,6 +5,7 @@ import jakarta.annotation.PreDestroy;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -135,6 +136,11 @@ public class TaskManagerService {
     @PreDestroy
     public void shutdown() {
         executorService.shutdownNow();
+    }
+
+    public void completeDirectoryMergeReviews(String taskId, Set<String> expectedReviews) {
+        AppTask task = tasks.get(taskId);
+        if (task != null) task.completeDirectoryMergeReviews(expectedReviews);
     }
 
     private void run(AppTask task, TaskWork work) {

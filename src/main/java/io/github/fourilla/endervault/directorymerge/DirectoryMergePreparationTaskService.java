@@ -46,6 +46,7 @@ public class DirectoryMergePreparationTaskService {
             var review = preparation.prepare(listener);
             // Do not turn a successfully persisted review into a canceled/lost result after this point.
             context.resultReference(review.plan().id());
+            context.directoryMergeReview(review.plan().id());
             context.targetPath(review.plan().destinationPath());
             return TaskOutcome.pending("Directory merge review is ready. Review before continuing.");
         });

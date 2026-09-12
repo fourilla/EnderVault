@@ -76,6 +76,9 @@ class AdminNotificationFlowTest {
     MockMvc mockMvc;
 
     @Autowired
+    io.github.fourilla.endervault.directorymerge.DirectoryMergeTaskReconciler mergeTaskReconciler;
+
+    @Autowired
     ShareLinkService shareLinkService;
 
     @Autowired
@@ -2583,6 +2586,9 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isAccepted()).andReturn();
         var completed = awaitMergeTask(objectMapper.readTree(execution.getResponse().getContentAsString()).path("id").asText());
         assertThat(completed.status()).isEqualTo(io.github.fourilla.endervault.task.TaskStatus.COMPLETE);
+        mergeTaskReconciler.reconcile();
+        mockMvc.perform(get("/api/v1/tasks").param("ids", taskId)).andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].status").value("COMPLETE"));
         assertThat(Files.readString(ROOT.resolve(base + "/target/photos/a.txt"))).isEqualTo("new content");
         assertThat(Files.readString(ROOT.resolve(base + "/source/photos/a.txt"))).isEqualTo("new content");
         mockMvc.perform(get(prefix + "/" + id)).andExpect(status().isOk())
