@@ -24,6 +24,17 @@ test('directory merge choices preserve pending discard and type-conflict restric
   assert.equal(api.mergeChoices('PENDING', 'TYPE_CONFLICT').join(','), 'KEEP_BOTH,DISCARD_UPLOAD');
 });
 
+test('automatic transfer reviews only use copy and move task references', async () => {
+  const host = await load('../src/directory-merges/TransferMergeDialogHost.tsx', {}, {
+    react: { lazy: () => () => null },
+  });
+  assert.equal(host.transferMergeReference({ type: 'FILE_COPY', resultReference: 'review' }), 'review');
+  assert.equal(host.transferMergeReference({ type: 'FILE_MOVE', resultReference: 'review' }), 'review');
+  assert.equal(host.transferMergeReference({ type: 'DIRECTORY_MERGE', resultReference: 'review' }), null);
+  assert.equal(host.transferMergeReference({ type: 'FILE_COPY', resultReference: null }), null);
+  assert.equal(host.transferMergeReference({ type: 'FILE_TRASH', resultReference: 'other' }), null);
+});
+
 test('saving merge choices sends CSRF and revision but never source snapshots', async () => {
   let sent;
   const api = await load('../src/directory-merges/merge-api.ts', {

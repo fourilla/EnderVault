@@ -2655,6 +2655,64 @@ class AdminNotificationFlowTest {
         assertThat(notificationCenterService.snapshot(1000).items()).noneMatch(item -> item.href().endsWith("#merge-" + mergeId));
     }
 
+    @Test
+    void directoryMergeApiTransferBufferPersistsConflictAndContinuesOtherFiles() throws Exception {
+        String base = "merge-buffer-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(base + "/source/photos"));
+        Files.createDirectories(ROOT.resolve(base + "/target/photos"));
+        Files.writeString(ROOT.resolve(base + "/source/photos/a.txt"), "new");
+        Files.writeString(ROOT.resolve(base + "/target/photos/a.txt"), "old");
+        Files.writeString(ROOT.resolve(base + "/source/loose.txt"), "move me");
+        var session = new MockHttpSession();
+        mockMvc.perform(post("/api/v1/files/transfer-buffer").session(session).with(csrf())
+                        .param("path", base + "/source").param("items", "photos", "loose.txt"))
+                .andExpect(status().isOk());
+        var response = mockMvc.perform(post("/api/v1/files/transfer-buffer/paste").session(session).with(csrf())
+                        .param("path", base + "/target").param("operation", "move").param("conflictPolicy", "ask"))
+                .andExpect(status().isAccepted()).andReturn();
+        var task = awaitMergeTask(objectMapper.readTree(response.getResponse().getContentAsString()).path("task").path("id").asText());
+        assertThat(task.status()).isEqualTo(io.github.fourilla.endervault.task.TaskStatus.PENDING);
+        assertThat(Files.readString(ROOT.resolve(base + "/target/photos/a.txt"))).isEqualTo("old");
+        assertThat(Files.readString(ROOT.resolve(base + "/source/photos/a.txt"))).isEqualTo("new");
+        assertThat(ROOT.resolve(base + "/source/loose.txt")).doesNotExist();
+        assertThat(Files.readString(ROOT.resolve(base + "/target/loose.txt"))).isEqualTo("move me");
+        String prefix = "/api/v1/files/directory-merges/" + task.resultReference();
+        var detail = mockMvc.perform(get(prefix).param("conflictsOnly", "true"))
+                .andExpect(status().isOk()).andReturn();
+        String item = objectMapper.readTree(detail.getResponse().getContentAsString()).path("entries").path("items").get(0).path("id").asText();
+        mockMvc.perform(post(prefix + "/choices").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("revision", 0, "choices", Map.of(item, "SKIP")))))
+                .andExpect(status().isOk());
+        var execute = mockMvc.perform(post(prefix + "/execute").with(csrf()).param("revision", "1"))
+                .andExpect(status().isAccepted()).andReturn();
+        var done = awaitMergeTask(objectMapper.readTree(execute.getResponse().getContentAsString()).path("id").asText());
+        assertThat(done.status()).isEqualTo(io.github.fourilla.endervault.task.TaskStatus.COMPLETE);
+        assertThat(Files.readString(ROOT.resolve(base + "/source/photos/a.txt"))).isEqualTo("new");
+        assertThat(Files.readString(ROOT.resolve(base + "/target/photos/a.txt"))).isEqualTo("old");
+    }
+
+    @Test
+    void directoryMergeApiTransferBufferAutomaticallyMergesNonConflictingChildren() throws Exception {
+        String base = "merge-buffer-auto-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(base + "/source/photos"));
+        Files.createDirectories(ROOT.resolve(base + "/target/photos"));
+        Files.writeString(ROOT.resolve(base + "/source/photos/new.txt"), "new");
+        Files.writeString(ROOT.resolve(base + "/target/photos/old.txt"), "old");
+        var session = new MockHttpSession();
+        mockMvc.perform(post("/api/v1/files/transfer-buffer").session(session).with(csrf())
+                        .param("path", base + "/source").param("items", "photos"))
+                .andExpect(status().isOk());
+        var response = mockMvc.perform(post("/api/v1/files/transfer-buffer/paste").session(session).with(csrf())
+                        .param("path", base + "/target").param("operation", "move").param("conflictPolicy", "ask"))
+                .andExpect(status().isAccepted()).andReturn();
+        var task = awaitMergeTask(objectMapper.readTree(response.getResponse().getContentAsString()).path("task").path("id").asText());
+        assertThat(task.status()).isEqualTo(io.github.fourilla.endervault.task.TaskStatus.COMPLETE);
+        assertThat(task.resultReference()).isNull();
+        assertThat(ROOT.resolve(base + "/source/photos")).doesNotExist();
+        assertThat(Files.readString(ROOT.resolve(base + "/target/photos/new.txt"))).isEqualTo("new");
+        assertThat(Files.readString(ROOT.resolve(base + "/target/photos/old.txt"))).isEqualTo("old");
+    }
+
     private io.github.fourilla.endervault.task.AppTask awaitMergeTask(String id) throws Exception {
         long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(15);
         var task = taskManagerService.listTasks(List.of(id)).getFirst();

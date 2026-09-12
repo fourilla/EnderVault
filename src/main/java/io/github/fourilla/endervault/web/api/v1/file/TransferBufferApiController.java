@@ -162,7 +162,18 @@ public class TransferBufferApiController {
             List<TransferBufferItem> items,
             String targetDirectoryPath
     ) throws IOException {
+        String destination = storageService.normalizeVaultDirectory(targetDirectoryPath);
         for (TransferBufferItem item : items) {
+            try {
+                var source = storageService.describeVaultPath(item.path());
+                if (source.directory() && !source.parentPath().equals(destination)) {
+                    // Directory conflicts are persisted and reviewed by the background merge workflow.
+                    continue;
+                }
+            } catch (NoSuchFileException ignored) {
+                // Let the worker report stale sources without blocking the rest of the batch.
+                continue;
+            }
             String targetPath = joinPath(targetDirectoryPath, item.name());
             if (operation == TransferOperation.MOVE && item.path().equals(targetPath)) {
                 continue;

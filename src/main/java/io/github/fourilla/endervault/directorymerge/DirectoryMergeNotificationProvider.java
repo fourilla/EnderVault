@@ -23,7 +23,8 @@ public class DirectoryMergeNotificationProvider implements ActionRequiredProvide
     }
 
     @Override public List<ActionRequiredItem> items() throws IOException {
-        var running = tasks.activeTasks(TaskType.DIRECTORY_MERGE).stream()
+        var running = java.util.stream.Stream.of(TaskType.DIRECTORY_MERGE, TaskType.FILE_COPY, TaskType.FILE_MOVE)
+                .flatMap(type -> tasks.activeTasks(type).stream())
                 .map(task -> task.resultReference()).collect(Collectors.toSet());
         var pendingIds = pending.list().stream().map(item -> item.id()).collect(Collectors.toSet());
         return query.unresolved().stream()
