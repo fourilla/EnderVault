@@ -46,6 +46,11 @@ public class PendingFileDecisionRepository {
         return List.copyOf(registry.read());
     }
 
+    /** Read-only diagnostics use this path instead of the corruption-recovery registry reader. */
+    public java.nio.file.Path inspectionPath() {
+        return registry.path();
+    }
+
     public synchronized Optional<PendingFileDecision> find(String id) throws IOException {
         return registry.read().stream().filter(decision -> decision.id().equals(id)).findFirst();
     }

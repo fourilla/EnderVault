@@ -40,7 +40,7 @@ class DirectoryMergeMetadataInspectorTest {
         Files.createDirectories(vault.resolve("target"));
         store = new DirectoryMergeReviewStore(mapper, properties);
         root = store.inspectionRoot();
-        inspector = new DirectoryMergeMetadataInspector(store, mapper, journals);
+        inspector = new DirectoryMergeMetadataInspector(store, mapper, journals, mock(DirectoryMergePendingInspector.class));
         assertThat(inspector.inspect()).isEmpty();
         assertThat(root).doesNotExist();
         review = store.create(new DirectoryMergePlanner(storage, properties)

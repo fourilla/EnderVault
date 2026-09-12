@@ -27,17 +27,28 @@ public class DirectoryMergeMetadataInspector implements MetadataInspector {
     private final DirectoryMergeReviewStore store;
     private final ObjectMapper mapper;
     private final FileCommitJournalStore journals;
+    private final DirectoryMergePendingInspector pending;
 
     public DirectoryMergeMetadataInspector(DirectoryMergeReviewStore store, ObjectMapper mapper,
-            FileCommitJournalStore journals) {
+            FileCommitJournalStore journals, DirectoryMergePendingInspector pending) {
         this.store = store;
         this.mapper = mapper;
         this.journals = journals;
+        this.pending = pending;
     }
 
     @Override public MetadataArea area() { return MetadataArea.DIRECTORY_MERGES; }
     @Override public List<MetadataIssue> inspect() throws IOException { return inspect(null); }
     @Override public List<MetadataIssue> inspect(TaskContext context) throws IOException {
+        var issues = new ArrayList<>(inspectMergeRecords(context));
+        for (var issue : pending.inspect(context)) {
+            if (issues.size() >= 1000) break;
+            issues.add(issue);
+        }
+        return List.copyOf(issues);
+    }
+
+    private List<MetadataIssue> inspectMergeRecords(TaskContext context) throws IOException {
         check(context);
         var issues = new ArrayList<MetadataIssue>();
         Path root = store.inspectionRoot();
@@ -264,16 +275,8 @@ public class DirectoryMergeMetadataInspector implements MetadataInspector {
     }
 
     private <T> T read(Path path, Class<T> type) throws IOException {
-        DirectoryMergePlanner.rejectLinks(path);
-        if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) throw new IOException("Not a regular record");
         int limit = type == DirectoryMergeReview.class ? 128 * 1024 * 1024 : 1024 * 1024;
-        try (var input = Files.newInputStream(path, LinkOption.NOFOLLOW_LINKS)) {
-            byte[] bytes = input.readNBytes(limit + 1);
-            if (bytes.length > limit) throw new IOException("Record exceeds inspection limit");
-            T value = mapper.readValue(bytes, type);
-            if (value == null) throw new IOException("Empty record");
-            return value;
-        }
+        return DirectoryMergeInspectionReader.read(mapper, path, type, limit);
     }
 
     private void issue(List<MetadataIssue> issues, String subject, String title) {
