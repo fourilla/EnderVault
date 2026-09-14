@@ -1,6 +1,7 @@
 export interface PendingFileDecision {
   id: string;
   mergeId?: string | null;
+  statusLabel: string;
   directory: boolean;
   originalFilename: string;
   submittedBy: string | null;

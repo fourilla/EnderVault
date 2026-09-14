@@ -8,7 +8,6 @@ import { TopbarPopoverProvider } from './TopbarPopoverContext';
 import { RemoteDownloadTasksProvider } from './remote-downloads/RemoteDownloadTasksContext';
 import { ShellStatusProvider } from './ShellStatusContext';
 import { DialogHost } from '../shared/dialogs/DialogHost';
-import { TransferMergeDialogHost } from '../directory-merges/TransferMergeDialogHost';
 import './app-shell.css';
 
 export function AppShell() {
@@ -53,7 +52,6 @@ export function AppShell() {
         <div className={`app-shell admin-react-shell${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
           <SpaNavigationBridge />
           <DialogHost routeKey={location.key} />
-          <TransferMergeDialogHost routeKey={location.pathname + location.search} />
           <TopbarPopoverProvider>
             <AdminTopbar sidebarCollapsed={sidebarCollapsed}
               onToggleSidebar={() => setSidebarCollapsed((value) => !value)} />

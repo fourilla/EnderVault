@@ -5,11 +5,23 @@ import { icon } from '../shared/browser/BrowserEntries';
 import { PageHeader } from '../shared/layout/PageHeader';
 import { loadPendingDecisions, resolvePendingDecision } from './pending-decision-api';
 import type { PendingFileDecision, PendingFileDecisionAction } from './types';
-import { DirectoryMergePanel } from '../directory-merges/DirectoryMergePanel';
-import { AppNavigationLink } from '../app/AppNavigationLink';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { DirectoryMergeDialog } from '../directory-merges/DirectoryMergeDialog';
 import { PrepareDirectoryMergeButton } from '../directory-merges/PrepareDirectoryMergeButton';
 
 export function PendingDecisionsApp() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [selectedMerge, selectMerge] = useState('');
+  const closeMerge = () => {
+    selectMerge('');
+    if (location.hash.startsWith('#merge-')) {
+      navigate(location.pathname + location.search, { replace: true, preventScrollReset: true });
+    }
+  };
+  useEffect(() => {
+    selectMerge(location.hash.startsWith('#merge-') ? location.hash.slice(7) : '');
+  }, [location.hash, location.key]);
   const [decisions, setDecisions] = useState<PendingFileDecision[] | null>(null);
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState('');
@@ -27,15 +39,19 @@ export function PendingDecisionsApp() {
 
   useEffect(() => {
     const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
     setError('');
-    void loadPendingDecisions(controller.signal)
-      .then((payload) => setDecisions(payload.decisions))
+    const load = () => loadPendingDecisions(controller.signal)
+      .then((payload) => { if (!controller.signal.aborted) setDecisions(payload.decisions); })
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
           setError(reason instanceof Error ? reason.message : 'Pending decisions could not be loaded.');
         }
+      }).finally(() => {
+        if (!controller.signal.aborted) timer = setTimeout(() => void load(), 5000);
       });
-    return () => controller.abort();
+    void load();
+    return () => { controller.abort(); clearTimeout(timer); };
   }, [refresh]);
 
   useHashTarget(decisions, '#decision-', true);
@@ -86,7 +102,11 @@ export function PendingDecisionsApp() {
   return (
     <>
       <PageHeader title="Pending Decisions" />
-      <DirectoryMergePanel />
+      {selectedMerge && <DirectoryMergeDialog key={selectedMerge} id={selectedMerge}
+        close={closeMerge} changed={() => {
+          reload((value) => value + 1);
+          window.dispatchEvent(new CustomEvent('endervault:notifications-changed'));
+        }} />}
 
       {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
       {!decisions && !error && (
@@ -100,7 +120,7 @@ export function PendingDecisionsApp() {
           <header className="section-heading">
             <div>
               <h2>Items Awaiting Review</h2>
-              <p>Resolve staged items that could not be placed at their requested destination.</p>
+              <p>Review pending uploads and directory transfers.</p>
             </div>
             <span className="status-badge warning">{decisions.length} pending</span>
           </header>
@@ -110,12 +130,14 @@ export function PendingDecisionsApp() {
           <div className="table-wrap compact-table">
             <table className="pending-decisions-table">
               <thead>
-                <tr><th>Item</th><th>Source</th><th>Destination</th><th>Size</th><th>Received</th><th>Actions</th></tr>
+                <tr><th>Item</th><th>Source</th><th>Destination</th><th>Size</th><th>Created</th><th>Status</th><th>Actions</th></tr>
               </thead>
               <tbody>
                 {decisions.map((decision) => (
                   <tr id={`decision-${decision.id}`} key={decision.id} tabIndex={-1}>
-                    <td>{decision.directory && icon('fas fa-folder')}<span className="table-primary-text" title={decision.originalFilename}>{decision.originalFilename}</span></td>
+                    <td><span className="table-primary-text" title={decision.originalFilename}>
+                      {decision.directory && icon('fas fa-folder item-icon')}{decision.originalFilename}
+                    </span></td>
                     <td>
                       <span>{decision.sourceLabel}</span>
                       {decision.submittedBy && <small title={decision.submittedBy}>From {decision.submittedBy}</small>}
@@ -123,13 +145,12 @@ export function PendingDecisionsApp() {
                     <td><span className="table-primary-text" title={decision.destinationLabel}>{decision.destinationLabel}</span></td>
                     <td>{decision.sizeLabel}</td>
                     <td title={decision.createdAt}>{decision.createdLabel}</td>
+                    <td>{decision.statusLabel}</td>
                     <td>
                       <div className="table-actions">
-                        {decision.mergeId ? <AppNavigationLink className="button-link ghost icon-button action-icon"
-                          title="Review merge" aria-label="Review merge" href={`/admin/pending-decisions#merge-${decision.mergeId}`}>
-                          {icon('fas fa-list-check')}
-                        </AppNavigationLink> : <>
-                        {decision.directory && <PrepareDirectoryMergeButton pendingId={decision.id} disabled={Boolean(busyId)} />}
+                        {decision.directory && <PrepareDirectoryMergeButton pendingId={decision.id}
+                          mergeId={decision.mergeId} disabled={Boolean(busyId)} />}
+                        {!decision.mergeId && <>
                         <button className="ghost icon-button action-icon" type="button" title="Keep both" aria-label="Keep both"
                           disabled={Boolean(busyId)} onClick={() => void resolve(decision, 'KEEP_BOTH')}>
                           {icon('fas fa-copy')}
@@ -154,7 +175,7 @@ export function PendingDecisionsApp() {
                   </tr>
                 ))}
                 {decisions.length === 0 && (
-                  <tr className="empty-row"><td colSpan={6} className="empty">No items are awaiting review.</td></tr>
+                  <tr className="empty-row"><td colSpan={7} className="empty">No items are awaiting review.</td></tr>
                 )}
               </tbody>
             </table>

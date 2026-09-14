@@ -14,17 +14,26 @@ export function DirectoryMergeDialog({ id, close, changed }: { id: string; close
   const [page, setPage] = useState(0);
   const [revision, refresh] = useState(0);
   const [error, setError] = useState('');
+  const [missing, setMissing] = useState(false);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
     setData(null);
     setError('');
+    setMissing(false);
     void mergeGet<MergeDetail>(`/${encodeURIComponent(id)}?conflictsOnly=true&page=${page}&size=50`, controller.signal)
-      .then(setData).catch((reason: unknown) => {
-        if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Review unavailable.');
+      .then((result) => { if (!controller.signal.aborted) setData(result); }).catch((reason: unknown) => {
+        if (!controller.signal.aborted) {
+          if ((reason as { status?: number } | null)?.status === 404) setMissing(true);
+          else setError(reason instanceof Error ? reason.message : 'Review unavailable.');
+        }
       });
     return () => controller.abort();
   }, [id, page, revision]);
+  const finished = data?.review.run?.phase === 'COMPLETE';
+  useEffect(() => {
+    if (finished || missing) { close(); changed(); }
+  }, [finished, missing, close, changed]);
 
   const save = async (choices: Record<string, MergeChoice>) => {
     if (!data || busy) return;
@@ -43,6 +52,7 @@ export function DirectoryMergeDialog({ id, close, changed }: { id: string; close
   const review = data?.review;
   const needsReview = review?.run?.phase === 'NEEDS_REVIEW';
   const pageChoices = data?.entries.items.length ? mergeChoices(data.review.operation, 'TYPE_CONFLICT') : [];
+  if (finished || missing) return null;
   return <AppDialog open busy={busy} onDismiss={close} labelledBy="directoryMergeTitle"
     className="text-input-dialog directory-merge-dialog">
     <article className="text-input-card">

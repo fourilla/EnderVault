@@ -24,15 +24,25 @@ test('directory merge choices preserve pending discard and type-conflict restric
   assert.equal(api.mergeChoices('PENDING', 'TYPE_CONFLICT').join(','), 'KEEP_BOTH,DISCARD_UPLOAD');
 });
 
-test('automatic transfer reviews only use copy and move task references', async () => {
-  const host = await load('../src/directory-merges/TransferMergeDialogHost.tsx', {}, {
-    react: { lazy: () => () => null },
-  });
-  assert.equal(host.transferMergeReference({ type: 'FILE_COPY', resultReference: 'review' }), 'review');
-  assert.equal(host.transferMergeReference({ type: 'FILE_MOVE', resultReference: 'review' }), 'review');
-  assert.equal(host.transferMergeReference({ type: 'DIRECTORY_MERGE', resultReference: 'review' }), null);
-  assert.equal(host.transferMergeReference({ type: 'FILE_COPY', resultReference: null }), null);
-  assert.equal(host.transferMergeReference({ type: 'FILE_TRASH', resultReference: 'other' }), null);
+test('preparing a pending merge refreshes the row without navigating or opening a dialog', async () => {
+  const effects = [];
+  let refreshed = 0;
+  let state = 0;
+  const react = { useEffect: (effect) => effects.push(effect),
+    useState: () => [state++ === 0 ? true : 'task', () => {}],
+    createElement: (type, props) => ({ type, props }) };
+  const component = await load('../src/directory-merges/PrepareDirectoryMergeButton.tsx', {
+    React: react, AbortController, clearTimeout, CustomEvent: class {},
+    window: { dispatchEvent: () => refreshed++, EnderVault: {
+      requestJson: async () => [{ status: 'PENDING', resultReference: 'review', active: false }],
+    } },
+  }, { react, 'react/jsx-runtime': { jsx: (type, props) => ({ type, props }) },
+    'form-api': { toastError: () => assert.fail('unexpected error') } });
+  component.PrepareDirectoryMergeButton({ pendingId: 'pending', disabled: false });
+  const cleanup = effects[0]();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(refreshed, 1);
+  cleanup();
 });
 
 test('saving merge choices sends CSRF and revision but never source snapshots', async () => {
@@ -69,4 +79,185 @@ test('closing a merge dialog only dismisses it and never resolves or executes', 
   visit(tree);
   assert.equal(closed, 2);
   assert.equal(mutations, 0);
+});
+
+test('merge execution reuses listing refresh while replanning does not refresh files', async () => {
+  const tracked = [];
+  const requests = [];
+  const api = await load('../src/directory-merges/merge-api.ts', {
+    CustomEvent: class {},
+    window: { dispatchEvent: () => {}, EnderVaultServerTasks: { track: (...args) => tracked.push(args) } },
+  }, { 'form-api': { postForm: async (...args) => { requests.push(args); return { id: 'task' }; } } });
+  const review = { id: 'review', revision: 3, destinationPath: 'target/photos' };
+  await api.runMerge(review, false);
+  assert.equal(tracked[0][1].refreshUrl, '/files?path=target');
+  assert.equal(requests[0][1].revision, 3);
+  await api.runMerge(review, true);
+  assert.equal(tracked[1][1].refreshUrl, undefined);
+  await api.runMerge({ ...review, destinationPath: 'photos' }, false);
+  assert.equal(tracked[2][1].refreshUrl, '/files?path=');
+});
+
+test('late review response cannot repopulate a dismissed or replaced dialog', async () => {
+  const effects = [];
+  const writes = [];
+  let resolve;
+  const response = new Promise((done) => { resolve = done; });
+  const jsx = (type, props) => ({ type, props });
+  const react = { useEffect: (effect) => effects.push(effect), useState: (value) => [value, (next) => writes.push(next)],
+    createElement: (type, props, ...children) => jsx(type, { ...props, children }) };
+  const component = await load('../src/directory-merges/DirectoryMergeDialog.tsx', { React: react, AbortController }, {
+    react, 'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'fragment' },
+    AppDialog: { AppDialog: 'dialog' }, 'merge-api': { mergeGet: () => response },
+  });
+  component.DirectoryMergeDialog({ id: 'old-review', close: () => {}, changed: () => {} });
+  const cleanup = effects[0]();
+  writes.length = 0;
+  cleanup();
+  resolve({ review: { id: 'old-review' } });
+  await response;
+  await Promise.resolve();
+  assert.deepEqual(writes, []);
+});
+
+test('pending row preserves the preparation component position when a merge owner arrives', async () => {
+  let decisions;
+  const jsx = (type, props) => ({ type, props });
+  const react = { useEffect: () => {}, useState: (value) => [value === null ? decisions : value, () => {}],
+    createElement: (type, props, ...children) => jsx(type, { ...props, children }) };
+  const component = await load('../src/pending-decisions/PendingDecisionsApp.tsx', { React: react }, {
+    react, 'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'fragment' },
+    useHashTarget: { useHashTarget: () => {} }, BrowserEntries: { icon: () => null },
+    PrepareDirectoryMergeButton: { PrepareDirectoryMergeButton: 'prepare' },
+    'react-router-dom': { useLocation: () => ({ hash: '', key: 'page' }), useNavigate: () => () => {} },
+  });
+  const paths = (node, path = '', found = []) => {
+    if (Array.isArray(node)) node.forEach((child, index) => paths(child, path + '/' + index, found));
+    else if (node && typeof node === 'object') {
+      if (node.type === 'prepare') found.push(path);
+      paths(node.props?.children, path + '/children', found);
+    }
+    return found;
+  };
+  const decision = { id: 'pending', directory: true, originalFilename: 'photos', destinationPath: '' };
+  decisions = [decision];
+  const before = paths(component.PendingDecisionsApp());
+  decisions = [{ ...decision, mergeId: 'review' }];
+  const after = paths(component.PendingDecisionsApp());
+  assert.equal(before.length, 1);
+  assert.deepEqual(after, before);
+});
+
+test('the unified pending page only opens a review for an explicit merge link', async () => {
+  let location = { hash: '', key: 'page' };
+  let effects = [];
+  const selections = [];
+  const jsx = (type, props) => ({ type, props });
+  const react = { useEffect: (effect) => effects.push(effect),
+    useState: (value) => [value === null ? [] : value, (next) => selections.push(next)],
+    createElement: (type, props, ...children) => jsx(type, { ...props, children }) };
+  const component = await load('../src/pending-decisions/PendingDecisionsApp.tsx', { React: react }, {
+    react, 'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'fragment' },
+    'react-router-dom': { useLocation: () => location, useNavigate: () => () => {} },
+    useHashTarget: { useHashTarget: () => {} },
+  });
+  const tree = component.PendingDecisionsApp();
+  effects[0]();
+  assert.equal(selections.at(-1), '');
+  const tables = [];
+  const visit = (node) => {
+    if (Array.isArray(node)) return node.forEach(visit);
+    if (!node || typeof node !== 'object') return;
+    if (node.type === 'table') tables.push(node);
+    visit(node.props?.children);
+  };
+  visit(tree);
+  assert.equal(tables.length, 1);
+  location = { hash: '#merge-review', key: 'link' };
+  effects = [];
+  component.PendingDecisionsApp();
+  effects[0]();
+  assert.equal(selections.at(-1), 'review');
+});
+
+test('closing a review replaces its hash without navigation history or scroll reset', async () => {
+  const navigations = [];
+  let state = 0;
+  const jsx = (type, props) => ({ type, props });
+  const react = { useEffect: () => {}, useState: (value) => [state++ === 0 ? 'review' : value, () => {}],
+    createElement: (type, props, ...children) => jsx(type, { ...props, children }) };
+  const component = await load('../src/pending-decisions/PendingDecisionsApp.tsx', { React: react }, {
+    react, 'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'fragment' },
+    'react-router-dom': {
+      useLocation: () => ({ pathname: '/admin/pending-decisions', search: '?test=1', hash: '#merge-review' }),
+      useNavigate: () => (...args) => navigations.push(args),
+    }, useHashTarget: { useHashTarget: () => {} }, DirectoryMergeDialog: { DirectoryMergeDialog: 'review-dialog' },
+  });
+  const visit = (node) => {
+    if (Array.isArray(node)) return node.forEach(visit);
+    if (!node || typeof node !== 'object') return;
+    if (node.type === 'review-dialog') node.props.close();
+    visit(node.props?.children);
+  };
+  visit(component.PendingDecisionsApp());
+  assert.equal(navigations.length, 1);
+  assert.equal(navigations[0][0], '/admin/pending-decisions?test=1');
+  assert.equal(navigations[0][1].replace, true);
+  assert.equal(navigations[0][1].preventScrollReset, true);
+});
+
+test('completed and missing reviews dismiss, while network failures remain retryable', async () => {
+  for (const outcome of ['complete', 'missing', 'network']) {
+    let index = 0;
+    let effects = [];
+    const values = [];
+    let closed = 0;
+    let changed = 0;
+    const jsx = (type, props) => ({ type, props });
+    const react = { useEffect: (effect) => effects.push(effect), useState: (initial) => {
+      const key = index++;
+      if (!(key in values)) values[key] = initial;
+      return [values[key], (next) => { values[key] = next; }];
+    }, createElement: (type, props, ...children) => jsx(type, { ...props, children }) };
+    const component = await load('../src/directory-merges/DirectoryMergeDialog.tsx', { React: react, AbortController }, {
+      react, 'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'fragment' },
+      AppDialog: { AppDialog: 'dialog' }, 'merge-api': {
+        mergeChoices: () => [], mergeGet: async () => {
+          if (outcome === 'complete') return { review: { run: { phase: 'COMPLETE' } }, entries: { items: [] } };
+          throw Object.assign(new Error('unavailable'), { status: outcome === 'missing' ? 404 : 500 });
+        },
+      },
+    });
+    const props = { id: 'review', close: () => closed++, changed: () => changed++ };
+    component.DirectoryMergeDialog(props);
+    const cleanup = effects[0]();
+    await new Promise((resolve) => setImmediate(resolve));
+    index = 0; effects = [];
+    const tree = component.DirectoryMergeDialog(props);
+    effects[1]();
+    assert.equal(closed, outcome === 'network' ? 0 : 1);
+    assert.equal(changed, closed);
+    assert.equal(tree === null, outcome !== 'network');
+    cleanup();
+  }
+});
+
+test('merge task completion refreshes shell notifications immediately and cleans up its listener', async () => {
+  const effects = [];
+  const document = new EventTarget();
+  let refreshed = 0;
+  const react = { createContext: () => ({ Provider: 'provider' }), useEffect: (effect) => effects.push(effect),
+    createElement: (type, props) => ({ type, props }) };
+  const component = await load('../src/app/ShellStatusContext.tsx', { React: react, document }, {
+    react, 'react/jsx-runtime': { jsx: (type, props) => ({ type, props }) },
+    AdminAppContext: { useAdminApp: () => ({ bootstrap: {} }) },
+    usePolledJson: { usePolledJson: () => ({ refresh: () => refreshed++ }) },
+  });
+  component.ShellStatusProvider({ children: null });
+  const cleanup = effects[0]();
+  const emit = (type) => document.dispatchEvent(Object.assign(new Event('endervault:task-terminal'), { detail: { type } }));
+  emit('DIRECTORY_MERGE'); emit('FILE_COPY'); emit('FILE_MOVE'); emit('FILE_TRASH');
+  assert.equal(refreshed, 3);
+  cleanup(); emit('DIRECTORY_MERGE');
+  assert.equal(refreshed, 3);
 });

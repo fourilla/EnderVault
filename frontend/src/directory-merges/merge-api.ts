@@ -51,7 +51,11 @@ export async function saveMergeChoices(id: string, revision: number, choices: Re
 export async function runMerge(review: MergeSummary, replan: boolean) {
   const task = await postForm(`${mergeBase}/${encodeURIComponent(review.id)}/${replan ? 'replan' : 'execute'}`,
     { revision: review.revision });
-  window.EnderVaultServerTasks?.track(task, { announceStart: true });
+  window.EnderVaultServerTasks?.track(task, {
+    announceStart: true,
+    ...(!replan ? { refreshUrl: '/files?path=' + encodeURIComponent(
+      review.destinationPath.substring(0, Math.max(0, review.destinationPath.lastIndexOf('/')))) } : {}),
+  });
   window.dispatchEvent(new CustomEvent('endervault:notifications-changed'));
   return task;
 }
