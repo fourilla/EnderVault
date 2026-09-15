@@ -42,7 +42,9 @@ public class PendingFileDecisionNotificationProvider implements ActionRequiredPr
                 decision.originalFilename(),
                 decision.source().label() + " awaiting review in " + destination,
                 decision.createdAt(),
-                "/admin/pending-decisions#" + (mergeId == null ? "decision-" + decision.id() : "merge-" + mergeId)
+                "/admin/pending-decisions#" + (mergeId == null ? "decision-" + decision.id() : "merge-" + mergeId),
+                new ActionRequiredItem.Target(mergeId == null ? ActionRequiredItem.TargetKind.PENDING_FILE_DECISION
+                        : ActionRequiredItem.TargetKind.DIRECTORY_MERGE, mergeId == null ? decision.id() : mergeId)
         );
     }
 }

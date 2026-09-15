@@ -69,6 +69,20 @@ public class DirectoryMergeReviewStore {
         return next;
     }
 
+    public synchronized DirectoryMergeReview chooseAll(String id, long expectedRevision,
+            DirectoryMergeReview.Choice choice) throws IOException {
+        if (choice == null) throw new IllegalArgumentException("A choice is required.");
+        DirectoryMergeReview current = require(id);
+        Map<String, DirectoryMergeReview.Choice> updates = new HashMap<>();
+        for (var item : current.plan().items()) {
+            if (item.requiresDecision() && (choice != DirectoryMergeReview.Choice.OVERWRITE
+                    || item.conflict() == DirectoryMergePlan.Conflict.FILE_CONFLICT)) {
+                updates.put(item.id(), choice);
+            }
+        }
+        return choose(id, expectedRevision, updates);
+    }
+
     /** An execution keeps the same approval even after a process restart. */
     public synchronized DirectoryMergeReview freeze(String id, long expectedRevision) throws IOException {
         DirectoryMergeReview review = require(id);

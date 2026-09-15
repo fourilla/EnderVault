@@ -5,7 +5,8 @@ import type { AdminAppBootstrap } from './types';
 
 export interface NotificationCenterPayload {
   actionableCount: number;
-  items: { id: string; title: string; detail: string; createdLabel: string; href: string }[];
+  items: { id: string; title: string; detail: string; createdLabel: string; href: string;
+    target?: { kind: 'DIRECTORY_MERGE' | 'PENDING_FILE_DECISION'; id: string } | null }[];
   reviewAllHref: string;
 }
 const notificationEvents = ['endervault:notifications-changed'];

@@ -59,6 +59,29 @@ class DirectoryMergePlannerTest {
         return new DirectoryMergeReviewStore(JsonMapper.builder().findAndAddModules().build(), properties);
     }
 
+    @Test void bulkChoicesCoverEveryPageAndPreserveTypeConflictSafety() throws Exception {
+        for (int i = 0; i < 105; i++) {
+            file("source/photos/f" + i, "new");
+            file("destination/photos/f" + i, "old");
+        }
+        file("source/photos/type", "file");
+        Files.createDirectories(root.resolve("destination/photos/type"));
+        var store = store();
+        var review = store.create(plan());
+        var overwritten = store.chooseAll(review.plan().id(), 0, DirectoryMergeReview.Choice.OVERWRITE);
+        assertThat(overwritten.choices()).hasSize(105);
+        assertThat(overwritten.fullyReviewed()).isFalse();
+        assertThatThrownBy(() -> store.chooseAll(review.plan().id(), 0, DirectoryMergeReview.Choice.SKIP))
+                .isInstanceOf(StorageAccessException.class);
+        var all = store.chooseAll(review.plan().id(), 1, DirectoryMergeReview.Choice.KEEP_BOTH);
+        assertThat(all.choices()).hasSize(106);
+        assertThat(all.choices().values()).containsOnly(DirectoryMergeReview.Choice.KEEP_BOTH);
+        assertThat(all.fullyReviewed()).isTrue();
+        store.freeze(all.plan().id(), all.revision());
+        assertThatThrownBy(() -> store.chooseAll(all.plan().id(), all.revision(), DirectoryMergeReview.Choice.SKIP))
+                .isInstanceOf(StorageAccessException.class);
+    }
+
     @Test void scansNestedConflictsAndEmptyDirectoriesWithoutChangingFiles() throws Exception {
         file("source/photos/nested/same.txt", "new");
         file("source/photos/new.txt", "new only");

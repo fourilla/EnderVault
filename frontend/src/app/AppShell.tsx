@@ -8,6 +8,7 @@ import { TopbarPopoverProvider } from './TopbarPopoverContext';
 import { RemoteDownloadTasksProvider } from './remote-downloads/RemoteDownloadTasksContext';
 import { ShellStatusProvider } from './ShellStatusContext';
 import { DialogHost } from '../shared/dialogs/DialogHost';
+import { DecisionDialogProvider } from '../pending-decisions/DecisionDialogContext';
 import './app-shell.css';
 
 export function AppShell() {
@@ -53,6 +54,7 @@ export function AppShell() {
           <SpaNavigationBridge />
           <DialogHost routeKey={location.key} />
           <TopbarPopoverProvider>
+            <DecisionDialogProvider>
             <AdminTopbar sidebarCollapsed={sidebarCollapsed}
               onToggleSidebar={() => setSidebarCollapsed((value) => !value)} />
             <AdminSidebar />
@@ -62,6 +64,7 @@ export function AppShell() {
               </main>
               <ScrollRestoration />
             </div>
+            </DecisionDialogProvider>
           </TopbarPopoverProvider>
         </div>
       </ShellStatusProvider>

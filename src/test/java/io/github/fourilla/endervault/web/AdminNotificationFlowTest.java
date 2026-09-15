@@ -2649,6 +2649,12 @@ class AdminNotificationFlowTest {
         String mergeId = task.resultReference();
         var notifications = notificationCenterService.snapshot(1000).items();
         assertThat(notifications.stream().filter(item -> item.href().endsWith("#merge-" + mergeId))).hasSize(1);
+        mockMvc.perform(get("/api/v1/notifications"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[?(@.id == '" + decision.id() + "')].target.kind")
+                        .value(Matchers.contains("DIRECTORY_MERGE")))
+                .andExpect(jsonPath("$.items[?(@.id == '" + decision.id() + "')].target.id")
+                        .value(Matchers.contains(mergeId)));
         mockMvc.perform(get("/api/v1/pending-decisions")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.decisions[?(@.id == '" + decision.id() + "')].mergeId").value(Matchers.contains(mergeId)));
         mockMvc.perform(get(prefix + "/unresolved")).andExpect(status().isOk())

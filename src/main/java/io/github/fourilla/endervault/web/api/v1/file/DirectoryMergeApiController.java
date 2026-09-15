@@ -73,6 +73,15 @@ public class DirectoryMergeApiController {
         return new ChoiceResult(true, review.revision(), review.fullyReviewed());
     }
 
+    @PostMapping("/{id}/choices/all")
+    public ChoiceResult chooseAll(@PathVariable String id, @RequestBody BulkChoice request) throws IOException {
+        if (request.revision() == null || request.revision() < 0 || request.choice() == null) {
+            throw new IllegalArgumentException("A revision and choice are required.");
+        }
+        var review = reviews.chooseAll(id, request.revision(), request.choice());
+        return new ChoiceResult(true, review.revision(), review.fullyReviewed());
+    }
+
     @PostMapping("/{id}/execute")
     public ResponseEntity<TaskPayload> execute(@PathVariable String id, @RequestParam long revision,
             HttpServletRequest request) throws IOException {
@@ -108,5 +117,6 @@ public class DirectoryMergeApiController {
     }
 
     public record Choices(Long revision, Map<String, DirectoryMergeReview.Choice> choices) {}
+    public record BulkChoice(Long revision, DirectoryMergeReview.Choice choice) {}
     public record ChoiceResult(boolean ok, long revision, boolean fullyReviewed) {}
 }

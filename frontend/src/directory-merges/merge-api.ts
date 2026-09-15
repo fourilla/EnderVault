@@ -40,10 +40,18 @@ export const mergeGet = <T,>(path: string, signal?: AbortSignal): Promise<T> =>
   window.EnderVault!.requestJson(`${mergeBase}${path}`, { signal });
 
 export async function saveMergeChoices(id: string, revision: number, choices: Record<string, MergeChoice>) {
+  return saveChoicesRequest(id, { revision, choices });
+}
+
+export async function saveAllMergeChoices(id: string, revision: number, choice: MergeChoice) {
+  return saveChoicesRequest(id, { revision, choice }, '/all');
+}
+
+async function saveChoicesRequest(id: string, payload: object, suffix = '') {
   const csrf = window.EnderVault!.csrfPair();
   const header = document.querySelector<HTMLMetaElement>('meta[name="_csrf_header"]')?.content || 'X-CSRF-TOKEN';
-  return window.EnderVault!.requestJson(`${mergeBase}/${encodeURIComponent(id)}/choices`, {
-    method: 'POST', body: JSON.stringify({ revision, choices }),
+  return window.EnderVault!.requestJson(`${mergeBase}/${encodeURIComponent(id)}/choices${suffix}`, {
+    method: 'POST', body: JSON.stringify(payload),
     headers: { 'Content-Type': 'application/json', ...(csrf ? { [header]: csrf.value } : {}) },
   });
 }

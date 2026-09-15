@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { postForm, toastError } from '../shared/api/form-api';
 import { mergeBase } from './merge-api';
-import { AppNavigationLink } from '../app/AppNavigationLink';
+import { useDecisionDialog } from '../pending-decisions/DecisionDialogContext';
 
 export function PrepareDirectoryMergeButton({ pendingId, disabled, mergeId }: {
   pendingId: string; disabled: boolean; mergeId?: string | null;
 }) {
+  const { openMerge } = useDecisionDialog();
   const [busy, setBusy] = useState(false);
   const [taskId, setTaskId] = useState('');
   useEffect(() => {
@@ -42,10 +43,10 @@ export function PrepareDirectoryMergeButton({ pendingId, disabled, mergeId }: {
     } catch (reason) { setBusy(false); toastError(reason, 'Merge review could not be prepared.'); }
   };
   // Keep this component mounted when the refreshed row gains an owner, so its task poll survives.
-  if (mergeId && !busy) return <AppNavigationLink className="button-link ghost icon-button action-icon"
-    title="Review merge" aria-label="Review merge" href={`/admin/pending-decisions#merge-${encodeURIComponent(mergeId)}`}>
+  if (mergeId && !busy) return <button type="button" className="ghost icon-button action-icon"
+    title="Review merge" aria-label="Review merge" disabled={disabled} onClick={() => openMerge(mergeId)}>
     <i className="fas fa-code-branch" aria-hidden="true" />
-  </AppNavigationLink>;
+  </button>;
   return <button type="button" className="ghost icon-button action-icon" title="Merge directory" aria-label="Merge directory"
     disabled={disabled || busy} onClick={() => void prepare()}>
     <i className={`fas ${busy ? 'fa-spinner fa-spin' : 'fa-code-branch'}`} aria-hidden="true" />

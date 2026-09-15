@@ -32,6 +32,9 @@ class DirectoryMergeNotificationProviderTest {
         var notifications = provider.items();
         assertThat(notifications).extracting(item -> item.id()).containsExactly("directory-merge-" + id("copy"), "directory-merge-" + id("removed"));
         assertThat(notifications.getFirst().href()).isEqualTo("/admin/pending-decisions#merge-" + id("copy"));
+        assertThat(notifications.getFirst().target().kind()).isEqualTo(
+                io.github.fourilla.endervault.notificationcenter.ActionRequiredItem.TargetKind.DIRECTORY_MERGE);
+        assertThat(notifications.getFirst().target().id()).isEqualTo(id("copy"));
         assertThat(provider.reviewAllHref()).isEqualTo("/admin/pending-decisions");
     }
 

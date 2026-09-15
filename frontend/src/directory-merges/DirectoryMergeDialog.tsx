@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { AppDialog } from '../shared/dialogs/AppDialog';
 import { BrowserPagination } from '../shared/browser/BrowserPagination';
 import { toastError } from '../shared/api/form-api';
-import { mergeChoices, mergeGet, runMerge, saveMergeChoices, type MergeDetail, type MergeChoice } from './merge-api';
+import { mergeChoices, mergeGet, runMerge, saveMergeChoices, saveAllMergeChoices, type MergeDetail, type MergeChoice } from './merge-api';
 import './directory-merges.css';
 
 const labels: Record<MergeChoice, string> = {
@@ -35,10 +35,14 @@ export function DirectoryMergeDialog({ id, close, changed }: { id: string; close
     if (finished || missing) { close(); changed(); }
   }, [finished, missing, close, changed]);
 
-  const save = async (choices: Record<string, MergeChoice>) => {
+  const save = async (choices: Record<string, MergeChoice> | MergeChoice) => {
     if (!data || busy) return;
     setBusy(true);
-    try { await saveMergeChoices(id, data.review.revision, choices); changed(); }
+    try {
+      if (typeof choices === 'string') await saveAllMergeChoices(id, data.review.revision, choices);
+      else await saveMergeChoices(id, data.review.revision, choices);
+      changed();
+    }
     catch (reason) { toastError(reason, 'Decisions could not be saved.'); }
     finally { setBusy(false); refresh((value) => value + 1); }
   };
@@ -51,13 +55,14 @@ export function DirectoryMergeDialog({ id, close, changed }: { id: string; close
   };
   const review = data?.review;
   const needsReview = review?.run?.phase === 'NEEDS_REVIEW';
-  const pageChoices = data?.entries.items.length ? mergeChoices(data.review.operation, 'TYPE_CONFLICT') : [];
+  const bulkChoices = data?.entries.total ? mergeChoices(data.review.operation, 'FILE_CONFLICT') : [];
+  const reviewHint = review?.fullyReviewed ? undefined : 'Choose a decision for every conflict before applying the merge.';
   if (finished || missing) return null;
   return <AppDialog open busy={busy} onDismiss={close} labelledBy="directoryMergeTitle"
     className="text-input-dialog directory-merge-dialog">
     <article className="text-input-card">
       <header className="text-input-header">
-        <div><h2 id="directoryMergeTitle">Directory Merge</h2><p>{review?.destinationPath}</p></div>
+        <div><h2 id="directoryMergeTitle">Directory Merge</h2><p title={review?.destinationPath}>{review?.destinationPath}</p></div>
         <button className="ghost icon-button" type="button" disabled={busy} onClick={close} title="Close" aria-label="Close">
           <i className="fas fa-xmark" aria-hidden="true" />
         </button>
@@ -67,16 +72,18 @@ export function DirectoryMergeDialog({ id, close, changed }: { id: string; close
       {data && <>
         <p>{data.review.itemCount} items / {data.review.conflictCount} conflicts</p>
         {needsReview && <p role="status">Items changed after approval. A new review is required.</p>}
-        {review?.editable && <label>Apply to this page
-          <select value="" disabled={busy || !data.entries.items.length} onChange={(event) => {
-            const choice = event.currentTarget.value as MergeChoice;
-            if (choice) void save(Object.fromEntries(data.entries.items.map((entry) => [entry.id, choice])));
-          }}>
-            <option value="">Choose...</option>
-            {data.entries.items.every((entry) => entry.conflict === 'FILE_CONFLICT') && <option value="OVERWRITE">Overwrite files</option>}
-            {pageChoices.map((choice) => <option key={choice} value={choice}>{labels[choice]}</option>)}
-          </select>
-        </label>}
+        {review?.editable && <div className="directory-merge-bulk" role="group" aria-label="Apply to all">
+          <span>Apply to all</span>
+          <div className="directory-merge-bulk-actions">
+            {bulkChoices.map((choice) => <button key={choice} type="button" className="ghost icon-text-button"
+              title={choice === 'OVERWRITE' ? 'Apply to all file conflicts. File/folder conflicts keep their current decisions.' : 'Apply to all conflicts across every page.'}
+              disabled={busy} onClick={() => void save(choice)}>
+              <i className={`fas ${choice === 'OVERWRITE' ? 'fa-file-arrow-down' : choice === 'KEEP_BOTH'
+                ? 'fa-copy' : choice === 'SKIP' ? 'fa-forward-step' : 'fa-trash-can'}`} aria-hidden="true" />
+              <span>{labels[choice]}</span>
+            </button>)}
+          </div>
+        </div>}
         <div className="table-wrap compact-table directory-merge-entries">
           <table><thead><tr><th>Source</th><th>Destination</th><th>Decision</th></tr></thead>
             <tbody>{data.entries.items.map((entry) => <tr key={entry.id}>
@@ -95,8 +102,8 @@ export function DirectoryMergeDialog({ id, close, changed }: { id: string; close
         <footer className="directory-merge-actions">
           <button type="button" className="ghost" onClick={close} disabled={busy}>Close</button>
           {needsReview ? <button type="button" disabled={busy} onClick={() => void start(true)}>Review changed items</button>
-            : <button type="button" disabled={busy || !review?.fullyReviewed || review?.run?.phase === 'COMPLETE'}
-              onClick={() => void start(false)}>{review?.editable ? 'Apply merge' : 'Resume merge'}</button>}
+            : <span title={reviewHint}><button type="button" title={reviewHint} disabled={busy || !review?.fullyReviewed || review?.run?.phase === 'COMPLETE'}
+              onClick={() => void start(false)}>{review?.editable ? 'Apply merge' : 'Resume merge'}</button></span>}
         </footer>
       </>}
     </article>

@@ -5,23 +5,9 @@ import { icon } from '../shared/browser/BrowserEntries';
 import { PageHeader } from '../shared/layout/PageHeader';
 import { loadPendingDecisions, resolvePendingDecision } from './pending-decision-api';
 import type { PendingFileDecision, PendingFileDecisionAction } from './types';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { DirectoryMergeDialog } from '../directory-merges/DirectoryMergeDialog';
 import { PrepareDirectoryMergeButton } from '../directory-merges/PrepareDirectoryMergeButton';
 
 export function PendingDecisionsApp() {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [selectedMerge, selectMerge] = useState('');
-  const closeMerge = () => {
-    selectMerge('');
-    if (location.hash.startsWith('#merge-')) {
-      navigate(location.pathname + location.search, { replace: true, preventScrollReset: true });
-    }
-  };
-  useEffect(() => {
-    selectMerge(location.hash.startsWith('#merge-') ? location.hash.slice(7) : '');
-  }, [location.hash, location.key]);
   const [decisions, setDecisions] = useState<PendingFileDecision[] | null>(null);
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState('');
@@ -102,11 +88,6 @@ export function PendingDecisionsApp() {
   return (
     <>
       <PageHeader title="Pending Decisions" />
-      {selectedMerge && <DirectoryMergeDialog key={selectedMerge} id={selectedMerge}
-        close={closeMerge} changed={() => {
-          reload((value) => value + 1);
-          window.dispatchEvent(new CustomEvent('endervault:notifications-changed'));
-        }} />}
 
       {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
       {!decisions && !error && (

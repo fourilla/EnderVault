@@ -35,7 +35,8 @@ public class DirectoryMergeNotificationProvider implements ActionRequiredProvide
                 .filter(review -> !running.contains(review.id()))
                 .map(review -> new ActionRequiredItem("directory-merge-" + review.id(), "DIRECTORY_MERGE",
                         "Directory merge", review.destinationPath(), review.createdAt(),
-                        reviewAllHref() + "#merge-" + review.id())).toList();
+                        reviewAllHref() + "#merge-" + review.id(),
+                        new ActionRequiredItem.Target(ActionRequiredItem.TargetKind.DIRECTORY_MERGE, review.id()))).toList();
     }
 
     @Override public String reviewAllHref() { return "/admin/pending-decisions"; }

@@ -1,8 +1,19 @@
-.directory-merge-dialog { width: min(56rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); }
-.directory-merge-dialog .text-input-card { min-width: 0; }
-.directory-merge-dialog .text-input-header p { overflow-wrap: anywhere; }
-.directory-merge-entries { max-height: 45dvh; overflow: auto; }
+.directory-merge-dialog { width: min(56rem, calc(100vw - 2rem)); height: min(44rem, calc(100dvh - 2rem)); max-height: calc(100dvh - 2rem); overflow: hidden; }
+.directory-merge-dialog .text-input-card { min-width: 0; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; gap: var(--space-md); padding: var(--space-xl); }
+.directory-merge-dialog .text-input-card > :not(.directory-merge-entries) { flex-shrink: 0; }
+.directory-merge-dialog .text-input-card > p { margin: 0; }
+.directory-merge-dialog .text-input-header > div { min-width: 0; }
+.directory-merge-dialog .text-input-header p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.directory-merge-bulk, .directory-merge-bulk-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-sm); }
+.directory-merge-entries { flex: 1 1 0; min-height: 0; overflow: auto; }
 .directory-merge-entries table { table-layout: fixed; width: 100%; }
 .directory-merge-entries td { min-width: 0; }
 .directory-merge-entries select { width: 100%; min-width: 0; }
 .directory-merge-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-sm); }
+
+/* Keep every control reachable with a very short viewport or an open mobile keyboard. */
+@media (max-height: 420px) {
+    .directory-merge-dialog { overflow: auto; }
+    .directory-merge-dialog .text-input-card { height: auto; min-height: 100%; }
+    .directory-merge-entries { flex: none; max-height: 35dvh; }
+}
