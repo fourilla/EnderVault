@@ -74,9 +74,14 @@ public class DirectoryMergePendingExecutionService {
             reviews.saveRun(run, new DirectoryMergeRun(id, revision, DirectoryMergeRun.Phase.COMPLETE, false));
             return completion;
         } catch (TaskCanceledException | CancellationException ex) {
-            try { reviews.saveRun(run, new DirectoryMergeRun(id, revision, run.phase(), true)); }
-            catch (IOException | RuntimeException failure) { ex.addSuppressed(failure); }
+            reviews.pauseRun(run, ex);
             throw ex;
+        } catch (IOException ex) {
+            if (!Thread.currentThread().isInterrupted() && !(ex instanceof java.nio.channels.ClosedByInterruptException)) throw ex;
+            reviews.pauseRun(run, ex);
+            var canceled = new TaskCanceledException();
+            canceled.initCause(ex);
+            throw canceled;
         }
     }
 

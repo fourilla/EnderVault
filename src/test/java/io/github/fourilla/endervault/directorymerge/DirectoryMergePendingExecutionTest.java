@@ -78,6 +78,29 @@ class DirectoryMergePendingExecutionTest {
         return service.execute(review.plan().id(), review.revision(), null);
     }
 
+    @Test void interruptedPendingMergeKeepsOwnerAndWaitsForExplicitResume() throws Exception {
+        prepare(Map.of());
+        try {
+            assertThatThrownBy(() -> service.execute(review.plan().id(), review.revision(), new StorageProgressListener() {
+                @Override public void checkCanceled() {
+                    Thread.currentThread().interrupt();
+                    throw new io.github.fourilla.endervault.task.TaskCanceledException();
+                }
+            })).isInstanceOf(io.github.fourilla.endervault.task.TaskCanceledException.class)
+                    .hasNoSuppressedExceptions();
+            assertThat(Thread.currentThread().isInterrupted()).isTrue();
+        } finally { Thread.interrupted(); }
+        assertThat(reviews.run(review.plan().id()).paused()).isTrue();
+        assertThat(pending.find(decision.id())).isPresent();
+        assertThat(staged.resolve("a.txt")).hasContent("uploaded");
+        assertThat(service.recover(review.plan().id()).paused()).isTrue();
+        assertThat(root.resolve("to/photos")).doesNotExist();
+        execute();
+        assertThat(reviews.run(review.plan().id()).phase()).isEqualTo(DirectoryMergeRun.Phase.COMPLETE);
+        assertThat(pending.find(decision.id())).isEmpty();
+        assertThat(root.resolve("to/photos/a.txt")).hasContent("uploaded");
+    }
+
     @Test void publishesAndCleansUploadWithoutMovingVaultMetadata() throws Exception {
         prepare(Map.of());
         assertThat(execute().values()).allMatch(c -> c.phase() == DirectoryMergeCompletion.Phase.COMPLETE);

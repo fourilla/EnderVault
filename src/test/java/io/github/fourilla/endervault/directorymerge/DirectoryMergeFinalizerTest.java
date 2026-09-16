@@ -277,6 +277,97 @@ class DirectoryMergeFinalizerTest {
                 .isEqualTo(DirectoryMergeRun.Phase.COMPLETE);
     }
 
+    @Test void taskCancellationKeepsPublishedFilesAndResumesOnlyRemainingWork() throws Exception {
+        file("from/photos/b.txt", "b");
+        var plan = new DirectoryMergePlanner(storage, properties).planTransfer(Operation.COPY, "from/photos", "to", null);
+        review = reviews.create(plan);
+        var registry = new TemporaryArtifactRegistry();
+        execution = new DirectoryMergeExecution(reviews, new DirectoryMergeFilePublisher(reviews, storage, commits, registry),
+                commits, storage, registry);
+        var published = new java.util.concurrent.CountDownLatch(1);
+        var release = new java.util.concurrent.CountDownLatch(1);
+        var firstFile = new java.util.concurrent.atomic.AtomicReference<String>();
+        doAnswer(call -> {
+            Object value = call.callRealMethod();
+            Item item = call.getArgument(1);
+            if (item.source().kind() == Kind.FILE && firstFile.compareAndSet(null, item.relativePath())) {
+                published.countDown();
+                if (!release.await(5, java.util.concurrent.TimeUnit.SECONDS)) throw new IOException("Test timeout");
+            }
+            return value;
+        }).when(reviews).recordResult(any(), any(), any());
+        var manager = new io.github.fourilla.endervault.task.TaskManagerService(properties);
+        try {
+            var transfer = transfers();
+            var task = manager.submit(io.github.fourilla.endervault.task.TaskType.FILE_COPY, "Copy", "to", "test", "", context -> {
+                transfer.execute(plan.id(), 0, new io.github.fourilla.endervault.storage.StorageProgressListener() {
+                    @Override public void checkCanceled() { context.checkCanceled(); }
+                });
+                return io.github.fourilla.endervault.task.TaskOutcome.complete("Done");
+            });
+            assertThat(published.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            manager.cancel(task.id());
+            release.countDown();
+            long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+            while (task.active() && System.nanoTime() < deadline) Thread.sleep(5);
+            assertThat(task.status()).isEqualTo(io.github.fourilla.endervault.task.TaskStatus.CANCELED);
+            assertThat(reviews.run(plan.id()).paused()).isTrue();
+            String remaining = firstFile.get().equals("a.txt") ? "b.txt" : "a.txt";
+            assertThat(root.resolve("to/photos").resolve(firstFile.get())).exists();
+            assertThat(root.resolve("to/photos").resolve(remaining)).doesNotExist();
+            assertThat(new DirectoryMergeStartupRecoveryService(reviews, transfer, null).recover().recovered()).isZero();
+            clearInvocations(commits);
+            assertThat(transfer.execute(plan.id(), 0, null).phase()).isEqualTo(DirectoryMergeRun.Phase.COMPLETE);
+            verify(commits, times(1)).prepareReviewedSingleFile(any(), any(), anyString(), anyString(), any(), any());
+            assertThat(root.resolve("to/photos/a.txt")).hasContent("a");
+            assertThat(root.resolve("to/photos/b.txt")).hasContent("b");
+            assertThat(root.resolve("from/photos/a.txt")).hasContent("a");
+        } finally { release.countDown(); manager.shutdown(); }
+    }
+
+    @Test void interruptedCancellationPersistsPauseAndPreventsStartupResume() throws Exception {
+        publish(Operation.COPY, Map.of());
+        try {
+            assertThatThrownBy(() -> transfers().execute(review.plan().id(), review.revision(),
+                    new io.github.fourilla.endervault.storage.StorageProgressListener() {
+                        @Override public void checkCanceled() {
+                            Thread.currentThread().interrupt();
+                            throw new io.github.fourilla.endervault.task.TaskCanceledException();
+                        }
+                    })).isInstanceOf(io.github.fourilla.endervault.task.TaskCanceledException.class)
+                    .hasNoSuppressedExceptions();
+            assertThat(Thread.currentThread().isInterrupted()).isTrue();
+        } finally { Thread.interrupted(); }
+        assertThat(reviews.run(review.plan().id()).paused()).isTrue();
+        assertThat(root.resolve("to/photos/a.txt")).hasContent("a");
+        assertThat(new DirectoryMergeStartupRecoveryService(reviews, transfers(), null).recover().recovered()).isZero();
+        assertThat(transfers().execute(review.plan().id(), review.revision(), null).phase())
+                .isEqualTo(DirectoryMergeRun.Phase.COMPLETE);
+    }
+
+    @Test void interruptedIoAlsoPausesButPauseWriteFailureIsNotReportedAsCanceled() throws Exception {
+        publish(Operation.COPY, Map.of());
+        doAnswer(call -> {
+            Thread.currentThread().interrupt();
+            throw new java.nio.channels.ClosedByInterruptException();
+        }).when(execution).publishTransfer(anyString(), anyLong(), any());
+        try {
+            assertThatThrownBy(() -> transfers().execute(review.plan().id(), review.revision(), null))
+                    .isInstanceOf(io.github.fourilla.endervault.task.TaskCanceledException.class)
+                    .hasCauseInstanceOf(java.nio.channels.ClosedByInterruptException.class);
+        } finally { Thread.interrupted(); }
+        assertThat(reviews.run(review.plan().id()).paused()).isTrue();
+        doAnswer(call -> {
+            DirectoryMergeRun next = call.getArgument(1);
+            if (next.paused()) throw new IOException("Pause storage unavailable");
+            return call.callRealMethod();
+        }).when(reviews).saveRun(any(), any());
+        try {
+            assertThatThrownBy(() -> transfers().execute(review.plan().id(), review.revision(), null))
+                    .isInstanceOf(IOException.class).hasMessage("Pause storage unavailable");
+        } finally { Thread.interrupted(); }
+    }
+
     @Test void startupDefersCorruptRunWithoutTouchingSource() throws Exception {
         publish(Operation.MOVE, Map.of());
         reviews.saveRun(null, new DirectoryMergeRun(review.plan().id(), review.revision(),

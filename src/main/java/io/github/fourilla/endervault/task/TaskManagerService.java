@@ -70,13 +70,7 @@ public class TaskManagerService {
     public int requestCancelActive(TaskType type) {
         int canceled = 0;
         for (AppTask task : activeTasks(type)) {
-            if (task.requestCancel()) {
-                Future<?> future = taskFutures.get(task.id());
-                boolean futureCanceled = future != null && future.cancel(true);
-                if (task.status() == TaskStatus.QUEUED && futureCanceled) {
-                    task.markCanceled("Canceled before it started.");
-                    taskFutures.remove(task.id());
-                }
+            if (requestCancellation(task)) {
                 canceled++;
             }
         }
@@ -95,16 +89,27 @@ public class TaskManagerService {
 
     public AppTask cancel(String id) {
         AppTask task = requireTask(id);
-        if (!task.requestCancel()) {
+        if (!requestCancellation(task)) {
             throw new IllegalArgumentException("Only queued or running tasks can be canceled.");
         }
-        Future<?> future = taskFutures.get(task.id());
-        boolean futureCanceled = future != null && future.cancel(true);
-        if (task.status() == TaskStatus.QUEUED && futureCanceled) {
-            task.markCanceled("Canceled before it started.");
-            taskFutures.remove(task.id());
-        }
         return task;
+    }
+
+    private boolean requestCancellation(AppTask task) {
+        synchronized (task) {
+            if (!task.requestCancel()) return false;
+            // These workers checkpoint cancellation between durable file operations. Interrupting
+            // a FileChannel also interrupts the writes needed to persist their paused state.
+            boolean cooperative = task.type() == TaskType.FILE_COPY || task.type() == TaskType.FILE_MOVE
+                    || task.type() == TaskType.DIRECTORY_MERGE;
+            Future<?> future = taskFutures.get(task.id());
+            boolean canceled = future != null && future.cancel(!cooperative);
+            if (task.status() == TaskStatus.QUEUED && canceled) {
+                task.markCanceled("Canceled before it started.");
+                taskFutures.remove(task.id());
+            }
+            return true;
+        }
     }
 
     public void delete(String id) {
@@ -145,10 +150,10 @@ public class TaskManagerService {
 
     private void run(AppTask task, TaskWork work) {
         try {
-            if (task.cancelRequested()) {
-                throw new TaskCanceledException();
+            synchronized (task) {
+                if (task.cancelRequested()) throw new TaskCanceledException();
+                task.markRunning();
             }
-            task.markRunning();
             TaskOutcome outcome = work.run(new TaskContext(task));
             TaskOutcome safeOutcome = outcome == null ? TaskOutcome.complete("Complete.") : outcome;
             switch (safeOutcome.status()) {

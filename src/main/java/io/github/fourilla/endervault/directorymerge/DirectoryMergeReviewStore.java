@@ -83,6 +83,19 @@ public class DirectoryMergeReviewStore {
         return choose(id, expectedRevision, updates);
     }
 
+    /** Persist the stop even when shutdown or another caller interrupted this worker. */
+    public synchronized void pauseRun(DirectoryMergeRun run, Throwable cancellation) throws IOException {
+        boolean interrupted = Thread.interrupted();
+        try {
+            saveRun(run, new DirectoryMergeRun(run.id(), run.revision(), run.phase(), true));
+        } catch (IOException | RuntimeException failure) {
+            failure.addSuppressed(cancellation);
+            throw failure;
+        } finally {
+            if (interrupted) Thread.currentThread().interrupt();
+        }
+    }
+
     /** An execution keeps the same approval even after a process restart. */
     public synchronized DirectoryMergeReview freeze(String id, long expectedRevision) throws IOException {
         DirectoryMergeReview review = require(id);

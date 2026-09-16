@@ -41,9 +41,14 @@ public class DirectoryMergeTransferService {
             return update(run, id, revision, needsReview ? DirectoryMergeRun.Phase.NEEDS_REVIEW
                     : DirectoryMergeRun.Phase.COMPLETE, false);
         } catch (TaskCanceledException | CancellationException ex) {
-            try { update(run, id, revision, run.phase(), true); }
-            catch (IOException | RuntimeException failure) { ex.addSuppressed(failure); }
+            reviews.pauseRun(run, ex);
             throw ex;
+        } catch (IOException ex) {
+            if (!Thread.currentThread().isInterrupted() && !(ex instanceof java.nio.channels.ClosedByInterruptException)) throw ex;
+            reviews.pauseRun(run, ex);
+            var canceled = new TaskCanceledException();
+            canceled.initCause(ex);
+            throw canceled;
         }
     }
 
