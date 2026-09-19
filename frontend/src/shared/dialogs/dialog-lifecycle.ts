@@ -9,23 +9,24 @@ export interface DialogPolicy {
 
 interface PendingDialog { activate: () => void }
 const waiting: PendingDialog[] = [];
-let active: PendingDialog | null = null;
+const active: PendingDialog[] = [];
+let originalOverflow = '';
 
 function advance() {
-  if (active || !waiting.length) return;
-  active = waiting.shift()!;
-  active.activate();
+  if (active.length || !waiting.length) return;
+  const next = waiting.shift()!;
+  active.push(next);
+  next.activate();
 }
 
 // Policy is read at event time so changing busy never closes/reopens the dialog.
-export function mountDialog(dialog: HTMLDialogElement, policy: () => DialogPolicy): () => void {
+export function mountDialog(dialog: HTMLDialogElement, policy: () => DialogPolicy, nested = false): () => void {
   const document = dialog.ownerDocument;
   const opener = document.activeElement as HTMLElement | null;
   let activated = false;
   let disposed = false;
   let dismissRequested = false;
   let backdropPressed = false;
-  let previousOverflow = '';
 
   const outside = (event: MouseEvent) => {
     const rect = dialog.getBoundingClientRect();
@@ -34,7 +35,7 @@ export function mountDialog(dialog: HTMLDialogElement, policy: () => DialogPolic
   };
   const dismiss = (reason: DialogDismissReason) => {
     const current = policy();
-    if (disposed || dismissRequested || current.busy) return;
+    if (disposed || dismissRequested || current.busy || active.at(-1) !== entry) return;
     if (reason === 'backdrop' && !current.dismissOnBackdrop) return;
     if (reason === 'escape' && !current.dismissOnEscape) return;
     dismissRequested = true;
@@ -62,7 +63,7 @@ export function mountDialog(dialog: HTMLDialogElement, policy: () => DialogPolic
   const entry: PendingDialog = {
     activate: () => {
       activated = true;
-      previousOverflow = document.body.style.overflow;
+      if (active.length === 1) originalOverflow = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
       dialog.addEventListener('cancel', cancel);
       dialog.addEventListener('pointerdown', pointerDown);
@@ -72,8 +73,14 @@ export function mountDialog(dialog: HTMLDialogElement, policy: () => DialogPolic
       dialog.showModal();
     },
   };
-  waiting.push(entry);
-  advance();
+  // Only explicit child interactions may bypass the normal modal queue.
+  if (nested && active.length) {
+    active.push(entry);
+    entry.activate();
+  } else {
+    waiting.push(entry);
+    advance();
+  }
 
   return () => {
     if (disposed) return;
@@ -81,16 +88,17 @@ export function mountDialog(dialog: HTMLDialogElement, policy: () => DialogPolic
     const index = waiting.indexOf(entry);
     if (index >= 0) waiting.splice(index, 1);
     if (activated) {
+      const wasTop = active.at(-1) === entry;
+      active.splice(active.indexOf(entry), 1);
       dialog.removeEventListener('cancel', cancel);
       dialog.removeEventListener('pointerdown', pointerDown);
       dialog.removeEventListener('pointercancel', pointerCancel);
       dialog.removeEventListener('click', click);
       dialog.removeEventListener('close', close);
       if (dialog.open) dialog.close();
-      document.body.style.overflow = previousOverflow;
-      if (opener?.isConnected) opener.focus({ preventScroll: true });
+      if (!active.length) document.body.style.overflow = originalOverflow;
+      if (wasTop && opener?.isConnected) opener.focus({ preventScroll: true });
     }
-    if (active === entry) active = null;
     advance();
   };
 }

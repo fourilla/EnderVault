@@ -1,4 +1,5 @@
 export interface TextInputOptions {
+  nested?: boolean;
   title?: string;
   message?: string;
   label?: string;

@@ -11,16 +11,17 @@ interface AppDialogProps extends PropsWithChildren {
   dismissOnBackdrop?: boolean;
   dismissOnEscape?: boolean;
   busy?: boolean;
+  nested?: boolean;
 }
 
 export function AppDialog({ open, onDismiss, labelledBy, className,
-  dismissOnBackdrop = false, dismissOnEscape = true, busy = false, children }: AppDialogProps) {
+  dismissOnBackdrop = false, dismissOnEscape = true, busy = false, nested = false, children }: AppDialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const policy = useRef({ onDismiss, dismissOnBackdrop, dismissOnEscape, busy });
   useLayoutEffect(() => { policy.current = { onDismiss, dismissOnBackdrop, dismissOnEscape, busy }; });
   useLayoutEffect(() => {
-    if (open && ref.current) return mountDialog(ref.current, () => policy.current);
-  }, [open]);
+    if (open && ref.current) return mountDialog(ref.current, () => policy.current, nested);
+  }, [open, nested]);
 
   if (!open) return null;
   return createPortal(
