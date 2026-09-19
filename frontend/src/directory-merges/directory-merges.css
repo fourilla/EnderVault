@@ -10,6 +10,13 @@
 .directory-merge-entries td { min-width: 0; }
 .directory-merge-entries select { width: 100%; min-width: 0; }
 .directory-merge-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-sm); }
+.directory-merge-actions button:disabled,
+.directory-merge-actions button:disabled:hover {
+    background: var(--panel-muted);
+    border-color: var(--line);
+    color: var(--disabled-text);
+    cursor: not-allowed;
+}
 
 /* Keep every control reachable with a very short viewport or an open mobile keyboard. */
 @media (max-height: 420px) {

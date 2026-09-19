@@ -2682,7 +2682,19 @@ class AdminNotificationFlowTest {
         mockMvc.perform(post("/api/v1/files/transfer-buffer").session(session).with(csrf())
                         .param("path", base + "/source").param("items", "photos", "loose.txt"))
                 .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/files/transfer-buffer/paste").session(session).with(csrf())
+                        .param("path", base + "/target").param("operation", "move").param("conflictPolicy", "ask"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.directoryTransferConfirmation[0]").value(base + "/target/photos"))
+                .andExpect(jsonPath("$.transferBuffer.active").value(true))
+                .andExpect(jsonPath("$.transferBuffer.count").value(2))
+                .andExpect(jsonPath("$.transferBuffer.items.length()").value(2))
+                .andExpect(jsonPath("$.task").doesNotExist());
+        assertThat(ROOT.resolve(base + "/source/loose.txt")).exists();
+        mockMvc.perform(get("/api/v1/files/transfer-buffer").session(session))
+                .andExpect(jsonPath("$.transferBuffer.items.length()").value(2));
         var response = mockMvc.perform(post("/api/v1/files/transfer-buffer/paste").session(session).with(csrf())
+                        .param("directoryTransferConfirmed", "true")
                         .param("path", base + "/target").param("operation", "move").param("conflictPolicy", "ask"))
                 .andExpect(status().isAccepted()).andReturn();
         var task = awaitMergeTask(objectMapper.readTree(response.getResponse().getContentAsString()).path("task").path("id").asText());
@@ -2717,7 +2729,12 @@ class AdminNotificationFlowTest {
         mockMvc.perform(post("/api/v1/files/transfer-buffer").session(session).with(csrf())
                         .param("path", base + "/source").param("items", "photos"))
                 .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/files/transfer-buffer/paste").session(session).with(csrf())
+                        .param("path", base + "/target").param("operation", "copy").param("conflictPolicy", "ask"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.directoryTransferConfirmation[0]").value(base + "/target/photos"));
         var response = mockMvc.perform(post("/api/v1/files/transfer-buffer/paste").session(session).with(csrf())
+                        .param("directoryTransferConfirmed", "true")
                         .param("path", base + "/target").param("operation", "move").param("conflictPolicy", "ask"))
                 .andExpect(status().isAccepted()).andReturn();
         var task = awaitMergeTask(objectMapper.readTree(response.getResponse().getContentAsString()).path("task").path("id").asText());

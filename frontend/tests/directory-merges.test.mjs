@@ -93,6 +93,32 @@ test('paused copy shows remaining work without choice controls and resumes copy 
   assert.ok(!texts.includes('No conflicts.'));
 });
 
+test('apply stays disabled until the server reports every page fully reviewed', async () => {
+  for (const fullyReviewed of [false, true]) {
+    const data = { review: { operation: 'COPY', editable: true, fullyReviewed },
+      entries: { items: [{ id: 'a', conflict: 'FILE_CONFLICT', choice: 'SKIP' }], total: 100, size: 50 } };
+    const jsx = (type, props) => ({ type, props });
+    const react = { useEffect: () => {}, useState: (value) => [value === null ? data : value, () => {}],
+      createElement: (type, props, ...children) => jsx(type, { ...props, children }) };
+    const component = await load('../src/directory-merges/DirectoryMergeDialog.tsx', { React: react }, {
+      react, 'react/jsx-runtime': { jsx, jsxs: jsx }, AppDialog: { AppDialog: 'dialog' },
+      'merge-api': { mergeChoices: () => ['SKIP'] },
+    });
+    const buttons = [];
+    const visit = (node) => {
+      if (Array.isArray(node)) return node.forEach(visit);
+      if (!node || typeof node !== 'object') return;
+      if (node.type === 'button') buttons.push(node);
+      visit(node.props?.children);
+    };
+    visit(component.DirectoryMergeDialog({ id: 'review', close: () => {}, changed: () => {} }));
+    const apply = buttons.find((button) => [button.props.children].flat().includes('Apply copy'));
+    assert.ok(apply);
+    assert.equal(apply.props.disabled, !fullyReviewed);
+    if (!fullyReviewed) assert.match(apply.props.title, /every conflict/);
+  }
+});
+
 test('preparing a pending merge refreshes the row without navigating or opening a dialog', async () => {
   const effects = [];
   let refreshed = 0;

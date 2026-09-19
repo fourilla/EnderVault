@@ -144,11 +144,26 @@
             try {
                 return await requestJson(url, { method, body: currentBody, headers });
             } catch (error) {
+                if (error.status === 409 && error.payload?.directoryTransferConfirmation) {
+                    const confirmed = await window.EnderVault.askConfirmation({
+                        title: 'Existing destination items',
+                        message: 'These destinations already exist: '
+                            + error.payload.directoryTransferConfirmation.join(', ')
+                            + '. Continue with the directory transfer? File conflicts still require separate decisions.',
+                        confirmLabel: 'Continue',
+                    });
+                    if (!confirmed) return { ok: true, transferBuffer: error.payload.transferBuffer };
+                    const nextBody = new FormData();
+                    if (currentBody) currentBody.forEach((value, key) => nextBody.append(key, value));
+                    nextBody.set('directoryTransferConfirmed', 'true');
+                    currentBody = nextBody;
+                    continue;
+                }
                 if (error.status !== 409 || !error.payload?.conflict) {
                     throw error;
                 }
                 const policy = await window.EnderVault.askFileConflictPolicy(error.payload.conflict);
-                currentBody = formDataWithConflictPolicy(body, policy);
+                currentBody = formDataWithConflictPolicy(currentBody, policy);
             }
         }
     };
