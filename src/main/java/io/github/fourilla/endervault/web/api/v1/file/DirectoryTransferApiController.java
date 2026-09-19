@@ -53,8 +53,9 @@ public class DirectoryTransferApiController {
     @GetMapping("/{id}")
     public DirectoryTransferQueryService.Detail get(@PathVariable String id,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "100") int size,
-            @RequestParam(defaultValue = "false") boolean conflictsOnly) throws IOException {
-        return query.get(id, page, size, conflictsOnly);
+            @RequestParam(defaultValue = "false") boolean conflictsOnly,
+            @RequestParam(defaultValue = "false") boolean remainingOnly) throws IOException {
+        return query.get(id, page, size, conflictsOnly, remainingOnly);
     }
 
     @GetMapping("/unresolved")

@@ -70,6 +70,74 @@ class DirectoryTransferQueryServiceTest {
         assertThatIllegalArgumentException().isThrownBy(() -> query.get(review.plan().id(), 0, 0, false));
     }
 
+    @Test void executionViewShowsRemainingPublicationAndFinalizationInsteadOfOnlyConflicts() throws Exception {
+        String id = review.plan().id();
+        var items = review.plan().items();
+        var a = items.stream().filter(i -> i.relativePath().equals("a.txt")).findFirst().orElseThrow();
+        var b = items.stream().filter(i -> i.relativePath().equals("b.txt")).findFirst().orElseThrow();
+        var parent = items.stream().filter(i -> i.relativePath().isEmpty()).findFirst().orElseThrow();
+        store.choose(id, 0, Map.of(a.id(), DirectoryTransferReview.Choice.OVERWRITE));
+        store.freeze(id, 1);
+        store.saveRun(null, new DirectoryTransferRun(id, 1, DirectoryTransferRun.Phase.PUBLISHING, true));
+        store.recordResult(review, parent, new DirectoryTransferResult(parent.id(), DirectoryTransferResult.Status.PUBLISHED,
+                "destination/photos", parent.source(), null, null));
+        var detail = query.get(id, 0, 1, true, true);
+        assertThat(detail.executionView()).isTrue();
+        assertThat(detail.entries().total()).isEqualTo(3);
+        assertThat(detail.entries().items()).hasSize(1);
+        assertThat(detail.review().statusLabel()).isEqualTo("Copy paused (publication)");
+        var rows = query.get(id, 0, 50, true, true).entries().items();
+        assertThat(rows).filteredOn(e -> e.id().equals(b.id())).extracting(DirectoryTransferQueryService.Entry::plannedTargetPath)
+                .containsExactly("destination/photos/b.txt");
+        assertThat(rows).filteredOn(e -> e.id().equals(parent.id())).extracting(DirectoryTransferQueryService.Entry::stage)
+                .containsExactly(DirectoryTransferQueryService.EntryStage.FINALIZATION_PENDING);
+        assertThat(rows).filteredOn(e -> e.id().equals(b.id())).extracting(DirectoryTransferQueryService.Entry::stage)
+                .containsExactly(DirectoryTransferQueryService.EntryStage.PUBLICATION_PENDING);
+        store.recordCompletion(id, null, new DirectoryTransferCompletion(b.id(), DirectoryTransferCompletion.Phase.NEEDS_REVIEW, "changed"));
+        assertThat(query.get(id, 0, 50, true, true).entries().items()).filteredOn(e -> e.id().equals(b.id()))
+                .extracting(DirectoryTransferQueryService.Entry::stage).containsExactly(DirectoryTransferQueryService.EntryStage.NEEDS_REVIEW);
+        var state = new DirectoryTransferCompletion(parent.id(), DirectoryTransferCompletion.Phase.PREPARED, null);
+        store.recordCompletion(id, null, state);
+        var next = new DirectoryTransferCompletion(parent.id(), DirectoryTransferCompletion.Phase.METADATA_APPLIED, null);
+        store.recordCompletion(id, state, next);
+        store.recordCompletion(id, next, new DirectoryTransferCompletion(parent.id(), DirectoryTransferCompletion.Phase.COMPLETE, null));
+        assertThat(query.get(id, 0, 50, true, true).entries().total()).isEqualTo(2);
+        assertThat(query.get(id, 0, 50, true, true).entries().items()).extracting(DirectoryTransferQueryService.Entry::id).doesNotContain(parent.id());
+        String json = JsonMapper.builder().findAndAddModules().build().writeValueAsString(detail);
+        assertThat(json).contains("statusLabel", "Directory copy", "executionView")
+                .doesNotContain("fileKey", "stagingFilename", "commitId");
+    }
+
+    @Test void remainingFlagDoesNotReplaceEditableConflictReview() throws Exception {
+        var result = query.get(review.plan().id(), 0, 50, true, true);
+        assertThat(result.executionView()).isFalse();
+        assertThat(result.entries().total()).isEqualTo(1);
+        assertThat(result.entries().items().getFirst().stage()).isNull();
+    }
+
+    @Test void displayTargetUsesPublishedParentNameForUnpublishedChild() {
+        var parent = review.plan().items().stream().filter(i -> i.relativePath().isEmpty()).findFirst().orElseThrow();
+        var child = review.plan().items().stream().filter(i -> i.relativePath().equals("b.txt")).findFirst().orElseThrow();
+        var result = new DirectoryTransferResult(parent.id(), DirectoryTransferResult.Status.PUBLISHED,
+                "destination/photos - 1", parent.source(), null, null);
+        assertThat(new DirectoryTransferIndex(review.plan()).displayTargetPath(child, Map.of(parent.id(), result)))
+                .isEqualTo("destination/photos - 1/b.txt");
+    }
+
+    @Test void presentationCombinesOperationWithPhaseAndPauseWithoutNewRunStates() {
+        for (var operation : DirectoryTransferPlan.Operation.values()) {
+            for (var phase : DirectoryTransferRun.Phase.values()) {
+                var active = new DirectoryTransferRun(review.plan().id(), 0, phase, false);
+                var paused = new DirectoryTransferRun(review.plan().id(), 0, phase, true);
+                assertThat(DirectoryTransferPresentation.status(operation, active, false)).isNotBlank();
+                assertThat(DirectoryTransferPresentation.status(operation, paused, false))
+                        .startsWith(DirectoryTransferPresentation.operation(operation) + " paused");
+            }
+        }
+        assertThat(DirectoryTransferPresentation.status(DirectoryTransferPlan.Operation.MOVE,
+                new DirectoryTransferRun(review.plan().id(), 0, DirectoryTransferRun.Phase.PUBLISHING, false), false)).isEqualTo("Moving");
+    }
+
     @Test void unresolvedIncludesPausedWorkButExcludesCompletedReviews() throws Exception {
         String id = review.plan().id();
         assertThat(query.unresolved()).hasSize(1);

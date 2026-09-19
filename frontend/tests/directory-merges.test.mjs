@@ -63,6 +63,36 @@ test('bulk choice buttons request server-wide choices and never execute the merg
   }
 });
 
+test('paused copy shows remaining work without choice controls and resumes copy explicitly', async () => {
+  const data = { review: { operation: 'COPY', title: 'Directory copy', statusLabel: 'Copy paused (publication)',
+    editable: false, fullyReviewed: true, run: { phase: 'PUBLISHING', paused: true } }, executionView: true,
+    entries: { items: [{ id: 'a', relativePath: 'a.txt', stage: 'PUBLICATION_PENDING' },
+      { id: 'b', relativePath: 'b.txt', stage: 'FINALIZATION_PENDING' }], total: 2, size: 50 } };
+  const jsx = (type, props) => ({ type, props });
+  const react = { useEffect: () => {}, useState: (value) => [value === null ? data : value, () => {}],
+    createElement: (type, props, ...children) => jsx(type, { ...props, children }) };
+  const component = await load('../src/directory-merges/DirectoryMergeDialog.tsx', { React: react }, {
+    react, 'react/jsx-runtime': { jsx, jsxs: jsx }, AppDialog: { AppDialog: 'dialog' },
+    'merge-api': { mergeChoices: () => [], runMerge: () => assert.fail('must not auto-resume') },
+  });
+  const tree = component.DirectoryMergeDialog({ id: 'review', close: () => {}, changed: () => {} });
+  const texts = []; const selects = [];
+  const visit = (node) => {
+    if (Array.isArray(node)) return node.forEach(visit);
+    if (typeof node === 'string') { texts.push(node); return; }
+    if (!node || typeof node !== 'object') return;
+    if (node.type === 'select') selects.push(node);
+    visit(node.props?.children);
+  };
+  visit(tree);
+  assert.equal(selects.length, 0);
+  assert.match(texts.join(' '), /Directory copy.*Copy paused.*2 remaining items/);
+  assert.ok(texts.includes('Publication pending'));
+  assert.ok(texts.includes('Finalization pending'));
+  assert.ok(texts.includes('Resume copy'));
+  assert.ok(!texts.includes('No conflicts.'));
+});
+
 test('preparing a pending merge refreshes the row without navigating or opening a dialog', async () => {
   const effects = [];
   let refreshed = 0;

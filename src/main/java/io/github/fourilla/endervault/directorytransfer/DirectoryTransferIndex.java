@@ -50,6 +50,14 @@ final class DirectoryTransferIndex {
         return result.targetPath() + "/" + name;
     }
 
+    /** Resolve published parent names without claiming unpublished children are committed. */
+    String displayTargetPath(DirectoryTransferPlan.Item item, Map<String, DirectoryTransferResult> results) {
+        var result = results.get(item.id());
+        if (result != null && result.targetPath() != null) return result.targetPath();
+        var parent = parent(item);
+        return parent == null ? targetPath(item, Map.of()) : displayTargetPath(parent, results) + "/" + targetName(item);
+    }
+
     /** Planned destination, before a new KEEP_BOTH choice allocates its final name. */
     String plannedTargetPath(DirectoryTransferPlan.Item item) {
         var parent = parent(item);

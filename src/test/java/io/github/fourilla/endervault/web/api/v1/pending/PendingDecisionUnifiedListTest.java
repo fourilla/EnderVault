@@ -38,7 +38,7 @@ class PendingDecisionUnifiedListTest {
         assertThat(rows).hasSize(4);
         assertThat(rows.getFirst().id()).isEqualTo("upload");
         assertThat(rows.getFirst().mergeId()).isEqualTo("review");
-        assertThat(rows.getFirst().statusLabel()).isEqualTo("Awaiting merge review");
+        assertThat(rows.getFirst().statusLabel()).isEqualTo("Upload merge awaiting review");
         assertThat(rows).extracting(row -> row.mergeId()).containsExactly("review", "copy", "move", "recovery");
         verify(pending, never()).releaseDirectoryMergeClaim(anyString(), anyString());
     }

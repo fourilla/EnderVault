@@ -73,14 +73,7 @@ public class PendingFileDecisionApiController {
     }
 
     private static String mergeStatus(DirectoryTransferQueryService.Summary review) {
-        if (review.run() == null) return "Awaiting merge review";
-        if (review.run().paused()) return "Paused";
-        return switch (review.run().phase()) {
-            case NEEDS_REVIEW -> "Needs new review";
-            case PUBLISHING -> "Merging";
-            case FINALIZING, OWNER_COMPLETING -> "Finalizing";
-            case COMPLETE -> "Completed";
-        };
+        return review.statusLabel();
     }
 
     @PostMapping(value = "/{id}/resolve", produces = MediaType.APPLICATION_JSON_VALUE)

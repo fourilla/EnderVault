@@ -36,20 +36,47 @@ public class DirectoryTransferQueryService {
     }
 
     public Detail get(String id, int page, int size, boolean conflictsOnly) throws IOException {
+        return get(id, page, size, conflictsOnly, false);
+    }
+
+    public Detail get(String id, int page, int size, boolean conflictsOnly, boolean remainingOnly) throws IOException {
         checkPage(page, size);
         synchronized (reviews) {
             var review = reviews.require(id);
             var index = new DirectoryTransferIndex(review.plan());
+            var summary = summary(review);
+            boolean executionView = remainingOnly && !summary.editable();
+            var results = executionView ? reviews.results(review) : java.util.Map.<String, DirectoryTransferResult>of();
+            var states = new java.util.HashMap<String, EntryStage>();
+            if (executionView) {
+                for (var item : review.plan().items()) {
+                    states.put(item.id(), stage(results.get(item.id()), reviews.completion(id, item.id()), review.choices().get(item.id())));
+                }
+            }
             var items = review.plan().items().stream()
-                    .filter(item -> !conflictsOnly || item.requiresDecision()).toList();
+                    .filter(item -> executionView ? states.get(item.id()) != EntryStage.COMPLETE && states.get(item.id()) != EntryStage.RETAINED
+                            : !conflictsOnly || item.requiresDecision()).toList();
             var rows = items.stream().skip((long) page * size).limit(size)
-                    .map(item -> new Entry(item.id(), item.relativePath(), index.plannedTargetPath(item), item.source().kind(), item.source().size(),
+                    .map(item -> new Entry(item.id(), item.relativePath(), index.displayTargetPath(item, results), item.source().kind(), item.source().size(),
                             item.source().modifiedAt(), item.target() == null ? null : item.target().kind(),
                             item.target() == null ? null : item.target().size(),
                             item.target() == null ? null : item.target().modifiedAt(), item.conflict(), item.blockedBy(),
-                            review.choices().get(item.id()))).toList();
-            return new Detail(summary(review), new Page<>(page, size, items.size(), rows));
+                            review.choices().get(item.id()), states.get(item.id()))).toList();
+            return new Detail(summary, new Page<>(page, size, items.size(), rows), executionView);
         }
+    }
+
+    private static EntryStage stage(DirectoryTransferResult result, DirectoryTransferCompletion completion, DirectoryTransferReview.Choice choice) {
+        if (completion != null) return switch (completion.phase()) {
+            case COMPLETE -> EntryStage.COMPLETE;
+            case RETAINED -> EntryStage.RETAINED;
+            case NEEDS_REVIEW -> EntryStage.NEEDS_REVIEW;
+            default -> EntryStage.FINALIZATION_PENDING;
+        };
+        if (result != null) return result.status() == DirectoryTransferResult.Status.NEEDS_REVIEW
+                ? EntryStage.NEEDS_REVIEW : EntryStage.FINALIZATION_PENDING;
+        return choice == DirectoryTransferReview.Choice.SKIP || choice == DirectoryTransferReview.Choice.DISCARD_UPLOAD
+                ? EntryStage.FINALIZATION_PENDING : EntryStage.PUBLICATION_PENDING;
     }
 
     private Summary summary(DirectoryTransferReview review) throws IOException {
@@ -68,9 +95,13 @@ public class DirectoryTransferQueryService {
     public record Page<T>(int page, int size, long total, List<T> items) {}
     public record Summary(String id, DirectoryTransferPlan.Operation operation, String sourceReference,
             String destinationPath, Instant createdAt, long revision, int itemCount, long conflictCount,
-            boolean fullyReviewed, boolean editable, DirectoryTransferRun run, String successorId) {}
+            boolean fullyReviewed, boolean editable, DirectoryTransferRun run, String successorId) {
+        @com.fasterxml.jackson.annotation.JsonProperty public String title() { return DirectoryTransferPresentation.title(operation); }
+        @com.fasterxml.jackson.annotation.JsonProperty public String statusLabel() { return DirectoryTransferPresentation.status(operation, run, editable); }
+    }
+    public enum EntryStage { PUBLICATION_PENDING, FINALIZATION_PENDING, NEEDS_REVIEW, COMPLETE, RETAINED }
     public record Entry(String id, String relativePath, String plannedTargetPath, DirectoryTransferPlan.Kind sourceKind, long sourceSize,
             Instant sourceModifiedAt, DirectoryTransferPlan.Kind targetKind, Long targetSize, Instant targetModifiedAt,
-            DirectoryTransferPlan.Conflict conflict, String blockedBy, DirectoryTransferReview.Choice choice) {}
-    public record Detail(Summary review, Page<Entry> entries) {}
+            DirectoryTransferPlan.Conflict conflict, String blockedBy, DirectoryTransferReview.Choice choice, EntryStage stage) {}
+    public record Detail(Summary review, Page<Entry> entries, boolean executionView) {}
 }

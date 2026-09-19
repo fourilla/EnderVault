@@ -44,7 +44,7 @@ export function PrepareDirectoryMergeButton({ pendingId, disabled, mergeId }: {
   };
   // Keep this component mounted when the refreshed row gains an owner, so its task poll survives.
   if (mergeId && !busy) return <button type="button" className="ghost icon-button action-icon"
-    title="Review merge" aria-label="Review merge" disabled={disabled} onClick={() => openMerge(mergeId)}>
+    title="Review transfer" aria-label="Review transfer" disabled={disabled} onClick={() => openMerge(mergeId)}>
     <i className="fas fa-code-branch" aria-hidden="true" />
   </button>;
   return <button type="button" className="ghost icon-button action-icon" title="Merge directory" aria-label="Merge directory"

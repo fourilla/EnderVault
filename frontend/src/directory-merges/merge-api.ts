@@ -5,6 +5,8 @@ export type MergeChoice = 'OVERWRITE' | 'SKIP' | 'KEEP_BOTH' | 'DISCARD_UPLOAD';
 export interface MergeSummary {
   id: string;
   operation: 'COPY' | 'MOVE' | 'PENDING';
+  title: string;
+  statusLabel: string;
   sourceReference: string;
   destinationPath: string;
   revision: number;
@@ -25,8 +27,10 @@ export interface MergeEntry {
   targetSize: number | null;
   conflict: string;
   choice: MergeChoice | null;
+  stage: 'PUBLICATION_PENDING' | 'FINALIZATION_PENDING' | 'NEEDS_REVIEW' | 'COMPLETE' | 'RETAINED' | null;
 }
 export interface MergeDetail {
+  executionView: boolean;
   review: MergeSummary;
   entries: { page: number; size: number; total: number; items: MergeEntry[] };
 }

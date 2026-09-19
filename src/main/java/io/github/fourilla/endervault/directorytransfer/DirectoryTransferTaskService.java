@@ -66,7 +66,7 @@ public class DirectoryTransferTaskService {
         }
         Submission submission = new Submission(revision, replan);
         submission.task = tasks.submit(TaskType.DIRECTORY_MERGE,
-                replan ? "Review changed directory merge" : "Merge directory",
+                replan ? "Review changed directory transfer" : DirectoryTransferPresentation.title(review.plan().operation()),
                 review.plan().destinationPath(), actor, ip, context -> {
                     submission.started = true;
                     try {
@@ -87,7 +87,8 @@ public class DirectoryTransferTaskService {
             @Override public void checkCanceled() { context.checkCanceled(); }
         };
         // Publication and cleanup count the same entries; do not report these as one percentage.
-        context.message(replan ? "Scanning remaining directory items." : "Applying reviewed directory merge.");
+        context.message(replan ? "Scanning remaining directory items." : "Applying reviewed "
+                + DirectoryTransferPresentation.operation(operation).toLowerCase(java.util.Locale.ROOT) + ".");
         boolean isPending = operation == DirectoryTransferPlan.Operation.PENDING;
         context.resultReference(id);
         context.directoryTransferReview(id);
@@ -107,7 +108,7 @@ public class DirectoryTransferTaskService {
         }
         if (result == null || !result.terminal()) throw new IOException("Directory merge did not reach a final outcome.");
         return result.phase() == DirectoryTransferRun.Phase.COMPLETE
-                ? TaskOutcome.complete("Directory merge complete.")
+                ? TaskOutcome.complete(DirectoryTransferPresentation.title(operation) + " complete.")
                 : TaskOutcome.pending("Directory items changed. A new review is required.");
     }
 

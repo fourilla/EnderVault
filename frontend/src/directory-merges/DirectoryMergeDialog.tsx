@@ -9,6 +9,11 @@ const labels: Record<MergeChoice, string> = {
   OVERWRITE: 'Overwrite file', KEEP_BOTH: 'Keep both', SKIP: 'Skip', DISCARD_UPLOAD: 'Discard uploaded item',
 };
 
+const stages = {
+  PUBLICATION_PENDING: 'Publication pending', FINALIZATION_PENDING: 'Finalization pending',
+  NEEDS_REVIEW: 'Needs review', COMPLETE: 'Completed', RETAINED: 'Retained',
+};
+
 export function DirectoryMergeDialog({ id, close, changed }: { id: string; close: () => void; changed: () => void }) {
   const [data, setData] = useState<MergeDetail | null>(null);
   const [page, setPage] = useState(0);
@@ -21,7 +26,7 @@ export function DirectoryMergeDialog({ id, close, changed }: { id: string; close
     setData(null);
     setError('');
     setMissing(false);
-    void mergeGet<MergeDetail>(`/${encodeURIComponent(id)}?conflictsOnly=true&page=${page}&size=50`, controller.signal)
+    void mergeGet<MergeDetail>(`/${encodeURIComponent(id)}?conflictsOnly=true&remainingOnly=true&page=${page}&size=50`, controller.signal)
       .then((result) => { if (!controller.signal.aborted) setData(result); }).catch((reason: unknown) => {
         if (!controller.signal.aborted) {
           if ((reason as { status?: number } | null)?.status === 404) setMissing(true);
@@ -50,19 +55,20 @@ export function DirectoryMergeDialog({ id, close, changed }: { id: string; close
     if (!data || busy) return;
     setBusy(true);
     try { await runMerge(data.review, replan); changed(); close(); }
-    catch (reason) { toastError(reason, 'Merge could not be started.'); refresh((value) => value + 1); }
+    catch (reason) { toastError(reason, 'Transfer could not be started.'); refresh((value) => value + 1); }
     finally { setBusy(false); }
   };
   const review = data?.review;
   const needsReview = review?.run?.phase === 'NEEDS_REVIEW';
+  const action = review?.operation === 'COPY' ? 'copy' : review?.operation === 'MOVE' ? 'move' : 'merge';
   const bulkChoices = data?.entries.total ? mergeChoices(data.review.operation, 'FILE_CONFLICT') : [];
-  const reviewHint = review?.fullyReviewed ? undefined : 'Choose a decision for every conflict before applying the merge.';
+  const reviewHint = review?.fullyReviewed ? undefined : 'Choose a decision for every conflict before applying the transfer.';
   if (finished || missing) return null;
   return <AppDialog open busy={busy} onDismiss={close} labelledBy="directoryMergeTitle"
     className="text-input-dialog directory-merge-dialog">
     <article className="text-input-card">
       <header className="text-input-header">
-        <div><h2 id="directoryMergeTitle">Directory Merge</h2><p title={review?.destinationPath}>{review?.destinationPath}</p></div>
+        <div><h2 id="directoryMergeTitle">{review?.title || 'Directory transfer'}</h2><p title={review?.destinationPath}>{review?.destinationPath}</p></div>
         <button className="ghost icon-button" type="button" disabled={busy} onClick={close} title="Close" aria-label="Close">
           <i className="fas fa-xmark" aria-hidden="true" />
         </button>
@@ -70,9 +76,10 @@ export function DirectoryMergeDialog({ id, close, changed }: { id: string; close
       {error && <p role="alert">{error}<button type="button" className="ghost" onClick={() => refresh((value) => value + 1)}>Retry</button></p>}
       {!data && !error && <p role="status"><i className="fas fa-spinner fa-spin" aria-hidden="true" /> Loading review...</p>}
       {data && <>
-        <p>{data.review.itemCount} items / {data.review.conflictCount} conflicts</p>
+        <p role="status">{review?.statusLabel} · {data.executionView
+          ? `${data.entries.total} remaining items` : `${data.review.conflictCount} conflicts / ${data.review.itemCount} items`}</p>
         {needsReview && <p role="status">Items changed after approval. A new review is required.</p>}
-        {review?.editable && <div className="directory-merge-bulk" role="group" aria-label="Apply to all">
+        {review?.editable && bulkChoices.length > 0 && <div className="directory-merge-bulk" role="group" aria-label="Apply to all">
           <span>Apply to all</span>
           <div className="directory-merge-bulk-actions">
             {bulkChoices.map((choice) => <button key={choice} type="button" className="ghost icon-text-button"
@@ -85,25 +92,32 @@ export function DirectoryMergeDialog({ id, close, changed }: { id: string; close
           </div>
         </div>}
         <div className="table-wrap compact-table directory-merge-entries">
-          <table><thead><tr><th>Source</th><th>Destination</th><th>Decision</th></tr></thead>
+          <table><thead><tr><th>Source</th><th>Destination</th><th>{data.executionView ? 'Remaining work' : 'Decision'}</th></tr></thead>
             <tbody>{data.entries.items.map((entry) => <tr key={entry.id}>
               <td><span className="table-primary-text" title={entry.relativePath}>{entry.relativePath || '/'}</span><small>{entry.sourceKind}</small></td>
               <td><span className="table-primary-text" title={entry.plannedTargetPath}>{entry.plannedTargetPath}</span><small>{entry.targetKind}</small></td>
-              <td><select aria-label={`Decision for ${entry.relativePath || '/'}`} disabled={busy || !review?.editable}
+              <td>{data.executionView ? <span title={entry.stage === 'PUBLICATION_PENDING'
+                ? 'Publication is not confirmed in the execution record. Resume reconciles any existing journal before copying.'
+                : entry.stage === 'FINALIZATION_PENDING' ? 'Result verification, source cleanup or completion records remain.'
+                  : 'The approved operation could not finish. Review the changed items.'}>
+                {entry.stage ? stages[entry.stage] : 'Pending'}</span> : <select aria-label={`Decision for ${entry.relativePath || '/'}`} disabled={busy || !review?.editable}
                 value={entry.choice || ''} onChange={(event) => { if (event.currentTarget.value) void save({ [entry.id]: event.currentTarget.value as MergeChoice }); }}>
                 <option value="">Choose...</option>
                 {mergeChoices(data.review.operation, entry.conflict).map((choice) => <option key={choice} value={choice}>{labels[choice]}</option>)}
-              </select></td>
-            </tr>)}{!data.entries.total && <tr><td colSpan={3}>No conflicts.</td></tr>}</tbody>
+              </select>}</td>
+            </tr>)}{!data.entries.total && <tr><td colSpan={3}>{data.executionView
+              ? review?.run?.phase === 'OWNER_COMPLETING' ? 'File processing is complete. Pending record completion remains.'
+                : 'No unfinished items. Transfer completion may still need to be recorded.'
+              : 'No conflicts. Ready to apply.'}</td></tr>}</tbody>
           </table>
         </div>
         <BrowserPagination page={{ number: page + 1, totalPages: Math.ceil(data.entries.total / data.entries.size) }}
-          onPageChange={(value) => setPage(value - 1)} disabled={busy} ariaLabel="Merge conflict pages" />
+          onPageChange={(value) => setPage(value - 1)} disabled={busy} ariaLabel={data.executionView ? 'Remaining work pages' : 'Merge conflict pages'} />
         <footer className="directory-merge-actions">
           <button type="button" className="ghost" onClick={close} disabled={busy}>Close</button>
           {needsReview ? <button type="button" disabled={busy} onClick={() => void start(true)}>Review changed items</button>
             : <span title={reviewHint}><button type="button" title={reviewHint} disabled={busy || !review?.fullyReviewed || review?.run?.phase === 'COMPLETE'}
-              onClick={() => void start(false)}>{review?.editable ? 'Apply merge' : 'Resume merge'}</button></span>}
+              onClick={() => void start(false)}>{`${review?.editable ? 'Apply' : 'Resume'} ${action}`}</button></span>}
         </footer>
       </>}
     </article>
