@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 import io.github.fourilla.endervault.activity.ActivityLogService;
-import io.github.fourilla.endervault.directorymerge.DirectoryMergePlan.Operation;
-import io.github.fourilla.endervault.directorymerge.DirectoryMergeQueryService;
+import io.github.fourilla.endervault.directorytransfer.DirectoryTransferPlan.Operation;
+import io.github.fourilla.endervault.directorytransfer.DirectoryTransferQueryService;
 import io.github.fourilla.endervault.pending.*;
 import java.time.Instant;
 import java.util.List;
@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 
 class PendingDecisionUnifiedListTest {
     private final PendingFileDecisionService pending = mock(PendingFileDecisionService.class);
-    private final DirectoryMergeQueryService merges = mock(DirectoryMergeQueryService.class);
+    private final DirectoryTransferQueryService merges = mock(DirectoryTransferQueryService.class);
     private final PendingFileDecisionApiController controller = new PendingFileDecisionApiController(
             pending, mock(ActivityLogService.class), merges);
 
@@ -56,8 +56,8 @@ class PendingDecisionUnifiedListTest {
         });
     }
 
-    private DirectoryMergeQueryService.Summary review(String id, Operation operation, String source) {
-        return new DirectoryMergeQueryService.Summary(id, operation, source, "target/photos", Instant.EPOCH,
+    private DirectoryTransferQueryService.Summary review(String id, Operation operation, String source) {
+        return new DirectoryTransferQueryService.Summary(id, operation, source, "target/photos", Instant.EPOCH,
                 0, 3, 1, false, true, null, null);
     }
 }

@@ -72,9 +72,9 @@ class PendingFileDecisionServiceTest {
         Path staged = Files.createDirectory(storageService.resolveFileStagingFile("merge-owner-test"));
         Files.writeString(staged.resolve("a.txt"), "data");
         var decision = service.create(staged, PendingFileDecisionSource.DIRECTORY_UPLOAD, "", "photos", 4);
-        var reviews = new io.github.fourilla.endervault.directorymerge.DirectoryMergeReviewStore(objectMapper, properties);
-        var preparation = new io.github.fourilla.endervault.directorymerge.DirectoryMergePendingPreparationService(service,
-                new io.github.fourilla.endervault.directorymerge.DirectoryMergePlanner(storageService, properties), reviews);
+        var reviews = new io.github.fourilla.endervault.directorytransfer.DirectoryTransferReviewStore(objectMapper, properties);
+        var preparation = new io.github.fourilla.endervault.directorytransfer.DirectoryTransferPendingPreparationService(service,
+                new io.github.fourilla.endervault.directorytransfer.DirectoryTransferPlanner(storageService, properties), reviews);
         var review = preparation.prepare(decision.id(), null);
         assertThat(service.requireDirectoryMergeOwner(decision.id(), review.plan().id())).isEqualTo(decision);
         assertThat(reviews.require(review.plan().id())).isEqualTo(review);
@@ -87,9 +87,9 @@ class PendingFileDecisionServiceTest {
         var service = service(new TemporaryArtifactRegistry());
         Path staged = Files.createDirectory(storageService.resolveFileStagingFile("merge-owner-test"));
         var decision = service.create(staged, PendingFileDecisionSource.DIRECTORY_UPLOAD, "", "photos", 0);
-        var reviews = org.mockito.Mockito.spy(new io.github.fourilla.endervault.directorymerge.DirectoryMergeReviewStore(objectMapper, properties));
-        var preparation = new io.github.fourilla.endervault.directorymerge.DirectoryMergePendingPreparationService(service,
-                new io.github.fourilla.endervault.directorymerge.DirectoryMergePlanner(storageService, properties), reviews);
+        var reviews = org.mockito.Mockito.spy(new io.github.fourilla.endervault.directorytransfer.DirectoryTransferReviewStore(objectMapper, properties));
+        var preparation = new io.github.fourilla.endervault.directorytransfer.DirectoryTransferPendingPreparationService(service,
+                new io.github.fourilla.endervault.directorytransfer.DirectoryTransferPlanner(storageService, properties), reviews);
         var cancel = new io.github.fourilla.endervault.storage.StorageProgressListener() {
             @Override public void checkCanceled() { throw new io.github.fourilla.endervault.task.TaskCanceledException(); }
         };

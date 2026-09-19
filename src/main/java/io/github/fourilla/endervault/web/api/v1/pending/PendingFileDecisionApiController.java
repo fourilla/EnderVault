@@ -1,8 +1,8 @@
 package io.github.fourilla.endervault.web.api.v1.pending;
 
 import io.github.fourilla.endervault.activity.ActivityLogService;
-import io.github.fourilla.endervault.directorymerge.DirectoryMergeQueryService;
-import io.github.fourilla.endervault.directorymerge.DirectoryMergePlan;
+import io.github.fourilla.endervault.directorytransfer.DirectoryTransferQueryService;
+import io.github.fourilla.endervault.directorytransfer.DirectoryTransferPlan;
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
 import io.github.fourilla.endervault.pending.PendingFileDecision;
 import io.github.fourilla.endervault.pending.PendingFileDecisionAction;
@@ -33,12 +33,12 @@ public class PendingFileDecisionApiController {
 
     private final PendingFileDecisionService pendingFileDecisionService;
     private final ActivityLogService activityLogService;
-    private final DirectoryMergeQueryService merges;
+    private final DirectoryTransferQueryService merges;
 
     public PendingFileDecisionApiController(
             PendingFileDecisionService pendingFileDecisionService,
             ActivityLogService activityLogService,
-            DirectoryMergeQueryService merges
+            DirectoryTransferQueryService merges
     ) {
         this.pendingFileDecisionService = pendingFileDecisionService;
         this.activityLogService = activityLogService;
@@ -61,7 +61,7 @@ public class PendingFileDecisionApiController {
             }
         }
         for (var review : unresolved) {
-            if (review.operation() == DirectoryMergePlan.Operation.PENDING && pendingIds.contains(review.sourceReference())) continue;
+            if (review.operation() == DirectoryTransferPlan.Operation.PENDING && pendingIds.contains(review.sourceReference())) continue;
             String path = review.destinationPath();
             items.add(new PendingFileDecisionItemResponse("merge-" + review.id(),
                     path.substring(path.lastIndexOf('/') + 1), null,
@@ -72,7 +72,7 @@ public class PendingFileDecisionApiController {
         return new PendingFileDecisionListResponse(List.copyOf(items));
     }
 
-    private static String mergeStatus(DirectoryMergeQueryService.Summary review) {
+    private static String mergeStatus(DirectoryTransferQueryService.Summary review) {
         if (review.run() == null) return "Awaiting merge review";
         if (review.run().paused()) return "Paused";
         return switch (review.run().phase()) {

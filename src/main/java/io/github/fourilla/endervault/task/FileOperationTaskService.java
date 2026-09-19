@@ -3,11 +3,11 @@ package io.github.fourilla.endervault.task;
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.auth.ClientIpResolver;
 import io.github.fourilla.endervault.common.StorageAccessException;
-import io.github.fourilla.endervault.directorymerge.DirectoryMergePlan;
-import io.github.fourilla.endervault.directorymerge.DirectoryMergePlanner;
-import io.github.fourilla.endervault.directorymerge.DirectoryMergeReviewStore;
-import io.github.fourilla.endervault.directorymerge.DirectoryMergeRun;
-import io.github.fourilla.endervault.directorymerge.DirectoryMergeTransferService;
+import io.github.fourilla.endervault.directorytransfer.DirectoryTransferPlan;
+import io.github.fourilla.endervault.directorytransfer.DirectoryTransferPlanner;
+import io.github.fourilla.endervault.directorytransfer.DirectoryTransferReviewStore;
+import io.github.fourilla.endervault.directorytransfer.DirectoryTransferRun;
+import io.github.fourilla.endervault.directorytransfer.DirectoryTransferService;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
 import io.github.fourilla.endervault.storage.FileItem;
 import io.github.fourilla.endervault.storage.FileLifecycleService;
@@ -35,9 +35,9 @@ public class FileOperationTaskService {
     private final TrashService trashService;
     private final ActivityLogService activityLogService;
     private final ClientIpResolver clientIpResolver;
-    private final DirectoryMergePlanner mergePlanner;
-    private final DirectoryMergeReviewStore mergeReviews;
-    private final DirectoryMergeTransferService mergeTransfers;
+    private final DirectoryTransferPlanner transferPlanner;
+    private final DirectoryTransferReviewStore transferReviews;
+    private final DirectoryTransferService directoryTransfers;
 
     public FileOperationTaskService(
             TaskManagerService taskManagerService,
@@ -46,9 +46,9 @@ public class FileOperationTaskService {
             TrashService trashService,
             ActivityLogService activityLogService,
             ClientIpResolver clientIpResolver,
-            DirectoryMergePlanner mergePlanner,
-            DirectoryMergeReviewStore mergeReviews,
-            DirectoryMergeTransferService mergeTransfers
+            DirectoryTransferPlanner transferPlanner,
+            DirectoryTransferReviewStore transferReviews,
+            DirectoryTransferService directoryTransfers
     ) {
         this.taskManagerService = taskManagerService;
         this.storageService = storageService;
@@ -56,9 +56,9 @@ public class FileOperationTaskService {
         this.trashService = trashService;
         this.activityLogService = activityLogService;
         this.clientIpResolver = clientIpResolver;
-        this.mergePlanner = mergePlanner;
-        this.mergeReviews = mergeReviews;
-        this.mergeTransfers = mergeTransfers;
+        this.transferPlanner = transferPlanner;
+        this.transferReviews = transferReviews;
+        this.directoryTransfers = directoryTransfers;
     }
 
     public AppTask queueTransfer(
@@ -140,16 +140,16 @@ public class FileOperationTaskService {
             try {
                 FileItem source = storageService.describeVaultPath(item.path());
                 if (source.directory() && !source.parentPath().equals(destination)) {
-                    var plan = mergePlanner.planTransfer(operation == TransferOperation.MOVE
-                            ? DirectoryMergePlan.Operation.MOVE : DirectoryMergePlan.Operation.COPY,
+                    var plan = transferPlanner.planTransfer(operation == TransferOperation.MOVE
+                            ? DirectoryTransferPlan.Operation.MOVE : DirectoryTransferPlan.Operation.COPY,
                             source.path(), destination, cancellationListener(context));
-                    var review = mergeReviews.create(plan);
+                    var review = transferReviews.create(plan);
                     savedReview = plan.id();
-                    context.directoryMergeReview(plan.id());
+                    context.directoryTransferReview(plan.id());
                     context.resultReference(plan.id());
                     boolean complete = review.fullyReviewed()
-                            && mergeTransfers.execute(plan.id(), review.revision(), cancellationListener(context))
-                                    .phase() == DirectoryMergeRun.Phase.COMPLETE;
+                            && directoryTransfers.execute(plan.id(), review.revision(), cancellationListener(context))
+                                    .phase() == DirectoryTransferRun.Phase.COMPLETE;
                     if (complete) {
                         // The merge finalizer already updates moved-path metadata item by item.
                         completedCount++;

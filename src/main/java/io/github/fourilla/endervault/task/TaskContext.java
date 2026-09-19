@@ -14,7 +14,7 @@ public class TaskContext {
 
     public void resultReference(String reference) { task.setResultReference(reference); }
 
-    public void directoryMergeReview(String id) { task.addDirectoryMergeReview(id); }
+    public void directoryTransferReview(String id) { task.addDirectoryTransferReview(id); }
 
     public void setTotalBytes(long totalBytes) {
         task.setTotalBytes(totalBytes);

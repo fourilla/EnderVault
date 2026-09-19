@@ -24,7 +24,7 @@ public class AppTask {
     private volatile Instant finishedAt;
     private volatile String targetPath;
     private volatile String resultReference;
-    private final Set<String> directoryMergeReviews = ConcurrentHashMap.newKeySet();
+    private final Set<String> directoryTransferReviews = ConcurrentHashMap.newKeySet();
     private volatile String message = "Waiting to start.";
     private volatile boolean cancelRequested;
     private final AtomicLong processedBytes = new AtomicLong();
@@ -50,15 +50,15 @@ public class AppTask {
 
     void setResultReference(String reference) { resultReference = reference; }
 
-    public Set<String> directoryMergeReviews() { return Set.copyOf(directoryMergeReviews); }
+    public Set<String> directoryTransferReviews() { return Set.copyOf(directoryTransferReviews); }
 
-    void addDirectoryMergeReview(String id) {
+    void addDirectoryTransferReview(String id) {
         if (id == null || id.isBlank()) throw new IllegalArgumentException("Merge review ID is required.");
-        directoryMergeReviews.add(id);
+        directoryTransferReviews.add(id);
     }
 
-    synchronized void completeDirectoryMergeReviews(Set<String> expected) {
-        if (status != TaskStatus.PENDING || expected.isEmpty() || !directoryMergeReviews.equals(expected)) return;
+    synchronized void completeDirectoryTransferReviews(Set<String> expected) {
+        if (status != TaskStatus.PENDING || expected.isEmpty() || !directoryTransferReviews.equals(expected)) return;
         resultReference = null;
         markComplete("All directory merge reviews completed (including approved skips or discards).");
     }

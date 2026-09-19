@@ -76,7 +76,7 @@ class AdminNotificationFlowTest {
     MockMvc mockMvc;
 
     @Autowired
-    io.github.fourilla.endervault.directorymerge.DirectoryMergeTaskReconciler mergeTaskReconciler;
+    io.github.fourilla.endervault.directorytransfer.DirectoryTransferTaskReconciler mergeTaskReconciler;
 
     @Autowired
     ShareLinkService shareLinkService;

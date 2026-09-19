@@ -143,9 +143,9 @@ public class TaskManagerService {
         executorService.shutdownNow();
     }
 
-    public void completeDirectoryMergeReviews(String taskId, Set<String> expectedReviews) {
+    public void completeDirectoryTransferReviews(String taskId, Set<String> expectedReviews) {
         AppTask task = tasks.get(taskId);
-        if (task != null) task.completeDirectoryMergeReviews(expectedReviews);
+        if (task != null) task.completeDirectoryTransferReviews(expectedReviews);
     }
 
     private void run(AppTask task, TaskWork work) {
