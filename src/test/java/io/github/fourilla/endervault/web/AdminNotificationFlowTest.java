@@ -2633,7 +2633,7 @@ class AdminNotificationFlowTest {
     }
 
     @Test
-    void directoryMergeApiPendingReviewUsesOneNotificationAndPreservesExistingChildren() throws Exception {
+    void directoryMergeApiConflictFreeUploadCompletesWithoutAnotherReview() throws Exception {
         String name = "pending-merge-ui-" + System.nanoTime();
         Files.createDirectories(ROOT.resolve(name));
         Files.writeString(ROOT.resolve(name + "/existing.txt"), "keep");
@@ -2645,25 +2645,16 @@ class AdminNotificationFlowTest {
         var response = mockMvc.perform(post(prefix + "/pending/" + decision.id()).with(csrf()))
                 .andExpect(status().isAccepted()).andReturn();
         var task = awaitMergeTask(objectMapper.readTree(response.getResponse().getContentAsString()).path("id").asText());
-        assertThat(task.status()).isEqualTo(io.github.fourilla.endervault.task.TaskStatus.PENDING);
+        assertThat(task.status()).isEqualTo(io.github.fourilla.endervault.task.TaskStatus.COMPLETE);
         String mergeId = task.resultReference();
-        var notifications = notificationCenterService.snapshot(1000).items();
-        assertThat(notifications.stream().filter(item -> item.href().endsWith("#merge-" + mergeId))).hasSize(1);
         mockMvc.perform(get("/api/v1/notifications"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items[?(@.id == '" + decision.id() + "')].target.kind")
-                        .value(Matchers.contains("DIRECTORY_MERGE")))
-                .andExpect(jsonPath("$.items[?(@.id == '" + decision.id() + "')].target.id")
-                        .value(Matchers.contains(mergeId)));
+                .andExpect(jsonPath("$.items[?(@.id == '" + decision.id() + "')]").isEmpty());
         mockMvc.perform(get("/api/v1/pending-decisions")).andExpect(status().isOk())
-                .andExpect(jsonPath("$.decisions[?(@.id == '" + decision.id() + "')].mergeId").value(Matchers.contains(mergeId)));
+                .andExpect(jsonPath("$.decisions[?(@.id == '" + decision.id() + "')]").isEmpty());
         mockMvc.perform(get(prefix + "/unresolved")).andExpect(status().isOk())
-                .andExpect(jsonPath("$[?(@.id == '" + mergeId + "')].fullyReviewed").value(Matchers.contains(true)));
-        assertThat(Files.exists(staged.resolve("uploaded.txt"))).isTrue();
-        var execute = mockMvc.perform(post(prefix + "/" + mergeId + "/execute").with(csrf()).param("revision", "0"))
-                .andExpect(status().isAccepted()).andReturn();
-        var done = awaitMergeTask(objectMapper.readTree(execute.getResponse().getContentAsString()).path("id").asText());
-        assertThat(done.status()).as(done.message()).isEqualTo(io.github.fourilla.endervault.task.TaskStatus.COMPLETE);
+                .andExpect(jsonPath("$[?(@.id == '" + mergeId + "')]").isEmpty());
+        assertThat(staged).doesNotExist();
         assertThat(Files.readString(ROOT.resolve(name + "/existing.txt"))).isEqualTo("keep");
         assertThat(Files.readString(ROOT.resolve(name + "/uploaded.txt"))).isEqualTo("upload");
         assertThat(pendingDecisionService.find(decision.id())).isEmpty();
@@ -2806,6 +2797,41 @@ class AdminNotificationFlowTest {
         while (task.active() && System.nanoTime() < deadline) Thread.sleep(10);
         assertThat(task.active()).isFalse();
         return task;
+    }
+
+    @Test
+    void abandoningUploadMergeRestoresOrdinaryPendingActionsAndNotification() throws Exception {
+        String name = "abandon-upload-" + System.nanoTime();
+        Files.createDirectory(ROOT.resolve(name));
+        Files.writeString(ROOT.resolve(name + "/a.txt"), "existing");
+        Path staged = Files.createDirectory(storageService.resolveFileStagingFile("abandon-" + java.util.UUID.randomUUID()));
+        Files.writeString(staged.resolve("a.txt"), "uploaded");
+        var decision = pendingDecisionService.create(staged,
+                io.github.fourilla.endervault.pending.PendingFileDecisionSource.DIRECTORY_UPLOAD, "", name, 8);
+        String api = "/api/v1/files/directory-merges";
+        var response = mockMvc.perform(post(api + "/pending/" + decision.id()).with(csrf()))
+                .andExpect(status().isAccepted()).andReturn();
+        var task = awaitMergeTask(objectMapper.readTree(response.getResponse().getContentAsString()).path("id").asText());
+        String id = task.resultReference();
+        mockMvc.perform(get(api + "/" + id)).andExpect(jsonPath("$.review.canAbandon").value(true));
+        mockMvc.perform(post(api + "/" + id + "/abandon").with(csrf()).param("revision", "0"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/notifications"))
+                .andExpect(jsonPath("$.items[?(@.id == '" + decision.id() + "')].target.kind")
+                        .value(Matchers.contains("PENDING_FILE_DECISION")));
+        var rows = mockMvc.perform(get("/api/v1/pending-decisions")).andExpect(status().isOk()).andReturn();
+        var decisions = objectMapper.readTree(rows.getResponse().getContentAsString()).path("decisions");
+        boolean found = false;
+        for (var row : decisions) {
+            if (!row.path("id").asText().equals(decision.id())) continue;
+            found = true;
+            assertThat(row.path("mergeId").asText("")).isEmpty();
+        }
+        assertThat(found).isTrue();
+        assertThat(staged.resolve("a.txt")).hasContent("uploaded");
+        assertThat(ROOT.resolve(name + "/a.txt")).hasContent("existing");
+        mergeTaskReconciler.reconcile();
+        assertThat(task.status()).isEqualTo(io.github.fourilla.endervault.task.TaskStatus.CANCELED);
     }
 
     private static Path createTempRoot() {

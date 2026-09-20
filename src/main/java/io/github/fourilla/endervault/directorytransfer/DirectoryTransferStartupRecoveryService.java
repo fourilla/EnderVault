@@ -39,6 +39,11 @@ public class DirectoryTransferStartupRecoveryService {
         for (String id : reviews.runIds()) {
             try {
                 var before = reviews.run(id);
+                if (before != null && before.phase() == DirectoryTransferRun.Phase.ABANDONED
+                        && reviews.require(id).plan().operation() == DirectoryTransferPlan.Operation.PENDING) {
+                    pending.abandonUnstarted(id, before.revision());
+                    continue;
+                }
                 if (before == null || before.paused() || before.terminal()) continue;
                 var after = reviews.require(id).plan().operation() == DirectoryTransferPlan.Operation.PENDING
                         ? pending.recover(id) : transfers.recover(id);

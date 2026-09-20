@@ -120,17 +120,26 @@ public class DirectoryTransferReviewStore {
     /** A durable terminal record, not deletion: stale clients cannot resurrect this review. */
     synchronized void abandonUnstarted(String id, long revision) throws IOException {
         var review = require(id);
-        if (review.revision() != revision || review.plan().operation() == DirectoryTransferPlan.Operation.PENDING) {
-            throw new StorageAccessException("Only an unchanged copy/move review can be abandoned here.");
+        if (review.revision() != revision) {
+            throw new StorageAccessException("Directory transfer decisions changed. Reload the review.");
+        }
+        if (review.plan().operation() == DirectoryTransferPlan.Operation.PENDING && hasPredecessor(id)) {
+            throw new StorageAccessException("A replanned upload may contain partially transferred data. Its owner must be retained.");
         }
         var run = run(id);
-        if (run != null && run.phase() == DirectoryTransferRun.Phase.ABANDONED) return;
-        if (run != null || frozen(id) || successor(id) != null) {
+        boolean abandoned = run != null && run.phase() == DirectoryTransferRun.Phase.ABANDONED;
+        if (run != null && (!abandoned || run.revision() != revision || run.paused()) || frozen(id) || successor(id) != null) {
             throw new StorageAccessException("This transfer has already started. Its remaining work cannot be abandoned here.");
         }
         if (!results(review).isEmpty()) throw new StorageAccessException("Transfer result records require inspection before abandonment.");
         for (var item : review.plan().items()) {
             if (completion(id, item.id()) != null) throw new StorageAccessException("Transfer completion records require inspection before abandonment.");
+        }
+        if (abandoned) {
+            // A prior write may have installed the marker but failed while forcing its directory.
+            writer.forceDirectory(runPath(id).getParent());
+            writer.forceDirectory(root);
+            return;
         }
         writer.write(runPath(id), new DirectoryTransferRun(id, revision, DirectoryTransferRun.Phase.ABANDONED, false));
         writer.forceDirectory(root);
@@ -141,6 +150,27 @@ public class DirectoryTransferReviewStore {
         if (run != null && run.phase() == DirectoryTransferRun.Phase.ABANDONED) {
             throw new StorageAccessException("This directory transfer was abandoned.");
         }
+    }
+
+    synchronized boolean hasPredecessor(String id) throws IOException {
+        path(id);
+        Path directory = root.resolve("successors");
+        DirectoryTransferPlanner.rejectLinks(directory);
+        if (!Files.exists(directory)) return false;
+        try (var paths = Files.list(directory)) {
+            for (Path file : (Iterable<Path>) paths::iterator) {
+                if (!file.getFileName().toString().endsWith(".json")) continue;
+                DirectoryTransferPlanner.rejectLinks(file);
+                var value = DirectoryTransferInspectionReader.read(mapper, file, Successor.class, 1024 * 1024);
+                if (value == null || !file.getFileName().toString().equals(value.previous() + ".json")) {
+                    throw new StorageAccessException("Invalid transfer successor record.");
+                }
+                path(value.previous());
+                path(value.next());
+                if (id.equals(value.next())) return true;
+            }
+        }
+        return false;
     }
 
     private Path executionPath(String id) throws IOException {

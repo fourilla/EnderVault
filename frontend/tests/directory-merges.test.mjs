@@ -120,15 +120,19 @@ test('apply stays disabled until the server reports every page fully reviewed', 
 });
 
 test('abandonment needs explicit nested confirmation and is unavailable for started transfers', async () => {
-  for (const [canAbandon, confirmed] of [[true, false], [true, true], [false, true]]) {
+  for (const [canAbandon, confirmed, operation] of [[true, false, 'COPY'], [true, true, 'COPY'], [false, true, 'COPY'], [true, true, 'PENDING']]) {
     let abandoned = 0, closed = 0, changed = 0;
-    const data = { review: { operation: 'COPY', editable: canAbandon, canAbandon, fullyReviewed: false },
+    const data = { review: { operation, editable: canAbandon, canAbandon, fullyReviewed: false },
       entries: { items: [], total: 0, size: 50 } };
     const jsx = (type, props) => ({ type, props });
     const react = { useEffect: () => {}, useState: (value) => [value === null ? data : value, () => {}],
       createElement: (type, props, ...children) => jsx(type, { ...props, children }) };
     const component = await load('../src/directory-merges/DirectoryMergeDialog.tsx', { React: react,
-      window: { EnderVault: { askConfirmation: async (options) => { assert.equal(options.nested, true); return confirmed; } } } }, {
+      window: { EnderVault: { askConfirmation: async (options) => {
+        assert.equal(options.nested, true);
+        if (operation === 'PENDING') assert.match(options.message, /Uploaded files will stay in Pending decisions/);
+        return confirmed;
+      } } } }, {
       react, 'react/jsx-runtime': { jsx, jsxs: jsx }, AppDialog: { AppDialog: 'dialog' },
       'merge-api': { mergeChoices: () => [], abandonMerge: async () => { abandoned++; } },
     });
@@ -151,6 +155,7 @@ test('abandonment needs explicit nested confirmation and is unavailable for star
 });
 
 test('preparing a pending merge refreshes the row without navigating or opening a dialog', async () => {
+  for (const status of ['PENDING', 'COMPLETE']) {
   const effects = [];
   let refreshed = 0;
   let state = 0;
@@ -160,7 +165,7 @@ test('preparing a pending merge refreshes the row without navigating or opening 
   const component = await load('../src/directory-merges/PrepareDirectoryMergeButton.tsx', {
     React: react, AbortController, clearTimeout, CustomEvent: class {},
     window: { dispatchEvent: () => refreshed++, EnderVault: {
-      requestJson: async () => [{ status: 'PENDING', resultReference: 'review', active: false }],
+      requestJson: async () => [{ status, resultReference: 'review', active: false }],
     } },
   }, { react, 'react/jsx-runtime': { jsx: (type, props) => ({ type, props }) },
     DecisionDialogContext: { useDecisionDialog: () => ({ openMerge: () => assert.fail('unexpected dialog') }) },
@@ -170,6 +175,7 @@ test('preparing a pending merge refreshes the row without navigating or opening 
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(refreshed, 1);
   cleanup();
+  }
 });
 
 test('saving merge choices sends CSRF and revision but never source snapshots', async () => {

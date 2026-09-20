@@ -83,11 +83,14 @@ public class DirectoryTransferQueryService {
     private Summary summary(DirectoryTransferReview review) throws IOException {
         var plan = review.plan();
         var run = reviews.run(plan.id());
+        boolean editable = !reviews.frozen(plan.id()) && (run == null || run.phase() != DirectoryTransferRun.Phase.ABANDONED);
+        String successor = reviews.successor(plan.id());
+        boolean canAbandon = editable && run == null && successor == null
+                && (plan.operation() != DirectoryTransferPlan.Operation.PENDING || !reviews.hasPredecessor(plan.id()));
         return new Summary(plan.id(), plan.operation(), plan.sourceReference(), plan.destinationPath(), plan.createdAt(),
                 review.revision(), plan.items().size(),
                 plan.items().stream().filter(DirectoryTransferPlan.Item::requiresDecision).count(),
-                review.fullyReviewed(), !reviews.frozen(plan.id()) && (run == null || run.phase() != DirectoryTransferRun.Phase.ABANDONED),
-                run, reviews.successor(plan.id()));
+                review.fullyReviewed(), editable, run, successor, canAbandon);
     }
 
     private static void checkPage(int page, int size) {
@@ -97,12 +100,9 @@ public class DirectoryTransferQueryService {
     public record Page<T>(int page, int size, long total, List<T> items) {}
     public record Summary(String id, DirectoryTransferPlan.Operation operation, String sourceReference,
             String destinationPath, Instant createdAt, long revision, int itemCount, long conflictCount,
-            boolean fullyReviewed, boolean editable, DirectoryTransferRun run, String successorId) {
+            boolean fullyReviewed, boolean editable, DirectoryTransferRun run, String successorId, boolean canAbandon) {
         @com.fasterxml.jackson.annotation.JsonProperty public String title() { return DirectoryTransferPresentation.title(operation); }
         @com.fasterxml.jackson.annotation.JsonProperty public String statusLabel() { return DirectoryTransferPresentation.status(operation, run, editable); }
-        @com.fasterxml.jackson.annotation.JsonProperty public boolean canAbandon() {
-            return operation != DirectoryTransferPlan.Operation.PENDING && editable && run == null && successorId == null;
-        }
     }
     public enum EntryStage { PUBLICATION_PENDING, FINALIZATION_PENDING, NEEDS_REVIEW, COMPLETE, RETAINED }
     public record Entry(String id, String relativePath, String plannedTargetPath, DirectoryTransferPlan.Kind sourceKind, long sourceSize,

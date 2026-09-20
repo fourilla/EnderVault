@@ -74,7 +74,8 @@ class PendingFileDecisionServiceTest {
         var decision = service.create(staged, PendingFileDecisionSource.DIRECTORY_UPLOAD, "", "photos", 4);
         var reviews = new io.github.fourilla.endervault.directorytransfer.DirectoryTransferReviewStore(objectMapper, properties);
         var preparation = new io.github.fourilla.endervault.directorytransfer.DirectoryTransferPendingPreparationService(service,
-                new io.github.fourilla.endervault.directorytransfer.DirectoryTransferPlanner(storageService, properties), reviews);
+                new io.github.fourilla.endervault.directorytransfer.DirectoryTransferPlanner(storageService, properties), reviews,
+                org.mockito.Mockito.mock(io.github.fourilla.endervault.directorytransfer.DirectoryTransferPendingExecutionService.class));
         var review = preparation.prepare(decision.id(), null);
         assertThat(service.requireDirectoryMergeOwner(decision.id(), review.plan().id())).isEqualTo(decision);
         assertThat(reviews.require(review.plan().id())).isEqualTo(review);
@@ -89,7 +90,8 @@ class PendingFileDecisionServiceTest {
         var decision = service.create(staged, PendingFileDecisionSource.DIRECTORY_UPLOAD, "", "photos", 0);
         var reviews = org.mockito.Mockito.spy(new io.github.fourilla.endervault.directorytransfer.DirectoryTransferReviewStore(objectMapper, properties));
         var preparation = new io.github.fourilla.endervault.directorytransfer.DirectoryTransferPendingPreparationService(service,
-                new io.github.fourilla.endervault.directorytransfer.DirectoryTransferPlanner(storageService, properties), reviews);
+                new io.github.fourilla.endervault.directorytransfer.DirectoryTransferPlanner(storageService, properties), reviews,
+                org.mockito.Mockito.mock(io.github.fourilla.endervault.directorytransfer.DirectoryTransferPendingExecutionService.class));
         var cancel = new io.github.fourilla.endervault.storage.StorageProgressListener() {
             @Override public void checkCanceled() { throw new io.github.fourilla.endervault.task.TaskCanceledException(); }
         };

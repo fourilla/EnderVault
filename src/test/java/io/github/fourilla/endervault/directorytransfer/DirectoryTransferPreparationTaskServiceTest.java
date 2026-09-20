@@ -15,13 +15,14 @@ class DirectoryTransferPreparationTaskServiceTest {
     DirectoryTransferPlanner planner = mock(DirectoryTransferPlanner.class);
     DirectoryTransferReviewStore reviews = mock(DirectoryTransferReviewStore.class);
     DirectoryTransferPendingPreparationService pending = mock(DirectoryTransferPendingPreparationService.class);
+    DirectoryTransferPendingExecutionService execution = mock(DirectoryTransferPendingExecutionService.class);
     List<TaskWork> work = new ArrayList<>();
     DirectoryTransferPreparationTaskService service;
     DirectoryTransferPlan plan = mock(DirectoryTransferPlan.class);
     DirectoryTransferReview review = mock(DirectoryTransferReview.class);
 
     @BeforeEach void setup() {
-        service = new DirectoryTransferPreparationTaskService(tasks, planner, reviews, pending);
+        service = new DirectoryTransferPreparationTaskService(tasks, planner, reviews, pending, execution);
         when(tasks.submit(any(), anyString(), nullable(String.class), anyString(), anyString(), any())).thenAnswer(call -> {
             work.add(call.getArgument(5));
             return mock(AppTask.class);
@@ -54,11 +55,23 @@ class DirectoryTransferPreparationTaskServiceTest {
     }
 
     @Test void pendingUsesExistingOwnerAwarePreparation() throws Exception {
+        when(plan.operation()).thenReturn(DirectoryTransferPlan.Operation.PENDING);
         when(pending.prepare(eq("pending-id"), any())).thenReturn(review);
         service.pending("pending-id", "admin", "ip");
         work.getFirst().run(mock(TaskContext.class));
         verify(pending).prepare(eq("pending-id"), any());
         verifyNoInteractions(planner, reviews);
+        verify(execution).executeUncontested(eq("review-id"), eq(0L), any());
+    }
+
+    @Test void conflictFreeUploadCompletesWithinThePreparationTask() throws Exception {
+        when(plan.operation()).thenReturn(DirectoryTransferPlan.Operation.PENDING);
+        when(pending.prepare(eq("pending-id"), any())).thenReturn(review);
+        var result = mock(DirectoryTransferRun.class);
+        when(result.phase()).thenReturn(DirectoryTransferRun.Phase.COMPLETE);
+        when(execution.executeUncontested(eq("review-id"), eq(0L), any())).thenReturn(result);
+        service.pending("pending-id", "admin", "ip");
+        assertEquals(TaskStatus.COMPLETE, work.getFirst().run(mock(TaskContext.class)).status());
     }
 
     @Test void cancellationBeforeScanningDoesNotClaimPending() {

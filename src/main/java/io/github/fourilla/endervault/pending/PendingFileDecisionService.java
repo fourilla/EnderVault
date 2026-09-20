@@ -372,6 +372,14 @@ public class PendingFileDecisionService {
         repository.releaseMerge(id, mergeId);
     }
 
+    /** Internal recovery operation after a durable, unstarted merge abandonment. Keeps the upload pending. */
+    public synchronized void releaseAbandonedDirectoryMergeClaim(String id, String mergeId) throws IOException {
+        var claim = repository.mergeClaim(id);
+        if (claim == null || !claim.mergeId().equals(mergeId)) return;
+        requireDirectoryMergeOwner(id, mergeId);
+        repository.releaseMerge(id, mergeId);
+    }
+
     private void requireNoMergeClaim(String id) throws IOException {
         if (repository.mergeClaim(id) != null) throw new StorageAccessException("Pending directory is owned by a merge; resolve that merge first.");
     }

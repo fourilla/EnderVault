@@ -40,7 +40,7 @@ class DirectoryTransferNotificationProviderTest {
 
     private DirectoryTransferQueryService.Summary summary(String id, DirectoryTransferPlan.Operation operation, DirectoryTransferRun.Phase phase) {
         return new DirectoryTransferQueryService.Summary(id(id), operation, id, "target/photos", Instant.now(), 0, 2, 1,
-                false, phase == null, phase == null ? null : new DirectoryTransferRun(id(id), 0, phase, false), null);
+                false, phase == null, phase == null ? null : new DirectoryTransferRun(id(id), 0, phase, false), null, phase == null);
     }
 
     private String id(String name) { return java.util.UUID.nameUUIDFromBytes(name.getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString(); }

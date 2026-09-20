@@ -192,9 +192,9 @@ public class DirectoryTransferMetadataInspector implements MetadataInspector {
             boolean complete = run != null && run.phase() == DirectoryTransferRun.Phase.COMPLETE;
             var resultIds = inspectItems(root, id, "results", items, frozen != null, complete, issues, context);
             var completionIds = inspectItems(root, id, "completion", items, frozen != null, complete, issues, context);
-            if (abandoned && (frozen != null || run.paused() || review.plan().operation() == DirectoryTransferPlan.Operation.PENDING
+            if (abandoned && (frozen != null || run.paused()
                     || !resultIds.isEmpty() || !completionIds.isEmpty())) {
-                issue(issues, id, "Abandoned unstarted transfer contains execution records or an upload owner");
+                issue(issues, id, "Abandoned unstarted transfer contains execution records");
             }
             if (run != null && run.phase() == DirectoryTransferRun.Phase.COMPLETE
                     && (!resultIds.containsAll(items.keySet()) || !completionIds.containsAll(items.keySet()))) {

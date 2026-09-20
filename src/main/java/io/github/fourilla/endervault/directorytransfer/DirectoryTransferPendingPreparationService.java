@@ -11,12 +11,15 @@ public class DirectoryTransferPendingPreparationService {
     private final PendingFileDecisionService pending;
     private final DirectoryTransferPlanner planner;
     private final DirectoryTransferReviewStore reviews;
+    private final DirectoryTransferPendingExecutionService execution;
 
     public DirectoryTransferPendingPreparationService(PendingFileDecisionService pending,
-            DirectoryTransferPlanner planner, DirectoryTransferReviewStore reviews) {
+            DirectoryTransferPlanner planner, DirectoryTransferReviewStore reviews,
+            DirectoryTransferPendingExecutionService execution) {
         this.pending = pending;
         this.planner = planner;
         this.reviews = reviews;
+        this.execution = execution;
     }
 
     public synchronized DirectoryTransferReview prepare(String pendingId, StorageProgressListener listener) throws IOException {
@@ -27,7 +30,9 @@ public class DirectoryTransferPendingPreparationService {
                     || !review.plan().sourceReference().equals(pendingId)) {
                 throw new io.github.fourilla.endervault.common.StorageAccessException("Pending merge plan does not match its owner.");
             }
-            return review;
+            var run = reviews.run(review.plan().id());
+            if (run == null || run.phase() != DirectoryTransferRun.Phase.ABANDONED) return review;
+            execution.abandonUnstarted(review.plan().id(), review.revision());
         }
         String mergeId = UUID.randomUUID().toString();
         var decision = pending.claimDirectoryMerge(pendingId, mergeId);

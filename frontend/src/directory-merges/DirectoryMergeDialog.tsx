@@ -65,7 +65,9 @@ export function DirectoryMergeDialog({ id, close, changed }: { id: string; close
     try {
       const confirmed = await window.EnderVault?.askConfirmation({
         nested: true, title: 'Abandon directory transfer?', danger: true,
-        message: 'This transfer has not started. Source and destination files will not be changed. This review cannot be resumed.',
+        message: review.operation === 'PENDING'
+          ? 'This merge has not started. Uploaded files will stay in Pending decisions, where you can save or discard them. Destination files will not be changed.'
+          : 'This transfer has not started. Source and destination files will not be changed. This review cannot be resumed.',
         confirmLabel: 'Abandon transfer',
       });
       if (!confirmed) return;

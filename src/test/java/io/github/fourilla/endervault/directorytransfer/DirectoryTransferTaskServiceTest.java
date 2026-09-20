@@ -71,6 +71,16 @@ class DirectoryTransferTaskServiceTest {
         verifyNoInteractions(pending);
     }
 
+    @Test void uploadAbandonmentUsesOwnerAwareServiceAndRejectsQueuedWork() throws Exception {
+        when(plan.operation()).thenReturn(DirectoryTransferPlan.Operation.PENDING);
+        service.abandonUnstarted(id, 2);
+        verify(pending).abandonUnstarted(id, 2);
+        verify(reviews, never()).abandonUnstarted(anyString(), anyLong());
+        service.execute(id, 2, "admin", "ip");
+        assertThrows(StorageAccessException.class, () -> service.abandonUnstarted(id, 2));
+        verify(pending, times(1)).abandonUnstarted(id, 2);
+    }
+
     @Test void pendingExecutionKeepsChangedItemsInPendingState() throws Exception {
         when(plan.operation()).thenReturn(DirectoryTransferPlan.Operation.PENDING);
         when(reviews.run(id)).thenReturn(run(DirectoryTransferRun.Phase.NEEDS_REVIEW));

@@ -21,7 +21,9 @@ export function PrepareDirectoryMergeButton({ pendingId, disabled, mergeId }: {
         if (task?.active) { timer = setTimeout(() => void poll(), 1000); return; }
         setTaskId(''); setBusy(false);
         window.dispatchEvent(new CustomEvent('endervault:notifications-changed'));
-        if (task?.resultReference && task.status === 'PENDING') {
+        if (task?.status === 'COMPLETE') {
+          // A conflict-free upload merge completes in the preparation task.
+        } else if (task?.resultReference && task.status === 'PENDING') {
           // The refreshed row offers Review merge; preparation never opens a dialog.
         } else {
           toastError(new Error(task?.message || 'Merge review is unavailable. Check pending decisions.'), 'Review failed.');

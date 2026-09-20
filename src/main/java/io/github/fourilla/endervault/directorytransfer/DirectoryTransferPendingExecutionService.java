@@ -24,6 +24,15 @@ public class DirectoryTransferPendingExecutionService {
         this.finalizer = finalizer;
     }
 
+    /** Initial conflict-free merges need no second approval; never resume an existing execution implicitly. */
+    synchronized DirectoryTransferRun executeUncontested(String id, long revision, StorageProgressListener listener) throws IOException {
+        var review = reviews.require(id);
+        if (reviews.run(id) != null || reviews.frozen(id) || reviews.hasPredecessor(id)
+                || review.plan().items().stream().anyMatch(DirectoryTransferPlan.Item::requiresDecision)) return null;
+        execute(id, revision, listener);
+        return reviews.run(id);
+    }
+
     public synchronized Map<String, DirectoryTransferCompletion> execute(String id, long revision,
             StorageProgressListener listener) throws IOException {
         var review = reviews.require(id);
@@ -83,6 +92,20 @@ public class DirectoryTransferPendingExecutionService {
             canceled.initCause(ex);
             throw canceled;
         }
+    }
+
+    /** Durable abandonment precedes releasing the staging owner; retries never release a newer owner. */
+    public synchronized void abandonUnstarted(String id, long revision) throws IOException {
+        var review = reviews.require(id);
+        if (review.plan().operation() != DirectoryTransferPlan.Operation.PENDING) {
+            throw new io.github.fourilla.endervault.common.StorageAccessException("A pending merge is required.");
+        }
+        var run = reviews.run(id);
+        if (run == null || run.phase() != DirectoryTransferRun.Phase.ABANDONED) {
+            pending.requireDirectoryMergeOwner(review.plan().sourceReference(), id);
+        }
+        reviews.abandonUnstarted(id, revision);
+        pending.releaseAbandonedDirectoryMergeClaim(review.plan().sourceReference(), id);
     }
 
     synchronized DirectoryTransferRun recover(String id) throws IOException {

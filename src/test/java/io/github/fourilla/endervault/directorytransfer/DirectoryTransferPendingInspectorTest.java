@@ -78,6 +78,15 @@ class DirectoryTransferPendingInspectorTest {
         assertThat(claimPath).exists();
     }
 
+    @Test void abandonedInitialReviewNeedsNoOwnerButInterruptedReleaseIsReported() throws Exception {
+        store.abandonUnstarted(review.plan().id(), review.revision());
+        assertThat(inspector.inspect(null)).anyMatch(i -> i.title().contains("still has an owner claim"));
+        Files.delete(claimPath);
+        assertThat(inspector.inspect(null)).isEmpty();
+        claim(UUID.randomUUID().toString());
+        assertThat(inspector.inspect(null)).noneMatch(i -> i.title().contains("no matching owner"));
+    }
+
     @Test void pendingMustNotDisappearBeforeCompletionOrRemainAfterComplete() throws Exception {
         run(DirectoryTransferRun.Phase.PUBLISHING);
         repository.remove(decision.id());

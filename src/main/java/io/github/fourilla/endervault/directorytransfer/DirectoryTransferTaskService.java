@@ -48,7 +48,11 @@ public class DirectoryTransferTaskService {
     public synchronized void abandonUnstarted(String id, long revision) throws IOException {
         submissions.values().removeIf(Submission::finished);
         if (submissions.containsKey(id)) throw new StorageAccessException("A task is still processing this transfer.");
-        reviews.abandonUnstarted(id, revision);
+        if (reviews.require(id).plan().operation() == DirectoryTransferPlan.Operation.PENDING) {
+            pending.abandonUnstarted(id, revision);
+        } else {
+            reviews.abandonUnstarted(id, revision);
+        }
     }
 
     private AppTask submit(String id, long revision, boolean replan, String actor, String ip) throws IOException {

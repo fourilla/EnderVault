@@ -35,7 +35,7 @@ public class DirectoryTransferPendingInspector {
 
     public List<MetadataIssue> inspect(TaskContext context) throws IOException {
         check(context);
-        // These services do not call each other. Wait for their multi-record transitions before
+        // Preparation may call execution. Keep that lock order while waiting for transitions before
         // taking repository/store locks; never acquire these monitors while holding a store lock.
         synchronized (preparation) {
             synchronized (replanning) {
@@ -123,6 +123,13 @@ public class DirectoryTransferPendingInspector {
                 try {
                     var review = read(path, DirectoryTransferReview.class);
                     if (review.plan().operation() != DirectoryTransferPlan.Operation.PENDING) continue;
+                    var run = optional(store.inspectionRoot().resolve("runs").resolve(review.plan().id() + ".json"), DirectoryTransferRun.class);
+                    if (run != null && run.phase() == DirectoryTransferRun.Phase.ABANDONED) {
+                        if (store.hasPredecessor(review.plan().id())) {
+                            issue(issues, review.plan().id(), "Replanned upload was abandoned without residual ownership handling");
+                        }
+                        continue;
+                    }
                     var claim = claims.get(review.plan().sourceReference());
                     if (claim == null || !connected(review.plan().id(), claim.mergeId(), context)
                             && !connected(claim.mergeId(), review.plan().id(), context)) {
@@ -157,6 +164,9 @@ public class DirectoryTransferPendingInspector {
         }
         if (current != null && run != null && run.phase() == DirectoryTransferRun.Phase.COMPLETE) {
             issue(issues, decision.id(), "Completed pending merge still has a live pending record");
+        }
+        if (run != null && run.phase() == DirectoryTransferRun.Phase.ABANDONED) {
+            issue(issues, decision.id(), "Abandoned upload merge still has an owner claim; retry ownership recovery");
         }
         // An old claim with a durable successor is an interrupted, retryable handoff, not an orphan.
         connected(claim.mergeId(), null, context);

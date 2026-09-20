@@ -14,13 +14,16 @@ public class DirectoryTransferPreparationTaskService {
     private final DirectoryTransferPlanner planner;
     private final DirectoryTransferReviewStore reviews;
     private final DirectoryTransferPendingPreparationService pending;
+    private final DirectoryTransferPendingExecutionService execution;
 
     public DirectoryTransferPreparationTaskService(TaskManagerService tasks, DirectoryTransferPlanner planner,
-            DirectoryTransferReviewStore reviews, DirectoryTransferPendingPreparationService pending) {
+            DirectoryTransferReviewStore reviews, DirectoryTransferPendingPreparationService pending,
+            DirectoryTransferPendingExecutionService execution) {
         this.tasks = tasks;
         this.planner = planner;
         this.reviews = reviews;
         this.pending = pending;
+        this.execution = execution;
     }
 
     public AppTask transfer(DirectoryTransferPlan.Operation operation, String source, String destination,
@@ -48,6 +51,13 @@ public class DirectoryTransferPreparationTaskService {
             context.resultReference(review.plan().id());
             context.directoryTransferReview(review.plan().id());
             context.targetPath(review.plan().destinationPath());
+            if (review.plan().operation() == DirectoryTransferPlan.Operation.PENDING) {
+                context.message("Checking whether the uploaded directory can be merged without further decisions.");
+                var result = execution.executeUncontested(review.plan().id(), review.revision(), listener);
+                if (result != null && result.phase() == DirectoryTransferRun.Phase.COMPLETE) {
+                    return TaskOutcome.complete("Uploaded directory merge complete.");
+                }
+            }
             return TaskOutcome.pending("Directory merge review is ready. Review before continuing.");
         });
     }
