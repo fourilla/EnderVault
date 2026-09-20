@@ -14,6 +14,7 @@ export interface MergeSummary {
   conflictCount: number;
   fullyReviewed: boolean;
   editable: boolean;
+  canAbandon: boolean;
   successorId: string | null;
   run: { phase: string; paused: boolean } | null;
 }
@@ -70,4 +71,10 @@ export async function runMerge(review: MergeSummary, replan: boolean) {
   });
   window.dispatchEvent(new CustomEvent('endervault:notifications-changed'));
   return task;
+}
+
+export async function abandonMerge(review: MergeSummary) {
+  const result = await postForm(`${mergeBase}/${encodeURIComponent(review.id)}/abandon`, { revision: review.revision });
+  window.dispatchEvent(new CustomEvent('endervault:notifications-changed'));
+  return result;
 }

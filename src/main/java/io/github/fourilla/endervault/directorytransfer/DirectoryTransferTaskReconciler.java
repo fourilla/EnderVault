@@ -29,12 +29,15 @@ public class DirectoryTransferTaskReconciler {
             if (dependencies.isEmpty()) continue;
             try {
                 boolean complete = true;
+                boolean abandoned = false;
                 synchronized (reviews) {
                     for (String id : dependencies) {
-                        if (!completedSuccessor(id)) { complete = false; break; }
+                        var phase = resolvedSuccessor(id);
+                        if (phase == DirectoryTransferRun.Phase.ABANDONED) abandoned = true;
+                        else if (phase != DirectoryTransferRun.Phase.COMPLETE) { complete = false; break; }
                     }
                 }
-                if (complete) tasks.completeDirectoryTransferReviews(task.id(), dependencies);
+                if (complete) tasks.settleDirectoryTransferReviews(task.id(), dependencies, abandoned);
             } catch (IOException | RuntimeException ex) {
                 // Inconclusive records must not turn a pending operation into a success.
                 log.debug("Could not reconcile directory merge task {}: {}", task.id(), ex.getClass().getSimpleName());
@@ -42,15 +45,15 @@ public class DirectoryTransferTaskReconciler {
         }
     }
 
-    private boolean completedSuccessor(String id) throws IOException {
+    private DirectoryTransferRun.Phase resolvedSuccessor(String id) throws IOException {
         var visited = new HashSet<String>();
         while (visited.size() < 256 && visited.add(id)) {
             reviews.require(id);
             String next = reviews.successor(id);
             if (next != null) { id = next; continue; }
             var run = reviews.run(id);
-            return run != null && run.phase() == DirectoryTransferRun.Phase.COMPLETE;
+            return run == null ? null : run.phase();
         }
-        return false;
+        return null;
     }
 }

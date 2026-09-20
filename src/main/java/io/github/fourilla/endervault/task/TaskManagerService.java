@@ -148,6 +148,11 @@ public class TaskManagerService {
         if (task != null) task.completeDirectoryTransferReviews(expectedReviews);
     }
 
+    public void settleDirectoryTransferReviews(String taskId, Set<String> expectedReviews, boolean abandoned) {
+        AppTask task = tasks.get(taskId);
+        if (task != null) task.settleDirectoryTransferReviews(expectedReviews, abandoned);
+    }
+
     private void run(AppTask task, TaskWork work) {
         try {
             synchronized (task) {

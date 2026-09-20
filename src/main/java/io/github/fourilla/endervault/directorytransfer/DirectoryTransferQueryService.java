@@ -17,7 +17,8 @@ public class DirectoryTransferQueryService {
             var result = new java.util.ArrayList<Summary>();
             for (String id : reviews.reviewIds()) {
                 var run = reviews.run(id);
-                if (run != null && run.phase() == DirectoryTransferRun.Phase.COMPLETE || reviews.successor(id) != null) continue;
+                if (run != null && (run.phase() == DirectoryTransferRun.Phase.COMPLETE
+                        || run.phase() == DirectoryTransferRun.Phase.ABANDONED) || reviews.successor(id) != null) continue;
                 result.add(summary(reviews.require(id)));
             }
             return List.copyOf(result);
@@ -85,7 +86,8 @@ public class DirectoryTransferQueryService {
         return new Summary(plan.id(), plan.operation(), plan.sourceReference(), plan.destinationPath(), plan.createdAt(),
                 review.revision(), plan.items().size(),
                 plan.items().stream().filter(DirectoryTransferPlan.Item::requiresDecision).count(),
-                review.fullyReviewed(), !reviews.frozen(plan.id()), run, reviews.successor(plan.id()));
+                review.fullyReviewed(), !reviews.frozen(plan.id()) && (run == null || run.phase() != DirectoryTransferRun.Phase.ABANDONED),
+                run, reviews.successor(plan.id()));
     }
 
     private static void checkPage(int page, int size) {
@@ -98,6 +100,9 @@ public class DirectoryTransferQueryService {
             boolean fullyReviewed, boolean editable, DirectoryTransferRun run, String successorId) {
         @com.fasterxml.jackson.annotation.JsonProperty public String title() { return DirectoryTransferPresentation.title(operation); }
         @com.fasterxml.jackson.annotation.JsonProperty public String statusLabel() { return DirectoryTransferPresentation.status(operation, run, editable); }
+        @com.fasterxml.jackson.annotation.JsonProperty public boolean canAbandon() {
+            return operation != DirectoryTransferPlan.Operation.PENDING && editable && run == null && successorId == null;
+        }
     }
     public enum EntryStage { PUBLICATION_PENDING, FINALIZATION_PENDING, NEEDS_REVIEW, COMPLETE, RETAINED }
     public record Entry(String id, String relativePath, String plannedTargetPath, DirectoryTransferPlan.Kind sourceKind, long sourceSize,

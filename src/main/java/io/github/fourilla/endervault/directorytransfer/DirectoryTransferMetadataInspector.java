@@ -183,7 +183,8 @@ public class DirectoryTransferMetadataInspector implements MetadataInspector {
             if (frozen != null && (!frozen.equals(review) || !frozen.fullyReviewed())) {
                 issue(issues, id, "Execution approval does not match the saved review");
             }
-            if (run != null && (!id.equals(run.id()) || run.revision() != review.revision() || frozen == null)) {
+            boolean abandoned = run != null && run.phase() == DirectoryTransferRun.Phase.ABANDONED;
+            if (run != null && (!id.equals(run.id()) || run.revision() != review.revision() || !abandoned && frozen == null)) {
                 issue(issues, id, "Merge run has no matching execution approval");
             }
             Map<String, DirectoryTransferPlan.Item> items = review.plan().items().stream()
@@ -191,6 +192,10 @@ public class DirectoryTransferMetadataInspector implements MetadataInspector {
             boolean complete = run != null && run.phase() == DirectoryTransferRun.Phase.COMPLETE;
             var resultIds = inspectItems(root, id, "results", items, frozen != null, complete, issues, context);
             var completionIds = inspectItems(root, id, "completion", items, frozen != null, complete, issues, context);
+            if (abandoned && (frozen != null || run.paused() || review.plan().operation() == DirectoryTransferPlan.Operation.PENDING
+                    || !resultIds.isEmpty() || !completionIds.isEmpty())) {
+                issue(issues, id, "Abandoned unstarted transfer contains execution records or an upload owner");
+            }
             if (run != null && run.phase() == DirectoryTransferRun.Phase.COMPLETE
                     && (!resultIds.containsAll(items.keySet()) || !completionIds.containsAll(items.keySet()))) {
                 issue(issues, id, "Completed merge is missing per-item outcome records");

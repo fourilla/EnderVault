@@ -59,6 +59,7 @@ public class DirectoryTransferReviewStore {
     public synchronized DirectoryTransferReview choose(String id, long expectedRevision,
             Map<String, DirectoryTransferReview.Choice> updates) throws IOException {
         DirectoryTransferReview current = require(id);
+        rejectAbandoned(id);
         if (Files.exists(executionPath(id), LinkOption.NOFOLLOW_LINKS)) {
             throw new StorageAccessException("Directory merge execution has started. Create a new review for changed items.");
         }
@@ -100,6 +101,7 @@ public class DirectoryTransferReviewStore {
     /** An execution keeps the same approval even after a process restart. */
     public synchronized DirectoryTransferReview freeze(String id, long expectedRevision) throws IOException {
         DirectoryTransferReview review = require(id);
+        rejectAbandoned(id);
         if (review.revision() != expectedRevision || !review.fullyReviewed()) {
             throw new StorageAccessException("Directory merge review is incomplete or changed. Reload the review.");
         }
@@ -113,6 +115,32 @@ public class DirectoryTransferReviewStore {
         writer.write(execution, review);
         writer.forceDirectory(root);
         return review;
+    }
+
+    /** A durable terminal record, not deletion: stale clients cannot resurrect this review. */
+    synchronized void abandonUnstarted(String id, long revision) throws IOException {
+        var review = require(id);
+        if (review.revision() != revision || review.plan().operation() == DirectoryTransferPlan.Operation.PENDING) {
+            throw new StorageAccessException("Only an unchanged copy/move review can be abandoned here.");
+        }
+        var run = run(id);
+        if (run != null && run.phase() == DirectoryTransferRun.Phase.ABANDONED) return;
+        if (run != null || frozen(id) || successor(id) != null) {
+            throw new StorageAccessException("This transfer has already started. Its remaining work cannot be abandoned here.");
+        }
+        if (!results(review).isEmpty()) throw new StorageAccessException("Transfer result records require inspection before abandonment.");
+        for (var item : review.plan().items()) {
+            if (completion(id, item.id()) != null) throw new StorageAccessException("Transfer completion records require inspection before abandonment.");
+        }
+        writer.write(runPath(id), new DirectoryTransferRun(id, revision, DirectoryTransferRun.Phase.ABANDONED, false));
+        writer.forceDirectory(root);
+    }
+
+    private void rejectAbandoned(String id) throws IOException {
+        var run = run(id);
+        if (run != null && run.phase() == DirectoryTransferRun.Phase.ABANDONED) {
+            throw new StorageAccessException("This directory transfer was abandoned.");
+        }
     }
 
     private Path executionPath(String id) throws IOException {

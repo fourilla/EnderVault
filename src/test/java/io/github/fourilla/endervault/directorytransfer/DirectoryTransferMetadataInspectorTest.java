@@ -62,6 +62,14 @@ class DirectoryTransferMetadataInspectorTest {
         assertThat(inspector.inspect()).isEmpty();
     }
 
+    @Test void abandonedUnstartedReviewIsNotOrphanedButExecutionRecordsAreRejected() throws Exception {
+        String id = review.plan().id();
+        store.abandonUnstarted(id, 0);
+        assertThat(inspector.inspect()).isEmpty();
+        write("executions/" + id + ".json", review);
+        assertThat(inspector.inspect()).anyMatch(issue -> issue.title().contains("Abandoned unstarted"));
+    }
+
     @Test void completeRequiresAllItemRecordsButHealthyCompletionIsNotAnIssue() throws Exception {
         String id = review.plan().id();
         var item = review.plan().items().getFirst();

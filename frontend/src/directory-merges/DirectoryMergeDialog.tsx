@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { AppDialog } from '../shared/dialogs/AppDialog';
 import { BrowserPagination } from '../shared/browser/BrowserPagination';
 import { toastError } from '../shared/api/form-api';
-import { mergeChoices, mergeGet, runMerge, saveMergeChoices, saveAllMergeChoices, type MergeDetail, type MergeChoice } from './merge-api';
+import { abandonMerge, mergeChoices, mergeGet, runMerge, saveMergeChoices, saveAllMergeChoices, type MergeDetail, type MergeChoice } from './merge-api';
 import './directory-merges.css';
 
 const labels: Record<MergeChoice, string> = {
@@ -35,7 +35,7 @@ export function DirectoryMergeDialog({ id, close, changed }: { id: string; close
       });
     return () => controller.abort();
   }, [id, page, revision]);
-  const finished = data?.review.run?.phase === 'COMPLETE';
+  const finished = data?.review.run?.phase === 'COMPLETE' || data?.review.run?.phase === 'ABANDONED';
   useEffect(() => {
     if (finished || missing) { close(); changed(); }
   }, [finished, missing, close, changed]);
@@ -59,6 +59,21 @@ export function DirectoryMergeDialog({ id, close, changed }: { id: string; close
     finally { setBusy(false); }
   };
   const review = data?.review;
+  const abandon = async () => {
+    if (!review?.canAbandon || busy) return;
+    setBusy(true);
+    try {
+      const confirmed = await window.EnderVault?.askConfirmation({
+        nested: true, title: 'Abandon directory transfer?', danger: true,
+        message: 'This transfer has not started. Source and destination files will not be changed. This review cannot be resumed.',
+        confirmLabel: 'Abandon transfer',
+      });
+      if (!confirmed) return;
+      await abandonMerge(review);
+      changed(); close();
+    } catch (reason) { toastError(reason, 'Transfer could not be abandoned.'); refresh((value) => value + 1); }
+    finally { setBusy(false); }
+  };
   const needsReview = review?.run?.phase === 'NEEDS_REVIEW';
   const action = review?.operation === 'COPY' ? 'copy' : review?.operation === 'MOVE' ? 'move' : 'merge';
   const bulkChoices = data?.entries.total ? mergeChoices(data.review.operation, 'FILE_CONFLICT') : [];
@@ -114,6 +129,8 @@ export function DirectoryMergeDialog({ id, close, changed }: { id: string; close
         <BrowserPagination page={{ number: page + 1, totalPages: Math.ceil(data.entries.total / data.entries.size) }}
           onPageChange={(value) => setPage(value - 1)} disabled={busy} ariaLabel={data.executionView ? 'Remaining work pages' : 'Merge conflict pages'} />
         <footer className="directory-merge-actions">
+          {review?.canAbandon && <button type="button" className="danger" disabled={busy}
+            onClick={() => void abandon()}>Abandon transfer</button>}
           <button type="button" className="ghost" onClick={close} disabled={busy}>Close</button>
           {needsReview ? <button type="button" disabled={busy} onClick={() => void start(true)}>Review changed items</button>
             : <span title={reviewHint}><button type="button" title={reviewHint} disabled={busy || !review?.fullyReviewed || review?.run?.phase === 'COMPLETE'}

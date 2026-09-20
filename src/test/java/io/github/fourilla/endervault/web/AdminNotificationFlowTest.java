@@ -2602,7 +2602,7 @@ class AdminNotificationFlowTest {
     @Test
     void directoryMergeApiMutationsRequireCsrfAndValidatePayloads() throws Exception {
         String prefix = "/api/v1/files/directory-merges";
-        for (String suffix : List.of("/transfers", "/pending/test", "/test/choices", "/test/execute", "/test/replan")) {
+        for (String suffix : List.of("/transfers", "/pending/test", "/test/choices", "/test/execute", "/test/replan", "/test/abandon")) {
             mockMvc.perform(post(prefix + suffix)).andExpect(status().isForbidden());
         }
         mockMvc.perform(post(prefix + "/transfers").with(csrf()).param("operation", "PENDING").param("source", "test"))
@@ -2769,6 +2769,35 @@ class AdminNotificationFlowTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("path", base, "names", java.util.Collections.nCopies(201, "name")))))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void unstartedDirectoryTransferCanBeAbandonedWithoutChangingFiles() throws Exception {
+        String base = "abandon-transfer-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(base + "/source/photos"));
+        Files.createDirectories(ROOT.resolve(base + "/target/photos"));
+        Files.writeString(ROOT.resolve(base + "/source/photos/a.txt"), "source");
+        Files.writeString(ROOT.resolve(base + "/target/photos/a.txt"), "target");
+        String api = "/api/v1/files/directory-merges";
+        var queued = mockMvc.perform(post(api + "/transfers").with(csrf())
+                        .param("operation", "MOVE").param("source", base + "/source/photos").param("destination", base + "/target"))
+                .andExpect(status().isAccepted()).andReturn();
+        var task = awaitMergeTask(objectMapper.readTree(queued.getResponse().getContentAsString()).path("id").asText());
+        String id = task.resultReference();
+        mockMvc.perform(get(api + "/" + id)).andExpect(jsonPath("$.review.canAbandon").value(true));
+        mockMvc.perform(post(api + "/" + id + "/abandon").with(csrf()).param("revision", "1"))
+                .andExpect(status().isConflict());
+        mockMvc.perform(post(api + "/" + id + "/abandon").with(csrf()).param("revision", "0"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get(api + "/" + id)).andExpect(jsonPath("$.review.run.phase").value("ABANDONED"))
+                .andExpect(jsonPath("$.review.canAbandon").value(false));
+        mockMvc.perform(get(api + "/unresolved")).andExpect(jsonPath("$[?(@.id == '" + id + "')]").isEmpty());
+        mockMvc.perform(post(api + "/" + id + "/execute").with(csrf()).param("revision", "0"))
+                .andExpect(status().isConflict());
+        mergeTaskReconciler.reconcile();
+        assertThat(task.status()).isEqualTo(io.github.fourilla.endervault.task.TaskStatus.CANCELED);
+        assertThat(Files.readString(ROOT.resolve(base + "/source/photos/a.txt"))).isEqualTo("source");
+        assertThat(Files.readString(ROOT.resolve(base + "/target/photos/a.txt"))).isEqualTo("target");
     }
 
     private io.github.fourilla.endervault.task.AppTask awaitMergeTask(String id) throws Exception {

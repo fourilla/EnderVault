@@ -52,6 +52,15 @@ class DirectoryTransferTaskServiceTest {
         verifyNoInteractions(transfers, pending);
     }
 
+    @Test void abandonmentRejectsQueuedTasksAndAbandonedReviewCannotQueueAgain() throws Exception {
+        service.execute(id, 2, "admin", "ip");
+        assertThrows(StorageAccessException.class, () -> service.abandonUnstarted(id, 2));
+        verify(reviews, never()).abandonUnstarted(anyString(), anyLong());
+        var fresh = new DirectoryTransferTaskService(tasks, reviews, transfers, pending, transferReplanning, pendingReplanning);
+        when(reviews.run(id)).thenReturn(run(DirectoryTransferRun.Phase.ABANDONED));
+        assertThrows(StorageAccessException.class, () -> fresh.execute(id, 2, "admin", "ip"));
+    }
+
     @Test void completedTransferUsesCommonTaskOutcomeWithoutDoubleCountingProgress() throws Exception {
         when(transfers.execute(eq(id), eq(2L), any())).thenReturn(run(DirectoryTransferRun.Phase.COMPLETE));
         service.execute(id, 2, "admin", "ip");

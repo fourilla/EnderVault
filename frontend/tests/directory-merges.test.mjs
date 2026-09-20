@@ -119,6 +119,37 @@ test('apply stays disabled until the server reports every page fully reviewed', 
   }
 });
 
+test('abandonment needs explicit nested confirmation and is unavailable for started transfers', async () => {
+  for (const [canAbandon, confirmed] of [[true, false], [true, true], [false, true]]) {
+    let abandoned = 0, closed = 0, changed = 0;
+    const data = { review: { operation: 'COPY', editable: canAbandon, canAbandon, fullyReviewed: false },
+      entries: { items: [], total: 0, size: 50 } };
+    const jsx = (type, props) => ({ type, props });
+    const react = { useEffect: () => {}, useState: (value) => [value === null ? data : value, () => {}],
+      createElement: (type, props, ...children) => jsx(type, { ...props, children }) };
+    const component = await load('../src/directory-merges/DirectoryMergeDialog.tsx', { React: react,
+      window: { EnderVault: { askConfirmation: async (options) => { assert.equal(options.nested, true); return confirmed; } } } }, {
+      react, 'react/jsx-runtime': { jsx, jsxs: jsx }, AppDialog: { AppDialog: 'dialog' },
+      'merge-api': { mergeChoices: () => [], abandonMerge: async () => { abandoned++; } },
+    });
+    const buttons = [];
+    const visit = (node) => {
+      if (Array.isArray(node)) return node.forEach(visit);
+      if (!node || typeof node !== 'object') return;
+      if (node.type === 'button') buttons.push(node);
+      visit(node.props?.children);
+    };
+    visit(component.DirectoryMergeDialog({ id: 'review', close: () => closed++, changed: () => changed++ }));
+    const button = buttons.find((item) => [item.props.children].flat().includes('Abandon transfer'));
+    assert.equal(Boolean(button), canAbandon);
+    button?.props.onClick();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(abandoned, canAbandon && confirmed ? 1 : 0);
+    assert.equal(closed, abandoned);
+    assert.equal(changed, abandoned);
+  }
+});
+
 test('preparing a pending merge refreshes the row without navigating or opening a dialog', async () => {
   const effects = [];
   let refreshed = 0;

@@ -21,6 +21,7 @@ public final class DirectoryTransferPresentation {
             case OWNER_COMPLETING -> name + " completing pending record";
             case NEEDS_REVIEW -> name + " needs review";
             case COMPLETE -> name + " completed";
+            case ABANDONED -> name + " abandoned";
         };
         return run.paused() ? name + " paused (" + switch (run.phase()) {
             case PUBLISHING -> "publication";

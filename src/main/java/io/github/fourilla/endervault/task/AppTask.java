@@ -58,9 +58,14 @@ public class AppTask {
     }
 
     synchronized void completeDirectoryTransferReviews(Set<String> expected) {
+        settleDirectoryTransferReviews(expected, false);
+    }
+
+    synchronized void settleDirectoryTransferReviews(Set<String> expected, boolean abandoned) {
         if (status != TaskStatus.PENDING || expected.isEmpty() || !directoryTransferReviews.equals(expected)) return;
         resultReference = null;
-        markComplete("All directory merge reviews completed (including approved skips or discards).");
+        if (abandoned) markCanceled("Directory transfer work was abandoned. Previously completed results were kept.");
+        else markComplete("All directory merge reviews completed (including approved skips or discards).");
     }
 
     public String shortId() {

@@ -97,6 +97,12 @@ public class DirectoryTransferApiController {
                 request.getUserPrincipal().getName(), clientIp.resolve(request))));
     }
 
+    @PostMapping("/{id}/abandon")
+    public Map<String, Boolean> abandon(@PathVariable String id, @RequestParam long revision) throws IOException {
+        tasks.abandonUnstarted(id, revision);
+        return Map.of("ok", true);
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ActionResponse> invalid(IllegalArgumentException ex) {
         return ResponseEntity.badRequest().body(ActionResponse.error(ex.getMessage()));

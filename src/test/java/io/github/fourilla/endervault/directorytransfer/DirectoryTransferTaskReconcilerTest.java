@@ -68,11 +68,25 @@ class DirectoryTransferTaskReconcilerTest {
         var run = mock(DirectoryTransferRun.class);
         when(reviews.run("a")).thenReturn(run);
         for (var phase : DirectoryTransferRun.Phase.values()) {
-            if (phase == DirectoryTransferRun.Phase.COMPLETE) continue;
+            if (phase == DirectoryTransferRun.Phase.COMPLETE || phase == DirectoryTransferRun.Phase.ABANDONED) continue;
             when(run.phase()).thenReturn(phase);
             reconciler.reconcile();
             assertEquals(TaskStatus.PENDING, task.status());
         }
+    }
+
+    @Test void abandonedReviewsSettleAsCanceledOnlyAfterAllOtherReviewsAreResolved() throws Exception {
+        var task = task(TaskStatus.PENDING, "a", "b");
+        var run = mock(DirectoryTransferRun.class);
+        when(run.phase()).thenReturn(DirectoryTransferRun.Phase.ABANDONED);
+        when(reviews.run("a")).thenReturn(run);
+        reconciler.reconcile();
+        assertEquals(TaskStatus.PENDING, task.status());
+        complete("b");
+        reconciler.reconcile();
+        assertEquals(TaskStatus.CANCELED, task.status());
+        assertNull(task.resultReference());
+        assertTrue(task.message().contains("Previously completed results were kept"));
     }
 
     @Test void failuresAndCancellationRemainHistoricalOutcomes() throws Exception {

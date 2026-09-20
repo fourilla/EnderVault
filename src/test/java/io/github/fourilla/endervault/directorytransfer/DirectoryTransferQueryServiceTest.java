@@ -115,6 +115,35 @@ class DirectoryTransferQueryServiceTest {
         assertThat(result.entries().items().getFirst().stage()).isNull();
     }
 
+    @Test void unstartedAbandonmentIsDurableAndRejectsStaleDecisionsAndExecution() throws Exception {
+        String id = review.plan().id();
+        assertThat(query.get(id, 0, 50, true).review().canAbandon()).isTrue();
+        assertThatThrownBy(() -> store.abandonUnstarted(id, 1)).isInstanceOf(io.github.fourilla.endervault.common.StorageAccessException.class);
+        store.abandonUnstarted(id, 0);
+        store.abandonUnstarted(id, 0);
+        assertThat(store.run(id).terminal()).isTrue();
+        assertThat(query.unresolved()).isEmpty();
+        assertThat(query.get(id, 0, 50, true).review().canAbandon()).isFalse();
+        assertThat(query.get(id, 0, 50, true).review().statusLabel()).isEqualTo("Copy abandoned");
+        assertThatThrownBy(() -> store.freeze(id, 0)).isInstanceOf(io.github.fourilla.endervault.common.StorageAccessException.class);
+        assertThatThrownBy(() -> store.chooseAll(id, 0, DirectoryTransferReview.Choice.SKIP))
+                .isInstanceOf(io.github.fourilla.endervault.common.StorageAccessException.class);
+        assertThat(Files.readString(root.resolve("source/photos/a.txt"))).isEqualTo("new");
+        assertThat(Files.readString(root.resolve("destination/photos/a.txt"))).isEqualTo("old");
+        var service = new DirectoryTransferService(store, org.mockito.Mockito.mock(DirectoryTransferExecution.class),
+                org.mockito.Mockito.mock(DirectoryTransferFinalizer.class));
+        assertThat(service.recover(id).phase()).isEqualTo(DirectoryTransferRun.Phase.ABANDONED);
+    }
+
+    @Test void frozenReviewCannotBeAbandonedEvenBeforeRunStarts() throws Exception {
+        String id = review.plan().id();
+        store.chooseAll(id, 0, DirectoryTransferReview.Choice.SKIP);
+        store.freeze(id, 1);
+        assertThatThrownBy(() -> store.abandonUnstarted(id, 1)).isInstanceOf(io.github.fourilla.endervault.common.StorageAccessException.class);
+        assertThat(query.get(id, 0, 50, true).review().canAbandon()).isFalse();
+        assertThat(store.run(id)).isNull();
+    }
+
     @Test void displayTargetUsesPublishedParentNameForUnpublishedChild() {
         var parent = review.plan().items().stream().filter(i -> i.relativePath().isEmpty()).findFirst().orElseThrow();
         var child = review.plan().items().stream().filter(i -> i.relativePath().equals("b.txt")).findFirst().orElseThrow();

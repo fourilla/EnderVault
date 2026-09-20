@@ -45,6 +45,12 @@ public class DirectoryTransferTaskService {
         return submit(id, revision, true, actor, ip);
     }
 
+    public synchronized void abandonUnstarted(String id, long revision) throws IOException {
+        submissions.values().removeIf(Submission::finished);
+        if (submissions.containsKey(id)) throw new StorageAccessException("A task is still processing this transfer.");
+        reviews.abandonUnstarted(id, revision);
+    }
+
     private AppTask submit(String id, long revision, boolean replan, String actor, String ip) throws IOException {
         submissions.values().removeIf(Submission::finished);
         Submission existing = submissions.get(id);
@@ -57,6 +63,9 @@ public class DirectoryTransferTaskService {
         var review = reviews.require(id);
         if (review.revision() != revision) throw new StorageAccessException("Directory merge decisions changed. Reload the review.");
         var run = reviews.run(id);
+        if (run != null && run.phase() == DirectoryTransferRun.Phase.ABANDONED) {
+            throw new StorageAccessException("This directory transfer was abandoned.");
+        }
         if (replan) {
             if (run == null || run.phase() != DirectoryTransferRun.Phase.NEEDS_REVIEW) {
                 throw new StorageAccessException("Only a directory merge requiring review can be replanned.");
