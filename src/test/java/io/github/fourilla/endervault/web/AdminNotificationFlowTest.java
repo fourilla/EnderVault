@@ -2745,6 +2745,32 @@ class AdminNotificationFlowTest {
         assertThat(Files.readString(ROOT.resolve(base + "/target/photos/old.txt"))).isEqualTo("old");
     }
 
+    @Test
+    void adminUploadPreflightReportsNamesWithoutChangingDestination() throws Exception {
+        String base = "upload-preflight-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(base + "/photos"));
+        Files.writeString(ROOT.resolve(base + "/note.txt"), "original");
+        var payload = Map.of("path", base, "names", List.of("photos", "note.txt", "new.txt", "photos"));
+        mockMvc.perform(post("/api/v1/files/upload-preflight").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(payload)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.conflicts", Matchers.contains("photos", "note.txt")))
+                .andExpect(jsonPath("$.id").doesNotExist());
+        assertThat(Files.readString(ROOT.resolve(base + "/note.txt"))).isEqualTo("original");
+        assertThat(ROOT.resolve(base + "/new.txt")).doesNotExist();
+        mockMvc.perform(post("/api/v1/files/upload-preflight")
+                        .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(payload)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/files/upload-preflight").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("path", base, "names", List.of("../escape")))))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/files/upload-preflight").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("path", base, "names", java.util.Collections.nCopies(201, "name")))))
+                .andExpect(status().isBadRequest());
+    }
+
     private io.github.fourilla.endervault.task.AppTask awaitMergeTask(String id) throws Exception {
         long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(15);
         var task = taskManagerService.listTasks(List.of(id)).getFirst();

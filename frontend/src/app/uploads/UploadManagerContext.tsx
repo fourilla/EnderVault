@@ -11,6 +11,8 @@ import {
 import { useAdminApp } from '../AdminAppContext';
 import { type DirectoryRoot, type UploadSelection, rootSignature, validateRoot } from './collect-uploads';
 import { DirectoryUpload } from './directory-upload';
+import { confirmAdminUpload } from './upload-preflight';
+import { toastError } from '../../shared/api/form-api';
 
 type UploadStatus =
   | 'queued'
@@ -395,10 +397,15 @@ export function UploadManagerProvider({ children }: PropsWithChildren) {
   }, [manager]);
 
   const startFiles = useCallback((files: File[], destinationPath: string) => {
-    manager.startFiles(files, destinationPath);
+    void confirmAdminUpload(files.map((file) => file.name), destinationPath)
+      .then((confirmed) => { if (confirmed) manager.startFiles(files, destinationPath); })
+      .catch((error: unknown) => toastError(error, 'Upload could not be started.'));
   }, [manager]);
   const startSelection = useCallback((selection: UploadSelection, destinationPath: string) => {
-    manager.startSelection(selection, destinationPath);
+    selection.roots.forEach(validateRoot);
+    void confirmAdminUpload([...selection.files.map((file) => file.name), ...selection.roots.map((root) => root.name)], destinationPath)
+      .then((confirmed) => { if (confirmed) manager.startSelection(selection, destinationPath); })
+      .catch((error: unknown) => toastError(error, 'Upload could not be started.'));
   }, [manager]);
   const value = useMemo(() => ({ activeCount, startFiles, startSelection }), [activeCount, startFiles, startSelection]);
   return <UploadManagerContext.Provider value={value}>{children}</UploadManagerContext.Provider>;
