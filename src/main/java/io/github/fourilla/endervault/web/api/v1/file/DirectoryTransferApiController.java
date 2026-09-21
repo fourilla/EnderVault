@@ -103,6 +103,13 @@ public class DirectoryTransferApiController {
         return Map.of("ok", true);
     }
 
+    @PostMapping("/{id}/abandon-remaining")
+    public ResponseEntity<TaskPayload> abandonRemaining(@PathVariable String id, @RequestParam long revision,
+            HttpServletRequest request) throws IOException {
+        return ResponseEntity.accepted().body(TaskPayload.from(tasks.abandonRemainingCopy(id, revision,
+                request.getUserPrincipal().getName(), clientIp.resolve(request))));
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ActionResponse> invalid(IllegalArgumentException ex) {
         return ResponseEntity.badRequest().body(ActionResponse.error(ex.getMessage()));

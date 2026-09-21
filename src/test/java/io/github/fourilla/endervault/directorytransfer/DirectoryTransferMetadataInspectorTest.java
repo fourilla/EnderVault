@@ -62,11 +62,13 @@ class DirectoryTransferMetadataInspectorTest {
         assertThat(inspector.inspect()).isEmpty();
     }
 
-    @Test void abandonedUnstartedReviewIsNotOrphanedButExecutionRecordsAreRejected() throws Exception {
+    @Test void abandonedReviewMayHaveCopyApprovalButCannotRemainPaused() throws Exception {
         String id = review.plan().id();
         store.abandonUnstarted(id, 0);
         assertThat(inspector.inspect()).isEmpty();
         write("executions/" + id + ".json", review);
+        assertThat(inspector.inspect()).isEmpty();
+        write("runs/" + id + ".json", new DirectoryTransferRun(id, 0, DirectoryTransferRun.Phase.ABANDONED, true));
         assertThat(inspector.inspect()).anyMatch(issue -> issue.title().contains("Abandoned unstarted"));
     }
 

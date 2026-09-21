@@ -25,8 +25,9 @@ public class DirectoryTransferService {
         if (review.plan().operation() == DirectoryTransferPlan.Operation.PENDING) {
             throw new StorageAccessException("Pending completion requires its upload owner.");
         }
-        reviews.freeze(id, revision);
         var run = reviews.run(id);
+        if (run != null && run.phase() == DirectoryTransferRun.Phase.ABANDONING) return abandonRemainingCopy(id, revision);
+        reviews.freeze(id, revision);
         if (run != null && run.revision() != revision) throw new StorageAccessException("Merge run approval changed.");
         if (run != null && run.terminal()) return run;
         run = update(run, id, revision, run == null ? DirectoryTransferRun.Phase.PUBLISHING : run.phase(), false);
@@ -50,6 +51,28 @@ public class DirectoryTransferService {
             canceled.initCause(ex);
             throw canceled;
         }
+    }
+
+    public synchronized DirectoryTransferRun abandonRemainingCopy(String id, long revision) throws IOException {
+        var review = reviews.require(id);
+        var run = reviews.run(id);
+        if (review.revision() != revision || review.plan().operation() != DirectoryTransferPlan.Operation.COPY
+                || run == null || run.revision() != revision || !reviews.frozen(id) || reviews.successor(id) != null) {
+            throw new StorageAccessException("Only a paused copy can abandon its remaining work.");
+        }
+        if (run.phase() == DirectoryTransferRun.Phase.ABANDONED) return run;
+        review = reviews.freeze(id, revision);
+        if (run.phase() != DirectoryTransferRun.Phase.ABANDONING && (!run.paused()
+                || run.phase() != DirectoryTransferRun.Phase.PUBLISHING && run.phase() != DirectoryTransferRun.Phase.FINALIZING)) {
+            throw new StorageAccessException("Pause the copy before abandoning its remaining work.");
+        }
+        finalizer.validateCopyAbandonment(review);
+        if (run.phase() != DirectoryTransferRun.Phase.ABANDONING) {
+            run = update(run, id, revision, DirectoryTransferRun.Phase.ABANDONING, false);
+        }
+        // After this durable intent, recovery may finish bookkeeping but must never publish another item.
+        finalizer.completePublishedCopy(review);
+        return update(run, id, revision, DirectoryTransferRun.Phase.ABANDONED, false);
     }
 
     /** Never unpause a canceled run merely because the server restarted. */

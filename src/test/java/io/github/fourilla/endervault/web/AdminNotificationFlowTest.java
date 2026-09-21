@@ -2602,7 +2602,7 @@ class AdminNotificationFlowTest {
     @Test
     void directoryMergeApiMutationsRequireCsrfAndValidatePayloads() throws Exception {
         String prefix = "/api/v1/files/directory-merges";
-        for (String suffix : List.of("/transfers", "/pending/test", "/test/choices", "/test/execute", "/test/replan", "/test/abandon")) {
+        for (String suffix : List.of("/transfers", "/pending/test", "/test/choices", "/test/execute", "/test/replan", "/test/abandon", "/test/abandon-remaining")) {
             mockMvc.perform(post(prefix + suffix)).andExpect(status().isForbidden());
         }
         mockMvc.perform(post(prefix + "/transfers").with(csrf()).param("operation", "PENDING").param("source", "test"))

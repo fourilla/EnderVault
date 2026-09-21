@@ -306,11 +306,15 @@ public class DirectoryTransferReviewStore {
         if (!java.util.Objects.equals(previous, run(next.id()))) throw new StorageAccessException("Merge run changed.");
         boolean allowed = previous == null || switch (previous.phase()) {
             case PUBLISHING -> next.phase() == DirectoryTransferRun.Phase.PUBLISHING
-                    || next.phase() == DirectoryTransferRun.Phase.FINALIZING;
+                    || next.phase() == DirectoryTransferRun.Phase.FINALIZING
+                    || previous.paused() && next.phase() == DirectoryTransferRun.Phase.ABANDONING;
             case FINALIZING -> next.phase() == DirectoryTransferRun.Phase.FINALIZING
                     || next.phase() == DirectoryTransferRun.Phase.OWNER_COMPLETING
                     || next.phase() == DirectoryTransferRun.Phase.COMPLETE
-                    || next.phase() == DirectoryTransferRun.Phase.NEEDS_REVIEW;
+                    || next.phase() == DirectoryTransferRun.Phase.NEEDS_REVIEW
+                    || previous.paused() && next.phase() == DirectoryTransferRun.Phase.ABANDONING;
+            case ABANDONING -> next.phase() == DirectoryTransferRun.Phase.ABANDONING
+                    || next.phase() == DirectoryTransferRun.Phase.ABANDONED;
             case OWNER_COMPLETING -> next.phase() == DirectoryTransferRun.Phase.OWNER_COMPLETING
                     || next.phase() == DirectoryTransferRun.Phase.COMPLETE;
             default -> false;
@@ -320,6 +324,10 @@ public class DirectoryTransferReviewStore {
         }
         if (previous == null && next.phase() != DirectoryTransferRun.Phase.PUBLISHING) {
             throw new StorageAccessException("Invalid initial merge run.");
+        }
+        if (next.phase() == DirectoryTransferRun.Phase.ABANDONING
+                && require(next.id()).plan().operation() != DirectoryTransferPlan.Operation.COPY) {
+            throw new StorageAccessException("Only a paused copy supports abandoning remaining work.");
         }
         writer.write(runPath(next.id()), next);
         writer.forceDirectory(root);

@@ -55,11 +55,42 @@ public class DirectoryTransferTaskService {
         }
     }
 
+    public synchronized AppTask abandonRemainingCopy(String id, long revision, String actor, String ip) throws IOException {
+        submissions.values().removeIf(Submission::finished);
+        var existing = submissions.get(id);
+        if (existing != null) {
+            if (existing.abandonment && existing.revision == revision) return existing.task;
+            throw new StorageAccessException("A task is still processing this transfer.");
+        }
+        var review = reviews.require(id);
+        var run = reviews.run(id);
+        if (review.revision() != revision || review.plan().operation() != DirectoryTransferPlan.Operation.COPY
+                || run == null || !(run.phase() == DirectoryTransferRun.Phase.ABANDONING
+                    || run.paused() && (run.phase() == DirectoryTransferRun.Phase.PUBLISHING
+                        || run.phase() == DirectoryTransferRun.Phase.FINALIZING))) {
+            throw new StorageAccessException("Only a paused copy can abandon its remaining work.");
+        }
+        Submission submission = new Submission(revision, false, true);
+        submission.task = tasks.submit(TaskType.DIRECTORY_MERGE, "Abandon remaining copy", review.plan().destinationPath(), actor, ip, context -> {
+            submission.started = true;
+            try {
+                context.checkCanceled();
+                context.resultReference(id);
+                context.directoryTransferReview(id);
+                context.message("Keeping copied files and closing remaining copy work.");
+                transfers.abandonRemainingCopy(id, revision);
+                return TaskOutcome.complete("Remaining copy abandoned. Original and already copied files were kept.");
+            } finally { submission.done = true; }
+        });
+        submissions.put(id, submission);
+        return submission.task;
+    }
+
     private AppTask submit(String id, long revision, boolean replan, String actor, String ip) throws IOException {
         submissions.values().removeIf(Submission::finished);
         Submission existing = submissions.get(id);
         if (existing != null) {
-            if (existing.revision != revision || existing.replan != replan) {
+            if (existing.abandonment || existing.revision != revision || existing.replan != replan) {
                 throw new StorageAccessException("Another task is already processing this directory merge.");
             }
             return existing.task;
@@ -77,7 +108,7 @@ public class DirectoryTransferTaskService {
         } else if (!review.fullyReviewed()) {
             throw new StorageAccessException("Directory merge review is incomplete.");
         }
-        Submission submission = new Submission(revision, replan);
+        Submission submission = new Submission(revision, replan, false);
         submission.task = tasks.submit(TaskType.DIRECTORY_MERGE,
                 replan ? "Review changed directory transfer" : DirectoryTransferPresentation.title(review.plan().operation()),
                 review.plan().destinationPath(), actor, ip, context -> {
@@ -120,6 +151,9 @@ public class DirectoryTransferTaskService {
             result = transfers.execute(id, revision, listener);
         }
         if (result == null || !result.terminal()) throw new IOException("Directory merge did not reach a final outcome.");
+        if (result.phase() == DirectoryTransferRun.Phase.ABANDONED) {
+            return TaskOutcome.complete("Remaining copy abandoned. Original and already copied files were kept.");
+        }
         return result.phase() == DirectoryTransferRun.Phase.COMPLETE
                 ? TaskOutcome.complete(DirectoryTransferPresentation.title(operation) + " complete.")
                 : TaskOutcome.pending("Directory items changed. A new review is required.");
@@ -128,13 +162,15 @@ public class DirectoryTransferTaskService {
     private static final class Submission {
         private final long revision;
         private final boolean replan;
+        private final boolean abandonment;
         private AppTask task;
         private volatile boolean started;
         private volatile boolean done;
 
-        private Submission(long revision, boolean replan) {
+        private Submission(long revision, boolean replan, boolean abandonment) {
             this.revision = revision;
             this.replan = replan;
+            this.abandonment = abandonment;
         }
 
         private boolean finished() {

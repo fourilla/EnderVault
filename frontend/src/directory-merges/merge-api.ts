@@ -15,6 +15,7 @@ export interface MergeSummary {
   fullyReviewed: boolean;
   editable: boolean;
   canAbandon: boolean;
+  canAbandonRemainingCopy: boolean;
   successorId: string | null;
   run: { phase: string; paused: boolean } | null;
 }
@@ -77,4 +78,11 @@ export async function abandonMerge(review: MergeSummary) {
   const result = await postForm(`${mergeBase}/${encodeURIComponent(review.id)}/abandon`, { revision: review.revision });
   window.dispatchEvent(new CustomEvent('endervault:notifications-changed'));
   return result;
+}
+
+export async function abandonRemainingCopy(review: MergeSummary) {
+  const task = await postForm(`${mergeBase}/${encodeURIComponent(review.id)}/abandon-remaining`, { revision: review.revision });
+  window.EnderVaultServerTasks?.track(task, { announceStart: true });
+  window.dispatchEvent(new CustomEvent('endervault:notifications-changed'));
+  return task;
 }

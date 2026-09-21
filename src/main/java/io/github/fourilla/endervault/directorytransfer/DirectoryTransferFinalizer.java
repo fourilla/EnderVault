@@ -49,6 +49,55 @@ public class DirectoryTransferFinalizer {
         return complete(reviews.freeze(id, revision), null, listener);
     }
 
+    /** Refuse uncertain publications rather than publishing more data as a side effect of stopping. */
+    synchronized void validateCopyAbandonment(DirectoryTransferReview review) throws IOException {
+        if (review.plan().operation() != Operation.COPY) throw new StorageAccessException("Only copy abandonment is supported here.");
+        var results = reviews.results(review);
+        var index = new DirectoryTransferIndex(review.plan());
+        var items = review.plan().items().stream().collect(java.util.stream.Collectors.toMap(Item::id, item -> item));
+        var seen = new java.util.HashSet<String>();
+        String prefix = review.plan().id() + ":";
+        for (var inspected : commits.inspectJournals()) {
+            if (!inspected.readable()) throw new StorageAccessException("An unreadable commit journal requires inspection before abandonment.");
+            var entry = inspected.entry();
+            if (entry.manifest().owner().type() != FileCommitOwnerType.DIRECTORY_MERGE
+                    || !entry.manifest().owner().id().startsWith(prefix)) continue;
+            String itemId = entry.manifest().owner().id().substring(prefix.length());
+            var item = items.get(itemId);
+            var result = results.get(itemId);
+            if (item == null || !seen.add(itemId) || result == null
+                    || result.status() != DirectoryTransferResult.Status.PUBLISHED
+                    || !entry.manifest().operationId().equals(result.commitId())
+                    || entry.state().phase() != io.github.fourilla.endervault.filecommit.FileCommitPhase.APPLYING_METADATA
+                        && entry.state().phase() != io.github.fourilla.endervault.filecommit.FileCommitPhase.COMPLETED) {
+                throw new StorageAccessException("An unfinished publication requires recovery before this copy can be abandoned.");
+            }
+            DirectoryTransferJournalGuard.requireMatches(entry, review, item, result.targetPath());
+        }
+        for (var item : review.plan().items()) {
+            var result = results.get(item.id());
+            if (result == null || result.status() != DirectoryTransferResult.Status.PUBLISHED) continue;
+            validateTarget(index, item, result, results);
+            var state = reviews.completion(review.plan().id(), item.id());
+            if (state != null && state.phase() != Phase.PREPARED && state.phase() != Phase.METADATA_APPLIED
+                    && state.phase() != Phase.COMPLETE) {
+                throw new StorageAccessException("Published copy completion requires inspection before abandonment.");
+            }
+        }
+    }
+
+    synchronized void completePublishedCopy(DirectoryTransferReview review) throws IOException {
+        validateCopyAbandonment(review);
+        var results = reviews.results(review);
+        var index = new DirectoryTransferIndex(review.plan());
+        for (var item : review.plan().items()) {
+            var result = results.get(item.id());
+            if (result == null || result.status() != DirectoryTransferResult.Status.PUBLISHED) continue;
+            // COPY never removes originals; unrecorded items are deliberately left unprocessed.
+            finishItem(review, index, item, result, results, reviews.completion(review.plan().id(), item.id()), null, false);
+        }
+    }
+
     /** Trusted pending record must be protected by its durable merge owner. */
     synchronized Map<String, DirectoryTransferCompletion> completePending(String id, long revision,
             io.github.fourilla.endervault.pending.PendingFileDecision pending, StorageProgressListener listener) throws IOException {

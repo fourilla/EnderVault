@@ -178,6 +178,37 @@ test('preparing a pending merge refreshes the row without navigating or opening 
   }
 });
 
+test('remaining copy abandonment confirms preservation and never offers resume during cleanup', async () => {
+  for (const phase of ['PUBLISHING', 'ABANDONING']) {
+    let stopped = 0, confirmed = 0, closed = 0;
+    const data = { review: { operation: 'COPY', editable: false, canAbandonRemainingCopy: true,
+      fullyReviewed: true, run: { phase, paused: phase === 'PUBLISHING' } }, executionView: true,
+      entries: { items: [], total: 0, size: 50 } };
+    const jsx = (type, props) => ({ type, props });
+    const react = { useEffect: () => {}, useState: (value) => [value === null ? data : value, () => {}],
+      createElement: (type, props, ...children) => jsx(type, { ...props, children }) };
+    const component = await load('../src/directory-merges/DirectoryMergeDialog.tsx', { React: react,
+      window: { EnderVault: { askConfirmation: async (options) => {
+        confirmed++; assert.equal(options.nested, true); assert.match(options.message, /Original files and already copied files will be kept/); return true;
+      } } } }, { react, 'react/jsx-runtime': { jsx, jsxs: jsx }, AppDialog: { AppDialog: 'dialog' },
+      'merge-api': { mergeChoices: () => [], abandonRemainingCopy: async () => { stopped++; } } });
+    const buttons = [];
+    const visit = (node) => {
+      if (Array.isArray(node)) return node.forEach(visit);
+      if (!node || typeof node !== 'object') return;
+      if (node.type === 'button') buttons.push(node);
+      visit(node.props?.children);
+    };
+    visit(component.DirectoryMergeDialog({ id: 'review', close: () => closed++, changed: () => {} }));
+    const label = phase === 'ABANDONING' ? 'Finish abandonment' : 'Abandon remaining copy';
+    buttons.find(b => [b.props.children].flat().includes(label)).props.onClick();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(stopped, 1); assert.equal(closed, 1);
+    assert.equal(confirmed, phase === 'ABANDONING' ? 0 : 1);
+    if (phase === 'ABANDONING') assert.equal(buttons.some(b => [b.props.children].flat().includes('Resume copy')), false);
+  }
+});
+
 test('saving merge choices sends CSRF and revision but never source snapshots', async () => {
   let sent;
   const api = await load('../src/directory-merges/merge-api.ts', {

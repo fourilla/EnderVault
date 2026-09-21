@@ -6,7 +6,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 /** Only this record authorizes startup resumption; a saved review alone does not. */
 public record DirectoryTransferRun(String id, @JsonProperty(required = true) long revision,
         Phase phase, @JsonProperty(required = true) boolean paused) {
-    public enum Phase { PUBLISHING, FINALIZING, OWNER_COMPLETING, COMPLETE, NEEDS_REVIEW, ABANDONED }
+    public enum Phase { PUBLISHING, FINALIZING, OWNER_COMPLETING, COMPLETE, NEEDS_REVIEW, ABANDONING, ABANDONED }
 
     public DirectoryTransferRun {
         if (id == null || !UUID.fromString(id).toString().equals(id) || revision < 0 || phase == null) {

@@ -103,6 +103,12 @@ public class DirectoryTransferQueryService {
             boolean fullyReviewed, boolean editable, DirectoryTransferRun run, String successorId, boolean canAbandon) {
         @com.fasterxml.jackson.annotation.JsonProperty public String title() { return DirectoryTransferPresentation.title(operation); }
         @com.fasterxml.jackson.annotation.JsonProperty public String statusLabel() { return DirectoryTransferPresentation.status(operation, run, editable); }
+        @com.fasterxml.jackson.annotation.JsonProperty public boolean canAbandonRemainingCopy() {
+            return operation == DirectoryTransferPlan.Operation.COPY && run != null && successorId == null
+                    && (run.phase() == DirectoryTransferRun.Phase.ABANDONING
+                        || run.paused() && (run.phase() == DirectoryTransferRun.Phase.PUBLISHING
+                            || run.phase() == DirectoryTransferRun.Phase.FINALIZING));
+        }
     }
     public enum EntryStage { PUBLICATION_PENDING, FINALIZATION_PENDING, NEEDS_REVIEW, COMPLETE, RETAINED }
     public record Entry(String id, String relativePath, String plannedTargetPath, DirectoryTransferPlan.Kind sourceKind, long sourceSize,

@@ -92,6 +92,95 @@ class DirectoryTransferFinalizerTest {
         assertThat(finish()).isEqualTo(results);
     }
 
+    void pauseCopyAfterFirstFile() throws Exception {
+        file("from/photos/b.txt", "b");
+        var plan = new DirectoryTransferPlanner(storage, properties).planTransfer(Operation.COPY, "from/photos", "to", null);
+        review = reviews.create(plan);
+        var registry = new TemporaryArtifactRegistry();
+        execution = new DirectoryTransferExecution(reviews, new DirectoryTransferFilePublisher(reviews, storage, commits, registry), commits, storage, registry);
+        var published = new AtomicBoolean();
+        doAnswer(call -> {
+            var value = call.callRealMethod();
+            Item item = call.getArgument(1);
+            if (item.source().kind() == Kind.FILE) published.set(true);
+            return value;
+        }).when(reviews).recordResult(any(), any(), any());
+        assertThatThrownBy(() -> transfers().execute(plan.id(), 0, new io.github.fourilla.endervault.storage.StorageProgressListener() {
+            @Override public void checkCanceled() {
+                if (published.get()) throw new io.github.fourilla.endervault.task.TaskCanceledException();
+            }
+        })).isInstanceOf(io.github.fourilla.endervault.task.TaskCanceledException.class);
+        assertThat(reviews.run(plan.id()).paused()).isTrue();
+    }
+
+    @Test void abandonedPartialCopyKeepsBothTreesAndNeverPublishesRemainingFile() throws Exception {
+        pauseCopyAfterFirstFile();
+        String id = review.plan().id();
+        var before = reviews.results(review);
+        assertThat(new DirectoryTransferQueryService(reviews).get(id, 0, 50, false).review().canAbandonRemainingCopy()).isTrue();
+        clearInvocations(commits);
+        assertThat(transfers().abandonRemainingCopy(id, 0).phase()).isEqualTo(DirectoryTransferRun.Phase.ABANDONED);
+        assertThat(reviews.results(review)).isEqualTo(before);
+        assertThat(journals.list()).isEmpty();
+        try (var files = Files.list(root.resolve("to/photos"))) { assertThat(files.count()).isEqualTo(1); }
+        assertThat(root.resolve("from/photos/a.txt")).hasContent("a");
+        assertThat(root.resolve("from/photos/b.txt")).hasContent("b");
+        verify(commits, never()).resumeSingleFile(anyString());
+        verify(commits, never()).prepareReviewedSingleFile(any(), any(), anyString(), anyString(), any(), any());
+        verifyNoInteractions(lifecycle);
+        assertThat(transfers().abandonRemainingCopy(id, 0).phase()).isEqualTo(DirectoryTransferRun.Phase.ABANDONED);
+        assertThatThrownBy(() -> transfers().execute(id, 0, null)).hasMessageContaining("abandoned");
+        var inspector = new DirectoryTransferMetadataInspector(reviews, JsonMapper.builder().findAndAddModules().build(), journals,
+                mock(DirectoryTransferPendingInspector.class));
+        assertThat(inspector.inspect(null)).isEmpty();
+    }
+
+    @Test void interruptedAbandonmentOnlyRecoversBookkeepingNotPublication() throws Exception {
+        pauseCopyAfterFirstFile();
+        String id = review.plan().id();
+        var once = new AtomicBoolean();
+        doAnswer(call -> {
+            call.callRealMethod();
+            if (!once.getAndSet(true)) throw new IOException("after journal completion");
+            return null;
+        }).when(commits).complete(anyString());
+        assertThatThrownBy(() -> transfers().abandonRemainingCopy(id, 0)).isInstanceOf(IOException.class);
+        assertThat(reviews.run(id).phase()).isEqualTo(DirectoryTransferRun.Phase.ABANDONING);
+        clearInvocations(commits);
+        new DirectoryTransferStartupRecoveryService(reviews, transfers(), null).recover();
+        assertThat(reviews.run(id).phase()).isEqualTo(DirectoryTransferRun.Phase.ABANDONED);
+        try (var files = Files.list(root.resolve("to/photos"))) { assertThat(files.count()).isEqualTo(1); }
+        verify(commits, never()).resumeSingleFile(anyString());
+    }
+
+    @Test void changedPublishedCopyIsNotSilentlyAbandoned() throws Exception {
+        pauseCopyAfterFirstFile();
+        var result = reviews.results(review).values().stream()
+                .filter(r -> r.status() == DirectoryTransferResult.Status.PUBLISHED && r.target().kind() == Kind.FILE).findFirst().orElseThrow();
+        Files.writeString(root.resolve(result.targetPath()), "external change");
+        assertThatThrownBy(() -> transfers().abandonRemainingCopy(review.plan().id(), 0)).isInstanceOf(io.github.fourilla.endervault.common.StorageAccessException.class);
+        assertThat(reviews.run(review.plan().id()).paused()).isTrue();
+        assertThat(journals.list()).isNotEmpty();
+    }
+
+    @Test void publicationWithoutResultRequiresRecoveryBeforeAbandonment() throws Exception {
+        var plan = new DirectoryTransferPlanner(storage, properties).planTransfer(Operation.COPY, "from/photos", "to", null);
+        review = reviews.create(plan);
+        var registry = new TemporaryArtifactRegistry();
+        execution = new DirectoryTransferExecution(reviews, new DirectoryTransferFilePublisher(reviews, storage, commits, registry), commits, storage, registry);
+        doAnswer(call -> {
+            Item item = call.getArgument(1);
+            if (item.source().kind() == Kind.FILE) throw new IOException("before result write");
+            return call.callRealMethod();
+        }).when(reviews).recordResult(any(), any(), any());
+        assertThatThrownBy(() -> transfers().execute(plan.id(), 0, null)).isInstanceOf(IOException.class);
+        reviews.pauseRun(reviews.run(plan.id()), new io.github.fourilla.endervault.task.TaskCanceledException());
+        assertThatThrownBy(() -> transfers().abandonRemainingCopy(plan.id(), 0)).hasMessageContaining("unfinished publication");
+        assertThat(reviews.run(plan.id()).phase()).isEqualTo(DirectoryTransferRun.Phase.PUBLISHING);
+        assertThat(journals.list()).isNotEmpty();
+        assertThat(root.resolve("from/photos/a.txt")).hasContent("a");
+    }
+
     @Test void moveCompletesChildrenBeforeEmptyParentAndReplaysOnce() throws Exception {
         file("from/photos/nested/b.txt", "b");
         Files.createDirectory(root.resolve("from/photos/empty"));
