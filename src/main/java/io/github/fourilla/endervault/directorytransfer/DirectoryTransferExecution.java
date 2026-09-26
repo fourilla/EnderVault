@@ -77,10 +77,13 @@ public class DirectoryTransferExecution {
         if (source != null && (source.startsWith(destination) || destination.startsWith(source))) throw new StorageAccessException("Merge paths overlap.");
         // Parents always precede descendants, independently of the display's natural sort order.
         var ordered = review.plan().items().stream().sorted(Comparator.comparingInt(item -> depth(item.relativePath()))).toList();
+        long completed = 0;
+        progress.onProgress("Publishing", 0, ordered.size(), 0, 0);
         for (Item item : ordered) {
             progress.checkCanceled();
             if (results.containsKey(item.id())) {
                 finishDirectoryJournal(review, item, results.get(item.id()));
+                progress.onProgress("Publishing", ++completed, ordered.size(), 0, 0);
                 continue;
             }
             DirectoryTransferResult result;
@@ -111,7 +114,17 @@ public class DirectoryTransferExecution {
                     if (item.source().kind() == Kind.DIRECTORY) {
                         result = publishDirectory(review, index, item, published ? null : source, results);
                     } else {
-                        var commit = files.publishPreparedFile(review, item.id(), pending, progress, results, index);
+                        long completedBeforeFile = completed;
+                        var fileProgress = new StorageProgressListener() {
+                            private long bytes;
+                            @Override public void checkCanceled() { progress.checkCanceled(); }
+                            @Override public void onBytesProcessed(long count) {
+                                bytes += count;
+                                progress.onBytesProcessed(count);
+                                progress.onProgress("Publishing", completedBeforeFile, ordered.size(), bytes, item.source().size());
+                            }
+                        };
+                        var commit = files.publishPreparedFile(review, item.id(), pending, fileProgress, results, index);
                         var snapshot = DirectoryTransferPlanner.snapshot(storage.resolveVaultCommitTarget(commit.file().path()));
                         var expected = commits.singleFilePlan(commit.operationId()).stagingFingerprint();
                         if (snapshot.kind() != Kind.FILE || snapshot.size() != expected.size()
@@ -133,6 +146,7 @@ public class DirectoryTransferExecution {
             results.put(item.id(), result);
             finishDirectoryJournal(review, item, result);
             progress.onItemProcessed();
+            progress.onProgress("Publishing", ++completed, ordered.size(), 0, 0);
         }
         return Map.copyOf(results);
     }

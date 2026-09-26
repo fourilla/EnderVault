@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { AppDialog } from '../shared/dialogs/AppDialog';
 import { BrowserPagination } from '../shared/browser/BrowserPagination';
 import { toastError } from '../shared/api/form-api';
-import { abandonMerge, abandonRemainingCopy, mergeChoices, mergeGet, runMerge, saveMergeChoices, saveAllMergeChoices, type MergeDetail, type MergeChoice } from './merge-api';
+import { abandonMerge, abandonRemainingTransfer, mergeChoices, mergeGet, runMerge, saveMergeChoices, saveAllMergeChoices, type MergeDetail, type MergeChoice } from './merge-api';
 import './directory-merges.css';
 
 const labels: Record<MergeChoice, string> = {
@@ -79,18 +79,22 @@ export function DirectoryMergeDialog({ id, close, changed }: { id: string; close
   const needsReview = review?.run?.phase === 'NEEDS_REVIEW';
   const abandoning = review?.run?.phase === 'ABANDONING';
   const stopCopy = async () => {
-    if (!review?.canAbandonRemainingCopy || busy) return;
+    if (!review?.canAbandonRemainingTransfer || busy) return;
     setBusy(true);
     try {
       const confirmed = abandoning || await window.EnderVault?.askConfirmation({
-        nested: true, title: 'Abandon remaining copy?', danger: true,
-        message: 'Original files and already copied files will be kept. Remaining files will not be copied, and this transfer cannot be resumed.',
-        confirmLabel: 'Abandon remaining copy',
+        nested: true, title: `Abandon remaining ${action}?`, danger: true,
+        message: review.operation === 'PENDING'
+          ? 'Published files will be kept. The staged upload will return to Pending decisions, including copies of files already published. No more files will be merged or discarded.'
+          : review.operation === 'MOVE'
+          ? 'Remaining originals and published files will be kept. Already completed moves will not be rolled back. No more originals will be deleted, and this transfer cannot be resumed.'
+          : 'Original files and already copied files will be kept. Remaining files will not be transferred, and this transfer cannot be resumed.',
+        confirmLabel: `Abandon remaining ${action}`,
       });
       if (!confirmed) return;
-      await abandonRemainingCopy(review);
+      await abandonRemainingTransfer(review);
       changed(); close();
-    } catch (reason) { toastError(reason, 'Remaining copy could not be abandoned.'); refresh((value) => value + 1); }
+    } catch (reason) { toastError(reason, 'Remaining transfer could not be abandoned.'); refresh((value) => value + 1); }
     finally { setBusy(false); }
   };
   const action = review?.operation === 'COPY' ? 'copy' : review?.operation === 'MOVE' ? 'move' : 'merge';
@@ -149,8 +153,8 @@ export function DirectoryMergeDialog({ id, close, changed }: { id: string; close
         <footer className="directory-merge-actions">
           {review?.canAbandon && <button type="button" className="danger" disabled={busy}
             onClick={() => void abandon()}>Abandon transfer</button>}
-          {review?.canAbandonRemainingCopy && <button type="button" className="danger" disabled={busy}
-            onClick={() => void stopCopy()}>{abandoning ? 'Finish abandonment' : 'Abandon remaining copy'}</button>}
+          {review?.canAbandonRemainingTransfer && <button type="button" className="danger" disabled={busy}
+            onClick={() => void stopCopy()}>{abandoning ? 'Finish abandonment' : `Abandon remaining ${action}`}</button>}
           <button type="button" className="ghost" onClick={close} disabled={busy}>Close</button>
           {abandoning ? null : needsReview ? <button type="button" disabled={busy} onClick={() => void start(true)}>Review changed items</button>
             : <span title={reviewHint}><button type="button" title={reviewHint} disabled={busy || !review?.fullyReviewed || review?.run?.phase === 'COMPLETE'}

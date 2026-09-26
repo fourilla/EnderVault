@@ -132,7 +132,7 @@
             percent: task.progressPercent,
             message: task.message || task.progressLabel,
             cancelRequested: task.cancelRequested,
-            cancelable: task.active,
+            cancelable: task.active && task.cancelable !== false,
             onCancel: () => cancelTask(task)
         });
 

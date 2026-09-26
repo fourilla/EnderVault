@@ -67,6 +67,19 @@ function setup(t) {
   };
 }
 
+test('server finalization removes cancellation without hiding the active task', async (t) => {
+  const state = setup(t);
+  const task = { id: 'merge', active: true, status: 'RUNNING', type: 'DIRECTORY_MERGE', cancelable: true };
+  state.tasks.track(task);
+  assert.equal(state.activity.snapshot().items[0].cancelable, true);
+  state.tasks.track({ ...task, cancelable: false, message: 'Finalizing uploaded directory.' });
+  const snapshot = state.activity.snapshot();
+  assert.equal(snapshot.items[0].cancelable, false);
+  assert.equal(snapshot.items[0].message, 'Finalizing uploaded directory.');
+  await state.activity.cancel('server-merge');
+  assert.equal(state.activity.snapshot().items[0].cancelRequested, false);
+});
+
 test('snapshots and progress are silent; explicit batch starts open once without focus or scrolling', (t) => {
   const state = setup(t);
   const activity = state.activity;

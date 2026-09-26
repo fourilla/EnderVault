@@ -42,6 +42,34 @@ class DirectoryTransferQueryServiceTest {
         assertThat(page.items().getFirst().editable()).isTrue();
     }
 
+    @Test void existingRunWithoutDiagnosticFlagRemainsReadableForPendingAndNotifications() throws Exception {
+        String id = review.plan().id();
+        var runs = store.inspectionRoot().resolve("runs");
+        Files.createDirectories(runs);
+        Files.writeString(runs.resolve(id + ".json"), """
+                {"id":"%s","revision":0,"phase":"PUBLISHING","paused":true}
+                """.formatted(id));
+        assertThat(query.unresolved()).hasSize(1);
+        assertThat(query.list(0, 10).items().getFirst().run().recoveryRequired()).isFalse();
+        assertThat(query.get(id, 0, 10, false).review().run().paused()).isTrue();
+        try (var files = Files.list(runs)) {
+            assertThat(files.map(p -> p.getFileName().toString()).toList()).containsExactly(id + ".json");
+        }
+    }
+
+    @Test void diagnosticFlagDefaultsLocallyWithoutRelaxingRequiredExecutionFields() throws Exception {
+        var mapper = JsonMapper.builder().findAndAddModules().build();
+        String prefix = "{\"id\":\"" + review.plan().id() + "\",\"revision\":0,\"phase\":\"FINALIZING\",\"paused\":false";
+        for (String value : new String[] {"null", "false", "true"}) {
+            var run = mapper.readValue(prefix + ",\"recoveryRequired\":" + value + "}", DirectoryTransferRun.class);
+            assertThat(run.recoveryRequired()).isEqualTo(value.equals("true"));
+            assertThat(mapper.readValue(mapper.writeValueAsString(run), DirectoryTransferRun.class)).isEqualTo(run);
+        }
+        assertThatThrownBy(() -> mapper.readValue(prefix.replace(",\"paused\":false", "") + "}", DirectoryTransferRun.class));
+        assertThatThrownBy(() -> mapper.readValue(prefix.replace("\"revision\":0,", "") + "}", DirectoryTransferRun.class));
+        assertThatThrownBy(() -> mapper.readValue(prefix.replace("\"paused\":false", "\"paused\":null") + "}", DirectoryTransferRun.class));
+    }
+
     @Test void pagesAndFiltersConflictsWithoutExposingFilesystemIdentity() throws Exception {
         var all = query.get(review.plan().id(), 1, 1, false);
         assertThat(all.entries().total()).isEqualTo(3);

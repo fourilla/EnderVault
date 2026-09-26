@@ -130,7 +130,7 @@ public class DirectoryTransferMetadataInspector implements MetadataInspector {
                 var frozen = read(root.resolve("executions").resolve(id + ".json"), DirectoryTransferReview.class);
                 var run = optional(root.resolve("runs").resolve(id + ".json"), DirectoryTransferRun.class);
                 if (run != null && run.phase() == DirectoryTransferRun.Phase.ABANDONED) {
-                    issue(issues, id, "Abandoned copy still owns commit journals");
+                    issue(issues, id, "Abandoned transfer still owns commit journals");
                 }
                 if (!id.equals(review.plan().id()) || !review.equals(frozen) || !frozen.fullyReviewed()) {
                     throw new IOException("Journal approval mismatch");
@@ -196,22 +196,24 @@ public class DirectoryTransferMetadataInspector implements MetadataInspector {
             boolean complete = run != null && run.phase() == DirectoryTransferRun.Phase.COMPLETE;
             var resultIds = inspectItems(root, id, "results", items, frozen != null, complete, issues, context);
             var completionIds = inspectItems(root, id, "completion", items, frozen != null, complete, issues, context);
-            boolean abandonedCopy = abandoned && frozen != null && review.plan().operation() == DirectoryTransferPlan.Operation.COPY;
-            if (abandoned && (run.paused() || !abandonedCopy && (frozen != null
+            boolean abandonedTransfer = abandoned && frozen != null;
+            if (abandoned && (run.paused() || !abandonedTransfer && (frozen != null
                     || !resultIds.isEmpty() || !completionIds.isEmpty()))) {
                 issue(issues, id, "Abandoned unstarted transfer contains execution records");
             }
             if (run != null && run.phase() == DirectoryTransferRun.Phase.ABANDONING
-                    && (frozen == null || review.plan().operation() != DirectoryTransferPlan.Operation.COPY)) {
-                issue(issues, id, "Abandonment cleanup has no approved copy");
+                    && frozen == null) {
+                issue(issues, id, "Abandonment cleanup has no approved transfer");
             }
-            if (abandonedCopy) {
+            if (abandonedTransfer) {
                 for (String itemId : resultIds) {
                     var result = read(root.resolve("results").resolve(id).resolve(itemId + ".json"), DirectoryTransferResult.class);
                     if (result.status() != DirectoryTransferResult.Status.PUBLISHED) continue;
                     var done = optional(root.resolve("completion").resolve(id).resolve(itemId + ".json"), DirectoryTransferCompletion.class);
-                    if (done == null || done.phase() != DirectoryTransferCompletion.Phase.COMPLETE) {
-                        issue(issues, id, "Abandoned copy has unfinished published-item bookkeeping");
+                    if (done == null || done.phase() != DirectoryTransferCompletion.Phase.COMPLETE
+                            && !(review.plan().operation() != DirectoryTransferPlan.Operation.COPY
+                                && done.phase() == DirectoryTransferCompletion.Phase.RETAINED)) {
+                        issue(issues, id, "Abandoned transfer has unfinished published-item bookkeeping");
                     }
                 }
             }

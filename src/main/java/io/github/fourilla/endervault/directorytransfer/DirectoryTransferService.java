@@ -26,7 +26,7 @@ public class DirectoryTransferService {
             throw new StorageAccessException("Pending completion requires its upload owner.");
         }
         var run = reviews.run(id);
-        if (run != null && run.phase() == DirectoryTransferRun.Phase.ABANDONING) return abandonRemainingCopy(id, revision);
+        if (run != null && run.phase() == DirectoryTransferRun.Phase.ABANDONING) return abandonRemainingTransfer(id, revision);
         reviews.freeze(id, revision);
         if (run != null && run.revision() != revision) throw new StorageAccessException("Merge run approval changed.");
         if (run != null && run.terminal()) return run;
@@ -45,7 +45,10 @@ public class DirectoryTransferService {
             reviews.pauseRun(run, ex);
             throw ex;
         } catch (IOException ex) {
-            if (!Thread.currentThread().isInterrupted() && !(ex instanceof java.nio.channels.ClosedByInterruptException)) throw ex;
+            if (!Thread.currentThread().isInterrupted() && !(ex instanceof java.nio.channels.ClosedByInterruptException)) {
+                reviews.recordFailure(run, ex);
+                throw ex;
+            }
             reviews.pauseRun(run, ex);
             var canceled = new TaskCanceledException();
             canceled.initCause(ex);
@@ -53,25 +56,25 @@ public class DirectoryTransferService {
         }
     }
 
-    public synchronized DirectoryTransferRun abandonRemainingCopy(String id, long revision) throws IOException {
+    public synchronized DirectoryTransferRun abandonRemainingTransfer(String id, long revision) throws IOException {
         var review = reviews.require(id);
         var run = reviews.run(id);
-        if (review.revision() != revision || review.plan().operation() != DirectoryTransferPlan.Operation.COPY
+        if (review.revision() != revision || review.plan().operation() == DirectoryTransferPlan.Operation.PENDING
                 || run == null || run.revision() != revision || !reviews.frozen(id) || reviews.successor(id) != null) {
-            throw new StorageAccessException("Only a paused copy can abandon its remaining work.");
+            throw new StorageAccessException("Only an eligible paused transfer can abandon its remaining work.");
         }
         if (run.phase() == DirectoryTransferRun.Phase.ABANDONED) return run;
         review = reviews.freeze(id, revision);
         if (run.phase() != DirectoryTransferRun.Phase.ABANDONING && (!run.paused()
                 || run.phase() != DirectoryTransferRun.Phase.PUBLISHING && run.phase() != DirectoryTransferRun.Phase.FINALIZING)) {
-            throw new StorageAccessException("Pause the copy before abandoning its remaining work.");
+            throw new StorageAccessException("Pause the transfer before abandoning its remaining work.");
         }
-        finalizer.validateCopyAbandonment(review);
+        finalizer.validateTransferAbandonment(review);
         if (run.phase() != DirectoryTransferRun.Phase.ABANDONING) {
             run = update(run, id, revision, DirectoryTransferRun.Phase.ABANDONING, false);
         }
         // After this durable intent, recovery may finish bookkeeping but must never publish another item.
-        finalizer.completePublishedCopy(review);
+        finalizer.completePublishedTransfer(review);
         return update(run, id, revision, DirectoryTransferRun.Phase.ABANDONED, false);
     }
 

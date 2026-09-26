@@ -78,6 +78,137 @@ class DirectoryTransferPendingExecutionTest {
         return service.execute(review.plan().id(), review.revision(), null);
     }
 
+    void pauseUploadAfterFirstFile() throws Exception {
+        Files.writeString(staged.resolve("b.txt"), "second");
+        prepare(Map.of());
+        var published = new AtomicBoolean();
+        doAnswer(call -> {
+            var value = call.callRealMethod();
+            DirectoryTransferPlan.Item item = call.getArgument(1);
+            if (item.source().kind() == DirectoryTransferPlan.Kind.FILE) published.set(true);
+            return value;
+        }).when(reviews).recordResult(any(), any(), any());
+        assertThatThrownBy(() -> service.execute(review.plan().id(), review.revision(), new StorageProgressListener() {
+            @Override public void checkCanceled() {
+                if (published.get()) throw new io.github.fourilla.endervault.task.TaskCanceledException();
+            }
+        })).isInstanceOf(io.github.fourilla.endervault.task.TaskCanceledException.class);
+    }
+
+    @Test void partialUploadAbandonmentReturnsWholeStagingAndKeepsPublishedFiles() throws Exception {
+        pauseUploadAfterFirstFile();
+        String id = review.plan().id();
+        assertThat(new DirectoryTransferQueryService(reviews).get(id, 0, 50, false).review().canAbandonRemainingTransfer()).isTrue();
+        assertThat(service.abandonRemaining(id, review.revision()).phase()).isEqualTo(DirectoryTransferRun.Phase.ABANDONED);
+        assertThat(staged.resolve("a.txt")).hasContent("uploaded");
+        assertThat(staged.resolve("b.txt")).hasContent("second");
+        try (var files = Files.list(root.resolve("to/photos"))) { assertThat(files.count()).isEqualTo(1); }
+        assertThat(pending.find(decision.id())).contains(decision);
+        assertThat(pending.directoryMergeOwner(decision.id())).isEmpty();
+        verifyNoInteractions(observer, lifecycle);
+        var next = preparation.prepare(decision.id(), null);
+        assertThat(next.plan().id()).isNotEqualTo(id);
+        service.abandonRemaining(id, review.revision());
+        assertThat(pending.directoryMergeOwner(decision.id())).contains(next.plan().id());
+    }
+
+    @Test void partialUploadClaimReleaseFailureIsRecoveredWithoutPublishingAgain() throws Exception {
+        pauseUploadAfterFirstFile();
+        String id = review.plan().id();
+        doThrow(new IOException("claim storage unavailable")).doCallRealMethod().when(pending)
+                .releaseAbandonedDirectoryMergeClaim(decision.id(), id);
+        assertThatThrownBy(() -> service.abandonRemaining(id, review.revision())).isInstanceOf(IOException.class);
+        assertThat(reviews.run(id).phase()).isEqualTo(DirectoryTransferRun.Phase.ABANDONED);
+        assertThat(pending.directoryMergeOwner(decision.id())).contains(id);
+        new DirectoryTransferStartupRecoveryService(reviews, null, service).recover();
+        assertThat(pending.directoryMergeOwner(decision.id())).isEmpty();
+        assertThat(staged.resolve("a.txt")).hasContent("uploaded");
+        assertThat(staged.resolve("b.txt")).hasContent("second");
+        try (var files = Files.list(root.resolve("to/photos"))) { assertThat(files.count()).isEqualTo(1); }
+    }
+
+    @Test void partialUploadAbandonmentIntentRecoversWithoutFinishingPublication() throws Exception {
+        pauseUploadAfterFirstFile();
+        String id = review.plan().id();
+        var once = new AtomicBoolean();
+        doAnswer(call -> {
+            DirectoryTransferRun next = call.getArgument(1);
+            if (next.phase() == DirectoryTransferRun.Phase.ABANDONED && !once.getAndSet(true)) throw new IOException("run storage unavailable");
+            return call.callRealMethod();
+        }).when(reviews).saveRun(any(), any());
+        assertThatThrownBy(() -> service.abandonRemaining(id, review.revision())).isInstanceOf(IOException.class);
+        assertThat(reviews.run(id).phase()).isEqualTo(DirectoryTransferRun.Phase.ABANDONING);
+        assertThat(pending.directoryMergeOwner(decision.id())).contains(id);
+        new DirectoryTransferStartupRecoveryService(reviews, null, service).recover();
+        assertThat(reviews.run(id).phase()).isEqualTo(DirectoryTransferRun.Phase.ABANDONED);
+        assertThat(pending.directoryMergeOwner(decision.id())).isEmpty();
+        assertThat(staged.resolve("a.txt")).hasContent("uploaded");
+        assertThat(staged.resolve("b.txt")).hasContent("second");
+        try (var files = Files.list(root.resolve("to/photos"))) { assertThat(files.count()).isEqualTo(1); }
+    }
+
+    @Test void partiallyFinalizedUploadCannotReleaseStagingOwner() throws Exception {
+        pauseUploadAfterFirstFile();
+        String id = review.plan().id();
+        var previous = reviews.run(id);
+        reviews.saveRun(previous, new DirectoryTransferRun(id, review.revision(), DirectoryTransferRun.Phase.FINALIZING, true));
+        assertThat(new DirectoryTransferQueryService(reviews).get(id, 0, 50, false).review().canAbandonRemainingTransfer()).isFalse();
+        assertThatThrownBy(() -> service.abandonRemaining(id, review.revision())).hasMessageContaining("cleanup has already started");
+        assertThat(pending.directoryMergeOwner(decision.id())).contains(id);
+    }
+
+    @Test void cancellationAfterFinalizationStartsDoesNotLeaveDuplicateUploadPending() throws Exception {
+        prepare(Map.of());
+        var finalizing = new AtomicBoolean();
+        service.execute(review.plan().id(), review.revision(), new StorageProgressListener() {
+            @Override public void onFinalizing() { finalizing.set(true); }
+            @Override public void checkCanceled() {
+                if (finalizing.get()) throw new io.github.fourilla.endervault.task.TaskCanceledException();
+            }
+        });
+        assertThat(finalizing).isTrue();
+        assertThat(reviews.run(review.plan().id()).phase()).isEqualTo(DirectoryTransferRun.Phase.COMPLETE);
+        assertThat(pending.find(decision.id())).isEmpty();
+        assertThat(staged).doesNotExist();
+        assertThat(root.resolve("to/photos/a.txt")).hasContent("uploaded");
+    }
+
+    @Test void changedPublishedTargetStillPreservesStagingDuringNonCancelableFinalization() throws Exception {
+        prepare(Map.of());
+        service.execute(review.plan().id(), review.revision(), new StorageProgressListener() {
+            @Override public void onFinalizing() {
+                try { Files.writeString(root.resolve("to/photos/a.txt"), "external change"); }
+                catch (IOException ex) { throw new java.io.UncheckedIOException(ex); }
+            }
+        });
+        assertThat(reviews.run(review.plan().id()).phase()).isEqualTo(DirectoryTransferRun.Phase.NEEDS_REVIEW);
+        assertThat(staged.resolve("a.txt")).hasContent("uploaded");
+        assertThat(pending.find(decision.id())).isPresent();
+    }
+
+    @Test void finalizationIoFailureRemainsRecoverableRatherThanUserPaused() throws Exception {
+        prepare(Map.of());
+        var once = new AtomicBoolean();
+        doAnswer(call -> {
+            DirectoryTransferCompletion next = call.getArgument(2);
+            if (next.phase() == DirectoryTransferCompletion.Phase.SOURCE_REMOVED && !once.getAndSet(true)) {
+                throw new IOException("completion write unavailable");
+            }
+            return call.callRealMethod();
+        }).when(reviews).recordCompletion(anyString(), any(), any());
+        assertThatThrownBy(this::execute).isInstanceOf(IOException.class);
+        assertThat(reviews.run(review.plan().id()).phase()).isEqualTo(DirectoryTransferRun.Phase.FINALIZING);
+        assertThat(reviews.run(review.plan().id()).paused()).isFalse();
+        assertThat(reviews.run(review.plan().id()).recoveryRequired()).isTrue();
+        assertThat(new DirectoryTransferQueryService(reviews).get(review.plan().id(), 0, 50, false).review().statusLabel())
+                .isEqualTo("Upload merge recovery required (finalization)");
+        new DirectoryTransferStartupRecoveryService(reviews, null, service).recover();
+        assertThat(reviews.run(review.plan().id()).phase()).isEqualTo(DirectoryTransferRun.Phase.COMPLETE);
+        assertThat(reviews.run(review.plan().id()).recoveryRequired()).isFalse();
+        assertThat(pending.find(decision.id())).isEmpty();
+        assertThat(root.resolve("to/photos/a.txt")).hasContent("uploaded");
+    }
+
     @Test void uncontestedUploadMergesIntoExistingDirectoryWithoutAnotherApproval() throws Exception {
         Files.createDirectory(root.resolve("to/photos"));
         Files.writeString(root.resolve("to/photos/existing.txt"), "keep");

@@ -372,7 +372,7 @@ public class PendingFileDecisionService {
         repository.releaseMerge(id, mergeId);
     }
 
-    /** Internal recovery operation after a durable, unstarted merge abandonment. Keeps the upload pending. */
+    /** Internal recovery after durable abandonment and journal cleanup. Keeps the staged upload pending. */
     public synchronized void releaseAbandonedDirectoryMergeClaim(String id, String mergeId) throws IOException {
         var claim = repository.mergeClaim(id);
         if (claim == null || !claim.mergeId().equals(mergeId)) return;

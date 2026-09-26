@@ -90,7 +90,7 @@ public class TaskManagerService {
     public AppTask cancel(String id) {
         AppTask task = requireTask(id);
         if (!requestCancellation(task)) {
-            throw new IllegalArgumentException("Only queued or running tasks can be canceled.");
+            throw new IllegalArgumentException("This task is finished or finalizing and can no longer be canceled.");
         }
         return task;
     }

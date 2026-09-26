@@ -58,6 +58,6 @@ class PendingDecisionUnifiedListTest {
 
     private DirectoryTransferQueryService.Summary review(String id, Operation operation, String source) {
         return new DirectoryTransferQueryService.Summary(id, operation, source, "target/photos", Instant.EPOCH,
-                0, 3, 1, false, true, null, null, true);
+                0, 3, 1, false, true, null, null, true, false);
     }
 }

@@ -50,8 +50,12 @@ public class DirectoryTransferFinalizer {
     }
 
     /** Refuse uncertain publications rather than publishing more data as a side effect of stopping. */
-    synchronized void validateCopyAbandonment(DirectoryTransferReview review) throws IOException {
-        if (review.plan().operation() != Operation.COPY) throw new StorageAccessException("Only copy abandonment is supported here.");
+    synchronized void validateTransferAbandonment(DirectoryTransferReview review) throws IOException {
+        if (review.plan().operation() == Operation.PENDING) throw new StorageAccessException("Upload abandonment requires its owner.");
+        validateAbandonment(review);
+    }
+
+    private void validateAbandonment(DirectoryTransferReview review) throws IOException {
         var results = reviews.results(review);
         var index = new DirectoryTransferIndex(review.plan());
         var items = review.plan().items().stream().collect(java.util.stream.Collectors.toMap(Item::id, item -> item));
@@ -70,7 +74,7 @@ public class DirectoryTransferFinalizer {
                     || !entry.manifest().operationId().equals(result.commitId())
                     || entry.state().phase() != io.github.fourilla.endervault.filecommit.FileCommitPhase.APPLYING_METADATA
                         && entry.state().phase() != io.github.fourilla.endervault.filecommit.FileCommitPhase.COMPLETED) {
-                throw new StorageAccessException("An unfinished publication requires recovery before this copy can be abandoned.");
+                throw new StorageAccessException("An unfinished publication requires recovery before this transfer can be abandoned.");
             }
             DirectoryTransferJournalGuard.requireMatches(entry, review, item, result.targetPath());
         }
@@ -80,21 +84,80 @@ public class DirectoryTransferFinalizer {
             validateTarget(index, item, result, results);
             var state = reviews.completion(review.plan().id(), item.id());
             if (state != null && state.phase() != Phase.PREPARED && state.phase() != Phase.METADATA_APPLIED
-                    && state.phase() != Phase.COMPLETE) {
-                throw new StorageAccessException("Published copy completion requires inspection before abandonment.");
+                    && state.phase() != Phase.COMPLETE && !(review.plan().operation() != Operation.COPY
+                        && (state.phase() == Phase.RETAINED || state.phase() == Phase.SOURCE_REMOVED))) {
+                throw new StorageAccessException("Published transfer completion requires inspection before abandonment.");
+            }
+            if (review.plan().operation() == Operation.MOVE && state != null
+                    && (state.phase() == Phase.PREPARED || state.phase() == Phase.SOURCE_REMOVED)) {
+                Path source = sourcePath(review.plan(), item, null);
+                validateSourceParents(index, review.plan(), item, null);
+                DirectoryTransferPlanner.rejectLinks(source);
+                if (state.phase() == Phase.SOURCE_REMOVED && Files.exists(source, LinkOption.NOFOLLOW_LINKS)) {
+                    throw new StorageAccessException("A new source entry appeared after merge cleanup.");
+                }
             }
         }
     }
 
-    synchronized void completePublishedCopy(DirectoryTransferReview review) throws IOException {
-        validateCopyAbandonment(review);
+    synchronized void validatePendingAbandonment(DirectoryTransferReview review,
+            io.github.fourilla.endervault.pending.PendingFileDecision pending) throws IOException {
+        if (review.plan().operation() != Operation.PENDING || !pending.directory()
+                || !pending.id().equals(review.plan().sourceReference())) throw new StorageAccessException("Pending owner changed.");
+        Path source = storage.resolveFileStagingFile(pending.stagingFilename());
+        for (var item : review.plan().items()) {
+            var state = reviews.completion(review.plan().id(), item.id());
+            if (state != null && state.phase() != Phase.RETAINED) throw new StorageAccessException("Upload staging cleanup has already started.");
+            validateSource(item, source.resolve(item.relativePath()));
+        }
+        validateAbandonment(review);
+    }
+
+    synchronized void completePublishedPending(DirectoryTransferReview review,
+            io.github.fourilla.endervault.pending.PendingFileDecision pending) throws IOException {
+        validatePendingAbandonment(review, pending);
+        var results = reviews.results(review);
+        for (var item : review.plan().items()) {
+            var result = results.get(item.id());
+            if (result == null || result.status() != DirectoryTransferResult.Status.PUBLISHED) continue;
+            if (reviews.completion(review.plan().id(), item.id()) == null) {
+                update(review.plan().id(), item.id(), null, Phase.RETAINED, "Upload merge abandoned. Staged original retained.");
+            }
+            completeJournal(review, item, result);
+        }
+    }
+
+    synchronized void completePublishedTransfer(DirectoryTransferReview review) throws IOException {
+        validateTransferAbandonment(review);
         var results = reviews.results(review);
         var index = new DirectoryTransferIndex(review.plan());
         for (var item : review.plan().items()) {
             var result = results.get(item.id());
             if (result == null || result.status() != DirectoryTransferResult.Status.PUBLISHED) continue;
-            // COPY never removes originals; unrecorded items are deliberately left unprocessed.
-            finishItem(review, index, item, result, results, reviews.completion(review.plan().id(), item.id()), null, false);
+            if (review.plan().operation() == Operation.MOVE) {
+                // Never enter the ordinary PREPARED branch: it deletes the original.
+                var state = reviews.completion(review.plan().id(), item.id());
+                if (state == null) {
+                    state = update(review.plan().id(), item.id(), null, Phase.RETAINED,
+                            "Remaining move abandoned. Original left untouched.");
+                } else if (state.phase() == Phase.PREPARED) {
+                    Path source = sourcePath(review.plan(), item, null);
+                    validateSourceParents(index, review.plan(), item, null);
+                    DirectoryTransferPlanner.rejectLinks(source);
+                    if (Files.exists(source, LinkOption.NOFOLLOW_LINKS)) {
+                        state = update(review.plan().id(), item.id(), state, Phase.RETAINED,
+                                "Remaining move abandoned. Original left untouched.");
+                    } else {
+                        // The previous worker may have deleted the original before recording SOURCE_REMOVED.
+                        durability.forceDirectory(source.getParent());
+                        state = update(review.plan().id(), item.id(), state, Phase.SOURCE_REMOVED, null);
+                    }
+                }
+                if (state.phase() == Phase.RETAINED) completeJournal(review, item, result);
+                else finishItem(review, index, item, result, results, state, null, false);
+            } else {
+                finishItem(review, index, item, result, results, reviews.completion(review.plan().id(), item.id()), null, false);
+            }
         }
     }
 
@@ -132,6 +195,7 @@ public class DirectoryTransferFinalizer {
         // Children must finish before an empty original directory and its own metadata can move.
         var ordered = review.plan().items().stream()
                 .sorted(Comparator.comparingInt((Item item) -> depth(item.relativePath())).reversed()).toList();
+        progress.onProgress("Finalizing", 0, ordered.size(), 0, 0);
         for (var item : ordered) {
             progress.checkCanceled();
             var result = results.get(item.id());
@@ -140,6 +204,7 @@ public class DirectoryTransferFinalizer {
             if (state != null && terminal(state.phase())) {
                 if (state.phase() == Phase.COMPLETE) completeJournal(review, item, result);
                 completed.put(item.id(), state);
+                progress.onProgress("Finalizing", completed.size(), ordered.size(), 0, 0);
                 continue;
             }
             boolean discard = result.status() == DirectoryTransferResult.Status.DISCARD_APPROVED;
@@ -167,6 +232,7 @@ public class DirectoryTransferFinalizer {
             }
             completed.put(item.id(), state);
             progress.onItemProcessed();
+            progress.onProgress("Finalizing", completed.size(), ordered.size(), 0, 0);
         }
         return Map.copyOf(completed);
     }

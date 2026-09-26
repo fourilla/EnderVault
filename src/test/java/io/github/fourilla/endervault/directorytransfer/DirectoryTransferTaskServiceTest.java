@@ -73,20 +73,20 @@ class DirectoryTransferTaskServiceTest {
 
     @Test void remainingCopyAbandonmentIsQueuedDeduplicatedAndBlocksResume() throws Exception {
         when(reviews.run(id)).thenReturn(new DirectoryTransferRun(id, 2, DirectoryTransferRun.Phase.PUBLISHING, true));
-        var first = service.abandonRemainingCopy(id, 2, "admin", "ip");
-        assertSame(first, service.abandonRemainingCopy(id, 2, "admin", "ip"));
+        var first = service.abandonRemainingTransfer(id, 2, "admin", "ip");
+        assertSame(first, service.abandonRemainingTransfer(id, 2, "admin", "ip"));
         assertThrows(StorageAccessException.class, () -> service.execute(id, 2, "admin", "ip"));
         verifyNoInteractions(transfers);
         assertEquals(TaskStatus.COMPLETE, work.getFirst().run(mock(TaskContext.class)).status());
-        verify(transfers).abandonRemainingCopy(id, 2);
+        verify(transfers).abandonRemainingTransfer(id, 2);
     }
 
-    @Test void remainingAbandonmentRejectsActiveUnpausedOrNonCopyWork() throws Exception {
+    @Test void remainingAbandonmentRejectsActiveWorkAndUpload() throws Exception {
         when(reviews.run(id)).thenReturn(new DirectoryTransferRun(id, 2, DirectoryTransferRun.Phase.PUBLISHING, false));
-        assertThrows(StorageAccessException.class, () -> service.abandonRemainingCopy(id, 2, "admin", "ip"));
-        when(reviews.run(id)).thenReturn(new DirectoryTransferRun(id, 2, DirectoryTransferRun.Phase.PUBLISHING, true));
-        when(plan.operation()).thenReturn(DirectoryTransferPlan.Operation.MOVE);
-        assertThrows(StorageAccessException.class, () -> service.abandonRemainingCopy(id, 2, "admin", "ip"));
+        assertThrows(StorageAccessException.class, () -> service.abandonRemainingTransfer(id, 2, "admin", "ip"));
+        when(reviews.run(id)).thenReturn(new DirectoryTransferRun(id, 2, DirectoryTransferRun.Phase.FINALIZING, true));
+        when(plan.operation()).thenReturn(DirectoryTransferPlan.Operation.PENDING);
+        assertThrows(StorageAccessException.class, () -> service.abandonRemainingTransfer(id, 2, "admin", "ip"));
         verifyNoInteractions(tasks, transfers);
     }
 

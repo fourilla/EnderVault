@@ -9,6 +9,47 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 
 class TaskManagerCancellationTest {
+    @Test void transferProgressIncludesCurrentFileAndResetsBetweenPhases() {
+        var task = new AppTask("progress", TaskType.FILE_COPY, "copy", "", "test", "");
+        task.markRunning();
+        var listener = TaskContext.transferProgress(new TaskContext(task));
+        listener.onProgress("Publishing", 1, 4, 50, 100);
+        assertThat(task.progressPercent()).isEqualTo(18);
+        assertThat(task.message()).contains("Publishing: 1 / 4 items", "current file");
+        listener.onProgress("Finalizing", 2, 4, 0, 0);
+        assertThat(task.progressPercent()).isEqualTo(75);
+        assertThat(task.message()).contains("Finalizing: 2 / 4 items").doesNotContain("current file");
+        listener.onProgress("Finalizing", 4, 4, 0, 0);
+        assertThat(task.progressPercent()).isEqualTo(99);
+        task.markComplete("finished");
+        assertThat(task.progressPercent()).isEqualTo(100);
+        assertThat(task.message()).isEqualTo("finished");
+    }
+
+    @Test void finalizingTaskRejectsIndividualAndBulkCancellation() throws Exception {
+        var manager = new TaskManagerService(new NasProperties());
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        try {
+            var task = manager.submit(TaskType.DIRECTORY_MERGE, "finish upload", "", "test", "", context -> {
+                context.beginFinalization();
+                entered.countDown();
+                if (!release.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("timeout");
+                context.checkCanceled();
+                return TaskOutcome.complete("finished");
+            });
+            assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(task.cancelable()).isFalse();
+            assertThat(io.github.fourilla.endervault.web.task.TaskPayload.from(task).cancelable()).isFalse();
+            assertThatThrownBy(() -> manager.cancel(task.id())).isInstanceOf(IllegalArgumentException.class);
+            assertThat(manager.requestCancelActive(TaskType.DIRECTORY_MERGE)).isZero();
+            assertThat(task.cancelRequested()).isFalse();
+            release.countDown();
+            awaitFinished(task);
+            assertThat(task.status()).isEqualTo(TaskStatus.COMPLETE);
+        } finally { release.countDown(); manager.shutdown(); }
+    }
+
     @Test void runningTransfersStopCooperativelyForBothCancellationEntrypoints() throws Exception {
         for (var type : new TaskType[] { TaskType.FILE_COPY, TaskType.FILE_MOVE, TaskType.DIRECTORY_MERGE }) {
             for (boolean bulk : new boolean[] { false, true }) {

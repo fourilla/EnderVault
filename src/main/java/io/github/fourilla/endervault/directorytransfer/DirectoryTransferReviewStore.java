@@ -98,6 +98,15 @@ public class DirectoryTransferReviewStore {
         }
     }
 
+    /** Preserve recovery eligibility; failure recording must not replace the original IO error. */
+    synchronized void recordFailure(DirectoryTransferRun run, IOException failure) {
+        try {
+            saveRun(run, new DirectoryTransferRun(run.id(), run.revision(), run.phase(), run.paused(), true));
+        } catch (IOException | RuntimeException recordingFailure) {
+            failure.addSuppressed(recordingFailure);
+        }
+    }
+
     /** An execution keeps the same approval even after a process restart. */
     public synchronized DirectoryTransferReview freeze(String id, long expectedRevision) throws IOException {
         DirectoryTransferReview review = require(id);
@@ -326,8 +335,10 @@ public class DirectoryTransferReviewStore {
             throw new StorageAccessException("Invalid initial merge run.");
         }
         if (next.phase() == DirectoryTransferRun.Phase.ABANDONING
-                && require(next.id()).plan().operation() != DirectoryTransferPlan.Operation.COPY) {
-            throw new StorageAccessException("Only a paused copy supports abandoning remaining work.");
+                && require(next.id()).plan().operation() == DirectoryTransferPlan.Operation.PENDING
+                && (hasPredecessor(next.id()) || previous.phase() != DirectoryTransferRun.Phase.PUBLISHING
+                    && previous.phase() != DirectoryTransferRun.Phase.ABANDONING)) {
+            throw new StorageAccessException("This transfer phase does not support abandoning remaining work.");
         }
         writer.write(runPath(next.id()), next);
         writer.forceDirectory(root);

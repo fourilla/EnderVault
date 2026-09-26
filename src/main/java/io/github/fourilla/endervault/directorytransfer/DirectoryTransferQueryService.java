@@ -90,7 +90,8 @@ public class DirectoryTransferQueryService {
         return new Summary(plan.id(), plan.operation(), plan.sourceReference(), plan.destinationPath(), plan.createdAt(),
                 review.revision(), plan.items().size(),
                 plan.items().stream().filter(DirectoryTransferPlan.Item::requiresDecision).count(),
-                review.fullyReviewed(), editable, run, successor, canAbandon);
+                review.fullyReviewed(), editable, run, successor, canAbandon,
+                plan.operation() == DirectoryTransferPlan.Operation.PENDING && reviews.hasPredecessor(plan.id()));
     }
 
     private static void checkPage(int page, int size) {
@@ -100,14 +101,15 @@ public class DirectoryTransferQueryService {
     public record Page<T>(int page, int size, long total, List<T> items) {}
     public record Summary(String id, DirectoryTransferPlan.Operation operation, String sourceReference,
             String destinationPath, Instant createdAt, long revision, int itemCount, long conflictCount,
-            boolean fullyReviewed, boolean editable, DirectoryTransferRun run, String successorId, boolean canAbandon) {
+            boolean fullyReviewed, boolean editable, DirectoryTransferRun run, String successorId, boolean canAbandon,
+            @com.fasterxml.jackson.annotation.JsonIgnore boolean replannedUpload) {
         @com.fasterxml.jackson.annotation.JsonProperty public String title() { return DirectoryTransferPresentation.title(operation); }
         @com.fasterxml.jackson.annotation.JsonProperty public String statusLabel() { return DirectoryTransferPresentation.status(operation, run, editable); }
-        @com.fasterxml.jackson.annotation.JsonProperty public boolean canAbandonRemainingCopy() {
-            return operation == DirectoryTransferPlan.Operation.COPY && run != null && successorId == null
+        @com.fasterxml.jackson.annotation.JsonProperty public boolean canAbandonRemainingTransfer() {
+            return !replannedUpload && run != null && successorId == null
                     && (run.phase() == DirectoryTransferRun.Phase.ABANDONING
                         || run.paused() && (run.phase() == DirectoryTransferRun.Phase.PUBLISHING
-                            || run.phase() == DirectoryTransferRun.Phase.FINALIZING));
+                            || operation != DirectoryTransferPlan.Operation.PENDING && run.phase() == DirectoryTransferRun.Phase.FINALIZING));
         }
     }
     public enum EntryStage { PUBLICATION_PENDING, FINALIZATION_PENDING, NEEDS_REVIEW, COMPLETE, RETAINED }

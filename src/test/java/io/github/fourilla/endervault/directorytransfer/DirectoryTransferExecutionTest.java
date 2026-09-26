@@ -92,6 +92,27 @@ class DirectoryTransferExecutionTest {
         assertThat(run(review)).isEqualTo(results);
     }
 
+    @Test void reportsIntermediateBytesAndCountsAlreadyPublishedItemsOnResume() throws Exception {
+        Files.write(root.resolve("from/photos/large.bin"), new byte[256 * 1024]);
+        var review = plan(Map.of());
+        var intermediate = new AtomicBoolean();
+        var completed = new java.util.concurrent.atomic.AtomicLong();
+        var listener = new StorageProgressListener() {
+            @Override public void onProgress(String phase, long done, long total, long bytes, long byteTotal) {
+                assertThat(phase).isEqualTo("Publishing");
+                assertThat(total).isEqualTo(2);
+                if (bytes > 0 && bytes < byteTotal) intermediate.set(true);
+                completed.set(done);
+            }
+        };
+        execution.publishTransfer(review.plan().id(), review.revision(), listener);
+        assertThat(intermediate).isTrue();
+        assertThat(completed.get()).isEqualTo(2);
+        completed.set(0);
+        execution.publishTransfer(review.plan().id(), review.revision(), listener);
+        assertThat(completed.get()).isEqualTo(2);
+    }
+
     @Test void rootTypeConflictKeepBothRemapsTheWholeTree() throws Exception {
         file("from/photos/nested/a.txt", "a");
         file("to/photos", "existing file");

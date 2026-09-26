@@ -202,9 +202,7 @@ public class FileOperationTaskService {
     }
 
     private StorageProgressListener cancellationListener(TaskContext context) {
-        return new StorageProgressListener() {
-            @Override public void checkCanceled() { context.checkCanceled(); }
-        };
+        return TaskContext.transferProgress(context);
     }
 
     private TaskOutcome runMoveToTrash(

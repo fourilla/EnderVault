@@ -15,6 +15,15 @@ public final class DirectoryTransferPresentation {
     public static String status(DirectoryTransferPlan.Operation operation, DirectoryTransferRun run, boolean editable) {
         String name = operation(operation);
         if (run == null) return name + (editable ? " awaiting review" : " ready to resume");
+        if (run.recoveryRequired() && !run.terminal()) {
+            return name + " recovery required (" + switch (run.phase()) {
+                case PUBLISHING -> "publication";
+                case FINALIZING -> "finalization";
+                case OWNER_COMPLETING -> "pending record completion";
+                case ABANDONING -> "abandonment";
+                default -> "review";
+            } + ")";
+        }
         String phase = switch (run.phase()) {
             case PUBLISHING -> switch (operation) { case COPY -> "Copying"; case MOVE -> "Moving"; case PENDING -> "Merging upload"; };
             case FINALIZING -> name + " finalizing";

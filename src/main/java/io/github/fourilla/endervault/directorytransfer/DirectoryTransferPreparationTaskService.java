@@ -42,9 +42,7 @@ public class DirectoryTransferPreparationTaskService {
     private AppTask queue(String destination, String actor, String ip, Preparation preparation) {
         return tasks.submit(TaskType.DIRECTORY_MERGE, "Prepare directory merge", destination, actor, ip, context -> {
             context.message("Scanning directory items for review.");
-            StorageProgressListener listener = new StorageProgressListener() {
-                @Override public void checkCanceled() { context.checkCanceled(); }
-            };
+            StorageProgressListener listener = io.github.fourilla.endervault.task.TaskContext.transferProgress(context);
             context.checkCanceled();
             var review = preparation.prepare(listener);
             // Do not turn a successfully persisted review into a canceled/lost result after this point.

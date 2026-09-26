@@ -93,8 +93,12 @@ class DirectoryTransferFinalizerTest {
     }
 
     void pauseCopyAfterFirstFile() throws Exception {
+        pauseAfterFirstFile(Operation.COPY);
+    }
+
+    void pauseAfterFirstFile(Operation operation) throws Exception {
         file("from/photos/b.txt", "b");
-        var plan = new DirectoryTransferPlanner(storage, properties).planTransfer(Operation.COPY, "from/photos", "to", null);
+        var plan = new DirectoryTransferPlanner(storage, properties).planTransfer(operation, "from/photos", "to", null);
         review = reviews.create(plan);
         var registry = new TemporaryArtifactRegistry();
         execution = new DirectoryTransferExecution(reviews, new DirectoryTransferFilePublisher(reviews, storage, commits, registry), commits, storage, registry);
@@ -113,13 +117,129 @@ class DirectoryTransferFinalizerTest {
         assertThat(reviews.run(plan.id()).paused()).isTrue();
     }
 
+    @Test void partialMoveAbandonmentPreservesOriginalsAndOnlyClosesPublishedJournals() throws Exception {
+        pauseAfterFirstFile(Operation.MOVE);
+        String id = review.plan().id();
+        var before = reviews.results(review);
+        assertThat(new DirectoryTransferQueryService(reviews).get(id, 0, 50, false).review().canAbandonRemainingTransfer()).isTrue();
+        assertThat(transfers().abandonRemainingTransfer(id, 0).phase()).isEqualTo(DirectoryTransferRun.Phase.ABANDONED);
+        assertThat(reviews.results(review)).isEqualTo(before);
+        assertThat(root.resolve("from/photos/a.txt")).hasContent("a");
+        assertThat(root.resolve("from/photos/b.txt")).hasContent("b");
+        try (var files = Files.list(root.resolve("to/photos"))) { assertThat(files.count()).isEqualTo(1); }
+        assertThat(journals.list()).isEmpty();
+        for (var result : before.values()) {
+            assertThat(reviews.completion(id, result.itemId()).phase()).isEqualTo(DirectoryTransferCompletion.Phase.RETAINED);
+        }
+        verifyNoInteractions(lifecycle);
+        var inspector = new DirectoryTransferMetadataInspector(reviews, JsonMapper.builder().findAndAddModules().build(), journals,
+                mock(DirectoryTransferPendingInspector.class));
+        assertThat(inspector.inspect(null)).isEmpty();
+    }
+
+    @Test void moveAbandonmentRecoveryNeverDeletesSourcesOrPublishesMore() throws Exception {
+        pauseAfterFirstFile(Operation.MOVE);
+        var once = new AtomicBoolean();
+        doAnswer(call -> {
+            if (!once.getAndSet(true)) throw new IOException("journal cleanup failed");
+            return call.callRealMethod();
+        }).when(commits).complete(anyString());
+        String id = review.plan().id();
+        assertThatThrownBy(() -> transfers().abandonRemainingTransfer(id, 0)).isInstanceOf(IOException.class);
+        assertThat(reviews.run(id).phase()).isEqualTo(DirectoryTransferRun.Phase.ABANDONING);
+        clearInvocations(commits);
+        new DirectoryTransferStartupRecoveryService(reviews, transfers(), null).recover();
+        assertThat(reviews.run(id).phase()).isEqualTo(DirectoryTransferRun.Phase.ABANDONED);
+        assertThat(root.resolve("from/photos/a.txt")).hasContent("a");
+        assertThat(root.resolve("from/photos/b.txt")).hasContent("b");
+        try (var files = Files.list(root.resolve("to/photos"))) { assertThat(files.count()).isEqualTo(1); }
+        verify(commits, never()).resumeSingleFile(anyString());
+        verifyNoInteractions(lifecycle);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"UNSTARTED", "PREPARED", "DELETED", "SOURCE_REMOVED", "METADATA_APPLIED", "COMPLETE"})
+    void finalizingMoveAbandonmentNeverDeletesAnotherOriginal(String stage) throws Exception {
+        publish(Operation.MOVE, Map.of());
+        String itemId = review.plan().items().stream().filter(item -> item.relativePath().equals("a.txt")).findFirst().orElseThrow().id();
+        DirectoryTransferCompletion state = null;
+        if (!stage.equals("UNSTARTED")) {
+            state = new DirectoryTransferCompletion(itemId, DirectoryTransferCompletion.Phase.PREPARED, null);
+            reviews.recordCompletion(review.plan().id(), null, state);
+        }
+        boolean removed = !stage.equals("UNSTARTED") && !stage.equals("PREPARED");
+        if (removed) Files.delete(root.resolve("from/photos/a.txt"));
+        if (removed && !stage.equals("DELETED")) {
+            var next = new DirectoryTransferCompletion(itemId, DirectoryTransferCompletion.Phase.SOURCE_REMOVED, null);
+            reviews.recordCompletion(review.plan().id(), state, next);
+            state = next;
+        }
+        if (stage.equals("METADATA_APPLIED") || stage.equals("COMPLETE")) {
+            var next = new DirectoryTransferCompletion(itemId, DirectoryTransferCompletion.Phase.METADATA_APPLIED, null);
+            reviews.recordCompletion(review.plan().id(), state, next);
+            state = next;
+        }
+        if (stage.equals("COMPLETE")) reviews.recordCompletion(review.plan().id(), state,
+                new DirectoryTransferCompletion(itemId, DirectoryTransferCompletion.Phase.COMPLETE, null));
+        var publishing = new DirectoryTransferRun(review.plan().id(), review.revision(), DirectoryTransferRun.Phase.PUBLISHING, false);
+        reviews.saveRun(null, publishing);
+        reviews.saveRun(publishing, new DirectoryTransferRun(review.plan().id(), review.revision(), DirectoryTransferRun.Phase.FINALIZING, true));
+        assertThat(new DirectoryTransferQueryService(reviews).get(review.plan().id(), 0, 50, false).review().canAbandonRemainingTransfer()).isTrue();
+        assertThat(transfers().abandonRemainingTransfer(review.plan().id(), review.revision()).phase()).isEqualTo(DirectoryTransferRun.Phase.ABANDONED);
+        assertThat(Files.exists(root.resolve("from/photos/a.txt"))).isEqualTo(!removed);
+        assertThat(root.resolve("from/photos")).isDirectory();
+        assertThat(root.resolve("to/photos/a.txt")).hasContent("a");
+        assertThat(journals.list()).isEmpty();
+        verify(lifecycle, times(stage.equals("DELETED") || stage.equals("SOURCE_REMOVED") ? 1 : 0))
+                .applyMovedPathMetadata("from/photos/a.txt", "to/photos/a.txt");
+        verify(lifecycle, never()).applyMovedPathMetadata("from/photos", "to/photos");
+        assertThat(new DirectoryTransferMetadataInspector(reviews, JsonMapper.builder().findAndAddModules().build(), journals,
+                mock(DirectoryTransferPendingInspector.class)).inspect(null)).isEmpty();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void abandonmentAfterSourceRemovalRecoversMetadataButRejectsRecreatedOriginal(boolean recreated) throws Exception {
+        file("from/photos/b.txt", "b");
+        publish(Operation.MOVE, Map.of());
+        String id = review.plan().id();
+        String itemId = review.plan().items().stream().filter(item -> item.relativePath().equals("a.txt")).findFirst().orElseThrow().id();
+        var prepared = new DirectoryTransferCompletion(itemId, DirectoryTransferCompletion.Phase.PREPARED, null);
+        reviews.recordCompletion(id, null, prepared);
+        Files.delete(root.resolve("from/photos/a.txt"));
+        reviews.recordCompletion(id, prepared, new DirectoryTransferCompletion(itemId, DirectoryTransferCompletion.Phase.SOURCE_REMOVED, null));
+        var publishing = new DirectoryTransferRun(id, 0, DirectoryTransferRun.Phase.PUBLISHING, false);
+        reviews.saveRun(null, publishing);
+        reviews.saveRun(publishing, new DirectoryTransferRun(id, 0, DirectoryTransferRun.Phase.FINALIZING, true));
+        if (recreated) {
+            file("from/photos/a.txt", "new original");
+            assertThatThrownBy(() -> transfers().abandonRemainingTransfer(id, 0)).hasMessageContaining("new source entry");
+            assertThat(reviews.run(id).paused()).isTrue();
+            assertThat(root.resolve("from/photos/a.txt")).hasContent("new original");
+            verifyNoInteractions(lifecycle);
+        } else {
+            doThrow(new IOException("metadata unavailable")).doNothing().when(lifecycle)
+                    .applyMovedPathMetadata("from/photos/a.txt", "to/photos/a.txt");
+            assertThatThrownBy(() -> transfers().abandonRemainingTransfer(id, 0)).isInstanceOf(IOException.class);
+            assertThat(reviews.run(id).phase()).isEqualTo(DirectoryTransferRun.Phase.ABANDONING);
+            clearInvocations(commits);
+            new DirectoryTransferStartupRecoveryService(reviews, transfers(), null).recover();
+            assertThat(reviews.run(id).phase()).isEqualTo(DirectoryTransferRun.Phase.ABANDONED);
+            verify(commits, never()).resumeSingleFile(anyString());
+            assertThat(journals.list()).isEmpty();
+        }
+        assertThat(root.resolve("from/photos/b.txt")).hasContent("b");
+        assertThat(root.resolve("to/photos/a.txt")).hasContent("a");
+        verify(lifecycle, never()).applyMovedPathMetadata("from/photos/b.txt", "to/photos/b.txt");
+    }
+
     @Test void abandonedPartialCopyKeepsBothTreesAndNeverPublishesRemainingFile() throws Exception {
         pauseCopyAfterFirstFile();
         String id = review.plan().id();
         var before = reviews.results(review);
-        assertThat(new DirectoryTransferQueryService(reviews).get(id, 0, 50, false).review().canAbandonRemainingCopy()).isTrue();
+        assertThat(new DirectoryTransferQueryService(reviews).get(id, 0, 50, false).review().canAbandonRemainingTransfer()).isTrue();
         clearInvocations(commits);
-        assertThat(transfers().abandonRemainingCopy(id, 0).phase()).isEqualTo(DirectoryTransferRun.Phase.ABANDONED);
+        assertThat(transfers().abandonRemainingTransfer(id, 0).phase()).isEqualTo(DirectoryTransferRun.Phase.ABANDONED);
         assertThat(reviews.results(review)).isEqualTo(before);
         assertThat(journals.list()).isEmpty();
         try (var files = Files.list(root.resolve("to/photos"))) { assertThat(files.count()).isEqualTo(1); }
@@ -128,7 +248,7 @@ class DirectoryTransferFinalizerTest {
         verify(commits, never()).resumeSingleFile(anyString());
         verify(commits, never()).prepareReviewedSingleFile(any(), any(), anyString(), anyString(), any(), any());
         verifyNoInteractions(lifecycle);
-        assertThat(transfers().abandonRemainingCopy(id, 0).phase()).isEqualTo(DirectoryTransferRun.Phase.ABANDONED);
+        assertThat(transfers().abandonRemainingTransfer(id, 0).phase()).isEqualTo(DirectoryTransferRun.Phase.ABANDONED);
         assertThatThrownBy(() -> transfers().execute(id, 0, null)).hasMessageContaining("abandoned");
         var inspector = new DirectoryTransferMetadataInspector(reviews, JsonMapper.builder().findAndAddModules().build(), journals,
                 mock(DirectoryTransferPendingInspector.class));
@@ -144,7 +264,7 @@ class DirectoryTransferFinalizerTest {
             if (!once.getAndSet(true)) throw new IOException("after journal completion");
             return null;
         }).when(commits).complete(anyString());
-        assertThatThrownBy(() -> transfers().abandonRemainingCopy(id, 0)).isInstanceOf(IOException.class);
+        assertThatThrownBy(() -> transfers().abandonRemainingTransfer(id, 0)).isInstanceOf(IOException.class);
         assertThat(reviews.run(id).phase()).isEqualTo(DirectoryTransferRun.Phase.ABANDONING);
         clearInvocations(commits);
         new DirectoryTransferStartupRecoveryService(reviews, transfers(), null).recover();
@@ -158,7 +278,7 @@ class DirectoryTransferFinalizerTest {
         var result = reviews.results(review).values().stream()
                 .filter(r -> r.status() == DirectoryTransferResult.Status.PUBLISHED && r.target().kind() == Kind.FILE).findFirst().orElseThrow();
         Files.writeString(root.resolve(result.targetPath()), "external change");
-        assertThatThrownBy(() -> transfers().abandonRemainingCopy(review.plan().id(), 0)).isInstanceOf(io.github.fourilla.endervault.common.StorageAccessException.class);
+        assertThatThrownBy(() -> transfers().abandonRemainingTransfer(review.plan().id(), 0)).isInstanceOf(io.github.fourilla.endervault.common.StorageAccessException.class);
         assertThat(reviews.run(review.plan().id()).paused()).isTrue();
         assertThat(journals.list()).isNotEmpty();
     }
@@ -175,7 +295,7 @@ class DirectoryTransferFinalizerTest {
         }).when(reviews).recordResult(any(), any(), any());
         assertThatThrownBy(() -> transfers().execute(plan.id(), 0, null)).isInstanceOf(IOException.class);
         reviews.pauseRun(reviews.run(plan.id()), new io.github.fourilla.endervault.task.TaskCanceledException());
-        assertThatThrownBy(() -> transfers().abandonRemainingCopy(plan.id(), 0)).hasMessageContaining("unfinished publication");
+        assertThatThrownBy(() -> transfers().abandonRemainingTransfer(plan.id(), 0)).hasMessageContaining("unfinished publication");
         assertThat(reviews.run(plan.id()).phase()).isEqualTo(DirectoryTransferRun.Phase.PUBLISHING);
         assertThat(journals.list()).isNotEmpty();
         assertThat(root.resolve("from/photos/a.txt")).hasContent("a");

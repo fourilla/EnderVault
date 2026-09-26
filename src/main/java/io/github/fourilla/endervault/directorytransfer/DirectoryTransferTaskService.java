@@ -55,7 +55,7 @@ public class DirectoryTransferTaskService {
         }
     }
 
-    public synchronized AppTask abandonRemainingCopy(String id, long revision, String actor, String ip) throws IOException {
+    public synchronized AppTask abandonRemainingTransfer(String id, long revision, String actor, String ip) throws IOException {
         submissions.values().removeIf(Submission::finished);
         var existing = submissions.get(id);
         if (existing != null) {
@@ -64,22 +64,27 @@ public class DirectoryTransferTaskService {
         }
         var review = reviews.require(id);
         var run = reviews.run(id);
-        if (review.revision() != revision || review.plan().operation() != DirectoryTransferPlan.Operation.COPY
+        boolean upload = review.plan().operation() == DirectoryTransferPlan.Operation.PENDING;
+        if (review.revision() != revision || upload && reviews.hasPredecessor(id)
                 || run == null || !(run.phase() == DirectoryTransferRun.Phase.ABANDONING
                     || run.paused() && (run.phase() == DirectoryTransferRun.Phase.PUBLISHING
-                        || run.phase() == DirectoryTransferRun.Phase.FINALIZING))) {
-            throw new StorageAccessException("Only a paused copy can abandon its remaining work.");
+                        || !upload && run.phase() == DirectoryTransferRun.Phase.FINALIZING))) {
+            throw new StorageAccessException("This transfer must be paused to abandon remaining work.");
         }
         Submission submission = new Submission(revision, false, true);
-        submission.task = tasks.submit(TaskType.DIRECTORY_MERGE, "Abandon remaining copy", review.plan().destinationPath(), actor, ip, context -> {
+        submission.task = tasks.submit(TaskType.DIRECTORY_MERGE, "Abandon remaining transfer", review.plan().destinationPath(), actor, ip, context -> {
             submission.started = true;
             try {
                 context.checkCanceled();
                 context.resultReference(id);
                 context.directoryTransferReview(id);
-                context.message("Keeping copied files and closing remaining copy work.");
-                transfers.abandonRemainingCopy(id, revision);
-                return TaskOutcome.complete("Remaining copy abandoned. Original and already copied files were kept.");
+                context.message("Keeping original and published files while closing remaining work.");
+                if (upload) {
+                    pending.abandonRemaining(id, revision);
+                    return TaskOutcome.complete("Upload merge abandoned. Published files were kept; staged files await a new pending decision.");
+                }
+                transfers.abandonRemainingTransfer(id, revision);
+                return TaskOutcome.complete("Remaining transfer abandoned. Remaining originals and published files were kept; completed moves were not rolled back.");
             } finally { submission.done = true; }
         });
         submissions.put(id, submission);
@@ -127,9 +132,7 @@ public class DirectoryTransferTaskService {
 
     private TaskOutcome run(String id, long revision, boolean replan, DirectoryTransferPlan.Operation operation,
             TaskContext context) throws IOException {
-        StorageProgressListener listener = new StorageProgressListener() {
-            @Override public void checkCanceled() { context.checkCanceled(); }
-        };
+        StorageProgressListener listener = TaskContext.transferProgress(context);
         // Publication and cleanup count the same entries; do not report these as one percentage.
         context.message(replan ? "Scanning remaining directory items." : "Applying reviewed "
                 + DirectoryTransferPresentation.operation(operation).toLowerCase(java.util.Locale.ROOT) + ".");
@@ -152,7 +155,7 @@ public class DirectoryTransferTaskService {
         }
         if (result == null || !result.terminal()) throw new IOException("Directory merge did not reach a final outcome.");
         if (result.phase() == DirectoryTransferRun.Phase.ABANDONED) {
-            return TaskOutcome.complete("Remaining copy abandoned. Original and already copied files were kept.");
+            return TaskOutcome.complete("Remaining transfer abandoned. Remaining originals and published files were kept; completed moves were not rolled back.");
         }
         return result.phase() == DirectoryTransferRun.Phase.COMPLETE
                 ? TaskOutcome.complete(DirectoryTransferPresentation.title(operation) + " complete.")

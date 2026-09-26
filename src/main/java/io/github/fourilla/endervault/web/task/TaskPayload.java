@@ -20,6 +20,7 @@ public record TaskPayload(
         String message,
         boolean active,
         boolean cancelRequested,
+        boolean cancelable,
         String resultReference
 ) {
 
@@ -42,6 +43,7 @@ public record TaskPayload(
                 task.message(),
                 task.active(),
                 task.cancelRequested(),
+                task.cancelable(),
                 task.resultReference()
         );
     }

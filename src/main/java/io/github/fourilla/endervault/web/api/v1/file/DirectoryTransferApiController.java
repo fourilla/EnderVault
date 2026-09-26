@@ -106,7 +106,7 @@ public class DirectoryTransferApiController {
     @PostMapping("/{id}/abandon-remaining")
     public ResponseEntity<TaskPayload> abandonRemaining(@PathVariable String id, @RequestParam long revision,
             HttpServletRequest request) throws IOException {
-        return ResponseEntity.accepted().body(TaskPayload.from(tasks.abandonRemainingCopy(id, revision,
+        return ResponseEntity.accepted().body(TaskPayload.from(tasks.abandonRemainingTransfer(id, revision,
                 request.getUserPrincipal().getName(), clientIp.resolve(request))));
     }
 
