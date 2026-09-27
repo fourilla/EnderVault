@@ -41,7 +41,7 @@ export function PrepareDirectoryMergeButton({ pendingId, disabled, mergeId, star
     setBusy(true); busyChanged?.(true);
     try {
       const task = await postForm(`${mergeBase}/pending/${encodeURIComponent(pendingId)}`, {});
-      window.EnderVaultServerTasks?.track(task, { announceStart: true });
+      window.EnderVaultServerTasks?.track(task, { announceStart: true, refreshUrl: window.location.href });
       started?.();
       setTaskId(task.id);
     } catch (reason) { setBusy(false); toastError(reason, 'Merge review could not be prepared.'); }

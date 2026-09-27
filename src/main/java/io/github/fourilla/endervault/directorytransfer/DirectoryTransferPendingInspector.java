@@ -121,6 +121,7 @@ public class DirectoryTransferPendingInspector {
                 String name = path.getFileName().toString();
                 if (!name.endsWith(".json") || !uuid(name.substring(0, name.length() - 5))) continue;
                 try {
+                    if (store.cleanupPending(name.substring(0, name.length() - 5))) continue;
                     var review = read(path, DirectoryTransferReview.class);
                     if (review.plan().operation() != DirectoryTransferPlan.Operation.PENDING) continue;
                     var run = optional(store.inspectionRoot().resolve("runs").resolve(review.plan().id() + ".json"), DirectoryTransferRun.class);
@@ -147,6 +148,12 @@ public class DirectoryTransferPendingInspector {
     private void inspectClaim(PendingFileDecisionRepository.MergeClaim claim, PendingFileDecision current,
             List<MetadataIssue> issues, TaskContext context) throws IOException {
         var decision = claim.decision();
+        if (store.cleanupPending(claim.mergeId())) {
+            var approval = read(store.inspectionRoot().resolve("cleanup").resolve(claim.mergeId() + ".json"),
+                    DirectoryTransferRecordCleanup.Approval.class);
+            if (current != null || !claim.equals(approval.claim())) throw new IOException("Retiring claim changed");
+            return;
+        }
         if (current != null && !current.equals(decision)) throw new IOException("Pending snapshot changed");
         var review = review(claim.mergeId());
         String destination = decision.destinationPath().isEmpty() ? decision.originalFilename()
@@ -202,6 +209,7 @@ public class DirectoryTransferPendingInspector {
 
     private <T> T read(Path path, Class<T> type) throws IOException {
         int limit = type == DirectoryTransferReview.class || type == PendingFileDecision[].class
+                || type == DirectoryTransferRecordCleanup.Approval.class
                 ? 128 * 1024 * 1024 : 1024 * 1024;
         return DirectoryTransferInspectionReader.read(mapper, path, type, limit);
     }

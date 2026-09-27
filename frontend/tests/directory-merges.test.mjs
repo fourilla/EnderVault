@@ -154,6 +154,29 @@ test('abandonment needs explicit nested confirmation and is unavailable for star
   }
 });
 
+test('preparation registers a listing refresh even when the upload merge completes without review', async () => {
+  const tracked = [], submitted = [];
+  let closed = 0;
+  const jsx = (type, props) => ({ type, props });
+  const react = { useEffect: () => {}, useState: (initial) => [initial, () => {}],
+    createElement: (type, props, ...children) => jsx(type, { ...props, children }) };
+  const component = await load('../src/directory-merges/PrepareDirectoryMergeButton.tsx', {
+    React: react, window: { location: { href: '/files?path=photos' },
+      EnderVaultServerTasks: { track: (...args) => tracked.push(args) } },
+  }, { react, 'react/jsx-runtime': { jsx, jsxs: jsx },
+    DecisionDialogContext: { useDecisionDialog: () => ({ openMerge: () => assert.fail('unexpected direct open') }) },
+    'merge-api': { mergeBase: '/api/v1/files/directory-merges' },
+    'form-api': { postForm: async (url) => { submitted.push(url); return { id: 'task', status: 'COMPLETE' }; },
+      toastError: () => assert.fail('unexpected error') } });
+  const button = component.PrepareDirectoryMergeButton({ pendingId: 'pending', disabled: false, started: () => closed++ });
+  button.props.onClick();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(submitted, ['/api/v1/files/directory-merges/pending/pending']);
+  assert.equal(tracked[0][1].refreshUrl, '/files?path=photos');
+  assert.equal(tracked[0][1].announceStart, true);
+  assert.equal(closed, 1);
+});
+
 test('preparing a pending merge refreshes the row without navigating or opening a dialog', async () => {
   for (const status of ['PENDING', 'COMPLETE']) {
   const effects = [];

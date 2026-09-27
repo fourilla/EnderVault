@@ -21,7 +21,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Read-only diagnostics: never invoke registry readers that back up corrupt input. */
 @Component
 public class DirectoryTransferMetadataInspector implements MetadataInspector {
-    private static final Set<String> SINGLE = Set.of("executions", "runs", "successors");
+    private static final Set<String> SINGLE = Set.of("executions", "runs", "successors", "cleanup");
     private static final Set<String> ITEMS = Set.of("results", "completion");
     private static final int MAX_FILES = 1_000_000;
     private final DirectoryTransferReviewStore store;
@@ -175,6 +175,12 @@ public class DirectoryTransferMetadataInspector implements MetadataInspector {
 
     private void inspectPlan(Path root, String id, List<MetadataIssue> issues, TaskContext context) {
         try {
+            if (store.cleanupPending(id)) {
+                var approval = read(root.resolve("cleanup").resolve(id + ".json"), DirectoryTransferRecordCleanup.Approval.class);
+                if (!id.equals(approval.id())) throw new IOException("Cleanup identity mismatch");
+                issue(issues, id, "Completed transfer record cleanup was interrupted; scan Completed task records and repair eligible results");
+                return;
+            }
             Path reviewPath = root.resolve(id + ".json");
             if (!Files.isRegularFile(reviewPath, LinkOption.NOFOLLOW_LINKS)) {
                 issue(issues, id, "Execution records remain without their merge review");
@@ -301,7 +307,8 @@ public class DirectoryTransferMetadataInspector implements MetadataInspector {
     }
 
     private <T> T read(Path path, Class<T> type) throws IOException {
-        int limit = type == DirectoryTransferReview.class ? 128 * 1024 * 1024 : 1024 * 1024;
+        int limit = type == DirectoryTransferReview.class || type == DirectoryTransferRecordCleanup.Approval.class
+                ? 128 * 1024 * 1024 : 1024 * 1024;
         return DirectoryTransferInspectionReader.read(mapper, path, type, limit);
     }
 

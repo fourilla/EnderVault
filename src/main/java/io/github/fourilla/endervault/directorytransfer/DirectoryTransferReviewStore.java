@@ -40,7 +40,7 @@ public class DirectoryTransferReviewStore {
 
     public synchronized DirectoryTransferReview create(DirectoryTransferPlan plan) throws IOException {
         Path path = path(plan.id());
-        if (Files.exists(path, LinkOption.NOFOLLOW_LINKS)) throw new StorageAccessException("Directory merge review already exists.");
+        if (Files.exists(path, LinkOption.NOFOLLOW_LINKS) || cleanupPending(plan.id())) throw new StorageAccessException("Directory merge review already exists.");
         DirectoryTransferReview review = new DirectoryTransferReview(plan, 0, Map.of());
         writer.write(path, review);
         return review;
@@ -48,6 +48,7 @@ public class DirectoryTransferReviewStore {
 
     public synchronized DirectoryTransferReview require(String id) throws IOException {
         Path path = path(id);
+        if (cleanupPending(id)) throw new NoSuchFileException("Directory transfer records are being retired.");
         if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) throw new NoSuchFileException("Directory merge review not found.");
         DirectoryTransferReview review = new JsonRegistry<DirectoryTransferReview>(mapper, path, new TypeReference<>() {},
                 () -> null, JsonRegistry.CorruptionPolicy.BACKUP_AND_THROW).read();
@@ -201,6 +202,11 @@ public class DirectoryTransferReviewStore {
             validateResult(item, result);
             results.put(item.id(), result);
         }
+        validateResultTargets(review, results);
+        return Map.copyOf(results);
+    }
+
+    static void validateResultTargets(DirectoryTransferReview review, Map<String, DirectoryTransferResult> results) {
         var index = new DirectoryTransferIndex(review.plan());
         for (var item : review.plan().items()) {
             var result = results.get(item.id());
@@ -214,7 +220,6 @@ public class DirectoryTransferReviewStore {
                 throw new StorageAccessException("Merge result target does not match its review.");
             }
         }
-        return Map.copyOf(results);
     }
 
     /** One immutable file per item avoids rewriting a growing 100,000-item ledger on each commit. */
@@ -285,7 +290,7 @@ public class DirectoryTransferReviewStore {
         return file;
     }
 
-    private void validateResult(DirectoryTransferPlan.Item item, DirectoryTransferResult result) {
+    static void validateResult(DirectoryTransferPlan.Item item, DirectoryTransferResult result) {
         if (result == null || !item.id().equals(result.itemId())
                 || result.status() == DirectoryTransferResult.Status.PUBLISHED && result.target().kind() != item.source().kind()) {
             throw new StorageAccessException("Invalid directory merge result.");
@@ -298,7 +303,7 @@ public class DirectoryTransferReviewStore {
             return paths.filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))
                     .map(path -> path.getFileName().toString())
                     .filter(name -> name.matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.json"))
-                    .map(name -> name.substring(0, 36)).sorted().toList();
+                    .map(name -> name.substring(0, 36)).filter(id -> !cleanupPending(id)).sorted().toList();
         }
     }
 
@@ -352,7 +357,7 @@ public class DirectoryTransferReviewStore {
         try (var paths = Files.list(directory)) {
             return paths.map(p -> p.getFileName().toString())
                     .filter(name -> name.matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.json"))
-                    .map(name -> name.substring(0, 36)).sorted().toList();
+                    .map(name -> name.substring(0, 36)).filter(id -> !cleanupPending(id)).sorted().toList();
         }
     }
 
@@ -361,12 +366,16 @@ public class DirectoryTransferReviewStore {
         try (var paths = Files.list(root)) {
             return paths.map(p -> p.getFileName().toString())
                     .filter(name -> name.matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.json"))
-                    .map(name -> name.substring(0, 36)).sorted().toList();
+                    .map(name -> name.substring(0, 36)).filter(id -> !cleanupPending(id)).sorted().toList();
         }
     }
 
     synchronized boolean frozen(String id) throws IOException {
         return Files.exists(executionPath(id), LinkOption.NOFOLLOW_LINKS);
+    }
+
+    boolean cleanupPending(String id) {
+        return Files.exists(root.resolve("cleanup").resolve(id + ".json"), LinkOption.NOFOLLOW_LINKS);
     }
 
     private Path runPath(String id) throws IOException {
@@ -413,7 +422,7 @@ public class DirectoryTransferReviewStore {
         return file;
     }
 
-    private record Successor(String previous, String next) {}
+    record Successor(String previous, String next) {}
 
     private Path path(String id) throws IOException {
         try {

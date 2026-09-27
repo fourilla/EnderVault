@@ -133,11 +133,15 @@ test('disabled server task display does not announce or open an empty popover', 
   assert.equal(state.events.length, 0);
   assert.equal(state.shows(), 0);
   const terminal = [];
+  const refreshed = [];
+  state.window.EnderVaultFileBrowser = { requestListingRefresh: (url) => refreshed.push(url) };
+  state.tasks.track({ id: 'hidden', status: 'RUNNING', active: true }, { refreshUrl: '/files?path=target' });
   state.document.addEventListener('endervault:task-terminal', (event) => terminal.push(event.detail));
   state.tasks.track({ id: 'hidden', status: 'PENDING', active: false });
   state.tasks.track({ id: 'hidden', status: 'PENDING', active: false });
   state.tasks.track({ id: 'restored', status: 'PENDING', active: false });
   assert.deepEqual(terminal.map((task) => task.initiatedHere), [true, false]);
+  assert.deepEqual(refreshed, ['/files?path=target']);
 });
 
 test('admin file and directory conflicts announce durable decisions without resolving or queuing legacy dialogs', async (t) => {

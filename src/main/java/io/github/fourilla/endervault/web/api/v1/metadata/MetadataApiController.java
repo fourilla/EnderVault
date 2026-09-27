@@ -75,7 +75,7 @@ public class MetadataApiController {
         } catch (IOException ex) {
             FlashNotification notification = FlashNotification.error("The latest metadata report could not be loaded.");
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(errorResponse(notification, List.of(), 0, 0, List.of(notification.message())));
+                    .body(errorResponse(notification, List.of(), 0, 0, 0, List.of(notification.message())));
         }
 
         List<String> repairTokens = repairAll ? repairableTokens(latestReport) : issues;
@@ -91,6 +91,7 @@ public class MetadataApiController {
                     summary.repairedTokens(),
                     summary.repaired(),
                     summary.failed(),
+                    summary.skipped(),
                     summary.messages(),
                     issueCount(latestReport),
                     repairableCount(latestReport)
@@ -105,6 +106,7 @@ public class MetadataApiController {
                             summary.repairedTokens(),
                             summary.repaired(),
                             summary.failed(),
+                            summary.skipped(),
                             summary.messages()
                     ));
         }
@@ -115,6 +117,7 @@ public class MetadataApiController {
             List<String> repairedTokens,
             int repaired,
             int failed,
+            int skipped,
             List<String> messages
     ) {
         return new MetadataRepairActionResponse(
@@ -123,6 +126,7 @@ public class MetadataApiController {
                 repairedTokens,
                 repaired,
                 failed,
+                skipped,
                 messages,
                 0,
                 0
@@ -149,6 +153,10 @@ public class MetadataApiController {
     }
 
     private FlashNotification repairNotification(MetadataRepairSummary summary) {
+        if (summary.skipped() > 0) {
+            return FlashNotification.warning("Metadata repair finished: " + summary.repaired() + " repaired, "
+                    + summary.skipped() + " skipped, " + summary.failed() + " failed.");
+        }
         if (summary.failed() > 0) {
             return FlashNotification.warning(
                     "Metadata repair finished: " + summary.repaired() + " repaired, " + summary.failed() + " failed."
@@ -175,6 +183,7 @@ public class MetadataApiController {
             List<String> repairedTokens,
             int repaired,
             int failed,
+            int skipped,
             List<String> messages,
             int issueCount,
             int repairableCount

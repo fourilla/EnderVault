@@ -12,14 +12,35 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.ApplicationEventPublisherAware;
 
 @Service
-public class TaskManagerService {
+public class TaskManagerService implements ApplicationEventPublisherAware {
 
     private final NasProperties.Tasks taskProperties;
     private final ExecutorService executorService;
     private final Map<String, AppTask> tasks = new ConcurrentHashMap<>();
     private final Map<String, Future<?>> taskFutures = new ConcurrentHashMap<>();
+    private ApplicationEventPublisher events;
+
+    @Override
+    public void setApplicationEventPublisher(ApplicationEventPublisher events) { this.events = events; }
+
+    public void releaseDirectoryTransferRecords(Set<String> ids) {
+        if (events == null || ids.isEmpty()) return;
+        try { events.publishEvent(new DirectoryTransferRecordsReleased(ids)); }
+        catch (RuntimeException ex) {
+            org.slf4j.LoggerFactory.getLogger(TaskManagerService.class)
+                    .warn("Completed transfer record cleanup deferred: {}", ex.getClass().getSimpleName());
+        }
+    }
+
+    private void releaseRecords(AppTask task) {
+        if (!task.active() && task.status() != TaskStatus.PENDING) {
+            releaseDirectoryTransferRecords(task.directoryTransferReviews());
+        }
+    }
 
     public TaskManagerService(NasProperties nasProperties) {
         this.taskProperties = nasProperties.getTasks();
@@ -144,16 +165,19 @@ public class TaskManagerService {
     }
 
     public void completeDirectoryTransferReviews(String taskId, Set<String> expectedReviews) {
-        AppTask task = tasks.get(taskId);
-        if (task != null) task.completeDirectoryTransferReviews(expectedReviews);
+        settleDirectoryTransferReviews(taskId, expectedReviews, false);
     }
 
     public void settleDirectoryTransferReviews(String taskId, Set<String> expectedReviews, boolean abandoned) {
         AppTask task = tasks.get(taskId);
-        if (task != null) task.settleDirectoryTransferReviews(expectedReviews, abandoned);
+        if (task != null && task.status() == TaskStatus.PENDING) {
+            task.settleDirectoryTransferReviews(expectedReviews, abandoned);
+            releaseRecords(task);
+        }
     }
 
     private void run(AppTask task, TaskWork work) {
+        boolean awaitingReview = false;
         try {
             synchronized (task) {
                 if (task.cancelRequested()) throw new TaskCanceledException();
@@ -162,7 +186,10 @@ public class TaskManagerService {
             TaskOutcome outcome = work.run(new TaskContext(task));
             TaskOutcome safeOutcome = outcome == null ? TaskOutcome.complete("Complete.") : outcome;
             switch (safeOutcome.status()) {
-                case PENDING -> task.markPending(safeOutcome.message());
+                case PENDING -> {
+                    awaitingReview = true;
+                    task.markPending(safeOutcome.message());
+                }
                 case PARTIAL -> task.markPartial(safeOutcome.message());
                 default -> task.markComplete(safeOutcome.message());
             }
@@ -172,6 +199,7 @@ public class TaskManagerService {
             task.markFailed(cleanMessage(ex));
         } finally {
             taskFutures.remove(task.id());
+            if (!awaitingReview) releaseRecords(task);
         }
     }
 

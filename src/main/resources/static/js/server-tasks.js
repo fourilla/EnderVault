@@ -119,6 +119,8 @@
     };
 
     const renderTask = (task) => {
+        // Listing state is independent of whether the activity panel is displayed.
+        if (terminal(task)) maybeRefreshPage(task);
         if (terminal(task) && !terminalEvents.has(task.id)) {
             terminalEvents.add(task.id);
             document.dispatchEvent(new CustomEvent("endervault:task-terminal", {
@@ -145,7 +147,6 @@
         });
 
         if (terminal(task)) {
-            maybeRefreshPage(task);
             maybeNotifyTerminalTask(task);
             removeTrackedId(task.id);
             const delayMs = task.status === "COMPLETE"

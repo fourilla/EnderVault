@@ -55,6 +55,19 @@ public class PendingFileDecisionRepository {
         return registry.read().stream().filter(decision -> decision.id().equals(id)).findFirst();
     }
 
+    /** Caller must first persist a fully validated transfer-cleanup approval containing this exact claim. */
+    public synchronized void retireCompletedMergeClaim(MergeClaim expected) throws IOException {
+        String id = expected.decision().id();
+        if (find(id).isPresent()) throw new IOException("Pending decision still requires its claim.");
+        var current = mergeClaim(id);
+        if (current != null && !current.equals(expected)) throw new IOException("Pending merge cleanup owner changed.");
+        var path = claimPath(id);
+        java.nio.file.Files.deleteIfExists(path);
+        if (java.nio.file.Files.isDirectory(path.getParent(), java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+            writer.forceDirectory(path.getParent());
+        }
+    }
+
     public synchronized void add(PendingFileDecision decision) throws IOException {
         List<PendingFileDecision> decisions = new ArrayList<>(registry.read());
         decisions.add(decision);
@@ -108,7 +121,13 @@ public class PendingFileDecisionRepository {
 
     private java.nio.file.Path claimPath(String id) throws IOException {
         if (id == null || !java.util.UUID.fromString(id).toString().equals(id)) throw new IOException("Invalid pending ID.");
-        var path = registry.path().getParent().resolve("pending-directory-merges").resolve(id + ".json");
+        var path = claimDirectory().resolve(id + ".json");
+        if (java.nio.file.Files.isSymbolicLink(path)) throw new IOException("Pending merge claim path contains a symbolic link.");
+        return path;
+    }
+
+    private java.nio.file.Path claimDirectory() throws IOException {
+        var path = registry.path().getParent().resolve("pending-directory-merges");
         for (var parent = path; parent != null; parent = parent.getParent()) {
             if (java.nio.file.Files.isSymbolicLink(parent)) throw new IOException("Pending merge claim path contains a symbolic link.");
         }

@@ -1860,6 +1860,30 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void completedRecordCleanupUsesExistingInspectorRepairOnly() throws Exception {
+        mockMvc.perform(get("/api/v1/metadata")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.areas[*].name", org.hamcrest.Matchers.hasItem("COMPLETED_TASK_RECORDS")));
+        mockMvc.perform(post("/api/v1/metadata/repair"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/metadata/repair").with(csrf())
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("reader").roles("USER")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/metadata/cleanup-completed-records").with(csrf()))
+                .andExpect(status().isNotFound());
+        var stale = new io.github.fourilla.endervault.metadata.MetadataIssue(
+                io.github.fourilla.endervault.metadata.MetadataArea.COMPLETED_TASK_RECORDS,
+                io.github.fourilla.endervault.metadata.MetadataIssueSeverity.INFO,
+                io.github.fourilla.endervault.metadata.MetadataIssueAction.DELETE_COMPLETED_TASK_RECORD,
+                java.util.UUID.randomUUID().toString(), "Completed", "", "");
+        mockMvc.perform(post("/api/v1/metadata/repair").with(csrf()).param("issues", stale.token()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.repaired").value(0))
+                .andExpect(jsonPath("$.failed").value(0))
+                .andExpect(jsonPath("$.skipped").value(1))
+                .andExpect(jsonPath("$.messages[0]", org.hamcrest.Matchers.containsString("Skipped")));
+    }
+
+    @Test
     void removedMetadataMutationEndpointsAreNotAvailable() throws Exception {
         mockMvc.perform(post("/admin/metadata/scan").with(csrf()))
                 .andExpect(status().isNotFound());
@@ -2594,9 +2618,8 @@ class AdminNotificationFlowTest {
                 .andExpect(jsonPath("$[0].status").value("COMPLETE"));
         assertThat(Files.readString(ROOT.resolve(base + "/target/photos/a.txt"))).isEqualTo("new content");
         assertThat(Files.readString(ROOT.resolve(base + "/source/photos/a.txt"))).isEqualTo("new content");
-        mockMvc.perform(get(prefix + "/" + id)).andExpect(status().isOk())
-                .andExpect(jsonPath("$.review.run.phase").value("COMPLETE"))
-                .andExpect(jsonPath("$.review.editable").value(false));
+        // Settled task history owns the outcome; recovery-only records have been retired.
+        mockMvc.perform(get(prefix + "/" + id)).andExpect(status().isNotFound());
     }
 
     @Test

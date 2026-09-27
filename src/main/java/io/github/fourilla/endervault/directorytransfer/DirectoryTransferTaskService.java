@@ -53,6 +53,7 @@ public class DirectoryTransferTaskService {
         } else {
             reviews.abandonUnstarted(id, revision);
         }
+        tasks.releaseDirectoryTransferRecords(java.util.Set.of(id));
     }
 
     public synchronized AppTask abandonRemainingTransfer(String id, long revision, String actor, String ip) throws IOException {
