@@ -75,6 +75,7 @@ public class MetadataMaintenanceService {
 
         int repaired = 0;
         int failed = 0;
+        int skipped = 0;
         List<String> messages = new ArrayList<>();
         List<String> repairedTokens = new ArrayList<>();
         for (String token : tokens) {
@@ -90,12 +91,15 @@ public class MetadataMaintenanceService {
                 messages.add(inspector.repair(request.action(), request.subject()));
                 repairedTokens.add(token);
                 repaired++;
+            } catch (MetadataRepairSkippedException ex) {
+                skipped++;
+                messages.add(ex.getMessage());
             } catch (Exception ex) {
                 failed++;
                 messages.add(ex.getMessage() == null ? "Metadata repair failed." : ex.getMessage());
             }
         }
-        return new MetadataRepairSummary(repaired, failed, List.copyOf(messages), List.copyOf(repairedTokens));
+        return new MetadataRepairSummary(repaired, failed, List.copyOf(messages), List.copyOf(repairedTokens), skipped);
     }
 
     private List<MetadataIssue> limitIssues(List<MetadataIssue> issues) {

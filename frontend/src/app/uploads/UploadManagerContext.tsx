@@ -11,6 +11,9 @@ import {
 import { useAdminApp } from '../AdminAppContext';
 import { type DirectoryRoot, type UploadSelection, rootSignature, validateRoot } from './collect-uploads';
 import { DirectoryUpload } from './directory-upload';
+import { confirmAdminUpload } from './upload-preflight';
+import { toastError } from '../../shared/api/form-api';
+import { announcePending } from '../../pending-decisions/decision-auto-open';
 
 type UploadStatus =
   | 'queued'
@@ -18,19 +21,10 @@ type UploadStatus =
   | 'reserving'
   | 'uploading'
   | 'canceling'
-  | 'conflict'
-  | 'resolving'
   | 'pending'
   | 'complete'
   | 'failed'
   | 'canceled';
-
-interface UploadConflict {
-  id: string;
-  fileName: string;
-  directoryPath: string;
-  defaultPolicy: string;
-}
 
 interface ManagedUpload {
   id: number;
@@ -44,7 +38,6 @@ interface ManagedUpload {
   message: string;
   cancelRequested: boolean;
   handle?: EnderVaultUploadHandle;
-  conflict?: UploadConflict;
   redirectUrl?: string;
   removeTimer?: number;
 }
@@ -56,7 +49,7 @@ interface UploadManagerValue {
 }
 
 const activeStatuses = new Set<UploadStatus>([
-  'queued', 'fingerprinting', 'reserving', 'uploading', 'canceling', 'conflict', 'resolving',
+  'queued', 'fingerprinting', 'reserving', 'uploading', 'canceling',
 ]);
 
 const UploadManagerContext = createContext<UploadManagerValue | null>(null);
@@ -64,10 +57,8 @@ const UploadManagerContext = createContext<UploadManagerValue | null>(null);
 class AdminUploadManager {
   private readonly uploads = new Map<number, ManagedUpload>();
   private readonly queue: ManagedUpload[] = [];
-  private readonly conflictQueue: ManagedUpload[] = [];
   private running = 0;
   private nextId = 1;
-  private conflictDialogOpen = false;
 
   constructor(
     private maxConcurrentUploads: number,
@@ -150,7 +141,7 @@ class AdminUploadManager {
   }
 
   private percent(upload: ManagedUpload) {
-    if (['complete', 'conflict', 'resolving', 'pending'].includes(upload.status)) return 100;
+    if (['complete', 'pending'].includes(upload.status)) return 100;
     if (!upload.total) return 0;
     return Math.max(0, Math.min(100, Math.round((upload.loaded / upload.total) * 100)));
   }
@@ -169,8 +160,6 @@ class AdminUploadManager {
     if (upload.status === 'complete') return 'Complete';
     if (upload.status === 'failed') return upload.message || 'Failed';
     if (upload.status === 'canceled') return 'Canceled';
-    if (upload.status === 'conflict') return 'Waiting for conflict choice';
-    if (upload.status === 'resolving') return 'Applying conflict choice...';
     if (upload.status === 'pending') return upload.message || 'Waiting in Pending Decisions';
     const format = window.EnderVaultActivity?.formatBytes ?? ((bytes: number) => `${bytes} B`);
     const progress = `${format(upload.loaded)} / ${format(upload.total)}`;
@@ -258,12 +247,7 @@ class AdminUploadManager {
       if (!result || result.status === 'CANCELED') {
         this.finish(upload, 'canceled');
       } else if (result.status === 'PENDING' && result.pendingDecisionId) {
-        this.queueConflict(upload, {
-          id: result.pendingDecisionId,
-          fileName: upload.file.name,
-          directoryPath: upload.destinationPath,
-          defaultPolicy: result.defaultConflictPolicy || 'cancel',
-        });
+        this.pending(upload, result.pendingDecisionId);
       } else if (result.status === 'COMPLETED') {
         upload.redirectUrl = result.redirectUrl;
         this.finish(upload, 'complete', result.message || 'Upload complete');
@@ -303,71 +287,16 @@ class AdminUploadManager {
     }
     if (result?.status === 'COMPLETED') this.finish(upload, 'complete');
     else if (result?.status === 'PENDING') {
-      window.dispatchEvent(new CustomEvent('endervault:notifications-changed'));
-      window.EnderVault?.showToast('info', `"${upload.file.name}" is waiting in Pending Decisions.`);
-      this.finish(upload, 'pending', 'Waiting in Pending Decisions');
+      this.pending(upload, result.pendingDecisionId);
     } else if (!result || result.status === 'CANCELED') this.finish(upload, 'canceled');
     else throw new Error('Directory could not be finalized.');
   }
 
-  private queueConflict(upload: ManagedUpload, conflict: UploadConflict) {
-    upload.conflict = conflict;
-    upload.status = 'conflict';
+  private pending(upload: ManagedUpload, id?: string) {
     upload.loaded = upload.total;
-    this.conflictQueue.push(upload);
-    this.render();
     window.dispatchEvent(new CustomEvent('endervault:notifications-changed'));
-    this.showNextConflict();
-  }
-
-  private showNextConflict() {
-    if (this.conflictDialogOpen) return;
-    const upload = this.conflictQueue.shift();
-    if (!upload || upload.status !== 'conflict' || !upload.conflict) return;
-    this.conflictDialogOpen = true;
-    const ask = window.EnderVault?.askFileConflictPolicy?.({
-      ...upload.conflict,
-      message: `"${upload.conflict.fileName}" already exists. Choose how to finish this upload.`,
-      closeValue: 'defer',
-    }) ?? Promise.resolve('defer');
-    void ask
-      .then((policy) => policy === 'defer'
-        ? this.deferConflict(upload)
-        : this.resolveConflict(upload, policy))
-      .catch(() => this.deferConflict(upload))
-      .finally(() => {
-        this.conflictDialogOpen = false;
-        this.showNextConflict();
-      });
-  }
-
-  private deferConflict(upload: ManagedUpload) {
-    if (!upload.conflict || upload.status !== 'conflict') return;
-    window.EnderVault?.showToast('info', `"${upload.file.name}" is waiting in Pending Decisions.`);
     this.finish(upload, 'pending', 'Waiting in Pending Decisions');
-  }
-
-  private async resolveConflict(upload: ManagedUpload, policy: string) {
-    if (!upload.conflict || upload.status !== 'conflict') return;
-    upload.status = 'resolving';
-    this.render();
-    const body = new FormData();
-    const csrf = window.EnderVault?.csrfPair();
-    if (csrf) body.append(csrf.name, csrf.value);
-    body.append('id', upload.conflict.id);
-    body.append('conflictPolicy', policy);
-    body.append('path', upload.destinationPath);
-    try {
-      const response = await window.EnderVault!.requestJson('/api/v1/files/upload-conflicts/resolve', {
-        method: 'POST', body,
-      });
-      upload.redirectUrl = response.redirectUrl;
-      window.EnderVault?.showNotification(response.notification);
-      window.dispatchEvent(new CustomEvent('endervault:notifications-changed'));
-      this.finish(upload, response.uploadedFile ? 'complete' : 'canceled');
-    } catch (reason) {
-      this.finish(upload, 'failed', reason instanceof Error ? reason.message : 'Conflict resolution failed.');
-    }
+    if (id) announcePending(id);
   }
 }
 
@@ -395,10 +324,15 @@ export function UploadManagerProvider({ children }: PropsWithChildren) {
   }, [manager]);
 
   const startFiles = useCallback((files: File[], destinationPath: string) => {
-    manager.startFiles(files, destinationPath);
+    void confirmAdminUpload(files.map((file) => file.name), destinationPath)
+      .then((confirmed) => { if (confirmed) manager.startFiles(files, destinationPath); })
+      .catch((error: unknown) => toastError(error, 'Upload could not be started.'));
   }, [manager]);
   const startSelection = useCallback((selection: UploadSelection, destinationPath: string) => {
-    manager.startSelection(selection, destinationPath);
+    selection.roots.forEach(validateRoot);
+    void confirmAdminUpload([...selection.files.map((file) => file.name), ...selection.roots.map((root) => root.name)], destinationPath)
+      .then((confirmed) => { if (confirmed) manager.startSelection(selection, destinationPath); })
+      .catch((error: unknown) => toastError(error, 'Upload could not be started.'));
   }, [manager]);
   const value = useMemo(() => ({ activeCount, startFiles, startSelection }), [activeCount, startFiles, startSelection]);
   return <UploadManagerContext.Provider value={value}>{children}</UploadManagerContext.Provider>;

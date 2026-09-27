@@ -12,6 +12,10 @@ public class TaskContext {
         return task.id();
     }
 
+    public void resultReference(String reference) { task.setResultReference(reference); }
+
+    public void directoryTransferReview(String id) { task.addDirectoryTransferReview(id); }
+
     public void setTotalBytes(long totalBytes) {
         task.setTotalBytes(totalBytes);
     }
@@ -44,5 +48,21 @@ public class TaskContext {
         if (canceled()) {
             throw new TaskCanceledException();
         }
+    }
+
+    public void beginFinalization() { task.beginFinalization(); }
+
+    public void progress(String phase, long completed, long total, long bytes, long byteTotal) {
+        task.setPhaseProgress(phase, completed, total, bytes, byteTotal);
+    }
+
+    public static io.github.fourilla.endervault.storage.StorageProgressListener transferProgress(TaskContext context) {
+        return new io.github.fourilla.endervault.storage.StorageProgressListener() {
+            @Override public void checkCanceled() { context.checkCanceled(); }
+            @Override public void onFinalizing() { context.beginFinalization(); }
+            @Override public void onProgress(String phase, long completed, long total, long bytes, long byteTotal) {
+                context.progress(phase, completed, total, bytes, byteTotal);
+            }
+        };
     }
 }

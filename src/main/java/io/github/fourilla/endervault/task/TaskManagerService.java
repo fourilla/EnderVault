@@ -5,20 +5,42 @@ import jakarta.annotation.PreDestroy;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.ApplicationEventPublisherAware;
 
 @Service
-public class TaskManagerService {
+public class TaskManagerService implements ApplicationEventPublisherAware {
 
     private final NasProperties.Tasks taskProperties;
     private final ExecutorService executorService;
     private final Map<String, AppTask> tasks = new ConcurrentHashMap<>();
     private final Map<String, Future<?>> taskFutures = new ConcurrentHashMap<>();
+    private ApplicationEventPublisher events;
+
+    @Override
+    public void setApplicationEventPublisher(ApplicationEventPublisher events) { this.events = events; }
+
+    public void releaseDirectoryTransferRecords(Set<String> ids) {
+        if (events == null || ids.isEmpty()) return;
+        try { events.publishEvent(new DirectoryTransferRecordsReleased(ids)); }
+        catch (RuntimeException ex) {
+            org.slf4j.LoggerFactory.getLogger(TaskManagerService.class)
+                    .warn("Completed transfer record cleanup deferred: {}", ex.getClass().getSimpleName());
+        }
+    }
+
+    private void releaseRecords(AppTask task) {
+        if (!task.active() && task.status() != TaskStatus.PENDING) {
+            releaseDirectoryTransferRecords(task.directoryTransferReviews());
+        }
+    }
 
     public TaskManagerService(NasProperties nasProperties) {
         this.taskProperties = nasProperties.getTasks();
@@ -69,13 +91,7 @@ public class TaskManagerService {
     public int requestCancelActive(TaskType type) {
         int canceled = 0;
         for (AppTask task : activeTasks(type)) {
-            if (task.requestCancel()) {
-                Future<?> future = taskFutures.get(task.id());
-                boolean futureCanceled = future != null && future.cancel(true);
-                if (task.status() == TaskStatus.QUEUED && futureCanceled) {
-                    task.markCanceled("Canceled before it started.");
-                    taskFutures.remove(task.id());
-                }
+            if (requestCancellation(task)) {
                 canceled++;
             }
         }
@@ -94,16 +110,27 @@ public class TaskManagerService {
 
     public AppTask cancel(String id) {
         AppTask task = requireTask(id);
-        if (!task.requestCancel()) {
-            throw new IllegalArgumentException("Only queued or running tasks can be canceled.");
-        }
-        Future<?> future = taskFutures.get(task.id());
-        boolean futureCanceled = future != null && future.cancel(true);
-        if (task.status() == TaskStatus.QUEUED && futureCanceled) {
-            task.markCanceled("Canceled before it started.");
-            taskFutures.remove(task.id());
+        if (!requestCancellation(task)) {
+            throw new IllegalArgumentException("This task is finished or finalizing and can no longer be canceled.");
         }
         return task;
+    }
+
+    private boolean requestCancellation(AppTask task) {
+        synchronized (task) {
+            if (!task.requestCancel()) return false;
+            // These workers checkpoint cancellation between durable file operations. Interrupting
+            // a FileChannel also interrupts the writes needed to persist their paused state.
+            boolean cooperative = task.type() == TaskType.FILE_COPY || task.type() == TaskType.FILE_MOVE
+                    || task.type() == TaskType.DIRECTORY_MERGE;
+            Future<?> future = taskFutures.get(task.id());
+            boolean canceled = future != null && future.cancel(!cooperative);
+            if (task.status() == TaskStatus.QUEUED && canceled) {
+                task.markCanceled("Canceled before it started.");
+                taskFutures.remove(task.id());
+            }
+            return true;
+        }
     }
 
     public void delete(String id) {
@@ -137,16 +164,32 @@ public class TaskManagerService {
         executorService.shutdownNow();
     }
 
+    public void completeDirectoryTransferReviews(String taskId, Set<String> expectedReviews) {
+        settleDirectoryTransferReviews(taskId, expectedReviews, false);
+    }
+
+    public void settleDirectoryTransferReviews(String taskId, Set<String> expectedReviews, boolean abandoned) {
+        AppTask task = tasks.get(taskId);
+        if (task != null && task.status() == TaskStatus.PENDING) {
+            task.settleDirectoryTransferReviews(expectedReviews, abandoned);
+            releaseRecords(task);
+        }
+    }
+
     private void run(AppTask task, TaskWork work) {
+        boolean awaitingReview = false;
         try {
-            if (task.cancelRequested()) {
-                throw new TaskCanceledException();
+            synchronized (task) {
+                if (task.cancelRequested()) throw new TaskCanceledException();
+                task.markRunning();
             }
-            task.markRunning();
             TaskOutcome outcome = work.run(new TaskContext(task));
             TaskOutcome safeOutcome = outcome == null ? TaskOutcome.complete("Complete.") : outcome;
             switch (safeOutcome.status()) {
-                case PENDING -> task.markPending(safeOutcome.message());
+                case PENDING -> {
+                    awaitingReview = true;
+                    task.markPending(safeOutcome.message());
+                }
                 case PARTIAL -> task.markPartial(safeOutcome.message());
                 default -> task.markComplete(safeOutcome.message());
             }
@@ -156,6 +199,7 @@ public class TaskManagerService {
             task.markFailed(cleanMessage(ex));
         } finally {
             taskFutures.remove(task.id());
+            if (!awaitingReview) releaseRecords(task);
         }
     }
 

@@ -1,6 +1,9 @@
 import { useShellStatus, type NotificationCenterPayload } from './ShellStatusContext';
 import { AppNavigationLink } from './AppNavigationLink';
 import { ShellPopover } from './ShellPopover';
+import { useNavigate } from 'react-router-dom';
+import { useDecisionDialog } from '../pending-decisions/DecisionDialogContext';
+import { useTopbarPopover } from './TopbarPopoverContext';
 
 const emptyPayload: NotificationCenterPayload = {
   actionableCount: 0,
@@ -10,6 +13,9 @@ const emptyPayload: NotificationCenterPayload = {
 
 export function NotificationCenterControl() {
   const { notifications } = useShellStatus();
+  const navigate = useNavigate();
+  const { openMerge, openPending } = useDecisionDialog();
+  const { closeAll } = useTopbarPopover();
   const payload = notifications.data ?? emptyPayload;
   const available = Boolean(notifications.data) && !notifications.error;
 
@@ -17,6 +23,7 @@ export function NotificationCenterControl() {
   return (
     <ShellPopover
       id="notifications"
+      onTriggerClick={() => { closeAll(); navigate(payload.reviewAllHref || '/admin/pending-decisions'); }}
       icon="fas fa-bell"
       label={payload.actionableCount > 0
         ? `${payload.actionableCount} pending decision(s)`
@@ -33,7 +40,14 @@ export function NotificationCenterControl() {
       {payload.items.length > 0 ? (
         <div className="notification-center-list">
           {payload.items.map((item) => (
-            <AppNavigationLink className="notification-center-item" href={item.href} key={item.id}>
+            <AppNavigationLink className="notification-center-item" href={item.href} key={item.id}
+              onClick={(event) => {
+                if (!item.target || !['DIRECTORY_MERGE', 'PENDING_FILE_DECISION'].includes(item.target.kind) || event.button !== 0
+                    || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+                event.preventDefault();
+                if (item.target.kind === 'DIRECTORY_MERGE') openMerge(item.target.id);
+                else openPending(item.target.id);
+              }}>
               <i className="fas fa-file-circle-exclamation" aria-hidden="true" />
               <span>
                 <strong>{item.title}</strong>

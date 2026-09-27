@@ -2,6 +2,7 @@ package io.github.fourilla.endervault.metadata;
 
 public enum MetadataIssueAction {
     NONE("Review manually", false),
+    DELETE_COMPLETED_TASK_RECORD("Delete completed task record", true),
     REMOVE_METADATA("Remove metadata", true),
     DELETE_METADATA("Delete metadata", true),
     REVOKE_SHARE("Revoke shared link", true),

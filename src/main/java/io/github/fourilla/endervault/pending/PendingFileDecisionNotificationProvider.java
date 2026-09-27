@@ -17,9 +17,14 @@ public class PendingFileDecisionNotificationProvider implements ActionRequiredPr
 
     @Override
     public List<ActionRequiredItem> items() throws IOException {
-        return pendingFileDecisionService.list().stream()
-                .map(this::toActionRequiredItem)
-                .toList();
+        var result = new java.util.ArrayList<ActionRequiredItem>();
+        synchronized (pendingFileDecisionService) {
+            for (var decision : pendingFileDecisionService.list()) {
+                String owner = decision.directory() ? pendingFileDecisionService.directoryMergeOwner(decision.id()).orElse(null) : null;
+                result.add(toActionRequiredItem(decision, owner));
+            }
+        }
+        return List.copyOf(result);
     }
 
     @Override
@@ -27,7 +32,7 @@ public class PendingFileDecisionNotificationProvider implements ActionRequiredPr
         return "/admin/pending-decisions";
     }
 
-    private ActionRequiredItem toActionRequiredItem(PendingFileDecision decision) {
+    private ActionRequiredItem toActionRequiredItem(PendingFileDecision decision, String mergeId) {
         String destination = decision.destinationPath() == null || decision.destinationPath().isBlank()
                 ? "/"
                 : "/" + decision.destinationPath();
@@ -37,7 +42,9 @@ public class PendingFileDecisionNotificationProvider implements ActionRequiredPr
                 decision.originalFilename(),
                 decision.source().label() + " awaiting review in " + destination,
                 decision.createdAt(),
-                "/admin/pending-decisions#decision-" + decision.id()
+                "/admin/pending-decisions#" + (mergeId == null ? "decision-" + decision.id() : "merge-" + mergeId),
+                new ActionRequiredItem.Target(mergeId == null ? ActionRequiredItem.TargetKind.PENDING_FILE_DECISION
+                        : ActionRequiredItem.TargetKind.DIRECTORY_MERGE, mergeId == null ? decision.id() : mergeId)
         );
     }
 }

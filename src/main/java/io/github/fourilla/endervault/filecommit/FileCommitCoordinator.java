@@ -105,6 +105,43 @@ public class FileCommitCoordinator {
         return journalStore.findByOwner(owner);
     }
 
+    /** Persists an approved target snapshot instead of silently approving its current contents. */
+    public synchronized String prepareReviewedSingleFile(FileCommitOwner owner, Path stagedFile,
+            String destinationPath, String filename, ConflictPolicy policy,
+            FileCommitFingerprint approvedTarget) throws IOException {
+        Objects.requireNonNull(owner, "owner");
+        if (policy != ConflictPolicy.CANCEL && policy != ConflictPolicy.RENAME && policy != ConflictPolicy.OVERWRITE) {
+            throw new StorageAccessException("Unsupported reviewed file commit policy.");
+        }
+        if ((policy == ConflictPolicy.OVERWRITE) != (approvedTarget != null)
+                || approvedTarget != null && approvedTarget.directory()) {
+            throw new StorageAccessException("Invalid reviewed replacement snapshot.");
+        }
+        CommitPaths paths = commitPaths(stagedFile, destinationPath, filename);
+        Optional<FileCommitJournalEntry> existing = journalStore.findByOwner(owner);
+        if (existing.isPresent()) {
+            FileCommitJournalEntry entry = requireMatchingPlan(existing.get(), owner, paths, policy, false);
+            if (!Objects.equals(entry.manifest().items().getFirst().targetSnapshot(), approvedTarget)) {
+                throw new StorageAccessException("Stored file commit approval does not match the review.");
+            }
+            return entry.manifest().operationId();
+        }
+        requireRegularFile(stagedFile, "Reviewed file staging data is unavailable.");
+        journalStore.forcePreparedFile(stagedFile);
+        if (approvedTarget == null) {
+            if (Files.exists(paths.targetFile(), LinkOption.NOFOLLOW_LINKS)) {
+                throw new FileAlreadyExistsException(paths.targetPath());
+            }
+        } else if (!matchesFingerprint(approvedTarget, paths.targetFile())) {
+            throw new StorageAccessException("Approved replacement target changed. Review it again.");
+        }
+        FileCommitManifest manifest = new FileCommitManifest(FileCommitManifest.CURRENT_SCHEMA_VERSION,
+                UUID.randomUUID().toString(), owner, FileCommitOperationType.SINGLE_FILE, policy,
+                List.of(new FileCommitItem(0, paths.stagingPath(), paths.targetPath(),
+                        fingerprint(stagedFile), approvedTarget)), Instant.now());
+        return journalStore.create(manifest).manifest().operationId();
+    }
+
     public synchronized boolean hasActiveJournal(FileCommitOwner owner) throws IOException {
         return journalStore.findByOwner(owner).isPresent();
     }
@@ -202,6 +239,7 @@ public class FileCommitCoordinator {
                     || Files.isSymbolicLink(paths.stagedFile())) {
                 throw new StorageAccessException("Directory commit staging data is unavailable.");
             }
+            journalStore.forcePreparedDirectory(paths.stagedFile());
         } else {
             requireRegularFile(paths.stagedFile(), "File commit staging data is unavailable.");
         }

@@ -66,6 +66,7 @@ export interface MetadataRepairPayload {
   repairedTokens: string[];
   repaired: number;
   failed: number;
+  skipped: number;
   messages: string[];
   issueCount: number;
   repairableCount: number;

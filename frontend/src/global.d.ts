@@ -37,6 +37,7 @@ declare global {
         message: string;
         confirmLabel: string;
         danger?: boolean;
+        nested?: boolean;
       }) => Promise<boolean>;
       askFileConflictPolicy?: (options: Record<string, unknown>) => Promise<string>;
       openDialog?: (dialog: HTMLDialogElement) => void;

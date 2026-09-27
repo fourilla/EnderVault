@@ -4,6 +4,8 @@ import io.github.fourilla.endervault.common.ByteSizeFormatter;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class AppTask {
@@ -21,8 +23,32 @@ public class AppTask {
     private volatile Instant startedAt;
     private volatile Instant finishedAt;
     private volatile String targetPath;
+    private volatile String resultReference;
+    private final Set<String> directoryTransferReviews = ConcurrentHashMap.newKeySet();
     private volatile String message = "Waiting to start.";
     private volatile boolean cancelRequested;
+    private volatile boolean finalizing;
+    private volatile PhaseProgress phaseProgress;
+
+    private record PhaseProgress(String phase, long completed, long total, long bytes, long byteTotal) {
+        int percent() {
+            double fraction = byteTotal > 0 ? Math.min(1d, (double) bytes / byteTotal) : 0d;
+            // Each item has a publication step and a finalization step, not equal wall-clock cost.
+            double offset = "Finalizing".equals(phase) ? 50d : 0d;
+            return total > 0 ? (int) Math.min(99d, offset + 50d * (completed + fraction) / total) : 0;
+        }
+
+        String label() {
+            String label = phase + ": " + completed + " / " + total + " items";
+            if (byteTotal > 0) label += " (current file: " + ByteSizeFormatter.humanSize(bytes)
+                    + " / " + ByteSizeFormatter.humanSize(byteTotal) + ")";
+            return label;
+        }
+    }
+
+    void setPhaseProgress(String phase, long completed, long total, long bytes, long byteTotal) {
+        phaseProgress = new PhaseProgress(phase, completed, total, bytes, byteTotal);
+    }
     private final AtomicLong processedBytes = new AtomicLong();
     private final AtomicLong totalBytes = new AtomicLong(-1L);
     private final AtomicLong processedItems = new AtomicLong();
@@ -40,6 +66,28 @@ public class AppTask {
 
     public String id() {
         return id;
+    }
+
+    public String resultReference() { return resultReference; }
+
+    void setResultReference(String reference) { resultReference = reference; }
+
+    public Set<String> directoryTransferReviews() { return Set.copyOf(directoryTransferReviews); }
+
+    void addDirectoryTransferReview(String id) {
+        if (id == null || id.isBlank()) throw new IllegalArgumentException("Merge review ID is required.");
+        directoryTransferReviews.add(id);
+    }
+
+    synchronized void completeDirectoryTransferReviews(Set<String> expected) {
+        settleDirectoryTransferReviews(expected, false);
+    }
+
+    synchronized void settleDirectoryTransferReviews(Set<String> expected, boolean abandoned) {
+        if (status != TaskStatus.PENDING || expected.isEmpty() || !directoryTransferReviews.equals(expected)) return;
+        resultReference = null;
+        if (abandoned) markCanceled("Directory transfer work was abandoned. Previously completed results were kept.");
+        else markComplete("All directory merge reviews completed (including approved skips or discards).");
     }
 
     public String shortId() {
@@ -88,11 +136,20 @@ public class AppTask {
     }
 
     public String message() {
-        return message;
+        var phase = phaseProgress;
+        return active() && phase != null ? message + " " + phase.label() : message;
     }
 
     public boolean cancelRequested() {
         return cancelRequested;
+    }
+
+    public boolean cancelable() { return active() && !finalizing; }
+
+    synchronized void beginFinalization() {
+        finalizing = true;
+        cancelRequested = false;
+        message = "Finalizing uploaded directory. Published files are being verified and staging is being cleaned up.";
     }
 
     public boolean active() {
@@ -116,6 +173,8 @@ public class AppTask {
     }
 
     public int progressPercent() {
+        var phase = phaseProgress;
+        if (phase != null) return status == TaskStatus.COMPLETE ? 100 : phase.percent();
         long byteTotal = totalBytes();
         if (byteTotal > 0L) {
             return boundedPercent(processedBytes(), byteTotal);
@@ -128,6 +187,8 @@ public class AppTask {
     }
 
     public String progressLabel() {
+        var phase = phaseProgress;
+        if (phase != null) return phase.label();
         long byteTotal = totalBytes();
         if (byteTotal > 0L) {
             return "%s / %s".formatted(
@@ -170,11 +231,11 @@ public class AppTask {
         this.message = blankToDefault(message, "Complete.");
     }
 
-    void markPending(String message) {
-        status = TaskStatus.PENDING;
+    synchronized void markPending(String message) {
         finishedAt = Instant.now();
         cancelRequested = false;
         this.message = blankToDefault(message, "Waiting for review.");
+        status = TaskStatus.PENDING;
     }
 
     void markPartial(String message) {
@@ -191,7 +252,7 @@ public class AppTask {
     }
 
     boolean requestCancel() {
-        if (!active()) {
+        if (!cancelable()) {
             return false;
         }
         cancelRequested = true;
@@ -211,6 +272,7 @@ public class AppTask {
 
     void setMessage(String message) {
         if (message != null && !message.isBlank()) {
+            phaseProgress = null;
             this.message = message;
         }
     }

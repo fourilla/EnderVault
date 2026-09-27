@@ -3,11 +3,16 @@ package io.github.fourilla.endervault.task;
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.auth.ClientIpResolver;
 import io.github.fourilla.endervault.common.StorageAccessException;
+import io.github.fourilla.endervault.directorytransfer.DirectoryTransferPlan;
+import io.github.fourilla.endervault.directorytransfer.DirectoryTransferPlanner;
+import io.github.fourilla.endervault.directorytransfer.DirectoryTransferReviewStore;
+import io.github.fourilla.endervault.directorytransfer.DirectoryTransferRun;
+import io.github.fourilla.endervault.directorytransfer.DirectoryTransferService;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
 import io.github.fourilla.endervault.storage.FileItem;
 import io.github.fourilla.endervault.storage.FileLifecycleService;
-import io.github.fourilla.endervault.storage.StorageOperationSummary;
 import io.github.fourilla.endervault.storage.StorageProgressListener;
+import io.github.fourilla.endervault.storage.StorageOperationSummary;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.trash.TrashRecord;
 import io.github.fourilla.endervault.trash.TrashService;
@@ -30,6 +35,9 @@ public class FileOperationTaskService {
     private final TrashService trashService;
     private final ActivityLogService activityLogService;
     private final ClientIpResolver clientIpResolver;
+    private final DirectoryTransferPlanner transferPlanner;
+    private final DirectoryTransferReviewStore transferReviews;
+    private final DirectoryTransferService directoryTransfers;
 
     public FileOperationTaskService(
             TaskManagerService taskManagerService,
@@ -37,7 +45,10 @@ public class FileOperationTaskService {
             FileLifecycleService fileLifecycleService,
             TrashService trashService,
             ActivityLogService activityLogService,
-            ClientIpResolver clientIpResolver
+            ClientIpResolver clientIpResolver,
+            DirectoryTransferPlanner transferPlanner,
+            DirectoryTransferReviewStore transferReviews,
+            DirectoryTransferService directoryTransfers
     ) {
         this.taskManagerService = taskManagerService;
         this.storageService = storageService;
@@ -45,6 +56,9 @@ public class FileOperationTaskService {
         this.trashService = trashService;
         this.activityLogService = activityLogService;
         this.clientIpResolver = clientIpResolver;
+        this.transferPlanner = transferPlanner;
+        this.transferReviews = transferReviews;
+        this.directoryTransfers = directoryTransfers;
     }
 
     public AppTask queueTransfer(
@@ -103,22 +117,57 @@ public class FileOperationTaskService {
             ConflictPolicy conflictPolicy
     ) throws IOException {
         context.message("Preparing " + operation.label().toLowerCase(Locale.ROOT) + ".");
-        if (operation == TransferOperation.COPY) {
-            StorageOperationSummary summary = storageService.summarizeVaultPaths(
-                    items.stream().map(TransferBufferItem::path).toList()
-            );
-            context.setTotalBytes(summary.totalBytes());
-            context.setTotalItems(summary.totalItems());
-        } else {
-            context.setTotalItems(items.size());
+        String destination = storageService.normalizeVaultDirectory(targetPath);
+        if (items.stream().noneMatch(TransferBufferItem::directory)) {
+            if (operation == TransferOperation.COPY) {
+                StorageOperationSummary summary = storageService.summarizeVaultPaths(
+                        items.stream().map(TransferBufferItem::path).toList());
+                context.setTotalBytes(summary.totalBytes());
+                context.setTotalItems(summary.totalItems());
+            } else {
+                context.setTotalItems(items.size());
+            }
         }
 
         int completedCount = 0;
         int failedCount = 0;
+        int pendingCount = 0;
+        String firstReview = null;
         for (TransferBufferItem item : items) {
             context.checkCanceled();
             context.message(runningLabel(operation) + " " + item.name());
+            String savedReview = null;
             try {
+                FileItem source = storageService.describeVaultPath(item.path());
+                if (source.directory() && !source.parentPath().equals(destination)) {
+                    var plan = transferPlanner.planTransfer(operation == TransferOperation.MOVE
+                            ? DirectoryTransferPlan.Operation.MOVE : DirectoryTransferPlan.Operation.COPY,
+                            source.path(), destination, cancellationListener(context));
+                    var review = transferReviews.create(plan);
+                    savedReview = plan.id();
+                    context.directoryTransferReview(plan.id());
+                    context.resultReference(plan.id());
+                    boolean complete = review.fullyReviewed()
+                            && directoryTransfers.execute(plan.id(), review.revision(), cancellationListener(context))
+                                    .phase() == DirectoryTransferRun.Phase.COMPLETE;
+                    if (complete) {
+                        // The merge finalizer already updates moved-path metadata item by item.
+                        completedCount++;
+                        activityLogService.record(operation.activityType(), request.actor(), request.ip(),
+                                source.path(), plan.destinationPath(), true, "Completed directory transfer", Map.of());
+                    } else {
+                        pendingCount++;
+                        if (firstReview == null) firstReview = plan.id();
+                    }
+                    continue;
+                }
+                if (source.directory() && operation == TransferOperation.MOVE) {
+                    completedCount++;
+                    continue;
+                }
+                if (source.directory() && conflictPolicy != ConflictPolicy.RENAME) {
+                    throw new StorageAccessException("Copying a directory to its current location requires Keep both.");
+                }
                 String newPath = operation == TransferOperation.MOVE
                         ? storageService.moveVaultPath(item.path(), targetPath, conflictPolicy)
                         : storageService.copyVaultPath(item.path(), targetPath, listener(context), conflictPolicy);
@@ -130,15 +179,30 @@ public class FileOperationTaskService {
                 }
                 completedCount++;
             } catch (TaskCanceledException ex) {
+                if (savedReview != null && firstReview == null) firstReview = savedReview;
                 throw ex;
             } catch (StorageAccessException | IOException ex) {
                 failedCount++;
+                if (savedReview != null) {
+                    pendingCount++;
+                    if (firstReview == null) firstReview = savedReview;
+                }
                 recordFailedTransfer(operation, item, targetPath, request, ex);
+            } finally {
+                context.resultReference(firstReview);
             }
         }
 
         String message = transferMessage(operation, completedCount, failedCount);
+        if (pendingCount > 0) {
+            message += " " + pendingCount + " directory merge(s) awaiting review.";
+            return failedCount == 0 ? TaskOutcome.pending(message) : TaskOutcome.partial(message);
+        }
         return failedCount == 0 ? TaskOutcome.complete(message) : TaskOutcome.partial(message);
+    }
+
+    private StorageProgressListener cancellationListener(TaskContext context) {
+        return TaskContext.transferProgress(context);
     }
 
     private TaskOutcome runMoveToTrash(

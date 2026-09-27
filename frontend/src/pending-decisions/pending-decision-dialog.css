@@ -1,0 +1,100 @@
+.pending-decision-dialog .text-input-card {
+  min-width: 0;
+  gap: var(--space-lg);
+  padding: var(--space-xl);
+}
+
+.pending-decision-dialog .text-input-header {
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.pending-decision-dialog .text-input-header h2 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pending-decision-dialog .text-input-header > button {
+  flex-shrink: 0;
+}
+
+.pending-decision-summary {
+  display: grid;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.pending-decision-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+}
+
+.pending-decision-item > i {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.pending-decision-item > strong,
+.pending-decision-location dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pending-decision-location {
+  display: grid;
+  gap: var(--space-xs);
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+.pending-decision-location dt {
+  color: var(--muted);
+}
+
+.pending-decision-location dd {
+  margin: 0;
+}
+
+.pending-decision-controls {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-md);
+}
+
+.pending-decision-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm);
+}
+
+.pending-decision-action-grid > button {
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  justify-content: flex-start;
+  white-space: normal;
+  text-align: left;
+}
+
+.pending-decision-action-grid > button > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pending-decision-action-grid > button > i {
+  flex-shrink: 0;
+}
+
+@media (max-width: 420px) {
+  .pending-decision-action-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.pending-decision-dialog .pending-decision-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}

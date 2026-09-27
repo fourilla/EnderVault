@@ -1,0 +1,59 @@
+package io.github.fourilla.endervault.directorytransfer;
+
+import io.github.fourilla.endervault.task.TaskManagerService;
+import io.github.fourilla.endervault.task.TaskStatus;
+import java.io.IOException;
+import java.util.HashSet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+
+/** Reconcile transient task history from durable outcomes; never execute or delete file operations. */
+@Component
+public class DirectoryTransferTaskReconciler {
+    private static final Logger log = LoggerFactory.getLogger(DirectoryTransferTaskReconciler.class);
+    private final TaskManagerService tasks;
+    private final DirectoryTransferReviewStore reviews;
+
+    public DirectoryTransferTaskReconciler(TaskManagerService tasks, DirectoryTransferReviewStore reviews) {
+        this.tasks = tasks;
+        this.reviews = reviews;
+    }
+
+    @Scheduled(fixedDelay = 5_000L)
+    public void reconcile() {
+        for (var task : tasks.listTasks()) {
+            if (task.status() != TaskStatus.PENDING) continue;
+            var dependencies = task.directoryTransferReviews();
+            if (dependencies.isEmpty()) continue;
+            try {
+                boolean complete = true;
+                boolean abandoned = false;
+                synchronized (reviews) {
+                    for (String id : dependencies) {
+                        var phase = resolvedSuccessor(id);
+                        if (phase == DirectoryTransferRun.Phase.ABANDONED) abandoned = true;
+                        else if (phase != DirectoryTransferRun.Phase.COMPLETE) { complete = false; break; }
+                    }
+                }
+                if (complete) tasks.settleDirectoryTransferReviews(task.id(), dependencies, abandoned);
+            } catch (IOException | RuntimeException ex) {
+                // Inconclusive records must not turn a pending operation into a success.
+                log.debug("Could not reconcile directory merge task {}: {}", task.id(), ex.getClass().getSimpleName());
+            }
+        }
+    }
+
+    private DirectoryTransferRun.Phase resolvedSuccessor(String id) throws IOException {
+        var visited = new HashSet<String>();
+        while (visited.size() < 256 && visited.add(id)) {
+            reviews.require(id);
+            String next = reviews.successor(id);
+            if (next != null) { id = next; continue; }
+            var run = reviews.run(id);
+            return run == null ? null : run.phase();
+        }
+        return null;
+    }
+}

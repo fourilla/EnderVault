@@ -1,4 +1,5 @@
 export interface TextInputOptions {
+  nested?: boolean;
   title?: string;
   message?: string;
   label?: string;
@@ -7,6 +8,7 @@ export interface TextInputOptions {
   confirmLabel?: string;
 }
 export interface ConfirmationOptions {
+  nested?: boolean;
   title?: string;
   message?: string;
   confirmLabel?: string;

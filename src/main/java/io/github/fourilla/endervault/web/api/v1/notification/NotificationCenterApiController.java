@@ -54,7 +54,8 @@ public class NotificationCenterApiController {
             String title,
             String detail,
             String createdLabel,
-            String href
+            String href,
+            ActionRequiredItem.Target target
     ) {
         static NotificationCenterItem from(ActionRequiredItem item) {
             return new NotificationCenterItem(
@@ -63,7 +64,8 @@ public class NotificationCenterApiController {
                     item.title(),
                     item.detail(),
                     CREATED_AT_FORMATTER.format(item.createdAt()),
-                    item.href()
+                    item.href(),
+                    item.target()
             );
         }
     }

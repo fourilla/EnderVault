@@ -1,6 +1,8 @@
 package io.github.fourilla.endervault.web.api.v1.pending;
 
 import io.github.fourilla.endervault.activity.ActivityLogService;
+import io.github.fourilla.endervault.directorytransfer.DirectoryTransferQueryService;
+import io.github.fourilla.endervault.directorytransfer.DirectoryTransferPlan;
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
 import io.github.fourilla.endervault.pending.PendingFileDecision;
 import io.github.fourilla.endervault.pending.PendingFileDecisionAction;
@@ -31,22 +33,47 @@ public class PendingFileDecisionApiController {
 
     private final PendingFileDecisionService pendingFileDecisionService;
     private final ActivityLogService activityLogService;
+    private final DirectoryTransferQueryService merges;
 
     public PendingFileDecisionApiController(
             PendingFileDecisionService pendingFileDecisionService,
-            ActivityLogService activityLogService
+            ActivityLogService activityLogService,
+            DirectoryTransferQueryService merges
     ) {
         this.pendingFileDecisionService = pendingFileDecisionService;
         this.activityLogService = activityLogService;
+        this.merges = merges;
     }
 
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     public PendingFileDecisionListResponse list() throws IOException {
-        return new PendingFileDecisionListResponse(
-                pendingFileDecisionService.list().stream()
-                        .map(PendingFileDecisionItemResponse::from)
-                        .toList()
-        );
+        var items = new java.util.ArrayList<PendingFileDecisionItemResponse>();
+        // Read independently: do not introduce nested merge-store/Pending service locks.
+        var unresolved = merges.unresolved();
+        var pendingIds = new java.util.HashSet<String>();
+        synchronized (pendingFileDecisionService) {
+            for (var decision : pendingFileDecisionService.list()) {
+                String owner = decision.directory() ? pendingFileDecisionService.directoryMergeOwner(decision.id()).orElse(null) : null;
+                pendingIds.add(decision.id());
+                var review = unresolved.stream().filter(value -> value.id().equals(owner)).findFirst().orElse(null);
+                items.add(PendingFileDecisionItemResponse.from(decision, owner,
+                        owner == null ? "Awaiting decision" : review == null ? "Preparing or recovering review" : mergeStatus(review)));
+            }
+        }
+        for (var review : unresolved) {
+            if (review.operation() == DirectoryTransferPlan.Operation.PENDING && pendingIds.contains(review.sourceReference())) continue;
+            String path = review.destinationPath();
+            items.add(new PendingFileDecisionItemResponse("merge-" + review.id(),
+                    path.substring(path.lastIndexOf('/') + 1), null,
+                    switch (review.operation()) { case COPY -> "Directory copy"; case MOVE -> "Directory move"; case PENDING -> "Directory upload"; },
+                    "/" + path, "-", CREATED_AT_FORMATTER.format(review.createdAt()), review.createdAt().toString(),
+                    true, review.id(), mergeStatus(review)));
+        }
+        return new PendingFileDecisionListResponse(List.copyOf(items));
+    }
+
+    private static String mergeStatus(DirectoryTransferQueryService.Summary review) {
+        return review.statusLabel();
     }
 
     @PostMapping(value = "/{id}/resolve", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -109,9 +136,11 @@ public class PendingFileDecisionApiController {
             String sizeLabel,
             String createdLabel,
             String createdAt,
-            boolean directory
+            boolean directory,
+            String mergeId,
+            String statusLabel
     ) {
-        static PendingFileDecisionItemResponse from(PendingFileDecision decision) {
+        static PendingFileDecisionItemResponse from(PendingFileDecision decision, String mergeId, String statusLabel) {
             return new PendingFileDecisionItemResponse(
                     decision.id(),
                     decision.originalFilename(),
@@ -123,7 +152,9 @@ public class PendingFileDecisionApiController {
                     ByteSizeFormatter.humanSize(decision.size()),
                     CREATED_AT_FORMATTER.format(decision.createdAt()),
                     decision.createdAt().toString(),
-                    decision.directory()
+                    decision.directory(),
+                    mergeId,
+                    statusLabel
             );
         }
     }

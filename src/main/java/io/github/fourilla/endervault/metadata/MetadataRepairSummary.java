@@ -6,8 +6,12 @@ public record MetadataRepairSummary(
         int repaired,
         int failed,
         List<String> messages,
-        List<String> repairedTokens
+        List<String> repairedTokens,
+        int skipped
 ) {
+    public MetadataRepairSummary(int repaired, int failed, List<String> messages, List<String> repairedTokens) {
+        this(repaired, failed, messages, repairedTokens, 0);
+    }
     public MetadataRepairSummary {
         messages = messages == null ? List.of() : List.copyOf(messages);
         repairedTokens = repairedTokens == null ? List.of() : List.copyOf(repairedTokens);

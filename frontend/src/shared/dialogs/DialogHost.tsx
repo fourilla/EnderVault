@@ -35,7 +35,7 @@ function RequestDialog({ request, settle }: {
       </div>
     </AppDialog>;
   }
-  return <AppDialog open labelledBy={titleId} className="text-input-dialog" onDismiss={cancel}>
+  return <AppDialog open nested={request.options.nested} labelledBy={titleId} className="text-input-dialog" onDismiss={cancel}>
     <form className="text-input-card" noValidate onSubmit={(event) => {
       event.preventDefault();
       if (text && !value.trim()) { setInvalid(true); return; }

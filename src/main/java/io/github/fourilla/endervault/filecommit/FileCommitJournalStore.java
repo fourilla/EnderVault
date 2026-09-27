@@ -4,6 +4,7 @@ import tools.jackson.databind.ObjectMapper;
 import io.github.fourilla.endervault.config.NasProperties;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
+import java.nio.channels.FileChannel;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryNotEmptyException;
 import java.nio.file.DirectoryStream;
@@ -11,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -61,11 +63,24 @@ public class FileCommitJournalStore {
             jsonWriter.write(operationDirectory.resolve(MANIFEST_FILE), manifest);
             jsonWriter.write(operationDirectory.resolve(STATE_FILE), state);
             jsonWriter.forceDirectory(operationDirectory);
+            jsonWriter.forceDirectory(journalRoot);
             return new FileCommitJournalEntry(manifest, state);
         } catch (IOException | RuntimeException ex) {
             tombstoneAndDelete(operationDirectory, manifest.operationId());
             throw ex;
         }
+    }
+
+    void forcePreparedFile(Path stagedFile) throws IOException {
+        try (var channel = FileChannel.open(stagedFile, StandardOpenOption.WRITE, LinkOption.NOFOLLOW_LINKS)) {
+            channel.force(true);
+        }
+        jsonWriter.forceDirectory(stagedFile.getParent());
+    }
+
+    void forcePreparedDirectory(Path stagedDirectory) throws IOException {
+        jsonWriter.forceDirectory(stagedDirectory);
+        jsonWriter.forceDirectory(stagedDirectory.getParent());
     }
 
     public synchronized FileCommitJournalEntry load(String operationId) throws IOException {

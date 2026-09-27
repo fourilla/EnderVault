@@ -133,3 +133,39 @@ test('external native close is reported once, cleanup does not duplicate it', ()
   dispose();
   assert.deepEqual(s.reasons, ['native']);
 });
+
+test('explicit nested dialog opens above its parent and keeps other dialogs queued', () => {
+  const s = setup();
+  const child = new s.Dialog(), queued = new s.Dialog();
+  const parentDispose = mountDialog(s.dialog, () => s.policy);
+  const queuedDispose = mountDialog(queued, () => s.policy);
+  const childDispose = mountDialog(child, () => s.policy, true);
+  try {
+    assert.equal(child.open, true);
+    assert.equal(s.dialog.open, true);
+    assert.equal(queued.open, false);
+    s.dialog.dispatchEvent(new Event('cancel', { cancelable: true }));
+    assert.deepEqual(s.reasons, []);
+    childDispose();
+    assert.equal(s.dialog.open, true);
+    assert.equal(s.document.body.style.overflow, 'hidden');
+    assert.equal(queued.open, false);
+    parentDispose();
+    assert.equal(queued.open, true);
+  } finally { childDispose(); parentDispose(); queuedDispose(); }
+  assert.equal(s.document.body.style.overflow, 'auto');
+});
+
+test('parent removal before nested child preserves scroll lock until the last dialog closes', () => {
+  const s = setup();
+  const parentDispose = mountDialog(s.dialog, () => s.policy);
+  const child = new s.Dialog();
+  const childDispose = mountDialog(child, () => s.policy, true);
+  try {
+    parentDispose();
+    assert.equal(child.open, true);
+    assert.equal(s.document.body.style.overflow, 'hidden');
+    assert.equal(s.focused.length, 0);
+  } finally { parentDispose(); childDispose(); }
+  assert.equal(s.document.body.style.overflow, 'auto');
+});

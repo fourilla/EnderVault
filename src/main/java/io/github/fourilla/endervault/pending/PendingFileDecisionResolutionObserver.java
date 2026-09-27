@@ -6,6 +6,7 @@ public interface PendingFileDecisionResolutionObserver {
 
     boolean supports(PendingFileDecision decision);
 
+    /** Merge recovery may replay this callback after an interrupted completion; implementations must be idempotent. */
     void afterResolved(
             PendingFileDecision decision,
             PendingFileDecisionAction action,

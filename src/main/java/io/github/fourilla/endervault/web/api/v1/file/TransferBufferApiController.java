@@ -93,6 +93,7 @@ public class TransferBufferApiController {
             @RequestParam(value = "path", required = false) String path,
             @RequestParam("operation") String operation,
             @RequestParam(value = "conflictPolicy", required = false) String conflictPolicy,
+            @RequestParam(defaultValue = "false") boolean directoryTransferConfirmed,
             HttpSession session,
             HttpServletRequest request
     ) throws IOException {
@@ -107,6 +108,15 @@ public class TransferBufferApiController {
                     FlashNotification.warning("Action canceled."),
                     buffer
             ));
+        }
+
+        if (!directoryTransferConfirmed) {
+            List<String> conflicts = conflictingDirectories(buffer.items(), path);
+            if (!conflicts.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(java.util.Map.of(
+                        "directoryTransferConfirmation", conflicts,
+                        "transferBuffer", TransferBufferActionResponse.TransferBufferPayload.from(buffer)));
+            }
         }
 
         if (FileConflictPolicies.asks(conflictPolicy)) {
@@ -162,7 +172,18 @@ public class TransferBufferApiController {
             List<TransferBufferItem> items,
             String targetDirectoryPath
     ) throws IOException {
+        String destination = storageService.normalizeVaultDirectory(targetDirectoryPath);
         for (TransferBufferItem item : items) {
+            try {
+                var source = storageService.describeVaultPath(item.path());
+                if (source.directory() && !source.parentPath().equals(destination)) {
+                    // Directory conflicts are persisted and reviewed by the background merge workflow.
+                    continue;
+                }
+            } catch (NoSuchFileException ignored) {
+                // Let the worker report stale sources without blocking the rest of the batch.
+                continue;
+            }
             String targetPath = joinPath(targetDirectoryPath, item.name());
             if (operation == TransferOperation.MOVE && item.path().equals(targetPath)) {
                 continue;
@@ -175,6 +196,24 @@ public class TransferBufferApiController {
             }
         }
         return null;
+    }
+
+    private List<String> conflictingDirectories(List<TransferBufferItem> items, String path) throws IOException {
+        String destination = storageService.normalizeVaultDirectory(path);
+        var conflicts = new java.util.ArrayList<String>();
+        for (var item : items) {
+            FileItem source;
+            try { source = storageService.describeVaultPath(item.path()); }
+            catch (NoSuchFileException ignored) { continue; }
+            if (!source.directory() || source.parentPath().equals(destination)) continue;
+            try {
+                storageService.describeVaultChild(destination, item.name());
+                conflicts.add(joinPath(destination, item.name()));
+            } catch (NoSuchFileException ignored) {
+                // No top-level collision; the worker still checks again before publication.
+            }
+        }
+        return List.copyOf(conflicts);
     }
 
     private ResponseEntity<FileConflictResponse> conflictResponse(

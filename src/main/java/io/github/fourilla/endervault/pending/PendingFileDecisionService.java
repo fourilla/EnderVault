@@ -152,6 +152,10 @@ public class PendingFileDecisionService {
             boolean replaceConfirmed
     ) throws IOException {
         PendingFileDecision decision = require(id);
+        requireNoMergeClaim(decision.id());
+        if (action == PendingFileDecisionAction.MERGE) {
+            throw new StorageAccessException("Directory merge requires a reviewed merge plan.");
+        }
         if (decision.directory() && action == PendingFileDecisionAction.REPLACE) {
             throw new StorageAccessException("Directory replacement is not supported.");
         }
@@ -196,6 +200,7 @@ public class PendingFileDecisionService {
                 yield ConflictPolicy.OVERWRITE;
             }
             case DISCARD -> throw new IllegalStateException("Discard is handled before file commit.");
+            case MERGE -> throw new IllegalStateException("Merge uses its reviewed execution flow.");
         };
 
         FileCommitCoordinator.StagedFileCommit commit;
@@ -226,6 +231,7 @@ public class PendingFileDecisionService {
             PendingFileDecisionAction action,
             String committedPath
     ) throws IOException {
+        requireNoMergeClaim(decision.id());
         FileItem committed = storageService.describeVaultPath(committedPath);
         complete(decision.id());
         notifyResolved(decision, action, false, committed);
@@ -233,6 +239,7 @@ public class PendingFileDecisionService {
 
     public synchronized PendingFileDecision removeMissingData(String id) throws IOException {
         PendingFileDecision decision = require(id);
+        requireNoMergeClaim(decision.id());
         requireNoDirectoryCommitJournal(decision);
         Path stagedFile = storageService.resolveFileStagingFile(decision.stagingFilename());
         if (validStagedFile(stagedFile)) {
@@ -287,11 +294,94 @@ public class PendingFileDecisionService {
     }
 
     private void complete(String id) throws IOException {
-        try {
-            repository.remove(id);
-        } finally {
-            release(id);
+        repository.remove(id);
+        release(id);
+    }
+
+    /** Claim before scanning so another session cannot move or discard the staging tree. */
+    public synchronized PendingFileDecision claimDirectoryMerge(String id, String mergeId) throws IOException {
+        var decision = require(id);
+        if (!decision.directory()) throw new StorageAccessException("Pending item is not a directory.");
+        if (decision.source() == PendingFileDecisionSource.FILE_REQUEST) {
+            throw new StorageAccessException("File request directory merge is not supported yet.");
         }
+        requireNoDirectoryCommitJournal(decision);
+        Path staged = storageService.resolveFileStagingFile(decision.stagingFilename());
+        if (!Files.isDirectory(staged, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(staged)) {
+            throw new StorageAccessException("Pending directory data is unavailable.");
+        }
+        repository.claimMerge(decision, mergeId);
+        return decision;
+    }
+
+    public synchronized PendingFileDecision requireDirectoryMergeOwner(String id, String mergeId) throws IOException {
+        var decision = require(id);
+        var claim = repository.mergeClaim(decision.id());
+        if (claim == null || !claim.mergeId().equals(mergeId) || !claim.decision().equals(decision)) {
+            throw new StorageAccessException("Pending directory merge owner changed.");
+        }
+        return decision;
+    }
+
+    public synchronized Optional<String> directoryMergeOwner(String id) throws IOException {
+        var decision = require(id);
+        var claim = repository.mergeClaim(decision.id());
+        if (claim == null) return Optional.empty();
+        if (!claim.decision().equals(decision)) throw new StorageAccessException("Pending directory merge owner changed.");
+        return Optional.of(claim.mergeId());
+    }
+
+    /** A persisted successor must exist before this atomic owner replacement. Never release between owners. */
+    public synchronized void transferDirectoryMergeOwner(String id, String expectedOwner, String nextOwner) throws IOException {
+        var decision = require(id);
+        var claim = repository.mergeClaim(decision.id());
+        if (claim == null || !claim.decision().equals(decision)) throw new StorageAccessException("Pending merge claim changed.");
+        repository.transferMerge(id, expectedOwner, nextOwner);
+    }
+
+    /** Called only after durable OWNER_COMPLETING; the immutable claim also survives pending removal. */
+    public synchronized void completeDirectoryMerge(String id, String mergeId, String committedPath,
+            boolean discarded) throws IOException {
+        var claim = repository.mergeClaim(id);
+        if (claim == null || !claim.mergeId().equals(mergeId)) {
+            throw new StorageAccessException("Pending merge completion owner changed.");
+        }
+        var decision = claim.decision();
+        var current = repository.find(id);
+        if (current.isPresent() && !current.get().equals(decision)) {
+            throw new StorageAccessException("Pending decision changed before merge completion.");
+        }
+        Path staged = storageService.resolveFileStagingFile(decision.stagingFilename());
+        if (Files.exists(staged, LinkOption.NOFOLLOW_LINKS)) {
+            throw new StorageAccessException("Pending merge still contains staged data.");
+        }
+        FileItem committed = discarded ? null : storageService.describeVaultPath(committedPath);
+        repository.remove(id);
+        // Unlike the legacy best-effort path, a failed observer keeps the owner run retryable.
+        for (var observer : resolutionObservers) {
+            if (!observer.supports(decision)) continue;
+            try { observer.afterResolved(decision, PendingFileDecisionAction.MERGE, discarded, committed); }
+            catch (Exception ex) { throw new IOException("Pending merge observer failed.", ex); }
+        }
+        release(id);
+    }
+
+    /** Internal owner operation; only safe before a plan has been persisted or after owner finalization. */
+    public synchronized void releaseDirectoryMergeClaim(String id, String mergeId) throws IOException {
+        requireDirectoryMergeOwner(id, mergeId);
+        repository.releaseMerge(id, mergeId);
+    }
+
+    /** Internal recovery after durable abandonment and journal cleanup. Keeps the staged upload pending. */
+    public synchronized void releaseAbandonedDirectoryMergeClaim(String id, String mergeId) throws IOException {
+        var claim = repository.mergeClaim(id);
+        if (claim == null || !claim.mergeId().equals(mergeId)) return;
+        requireDirectoryMergeOwner(id, mergeId);
+        repository.releaseMerge(id, mergeId);
+    }
+
+    private void requireNoMergeClaim(String id) throws IOException {
+        if (repository.mergeClaim(id) != null) throw new StorageAccessException("Pending directory is owned by a merge; resolve that merge first.");
     }
 
     private void release(String id) {

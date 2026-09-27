@@ -20,6 +20,7 @@ export function BrowserPagination({
 
   const jumpToPage = async () => {
     const requested = await window.EnderVault?.askTextInput({
+      nested: true,
       title: 'Go to page',
       message: `Enter a page from 1 to ${page.totalPages}. Larger values open the last page.`,
       label: 'Page',

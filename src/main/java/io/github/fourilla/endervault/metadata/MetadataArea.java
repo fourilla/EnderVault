@@ -18,6 +18,8 @@ public enum MetadataArea {
     STICKY_NOTES("Sticky notes", "Page and item notes whose targets may have moved or disappeared", "fas fa-note-sticky"),
     FILE_REQUESTS("File requests", "Public upload request records and destination directories", "fas fa-inbox"),
     PENDING_FILE_DECISIONS("Pending decisions", "Fully received files waiting for an administrator decision", "fas fa-bell"),
+    DIRECTORY_MERGES("Directory merges", "Consistency of durable directory merge reviews and execution records", "fas fa-folder-tree"),
+    COMPLETED_TASK_RECORDS("Completed task records", "Recovery records no longer needed by completed directory transfers", "fas fa-broom"),
     FILE_COMMIT_JOURNALS(
             "File commit journals",
             "Durable file commit operations that could not be recovered automatically",

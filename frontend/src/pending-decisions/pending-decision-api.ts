@@ -30,5 +30,6 @@ export async function resolvePendingDecision(
   }) as PendingFileDecisionActionPayload;
   notify(body);
   window.dispatchEvent(new CustomEvent('endervault:notifications-changed'));
+  if (action !== 'DISCARD') window.EnderVaultFileBrowser?.requestListingRefresh(window.location.href);
   return body;
 }

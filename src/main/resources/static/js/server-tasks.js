@@ -4,6 +4,7 @@
     const refreshUrls = new Map();
     const terminalNotifications = new Set();
     const terminalEvents = new Set();
+    const initiatedHere = new Set();
     let pollTimer = null;
 
     const metaContent = (name) =>
@@ -118,7 +119,16 @@
     };
 
     const renderTask = (task) => {
+        // Listing state is independent of whether the activity panel is displayed.
+        if (terminal(task)) maybeRefreshPage(task);
+        if (terminal(task) && !terminalEvents.has(task.id)) {
+            terminalEvents.add(task.id);
+            document.dispatchEvent(new CustomEvent("endervault:task-terminal", {
+                detail: { ...task, initiatedHere: initiatedHere.delete(task.id) }
+            }));
+        }
         if (!panelEnabled()) {
+            if (terminal(task)) removeTrackedId(task.id);
             return;
         }
 
@@ -132,16 +142,11 @@
             percent: task.progressPercent,
             message: task.message || task.progressLabel,
             cancelRequested: task.cancelRequested,
-            cancelable: task.active,
+            cancelable: task.active && task.cancelable !== false,
             onCancel: () => cancelTask(task)
         });
 
         if (terminal(task)) {
-            if (!terminalEvents.has(task.id)) {
-                terminalEvents.add(task.id);
-                document.dispatchEvent(new CustomEvent("endervault:task-terminal", { detail: task }));
-            }
-            maybeRefreshPage(task);
             maybeNotifyTerminalTask(task);
             removeTrackedId(task.id);
             const delayMs = task.status === "COMPLETE"
@@ -152,11 +157,6 @@
     };
 
     const refresh = async () => {
-        if (!panelEnabled()) {
-            stopPolling();
-            return;
-        }
-
         const ids = trackedIds();
         if (ids.length === 0) {
             stopPolling();
@@ -169,6 +169,7 @@
         const returnedIds = new Set(tasks.map((task) => task.id));
         tasks.forEach(renderTask);
         ids.filter((id) => !returnedIds.has(id)).forEach((id) => {
+            initiatedHere.delete(id);
             removeTrackedId(id);
             window.EnderVaultActivity?.remove(`server-${id}`);
         });
@@ -200,14 +201,12 @@
             return;
         }
         addTrackedId(task.id);
+        if (options.announceStart && !terminalEvents.has(task.id)) initiatedHere.add(task.id);
         if (options.refreshUrl) {
             refreshUrls.set(task.id, options.refreshUrl);
         }
-        if (!panelEnabled()) {
-            return;
-        }
         renderTask(task);
-        if (options.announceStart) {
+        if (options.announceStart && panelEnabled()) {
             window.EnderVaultActivity?.announceStarted([`server-${task.id}`]);
         }
         startPolling();

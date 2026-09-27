@@ -76,6 +76,9 @@ class AdminNotificationFlowTest {
     MockMvc mockMvc;
 
     @Autowired
+    io.github.fourilla.endervault.directorytransfer.DirectoryTransferTaskReconciler mergeTaskReconciler;
+
+    @Autowired
     ShareLinkService shareLinkService;
 
     @Autowired
@@ -107,6 +110,15 @@ class AdminNotificationFlowTest {
 
     @Autowired
     ViteAssetService viteAssetService;
+
+    @Autowired
+    io.github.fourilla.endervault.task.TaskManagerService taskManagerService;
+
+    @Autowired
+    io.github.fourilla.endervault.pending.PendingFileDecisionService pendingDecisionService;
+
+    @Autowired
+    io.github.fourilla.endervault.notificationcenter.NotificationCenterService notificationCenterService;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -1848,6 +1860,30 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void completedRecordCleanupUsesExistingInspectorRepairOnly() throws Exception {
+        mockMvc.perform(get("/api/v1/metadata")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.areas[*].name", org.hamcrest.Matchers.hasItem("COMPLETED_TASK_RECORDS")));
+        mockMvc.perform(post("/api/v1/metadata/repair"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/metadata/repair").with(csrf())
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("reader").roles("USER")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/metadata/cleanup-completed-records").with(csrf()))
+                .andExpect(status().isNotFound());
+        var stale = new io.github.fourilla.endervault.metadata.MetadataIssue(
+                io.github.fourilla.endervault.metadata.MetadataArea.COMPLETED_TASK_RECORDS,
+                io.github.fourilla.endervault.metadata.MetadataIssueSeverity.INFO,
+                io.github.fourilla.endervault.metadata.MetadataIssueAction.DELETE_COMPLETED_TASK_RECORD,
+                java.util.UUID.randomUUID().toString(), "Completed", "", "");
+        mockMvc.perform(post("/api/v1/metadata/repair").with(csrf()).param("issues", stale.token()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.repaired").value(0))
+                .andExpect(jsonPath("$.failed").value(0))
+                .andExpect(jsonPath("$.skipped").value(1))
+                .andExpect(jsonPath("$.messages[0]", org.hamcrest.Matchers.containsString("Skipped")));
+    }
+
+    @Test
     void removedMetadataMutationEndpointsAreNotAvailable() throws Exception {
         mockMvc.perform(post("/admin/metadata/scan").with(csrf()))
                 .andExpect(status().isNotFound());
@@ -2533,6 +2569,292 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.transferBuffer.active").value(true))
                 .andExpect(jsonPath("$.detail.directory").value(true));
+    }
+
+    @Test
+    void directoryMergeApiPreparesReviewsAndExecutesThroughAuthenticatedTasks() throws Exception {
+        mockMvc.perform(get("/api/v1/metadata")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.areas[?(@.name == 'DIRECTORY_MERGES')].label").value(
+                        org.hamcrest.Matchers.hasItem("Directory merges")));
+        String base = "merge-api-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(base + "/source/photos"));
+        Files.createDirectories(ROOT.resolve(base + "/target/photos"));
+        Files.writeString(ROOT.resolve(base + "/source/photos/a.txt"), "new content");
+        Files.writeString(ROOT.resolve(base + "/target/photos/a.txt"), "old content");
+        String prefix = "/api/v1/files/directory-merges";
+        var queued = mockMvc.perform(post(prefix + "/transfers").with(csrf())
+                        .param("operation", "COPY").param("source", base + "/source/photos")
+                        .param("destination", base + "/target"))
+                .andExpect(status().isAccepted()).andExpect(jsonPath("$.type").value("DIRECTORY_MERGE"))
+                .andReturn();
+        String taskId = objectMapper.readTree(queued.getResponse().getContentAsString()).path("id").asText();
+        var scanTask = awaitMergeTask(taskId);
+        assertThat(scanTask.status()).isEqualTo(io.github.fourilla.endervault.task.TaskStatus.PENDING);
+        String id = scanTask.resultReference();
+        assertThat(id).isNotBlank();
+        assertThat(Files.readString(ROOT.resolve(base + "/target/photos/a.txt"))).isEqualTo("old content");
+        mockMvc.perform(get("/api/v1/tasks").param("ids", taskId)).andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].resultReference").value(id));
+        var detail = mockMvc.perform(get(prefix + "/" + id).param("conflictsOnly", "true"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.entries.total").value(1))
+                .andExpect(jsonPath("$.review.editable").value(true)).andReturn();
+        String itemId = objectMapper.readTree(detail.getResponse().getContentAsString())
+                .path("entries").path("items").get(0).path("id").asText();
+        mockMvc.perform(post(prefix + "/" + id + "/execute").with(csrf()).param("revision", "0"))
+                .andExpect(status().isConflict());
+        mockMvc.perform(post(prefix + "/" + id + "/choices").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("revision", 0, "choices", Map.of(itemId, "OVERWRITE")))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.revision").value(1))
+                .andExpect(jsonPath("$.fullyReviewed").value(true));
+        mockMvc.perform(post(prefix + "/" + id + "/choices").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("revision", 0, "choices", Map.of(itemId, "SKIP")))))
+                .andExpect(status().isConflict());
+        var execution = mockMvc.perform(post(prefix + "/" + id + "/execute").with(csrf()).param("revision", "1"))
+                .andExpect(status().isAccepted()).andReturn();
+        var completed = awaitMergeTask(objectMapper.readTree(execution.getResponse().getContentAsString()).path("id").asText());
+        assertThat(completed.status()).isEqualTo(io.github.fourilla.endervault.task.TaskStatus.COMPLETE);
+        mergeTaskReconciler.reconcile();
+        mockMvc.perform(get("/api/v1/tasks").param("ids", taskId)).andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].status").value("COMPLETE"));
+        assertThat(Files.readString(ROOT.resolve(base + "/target/photos/a.txt"))).isEqualTo("new content");
+        assertThat(Files.readString(ROOT.resolve(base + "/source/photos/a.txt"))).isEqualTo("new content");
+        // Settled task history owns the outcome; recovery-only records have been retired.
+        mockMvc.perform(get(prefix + "/" + id)).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void directoryMergeApiMutationsRequireCsrfAndValidatePayloads() throws Exception {
+        String prefix = "/api/v1/files/directory-merges";
+        for (String suffix : List.of("/transfers", "/pending/test", "/test/choices", "/test/execute", "/test/replan", "/test/abandon", "/test/abandon-remaining")) {
+            mockMvc.perform(post(prefix + suffix)).andExpect(status().isForbidden());
+        }
+        mockMvc.perform(post(prefix + "/transfers").with(csrf()).param("operation", "PENDING").param("source", "test"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post(prefix + "/test/choices").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"choices\":{\"x\":\"SKIP\"}}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post(prefix + "/test/choices").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"revision\":0,\"choices\":{\"x\":null}}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get(prefix).param("size", "201")).andExpect(status().isBadRequest());
+        mockMvc.perform(get(prefix + "/" + java.util.UUID.randomUUID())).andExpect(status().isNotFound());
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    void directoryMergeApiIsNotAvailableToNonAdminUsers() throws Exception {
+        mockMvc.perform(get("/api/v1/files/directory-merges")).andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/files/directory-merges/transfers").with(csrf())
+                        .param("operation", "COPY").param("source", "test"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithAnonymousUser
+    void directoryMergeApiRequiresLogin() throws Exception {
+        mockMvc.perform(get("/api/v1/files/directory-merges")).andExpect(status().is3xxRedirection());
+    }
+
+    @Test
+    void directoryMergeApiConflictFreeUploadCompletesWithoutAnotherReview() throws Exception {
+        String name = "pending-merge-ui-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(name));
+        Files.writeString(ROOT.resolve(name + "/existing.txt"), "keep");
+        Path staged = Files.createDirectory(storageService.resolveFileStagingFile("merge-ui-" + java.util.UUID.randomUUID()));
+        Files.writeString(staged.resolve("uploaded.txt"), "upload");
+        var decision = pendingDecisionService.create(staged,
+                io.github.fourilla.endervault.pending.PendingFileDecisionSource.DIRECTORY_UPLOAD, "", name, 6);
+        String prefix = "/api/v1/files/directory-merges";
+        var response = mockMvc.perform(post(prefix + "/pending/" + decision.id()).with(csrf()))
+                .andExpect(status().isAccepted()).andReturn();
+        var task = awaitMergeTask(objectMapper.readTree(response.getResponse().getContentAsString()).path("id").asText());
+        assertThat(task.status()).isEqualTo(io.github.fourilla.endervault.task.TaskStatus.COMPLETE);
+        String mergeId = task.resultReference();
+        mockMvc.perform(get("/api/v1/notifications"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[?(@.id == '" + decision.id() + "')]").isEmpty());
+        mockMvc.perform(get("/api/v1/pending-decisions")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.decisions[?(@.id == '" + decision.id() + "')]").isEmpty());
+        mockMvc.perform(get(prefix + "/unresolved")).andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == '" + mergeId + "')]").isEmpty());
+        assertThat(staged).doesNotExist();
+        assertThat(Files.readString(ROOT.resolve(name + "/existing.txt"))).isEqualTo("keep");
+        assertThat(Files.readString(ROOT.resolve(name + "/uploaded.txt"))).isEqualTo("upload");
+        assertThat(pendingDecisionService.find(decision.id())).isEmpty();
+        assertThat(notificationCenterService.snapshot(1000).items()).noneMatch(item -> item.href().endsWith("#merge-" + mergeId));
+    }
+
+    @Test
+    void directoryMergeApiTransferBufferPersistsConflictAndContinuesOtherFiles() throws Exception {
+        String base = "merge-buffer-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(base + "/source/photos"));
+        Files.createDirectories(ROOT.resolve(base + "/target/photos"));
+        Files.writeString(ROOT.resolve(base + "/source/photos/a.txt"), "new");
+        Files.writeString(ROOT.resolve(base + "/target/photos/a.txt"), "old");
+        Files.writeString(ROOT.resolve(base + "/source/loose.txt"), "move me");
+        var session = new MockHttpSession();
+        mockMvc.perform(post("/api/v1/files/transfer-buffer").session(session).with(csrf())
+                        .param("path", base + "/source").param("items", "photos", "loose.txt"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/files/transfer-buffer/paste").session(session).with(csrf())
+                        .param("path", base + "/target").param("operation", "move").param("conflictPolicy", "ask"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.directoryTransferConfirmation[0]").value(base + "/target/photos"))
+                .andExpect(jsonPath("$.transferBuffer.active").value(true))
+                .andExpect(jsonPath("$.transferBuffer.count").value(2))
+                .andExpect(jsonPath("$.transferBuffer.items.length()").value(2))
+                .andExpect(jsonPath("$.task").doesNotExist());
+        assertThat(ROOT.resolve(base + "/source/loose.txt")).exists();
+        mockMvc.perform(get("/api/v1/files/transfer-buffer").session(session))
+                .andExpect(jsonPath("$.transferBuffer.items.length()").value(2));
+        var response = mockMvc.perform(post("/api/v1/files/transfer-buffer/paste").session(session).with(csrf())
+                        .param("directoryTransferConfirmed", "true")
+                        .param("path", base + "/target").param("operation", "move").param("conflictPolicy", "ask"))
+                .andExpect(status().isAccepted()).andReturn();
+        var task = awaitMergeTask(objectMapper.readTree(response.getResponse().getContentAsString()).path("task").path("id").asText());
+        assertThat(task.status()).isEqualTo(io.github.fourilla.endervault.task.TaskStatus.PENDING);
+        assertThat(Files.readString(ROOT.resolve(base + "/target/photos/a.txt"))).isEqualTo("old");
+        assertThat(Files.readString(ROOT.resolve(base + "/source/photos/a.txt"))).isEqualTo("new");
+        assertThat(ROOT.resolve(base + "/source/loose.txt")).doesNotExist();
+        assertThat(Files.readString(ROOT.resolve(base + "/target/loose.txt"))).isEqualTo("move me");
+        String prefix = "/api/v1/files/directory-merges/" + task.resultReference();
+        var detail = mockMvc.perform(get(prefix).param("conflictsOnly", "true"))
+                .andExpect(status().isOk()).andReturn();
+        String item = objectMapper.readTree(detail.getResponse().getContentAsString()).path("entries").path("items").get(0).path("id").asText();
+        mockMvc.perform(post(prefix + "/choices").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("revision", 0, "choices", Map.of(item, "SKIP")))))
+                .andExpect(status().isOk());
+        var execute = mockMvc.perform(post(prefix + "/execute").with(csrf()).param("revision", "1"))
+                .andExpect(status().isAccepted()).andReturn();
+        var done = awaitMergeTask(objectMapper.readTree(execute.getResponse().getContentAsString()).path("id").asText());
+        assertThat(done.status()).isEqualTo(io.github.fourilla.endervault.task.TaskStatus.COMPLETE);
+        assertThat(Files.readString(ROOT.resolve(base + "/source/photos/a.txt"))).isEqualTo("new");
+        assertThat(Files.readString(ROOT.resolve(base + "/target/photos/a.txt"))).isEqualTo("old");
+    }
+
+    @Test
+    void directoryMergeApiTransferBufferAutomaticallyMergesNonConflictingChildren() throws Exception {
+        String base = "merge-buffer-auto-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(base + "/source/photos"));
+        Files.createDirectories(ROOT.resolve(base + "/target/photos"));
+        Files.writeString(ROOT.resolve(base + "/source/photos/new.txt"), "new");
+        Files.writeString(ROOT.resolve(base + "/target/photos/old.txt"), "old");
+        var session = new MockHttpSession();
+        mockMvc.perform(post("/api/v1/files/transfer-buffer").session(session).with(csrf())
+                        .param("path", base + "/source").param("items", "photos"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/files/transfer-buffer/paste").session(session).with(csrf())
+                        .param("path", base + "/target").param("operation", "copy").param("conflictPolicy", "ask"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.directoryTransferConfirmation[0]").value(base + "/target/photos"));
+        var response = mockMvc.perform(post("/api/v1/files/transfer-buffer/paste").session(session).with(csrf())
+                        .param("directoryTransferConfirmed", "true")
+                        .param("path", base + "/target").param("operation", "move").param("conflictPolicy", "ask"))
+                .andExpect(status().isAccepted()).andReturn();
+        var task = awaitMergeTask(objectMapper.readTree(response.getResponse().getContentAsString()).path("task").path("id").asText());
+        assertThat(task.status()).isEqualTo(io.github.fourilla.endervault.task.TaskStatus.COMPLETE);
+        assertThat(task.resultReference()).isNull();
+        assertThat(ROOT.resolve(base + "/source/photos")).doesNotExist();
+        assertThat(Files.readString(ROOT.resolve(base + "/target/photos/new.txt"))).isEqualTo("new");
+        assertThat(Files.readString(ROOT.resolve(base + "/target/photos/old.txt"))).isEqualTo("old");
+    }
+
+    @Test
+    void adminUploadPreflightReportsNamesWithoutChangingDestination() throws Exception {
+        String base = "upload-preflight-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(base + "/photos"));
+        Files.writeString(ROOT.resolve(base + "/note.txt"), "original");
+        var payload = Map.of("path", base, "names", List.of("photos", "note.txt", "new.txt", "photos"));
+        mockMvc.perform(post("/api/v1/files/upload-preflight").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(payload)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.conflicts", Matchers.contains("photos", "note.txt")))
+                .andExpect(jsonPath("$.id").doesNotExist());
+        assertThat(Files.readString(ROOT.resolve(base + "/note.txt"))).isEqualTo("original");
+        assertThat(ROOT.resolve(base + "/new.txt")).doesNotExist();
+        mockMvc.perform(post("/api/v1/files/upload-preflight")
+                        .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(payload)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/files/upload-preflight").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("path", base, "names", List.of("../escape")))))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/files/upload-preflight").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("path", base, "names", java.util.Collections.nCopies(201, "name")))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void unstartedDirectoryTransferCanBeAbandonedWithoutChangingFiles() throws Exception {
+        String base = "abandon-transfer-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(base + "/source/photos"));
+        Files.createDirectories(ROOT.resolve(base + "/target/photos"));
+        Files.writeString(ROOT.resolve(base + "/source/photos/a.txt"), "source");
+        Files.writeString(ROOT.resolve(base + "/target/photos/a.txt"), "target");
+        String api = "/api/v1/files/directory-merges";
+        var queued = mockMvc.perform(post(api + "/transfers").with(csrf())
+                        .param("operation", "MOVE").param("source", base + "/source/photos").param("destination", base + "/target"))
+                .andExpect(status().isAccepted()).andReturn();
+        var task = awaitMergeTask(objectMapper.readTree(queued.getResponse().getContentAsString()).path("id").asText());
+        String id = task.resultReference();
+        mockMvc.perform(get(api + "/" + id)).andExpect(jsonPath("$.review.canAbandon").value(true));
+        mockMvc.perform(post(api + "/" + id + "/abandon").with(csrf()).param("revision", "1"))
+                .andExpect(status().isConflict());
+        mockMvc.perform(post(api + "/" + id + "/abandon").with(csrf()).param("revision", "0"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get(api + "/" + id)).andExpect(jsonPath("$.review.run.phase").value("ABANDONED"))
+                .andExpect(jsonPath("$.review.canAbandon").value(false));
+        mockMvc.perform(get(api + "/unresolved")).andExpect(jsonPath("$[?(@.id == '" + id + "')]").isEmpty());
+        mockMvc.perform(post(api + "/" + id + "/execute").with(csrf()).param("revision", "0"))
+                .andExpect(status().isConflict());
+        mergeTaskReconciler.reconcile();
+        assertThat(task.status()).isEqualTo(io.github.fourilla.endervault.task.TaskStatus.CANCELED);
+        assertThat(Files.readString(ROOT.resolve(base + "/source/photos/a.txt"))).isEqualTo("source");
+        assertThat(Files.readString(ROOT.resolve(base + "/target/photos/a.txt"))).isEqualTo("target");
+    }
+
+    private io.github.fourilla.endervault.task.AppTask awaitMergeTask(String id) throws Exception {
+        long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(15);
+        var task = taskManagerService.listTasks(List.of(id)).getFirst();
+        while (task.active() && System.nanoTime() < deadline) Thread.sleep(10);
+        assertThat(task.active()).isFalse();
+        return task;
+    }
+
+    @Test
+    void abandoningUploadMergeRestoresOrdinaryPendingActionsAndNotification() throws Exception {
+        String name = "abandon-upload-" + System.nanoTime();
+        Files.createDirectory(ROOT.resolve(name));
+        Files.writeString(ROOT.resolve(name + "/a.txt"), "existing");
+        Path staged = Files.createDirectory(storageService.resolveFileStagingFile("abandon-" + java.util.UUID.randomUUID()));
+        Files.writeString(staged.resolve("a.txt"), "uploaded");
+        var decision = pendingDecisionService.create(staged,
+                io.github.fourilla.endervault.pending.PendingFileDecisionSource.DIRECTORY_UPLOAD, "", name, 8);
+        String api = "/api/v1/files/directory-merges";
+        var response = mockMvc.perform(post(api + "/pending/" + decision.id()).with(csrf()))
+                .andExpect(status().isAccepted()).andReturn();
+        var task = awaitMergeTask(objectMapper.readTree(response.getResponse().getContentAsString()).path("id").asText());
+        String id = task.resultReference();
+        mockMvc.perform(get(api + "/" + id)).andExpect(jsonPath("$.review.canAbandon").value(true));
+        mockMvc.perform(post(api + "/" + id + "/abandon").with(csrf()).param("revision", "0"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/notifications"))
+                .andExpect(jsonPath("$.items[?(@.id == '" + decision.id() + "')].target.kind")
+                        .value(Matchers.contains("PENDING_FILE_DECISION")));
+        var rows = mockMvc.perform(get("/api/v1/pending-decisions")).andExpect(status().isOk()).andReturn();
+        var decisions = objectMapper.readTree(rows.getResponse().getContentAsString()).path("decisions");
+        boolean found = false;
+        for (var row : decisions) {
+            if (!row.path("id").asText().equals(decision.id())) continue;
+            found = true;
+            assertThat(row.path("mergeId").asText("")).isEmpty();
+        }
+        assertThat(found).isTrue();
+        assertThat(staged.resolve("a.txt")).hasContent("uploaded");
+        assertThat(ROOT.resolve(name + "/a.txt")).hasContent("existing");
+        mergeTaskReconciler.reconcile();
+        assertThat(task.status()).isEqualTo(io.github.fourilla.endervault.task.TaskStatus.CANCELED);
     }
 
     private static Path createTempRoot() {

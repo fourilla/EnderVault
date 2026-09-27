@@ -19,7 +19,9 @@ public record TaskPayload(
         String finishedLabel,
         String message,
         boolean active,
-        boolean cancelRequested
+        boolean cancelRequested,
+        boolean cancelable,
+        String resultReference
 ) {
 
     public static TaskPayload from(AppTask task) {
@@ -40,7 +42,9 @@ public record TaskPayload(
                 task.finishedLabel(),
                 task.message(),
                 task.active(),
-                task.cancelRequested()
+                task.cancelRequested(),
+                task.cancelable(),
+                task.resultReference()
         );
     }
 }

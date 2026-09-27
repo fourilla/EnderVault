@@ -67,6 +67,19 @@ function setup(t) {
   };
 }
 
+test('server finalization removes cancellation without hiding the active task', async (t) => {
+  const state = setup(t);
+  const task = { id: 'merge', active: true, status: 'RUNNING', type: 'DIRECTORY_MERGE', cancelable: true };
+  state.tasks.track(task);
+  assert.equal(state.activity.snapshot().items[0].cancelable, true);
+  state.tasks.track({ ...task, cancelable: false, message: 'Finalizing uploaded directory.' });
+  const snapshot = state.activity.snapshot();
+  assert.equal(snapshot.items[0].cancelable, false);
+  assert.equal(snapshot.items[0].message, 'Finalizing uploaded directory.');
+  await state.activity.cancel('server-merge');
+  assert.equal(state.activity.snapshot().items[0].cancelRequested, false);
+});
+
 test('snapshots and progress are silent; explicit batch starts open once without focus or scrolling', (t) => {
   const state = setup(t);
   const activity = state.activity;
@@ -119,6 +132,38 @@ test('disabled server task display does not announce or open an empty popover', 
   state.paint();
   assert.equal(state.events.length, 0);
   assert.equal(state.shows(), 0);
+  const terminal = [];
+  const refreshed = [];
+  state.window.EnderVaultFileBrowser = { requestListingRefresh: (url) => refreshed.push(url) };
+  state.tasks.track({ id: 'hidden', status: 'RUNNING', active: true }, { refreshUrl: '/files?path=target' });
+  state.document.addEventListener('endervault:task-terminal', (event) => terminal.push(event.detail));
+  state.tasks.track({ id: 'hidden', status: 'PENDING', active: false });
+  state.tasks.track({ id: 'hidden', status: 'PENDING', active: false });
+  state.tasks.track({ id: 'restored', status: 'PENDING', active: false });
+  assert.deepEqual(terminal.map((task) => task.initiatedHere), [true, false]);
+  assert.deepEqual(refreshed, ['/files?path=target']);
+});
+
+test('admin file and directory conflicts announce durable decisions without resolving or queuing legacy dialogs', async (t) => {
+  const state = setup(t);
+  const announced = [];
+  state.window.EnderVault.askFileConflictPolicy = () => assert.fail('legacy dialog must not open');
+  const { TestUploadManager } = await loadTsx('app/uploads/UploadManagerContext.tsx', state.window, state.document,
+    () => ({ createContext: () => ({}), announcePending: (id) => announced.push(id) }),
+    'export { AdminUploadManager as TestUploadManager };');
+  const manager = new TestUploadManager(1, () => {});
+  for (const directory of [false, true]) {
+    const upload = { id: manager.nextId++, file: new File([], 'item'),
+      root: directory ? { files: [{}] } : undefined, destinationPath: '', loaded: 0, total: 5,
+      status: 'uploading', cancelRequested: false };
+    manager.uploads.set(upload.id, upload);
+    if (directory) manager.finishDirectory(upload, { status: 'PENDING', pendingDecisionId: 'directory' });
+    else manager.pending(upload, 'file');
+    assert.equal(upload.status, 'pending');
+    assert.equal(upload.loaded, 5);
+  }
+  assert.deepEqual(announced, ['file', 'directory']);
+  assert.equal(manager.hasActiveUploads(), false);
 });
 
 test('the upload manager announces one batch after queue rows exist, not when queued workers start', async (t) => {

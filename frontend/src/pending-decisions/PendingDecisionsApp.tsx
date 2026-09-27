@@ -1,73 +1,44 @@
 import { useEffect, useState } from 'react';
 import { useHashTarget } from '../shared/browser/useHashTarget';
-import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
 import { PageHeader } from '../shared/layout/PageHeader';
-import { loadPendingDecisions, resolvePendingDecision } from './pending-decision-api';
-import type { PendingFileDecision, PendingFileDecisionAction } from './types';
+import { loadPendingDecisions } from './pending-decision-api';
+import type { PendingFileDecision } from './types';
+import { PendingDecisionActions } from './PendingDecisionActions';
 
 export function PendingDecisionsApp() {
   const [decisions, setDecisions] = useState<PendingFileDecision[] | null>(null);
   const [error, setError] = useState('');
-  const [busyId, setBusyId] = useState('');
+  const [refresh, reload] = useState(0);
+
+  useEffect(() => {
+    const update = () => reload((value) => value + 1);
+    document.addEventListener('endervault:task-terminal', update);
+    window.addEventListener('endervault:notifications-changed', update);
+    return () => {
+      document.removeEventListener('endervault:task-terminal', update);
+      window.removeEventListener('endervault:notifications-changed', update);
+    };
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
     setError('');
-    void loadPendingDecisions(controller.signal)
-      .then((payload) => setDecisions(payload.decisions))
+    const load = () => loadPendingDecisions(controller.signal)
+      .then((payload) => { if (!controller.signal.aborted) setDecisions(payload.decisions); })
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
           setError(reason instanceof Error ? reason.message : 'Pending decisions could not be loaded.');
         }
+      }).finally(() => {
+        if (!controller.signal.aborted) timer = setTimeout(() => void load(), 5000);
       });
-    return () => controller.abort();
-  }, []);
+    void load();
+    return () => { controller.abort(); clearTimeout(timer); };
+  }, [refresh]);
 
   useHashTarget(decisions, '#decision-', true);
-
-  const resolve = async (
-    decision: PendingFileDecision,
-    action: PendingFileDecisionAction,
-    filename?: string,
-  ) => {
-    if (decision.directory && action === 'REPLACE') return;
-    if (action === 'REPLACE' || action === 'DISCARD') {
-      const confirmed = await window.EnderVault!.askConfirmation({
-        title: action === 'REPLACE' ? 'Replace existing file' : 'Discard pending item',
-        message: action === 'REPLACE'
-          ? 'Replace the existing destination file with this staged file?'
-          : decision.directory ? 'Permanently discard this staged directory and its contents?' : 'Permanently discard this staged file?',
-        confirmLabel: action === 'REPLACE' ? 'Replace' : 'Discard',
-        danger: true,
-      });
-      if (!confirmed) return;
-    }
-
-    setBusyId(decision.id);
-    try {
-      const result = await resolvePendingDecision(decision.id, action, {
-        filename,
-        replaceConfirmed: action === 'REPLACE',
-      });
-      setDecisions((current) => current?.filter((item) => item.id !== result.removedId) ?? []);
-    } catch (reason) {
-      toastError(reason, 'Pending item resolution failed.');
-    } finally {
-      setBusyId('');
-    }
-  };
-
-  const saveAs = async (decision: PendingFileDecision) => {
-    const filename = await window.EnderVault!.askTextInput({
-      title: decision.directory ? 'Save pending directory as' : 'Save pending file as',
-      message: 'Choose a new name in the requested destination.',
-      label: decision.directory ? 'Directory name' : 'File name',
-      initialValue: decision.originalFilename,
-      confirmLabel: 'Save',
-    });
-    if (filename) await resolve(decision, 'SAVE_AS', filename);
-  };
 
   return (
     <>
@@ -85,7 +56,7 @@ export function PendingDecisionsApp() {
           <header className="section-heading">
             <div>
               <h2>Items Awaiting Review</h2>
-              <p>Resolve staged items that could not be placed at their requested destination.</p>
+              <p>Review pending uploads and directory transfers.</p>
             </div>
             <span className="status-badge warning">{decisions.length} pending</span>
           </header>
@@ -95,12 +66,14 @@ export function PendingDecisionsApp() {
           <div className="table-wrap compact-table">
             <table className="pending-decisions-table">
               <thead>
-                <tr><th>Item</th><th>Source</th><th>Destination</th><th>Size</th><th>Received</th><th>Actions</th></tr>
+                <tr><th>Item</th><th>Source</th><th>Destination</th><th>Size</th><th>Created</th><th>Status</th><th>Actions</th></tr>
               </thead>
               <tbody>
                 {decisions.map((decision) => (
                   <tr id={`decision-${decision.id}`} key={decision.id} tabIndex={-1}>
-                    <td>{decision.directory && icon('fas fa-folder')}<span className="table-primary-text" title={decision.originalFilename}>{decision.originalFilename}</span></td>
+                    <td><span className="table-primary-text" title={decision.originalFilename}>
+                      {decision.directory && icon('fas fa-folder item-icon')}{decision.originalFilename}
+                    </span></td>
                     <td>
                       <span>{decision.sourceLabel}</span>
                       {decision.submittedBy && <small title={decision.submittedBy}>From {decision.submittedBy}</small>}
@@ -108,32 +81,15 @@ export function PendingDecisionsApp() {
                     <td><span className="table-primary-text" title={decision.destinationLabel}>{decision.destinationLabel}</span></td>
                     <td>{decision.sizeLabel}</td>
                     <td title={decision.createdAt}>{decision.createdLabel}</td>
+                    <td>{decision.statusLabel}</td>
                     <td>
-                      <div className="table-actions">
-                        <button className="ghost icon-button action-icon" type="button" title="Keep both" aria-label="Keep both"
-                          disabled={Boolean(busyId)} onClick={() => void resolve(decision, 'KEEP_BOTH')}>
-                          {icon('fas fa-copy')}
-                        </button>
-                        <button className="ghost icon-button action-icon" type="button" title="Save as" aria-label="Save as"
-                          disabled={Boolean(busyId)} onClick={() => void saveAs(decision)}>
-                          {icon('fas fa-pen')}
-                        </button>
-                        {!decision.directory && <button className="danger icon-button action-icon" type="button" title="Replace existing file"
-                          aria-label="Replace existing file" disabled={Boolean(busyId)}
-                          onClick={() => void resolve(decision, 'REPLACE')}>
-                          {icon('fas fa-file-arrow-down')}
-                        </button>}
-                        <button className="danger icon-button action-icon" type="button" title="Discard staged item"
-                          aria-label="Discard staged item" disabled={Boolean(busyId)}
-                          onClick={() => void resolve(decision, 'DISCARD')}>
-                          {icon('fas fa-trash-can')}
-                        </button>
-                      </div>
+                      <PendingDecisionActions decision={decision}
+                        resolved={(id) => setDecisions((current) => current?.filter((item) => item.id !== id) ?? [])} />
                     </td>
                   </tr>
                 ))}
                 {decisions.length === 0 && (
-                  <tr className="empty-row"><td colSpan={6} className="empty">No items are awaiting review.</td></tr>
+                  <tr className="empty-row"><td colSpan={7} className="empty">No items are awaiting review.</td></tr>
                 )}
               </tbody>
             </table>
