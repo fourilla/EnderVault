@@ -132,6 +132,34 @@ test('disabled server task display does not announce or open an empty popover', 
   state.paint();
   assert.equal(state.events.length, 0);
   assert.equal(state.shows(), 0);
+  const terminal = [];
+  state.document.addEventListener('endervault:task-terminal', (event) => terminal.push(event.detail));
+  state.tasks.track({ id: 'hidden', status: 'PENDING', active: false });
+  state.tasks.track({ id: 'hidden', status: 'PENDING', active: false });
+  state.tasks.track({ id: 'restored', status: 'PENDING', active: false });
+  assert.deepEqual(terminal.map((task) => task.initiatedHere), [true, false]);
+});
+
+test('admin file and directory conflicts announce durable decisions without resolving or queuing legacy dialogs', async (t) => {
+  const state = setup(t);
+  const announced = [];
+  state.window.EnderVault.askFileConflictPolicy = () => assert.fail('legacy dialog must not open');
+  const { TestUploadManager } = await loadTsx('app/uploads/UploadManagerContext.tsx', state.window, state.document,
+    () => ({ createContext: () => ({}), announcePending: (id) => announced.push(id) }),
+    'export { AdminUploadManager as TestUploadManager };');
+  const manager = new TestUploadManager(1, () => {});
+  for (const directory of [false, true]) {
+    const upload = { id: manager.nextId++, file: new File([], 'item'),
+      root: directory ? { files: [{}] } : undefined, destinationPath: '', loaded: 0, total: 5,
+      status: 'uploading', cancelRequested: false };
+    manager.uploads.set(upload.id, upload);
+    if (directory) manager.finishDirectory(upload, { status: 'PENDING', pendingDecisionId: 'directory' });
+    else manager.pending(upload, 'file');
+    assert.equal(upload.status, 'pending');
+    assert.equal(upload.loaded, 5);
+  }
+  assert.deepEqual(announced, ['file', 'directory']);
+  assert.equal(manager.hasActiveUploads(), false);
 });
 
 test('the upload manager announces one batch after queue rows exist, not when queued workers start', async (t) => {

@@ -2,23 +2,33 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { useLocation, useNavigate } from 'react-router-dom';
 import { DirectoryMergeDialog } from '../directory-merges/DirectoryMergeDialog';
 import { useTopbarPopover } from '../app/TopbarPopoverContext';
+import { PendingDecisionDialog } from './PendingDecisionDialog';
+import { observeNewDecisions, type DecisionTarget } from './decision-auto-open';
 
-const DecisionDialogContext = createContext<{ openMerge: (id: string) => boolean } | null>(null);
+const DecisionDialogContext = createContext<{ openMerge: (id: string) => boolean; openPending: (id: string) => boolean } | null>(null);
 
 export function DecisionDialogProvider({ children }: PropsWithChildren) {
   const location = useLocation();
   const navigate = useNavigate();
   const { closeAll } = useTopbarPopover();
-  const [selected, setSelected] = useState<string | null>(null);
-  const current = useRef<string | null>(null);
-  const openMerge = useCallback((id: string) => {
+  const [selected, setSelected] = useState<DecisionTarget | null>(null);
+  const current = useRef<DecisionTarget | null>(null);
+  const open = useCallback((target: DecisionTarget) => {
     // Ignore competing requests rather than replacing a review with unsaved input.
-    if (current.current !== null) return current.current === id;
-    current.current = id;
-    setSelected(id);
+    if (current.current !== null) return current.current.id === target.id && current.current.kind === target.kind;
+    current.current = target;
+    setSelected(target);
     closeAll();
     return true;
   }, [closeAll]);
+  const openMerge = useCallback((id: string) => open({ kind: 'merge', id }), [open]);
+  const openPending = useCallback((id: string) => open({ kind: 'pending', id }), [open]);
+  const replaceWithMerge = useCallback((id: string) => {
+    const target: DecisionTarget = { kind: 'merge', id };
+    current.current = target;
+    setSelected(target);
+  }, []);
+  useEffect(() => observeNewDecisions(open), [open]);
   const close = useCallback(() => {
     current.current = null;
     setSelected(null);
@@ -39,9 +49,10 @@ export function DecisionDialogProvider({ children }: PropsWithChildren) {
     }
   }, [location.pathname, location.search, location.hash, openMerge]);
 
-  return <DecisionDialogContext.Provider value={{ openMerge }}>
+  return <DecisionDialogContext.Provider value={{ openMerge, openPending }}>
     {children}
-    {selected && <DirectoryMergeDialog key={selected} id={selected} close={close} changed={changed} />}
+    {selected?.kind === 'merge' && <DirectoryMergeDialog key={selected.id} id={selected.id} close={close} changed={changed} />}
+    {selected?.kind === 'pending' && <PendingDecisionDialog key={selected.id} id={selected.id} close={close} openMerge={replaceWithMerge} />}
   </DecisionDialogContext.Provider>;
 }
 

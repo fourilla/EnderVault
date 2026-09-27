@@ -14,7 +14,7 @@ const emptyPayload: NotificationCenterPayload = {
 export function NotificationCenterControl() {
   const { notifications } = useShellStatus();
   const navigate = useNavigate();
-  const { openMerge } = useDecisionDialog();
+  const { openMerge, openPending } = useDecisionDialog();
   const { closeAll } = useTopbarPopover();
   const payload = notifications.data ?? emptyPayload;
   const available = Boolean(notifications.data) && !notifications.error;
@@ -42,10 +42,11 @@ export function NotificationCenterControl() {
           {payload.items.map((item) => (
             <AppNavigationLink className="notification-center-item" href={item.href} key={item.id}
               onClick={(event) => {
-                if (item.target?.kind !== 'DIRECTORY_MERGE' || event.button !== 0
+                if (!item.target || !['DIRECTORY_MERGE', 'PENDING_FILE_DECISION'].includes(item.target.kind) || event.button !== 0
                     || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
                 event.preventDefault();
-                openMerge(item.target.id);
+                if (item.target.kind === 'DIRECTORY_MERGE') openMerge(item.target.id);
+                else openPending(item.target.id);
               }}>
               <i className="fas fa-file-circle-exclamation" aria-hidden="true" />
               <span>

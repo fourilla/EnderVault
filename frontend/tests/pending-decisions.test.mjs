@@ -11,7 +11,7 @@ test('pending directories hide replacement while files retain it', async () => {
     build: {
       write: false,
       minify: false,
-      lib: { entry: fileURLToPath(new URL('../src/pending-decisions/PendingDecisionsApp.tsx', import.meta.url)), formats: ['cjs'] },
+      lib: { entry: fileURLToPath(new URL('../src/pending-decisions/PendingDecisionActions.tsx', import.meta.url)), formats: ['cjs'] },
       rolldownOptions: { external: (_id, importer) => Boolean(importer) },
     },
   });
@@ -47,7 +47,7 @@ test('pending directories hide replacement while files retain it', async () => {
       if (node.type === 'button') buttons.push(node);
       visit(node.props?.children);
     };
-    visit(module.exports.PendingDecisionsApp());
+    visit(module.exports.PendingDecisionActions({ decision, resolved: () => {} }));
     assert.equal(buttons.some((button) => button.props.title === 'Replace existing file'), !directory);
     assert.ok(buttons.some((button) => button.props.title === 'Keep both'));
     assert.ok(buttons.some((button) => button.props.title === 'Save as'));

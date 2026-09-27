@@ -3,8 +3,9 @@ import { postForm, toastError } from '../shared/api/form-api';
 import { mergeBase } from './merge-api';
 import { useDecisionDialog } from '../pending-decisions/DecisionDialogContext';
 
-export function PrepareDirectoryMergeButton({ pendingId, disabled, mergeId }: {
-  pendingId: string; disabled: boolean; mergeId?: string | null;
+export function PrepareDirectoryMergeButton({ pendingId, disabled, mergeId, started, busyChanged, labelled = false }: {
+  pendingId: string; disabled: boolean; mergeId?: string | null; started?: () => void; busyChanged?: (busy: boolean) => void;
+  labelled?: boolean;
 }) {
   const { openMerge } = useDecisionDialog();
   const [busy, setBusy] = useState(false);
@@ -24,7 +25,7 @@ export function PrepareDirectoryMergeButton({ pendingId, disabled, mergeId }: {
         if (task?.status === 'COMPLETE') {
           // A conflict-free upload merge completes in the preparation task.
         } else if (task?.resultReference && task.status === 'PENDING') {
-          // The refreshed row offers Review merge; preparation never opens a dialog.
+          // The shell opens newly created reviews through the shared task-terminal event.
         } else {
           toastError(new Error(task?.message || 'Merge review is unavailable. Check pending decisions.'), 'Review failed.');
         }
@@ -37,20 +38,25 @@ export function PrepareDirectoryMergeButton({ pendingId, disabled, mergeId }: {
   }, [taskId]);
 
   const prepare = async () => {
-    setBusy(true);
+    setBusy(true); busyChanged?.(true);
     try {
       const task = await postForm(`${mergeBase}/pending/${encodeURIComponent(pendingId)}`, {});
       window.EnderVaultServerTasks?.track(task, { announceStart: true });
+      started?.();
       setTaskId(task.id);
     } catch (reason) { setBusy(false); toastError(reason, 'Merge review could not be prepared.'); }
+    finally { busyChanged?.(false); }
   };
   // Keep this component mounted when the refreshed row gains an owner, so its task poll survives.
-  if (mergeId && !busy) return <button type="button" className="ghost icon-button action-icon"
-    title="Review transfer" aria-label="Review transfer" disabled={disabled} onClick={() => openMerge(mergeId)}>
+  const buttonClass = labelled ? 'ghost icon-text-button' : 'ghost icon-button action-icon';
+  if (mergeId && !busy) return <button type="button" className={buttonClass}
+    title={labelled ? 'Open the existing transfer review to resolve conflicts or resume the operation.' : 'Review transfer'} aria-label="Review transfer" disabled={disabled} onClick={() => openMerge(mergeId)}>
     <i className="fas fa-code-branch" aria-hidden="true" />
+    {labelled && <span>Review transfer</span>}
   </button>;
-  return <button type="button" className="ghost icon-button action-icon" title="Merge directory" aria-label="Merge directory"
+  return <button type="button" className={buttonClass} title={labelled ? 'Combine the directory contents. Conflicting items require review; if none conflict, the merge proceeds automatically.' : 'Merge directory'} aria-label="Merge directory"
     disabled={disabled || busy} onClick={() => void prepare()}>
     <i className={`fas ${busy ? 'fa-spinner fa-spin' : 'fa-code-branch'}`} aria-hidden="true" />
+    {labelled && <span>Merge directory</span>}
   </button>;
 }

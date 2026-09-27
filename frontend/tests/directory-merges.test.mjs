@@ -167,7 +167,7 @@ test('preparing a pending merge refreshes the row without navigating or opening 
     window: { dispatchEvent: () => refreshed++, EnderVault: {
       requestJson: async () => [{ status, resultReference: 'review', active: false }],
     } },
-  }, { react, 'react/jsx-runtime': { jsx: (type, props) => ({ type, props }) },
+  }, { react, 'react/jsx-runtime': { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) },
     DecisionDialogContext: { useDecisionDialog: () => ({ openMerge: () => assert.fail('unexpected dialog') }) },
     'form-api': { toastError: () => assert.fail('unexpected error') } });
   component.PrepareDirectoryMergeButton({ pendingId: 'pending', disabled: false });
@@ -296,7 +296,7 @@ test('pending row preserves the preparation component position when a merge owne
   const jsx = (type, props) => ({ type, props });
   const react = { useEffect: () => {}, useState: (value) => [value === null ? decisions : value, () => {}],
     createElement: (type, props, ...children) => jsx(type, { ...props, children }) };
-  const component = await load('../src/pending-decisions/PendingDecisionsApp.tsx', { React: react }, {
+  const component = await load('../src/pending-decisions/PendingDecisionActions.tsx', { React: react }, {
     react, 'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'fragment' },
     useHashTarget: { useHashTarget: () => {} }, BrowserEntries: { icon: () => null },
     PrepareDirectoryMergeButton: { PrepareDirectoryMergeButton: 'prepare' },
@@ -312,9 +312,9 @@ test('pending row preserves the preparation component position when a merge owne
   };
   const decision = { id: 'pending', directory: true, originalFilename: 'photos', destinationPath: '' };
   decisions = [decision];
-  const before = paths(component.PendingDecisionsApp());
+  const before = paths(component.PendingDecisionActions({ decision, resolved: () => {} }));
   decisions = [{ ...decision, mergeId: 'review' }];
-  const after = paths(component.PendingDecisionsApp());
+  const after = paths(component.PendingDecisionActions({ decision: decisions[0], resolved: () => {} }));
   assert.equal(before.length, 1);
   assert.deepEqual(after, before);
 });
@@ -343,7 +343,7 @@ test('the unified pending page has one table and no page-owned review dialog', a
 test('closing a review replaces its hash without navigation history or scroll reset', async () => {
   const navigations = [];
   const jsx = (type, props) => ({ type, props });
-  const react = { useEffect: () => {}, useState: () => ['review', () => {}],
+  const react = { useEffect: () => {}, useState: () => [{ kind: 'merge', id: 'review' }, () => {}],
     useRef: () => ({ current: 'review' }), useCallback: (fn) => fn, createContext: () => ({ Provider: 'provider' }),
     createElement: (type, props, ...children) => jsx(type, { ...props, children }) };
   const component = await load('../src/pending-decisions/DecisionDialogContext.tsx', { React: react }, {
@@ -353,6 +353,7 @@ test('closing a review replaces its hash without navigation history or scroll re
       useNavigate: () => (...args) => navigations.push(args),
     }, TopbarPopoverContext: { useTopbarPopover: () => ({ closeAll: () => {} }) },
     DirectoryMergeDialog: { DirectoryMergeDialog: 'review-dialog' },
+    'decision-auto-open': { observeNewDecisions: () => () => {} },
   });
   const visit = (node) => {
     if (Array.isArray(node)) return node.forEach(visit);
@@ -442,11 +443,11 @@ test('shell review requests preserve the page and never replace an already open 
     DirectoryMergeDialog: { DirectoryMergeDialog: 'review-dialog' },
   });
   let tree = component.DecisionDialogProvider({ children: 'files-content' });
-  effects[0]();
+  effects[1]();
   assert.equal(selected, null);
   assert.equal(tree.props.value.openMerge('first'), true);
   assert.equal(tree.props.value.openMerge('second'), false);
-  assert.equal(selected, 'first');
+  assert.equal(selected.id, 'first');
   assert.equal(popoverCloses, 1);
   tree = component.DecisionDialogProvider({ children: 'files-content' });
   assert.equal(tree.props.children[0], 'files-content');
@@ -457,12 +458,12 @@ test('shell review requests preserve the page and never replace an already open 
   location.pathname = '/admin/pending-decisions'; location.search = ''; location.hash = '#merge-deep-link';
   effects.length = 0;
   component.DecisionDialogProvider({ children: null });
-  effects[0]();
-  assert.equal(selected, 'deep-link');
+  effects[1]();
+  assert.equal(selected.id, 'deep-link');
   location.pathname = '/files'; location.hash = '';
   effects.length = 0;
   component.DecisionDialogProvider({ children: null });
-  effects[0]();
+  effects[1]();
   assert.equal(selected, null);
 });
 
@@ -481,7 +482,7 @@ test('notification bell navigates but a typed merge item opens locally without p
       ],
     } } }) },
     'react-router-dom': { useNavigate: () => (...args) => navigations.push(args) },
-    DecisionDialogContext: { useDecisionDialog: () => ({ openMerge: (id) => opened.push(id) }) },
+    DecisionDialogContext: { useDecisionDialog: () => ({ openMerge: (id) => opened.push(id), openPending: (id) => opened.push(id) }) },
     TopbarPopoverContext: { useTopbarPopover: () => ({ closeAll: () => {} }) },
     AppNavigationLink: { AppNavigationLink: 'link' }, ShellPopover: { ShellPopover: 'popover' },
   });
@@ -501,8 +502,8 @@ test('notification bell navigates but a typed merge item opens locally without p
   assert.deepEqual(navigations, []);
   links[0].props.onClick({ ...event, ctrlKey: true });
   links[1].props.onClick(event);
-  assert.equal(prevented, 1);
-  assert.equal(opened.length, 1);
+  assert.equal(prevented, 2);
+  assert.deepEqual(opened, ['review', 'pending']);
   tree.props.onTriggerClick();
   assert.equal(navigations[0][0], '/admin/pending-decisions');
 });

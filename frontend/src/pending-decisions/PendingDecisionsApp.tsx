@@ -1,16 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useHashTarget } from '../shared/browser/useHashTarget';
-import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
 import { PageHeader } from '../shared/layout/PageHeader';
-import { loadPendingDecisions, resolvePendingDecision } from './pending-decision-api';
-import type { PendingFileDecision, PendingFileDecisionAction } from './types';
-import { PrepareDirectoryMergeButton } from '../directory-merges/PrepareDirectoryMergeButton';
+import { loadPendingDecisions } from './pending-decision-api';
+import type { PendingFileDecision } from './types';
+import { PendingDecisionActions } from './PendingDecisionActions';
 
 export function PendingDecisionsApp() {
   const [decisions, setDecisions] = useState<PendingFileDecision[] | null>(null);
   const [error, setError] = useState('');
-  const [busyId, setBusyId] = useState('');
   const [refresh, reload] = useState(0);
 
   useEffect(() => {
@@ -41,49 +39,6 @@ export function PendingDecisionsApp() {
   }, [refresh]);
 
   useHashTarget(decisions, '#decision-', true);
-
-  const resolve = async (
-    decision: PendingFileDecision,
-    action: PendingFileDecisionAction,
-    filename?: string,
-  ) => {
-    if (decision.directory && action === 'REPLACE') return;
-    if (action === 'REPLACE' || action === 'DISCARD') {
-      const confirmed = await window.EnderVault!.askConfirmation({
-        title: action === 'REPLACE' ? 'Replace existing file' : 'Discard pending item',
-        message: action === 'REPLACE'
-          ? 'Replace the existing destination file with this staged file?'
-          : decision.directory ? 'Permanently discard this staged directory and its contents?' : 'Permanently discard this staged file?',
-        confirmLabel: action === 'REPLACE' ? 'Replace' : 'Discard',
-        danger: true,
-      });
-      if (!confirmed) return;
-    }
-
-    setBusyId(decision.id);
-    try {
-      const result = await resolvePendingDecision(decision.id, action, {
-        filename,
-        replaceConfirmed: action === 'REPLACE',
-      });
-      setDecisions((current) => current?.filter((item) => item.id !== result.removedId) ?? []);
-    } catch (reason) {
-      toastError(reason, 'Pending item resolution failed.');
-    } finally {
-      setBusyId('');
-    }
-  };
-
-  const saveAs = async (decision: PendingFileDecision) => {
-    const filename = await window.EnderVault!.askTextInput({
-      title: decision.directory ? 'Save pending directory as' : 'Save pending file as',
-      message: 'Choose a new name in the requested destination.',
-      label: decision.directory ? 'Directory name' : 'File name',
-      initialValue: decision.originalFilename,
-      confirmLabel: 'Save',
-    });
-    if (filename) await resolve(decision, 'SAVE_AS', filename);
-  };
 
   return (
     <>
@@ -128,30 +83,8 @@ export function PendingDecisionsApp() {
                     <td title={decision.createdAt}>{decision.createdLabel}</td>
                     <td>{decision.statusLabel}</td>
                     <td>
-                      <div className="table-actions">
-                        {decision.directory && <PrepareDirectoryMergeButton pendingId={decision.id}
-                          mergeId={decision.mergeId} disabled={Boolean(busyId)} />}
-                        {!decision.mergeId && <>
-                        <button className="ghost icon-button action-icon" type="button" title="Keep both" aria-label="Keep both"
-                          disabled={Boolean(busyId)} onClick={() => void resolve(decision, 'KEEP_BOTH')}>
-                          {icon('fas fa-copy')}
-                        </button>
-                        <button className="ghost icon-button action-icon" type="button" title="Save as" aria-label="Save as"
-                          disabled={Boolean(busyId)} onClick={() => void saveAs(decision)}>
-                          {icon('fas fa-pen')}
-                        </button>
-                        {!decision.directory && <button className="danger icon-button action-icon" type="button" title="Replace existing file"
-                          aria-label="Replace existing file" disabled={Boolean(busyId)}
-                          onClick={() => void resolve(decision, 'REPLACE')}>
-                          {icon('fas fa-file-arrow-down')}
-                        </button>}
-                        <button className="danger icon-button action-icon" type="button" title="Discard staged item"
-                          aria-label="Discard staged item" disabled={Boolean(busyId)}
-                          onClick={() => void resolve(decision, 'DISCARD')}>
-                          {icon('fas fa-trash-can')}
-                        </button>
-                        </>}
-                      </div>
+                      <PendingDecisionActions decision={decision}
+                        resolved={(id) => setDecisions((current) => current?.filter((item) => item.id !== id) ?? [])} />
                     </td>
                   </tr>
                 ))}
