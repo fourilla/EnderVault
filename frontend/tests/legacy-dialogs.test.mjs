@@ -17,6 +17,7 @@ function setup() {
     ownerDocument = ownerDocument;
     open = false;
     showModal() { this.open = true; }
+    querySelector() { return null; }
     close() { this.open = false; }
   }
   return { bridge: module.exports.createLegacyDialogBridge(), Dialog, ownerDocument };

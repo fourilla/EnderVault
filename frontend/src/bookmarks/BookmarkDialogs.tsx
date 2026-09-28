@@ -66,14 +66,14 @@ export function BookmarkDialogs({
           <label className="text-input-field">
             Links
             <textarea value={bulkText} onChange={(event) => setBulkText(event.target.value)} rows={14}
-              placeholder={'https://example.com/auto-name\nTitle one\nhttps://example.com/one'} required autoFocus />
+              placeholder={'https://example.com/auto-name\nTitle one\nhttps://example.com/one'} required data-dialog-initial-focus />
           </label>
         ) : (
           <div className="bookmark-dialog-fields">
             <label className="text-input-field">
               Title
               <input value={title} onChange={(event) => setTitle(event.target.value)} type="text"
-                maxLength={200} placeholder="Leave blank to auto-name" autoFocus />
+                maxLength={200} placeholder="Leave blank to auto-name" data-dialog-initial-focus />
             </label>
             <label className="text-input-field">
               URL

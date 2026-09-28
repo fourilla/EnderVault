@@ -71,6 +71,8 @@ export function mountDialog(dialog: HTMLDialogElement, policy: () => DialogPolic
       dialog.addEventListener('click', click);
       dialog.addEventListener('close', close);
       dialog.showModal();
+      // React autoFocus runs before a closed dialog becomes focusable.
+      dialog.querySelector<HTMLElement>('[data-dialog-initial-focus]:not(:disabled)')?.focus({ preventScroll: true });
     },
   };
   // Only explicit child interactions may bypass the normal modal queue.
