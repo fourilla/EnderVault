@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
 import { PageHeader } from '../shared/layout/PageHeader';
+import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import { FloatingPageActions } from '../app/FloatingPageActions';
 import { deleteExpiredShares, deleteShare, loadShares, revokeShare } from './share-api';
 import type { ShareLink } from './types';
@@ -57,7 +58,11 @@ export function SharedLinksApp() {
         icon="fas fa-broom" disabled={Boolean(busy)}
         onAction={() => void run('expired', deleteExpiredShares, 'Expired links could not be deleted.')} />}
 
-      {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
+      <div className="page-feedback-layout">
+      {error && <PageErrorPanel title="Shared links unavailable" message={error} stale={shares !== null}
+        actions={<button type="button" className="icon-text-button" onClick={reload}>
+          {icon('fas fa-arrows-rotate')}<span>Retry</span>
+        </button>} />}
       {!shares && !error && (
         <section className="browser-load-progress" role="status" aria-live="polite">
           <i className="fas fa-spinner fa-spin" aria-hidden="true" />
@@ -114,6 +119,7 @@ export function SharedLinksApp() {
           </table>
         </section>
       )}
+      </div>
     </>
   );
 }

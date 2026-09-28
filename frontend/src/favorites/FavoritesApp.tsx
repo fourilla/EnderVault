@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { moveFavorite, removeFavorite } from '../shared/api/favorite-api';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
+import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import { loadFavorites } from './favorite-api';
 import type { FavoriteEntry, FavoritesPayload } from './types';
 import './favorites-app.css';
@@ -68,7 +69,12 @@ export function FavoritesApp() {
         </div>
       </section>
 
-      {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
+      <div className="page-feedback-layout">
+      {error && <PageErrorPanel title="Favorites unavailable" message={error} stale={payload !== null}
+        actions={<button type="button" className="icon-text-button" disabled={loading}
+          onClick={() => setRefreshToken((value) => value + 1)}>
+          {icon('fas fa-arrows-rotate')}<span>Retry</span>
+        </button>} />}
       {loading && !payload && (
         <section className="browser-load-progress" role="status" aria-live="polite">
           <i className="fas fa-spinner fa-spin" aria-hidden="true" />
@@ -130,6 +136,7 @@ export function FavoritesApp() {
           </div>
         </section>
       )}
+      </div>
     </>
   );
 }

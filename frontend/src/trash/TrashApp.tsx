@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
 import { PageHeader } from '../shared/layout/PageHeader';
+import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import { FloatingPageActions } from '../app/FloatingPageActions';
 import { deleteTrashItem, emptyTrash, loadTrash, restoreTrashItem } from './trash-api';
 import type { TrashItem, TrashPayload } from './types';
@@ -90,7 +91,11 @@ export function TrashApp() {
       {items.length > 0 && <FloatingPageActions mode="single" label="Empty trash" icon="fas fa-broom"
         danger disabled={Boolean(busyAction)} onAction={() => void empty()} />}
 
-      {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
+      <div className="page-feedback-layout">
+      {error && <PageErrorPanel title="Trash unavailable" message={error} stale={payload !== null}
+        actions={<button type="button" className="icon-text-button" disabled={loading} onClick={reload}>
+          {icon('fas fa-arrows-rotate')}<span>Retry</span>
+        </button>} />}
       {loading && !payload && (
         <section className="browser-load-progress" role="status" aria-live="polite">
           <i className="fas fa-spinner fa-spin" aria-hidden="true" />
@@ -141,6 +146,7 @@ export function TrashApp() {
         </section>
       )}
       {payload && items.length === 0 && <p className="empty browser-grid-empty">No trash items.</p>}
+      </div>
     </>
   );
 }
