@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useHashTarget } from '../shared/browser/useHashTarget';
 import { icon } from '../shared/browser/BrowserEntries';
 import { PageHeader } from '../shared/layout/PageHeader';
+import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import { loadPendingDecisions } from './pending-decision-api';
 import type { PendingFileDecision } from './types';
 import { PendingDecisionActions } from './PendingDecisionActions';
@@ -26,7 +27,9 @@ export function PendingDecisionsApp() {
     let timer: ReturnType<typeof setTimeout>;
     setError('');
     const load = () => loadPendingDecisions(controller.signal)
-      .then((payload) => { if (!controller.signal.aborted) setDecisions(payload.decisions); })
+      .then((payload) => {
+        if (!controller.signal.aborted) { setDecisions(payload.decisions); setError(''); }
+      })
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
           setError(reason instanceof Error ? reason.message : 'Pending decisions could not be loaded.');
@@ -44,7 +47,11 @@ export function PendingDecisionsApp() {
     <>
       <PageHeader title="Pending Decisions" />
 
-      {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
+      <div className="page-feedback-layout">
+      {error && <PageErrorPanel title="Pending decisions unavailable" message={error} stale={decisions !== null}
+        actions={<button className="icon-text-button" type="button" onClick={() => reload((value) => value + 1)}>
+          <i className="fas fa-arrows-rotate" aria-hidden="true" /><span>Retry</span>
+        </button>} />}
       {!decisions && !error && (
         <section className="browser-load-progress" role="status" aria-live="polite">
           <i className="fas fa-spinner fa-spin" aria-hidden="true" />
@@ -96,6 +103,7 @@ export function PendingDecisionsApp() {
           </div>
         </section>
       )}
+      </div>
     </>
   );
 }

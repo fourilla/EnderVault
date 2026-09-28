@@ -1,3 +1,4 @@
+import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import {
   useCallback,
   createContext,
@@ -87,15 +88,14 @@ export function AdminAppProvider({ children }: PropsWithChildren) {
 
   if (!value && failure) {
     return (
-      <main className="browser-load-state browser-load-error" role="alert">
-        <strong>{failure.kind === 'session-expired' ? 'Session expired'
-          : failure.kind === 'forbidden' ? 'Access denied' : 'EnderVault could not be initialized.'}</strong>
-        <span>{failure.message}</span>
-        <div className="browser-load-actions">
-          <button className="ghost" type="button" disabled={loading} onClick={() => void load()}>Retry</button>
+      <main className="page-error-standalone"><PageErrorPanel title={failure.kind === 'session-expired' ? 'Session expired'
+          : failure.kind === 'forbidden' ? 'Access denied' : 'EnderVault could not be initialized.'}
+        message={failure.message} actions={<>
+          <button className="icon-text-button" type="button" disabled={loading} onClick={() => void load()}>
+            <i className="fas fa-arrows-rotate" aria-hidden="true" /><span>Retry</span>
+          </button>
           {failure.kind !== 'unavailable' && <a className="button-link" href="/login">Sign in</a>}
-        </div>
-      </main>
+        </>} /></main>
     );
   }
   if (!value) {
