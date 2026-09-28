@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useHashTarget } from '../shared/browser/useHashTarget';
 import { toastError } from '../shared/api/form-api';
 import { PageHeader } from '../shared/layout/PageHeader';
+import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import { loadMetadataInspector, repairMetadataIssues, startMetadataScan } from './metadata-api';
 import { MetadataIssueTable } from './MetadataIssueTable';
 import type { MetadataPagePayload, MetadataTask } from './types';
@@ -20,6 +21,7 @@ export function MetadataInspectorApp() {
     setError('');
     void loadMetadataInspector(controller.signal)
       .then((next) => {
+        if (controller.signal.aborted) return;
         setPayload(next);
         setSelectedAreas((current) => current ?? new Set(next.areas.map((area) => area.name)));
         setSelectedIssues(new Set());
@@ -94,7 +96,10 @@ export function MetadataInspectorApp() {
     <div className="dashboard-workspace settings-workspace metadata-workspace metadata-selection-enhanced">
       <PageHeader title="Metadata Inspector" />
 
-      {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
+      {error && <PageErrorPanel title="Metadata inspector unavailable" message={error} stale={payload !== null}
+        actions={<button type="button" className="icon-text-button" onClick={() => setRefreshToken((value) => value + 1)}>
+          <i className="fas fa-arrows-rotate" aria-hidden="true" /><span>Retry</span>
+        </button>} />}
       {!payload && !error && (
         <section className="browser-load-progress" role="status" aria-live="polite">
           <i className="fas fa-spinner fa-spin" aria-hidden="true" />

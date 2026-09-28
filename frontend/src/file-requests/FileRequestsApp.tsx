@@ -1,8 +1,9 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
 import { PageHeader } from '../shared/layout/PageHeader';
+import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import {
   createFileRequest,
   deleteExpiredFileRequests,
@@ -33,14 +34,19 @@ export function FileRequestsApp() {
   const [error, setError] = useState('');
   const [refreshToken, setRefreshToken] = useState(0);
   const [busy, setBusy] = useState('');
+  const loadedSearch = useRef<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
     setError('');
     void loadFileRequests(location.search, controller.signal)
       .then((next) => {
+        if (controller.signal.aborted) return;
         setPayload(next);
-        setValues(valuesFrom(next));
+        if (loadedSearch.current !== location.search) {
+          setValues(valuesFrom(next));
+          loadedSearch.current = location.search;
+        }
       })
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
@@ -119,7 +125,10 @@ export function FileRequestsApp() {
   return (
     <div className="dashboard-workspace file-requests-workspace">
       <PageHeader title="File Requests" />
-      {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
+      {error && <PageErrorPanel title="File requests unavailable" message={error} stale={payload !== null}
+        actions={<button type="button" className="icon-text-button" onClick={reload}>
+          {icon('fas fa-arrows-rotate')}<span>Retry</span>
+        </button>} />}
       {!payload && !error && (
         <section className="browser-load-progress" role="status" aria-live="polite">
           <i className="fas fa-spinner fa-spin" aria-hidden="true" /><span>Loading file requests...</span>

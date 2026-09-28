@@ -3,6 +3,7 @@ import { AppNavigationLink } from '../app/AppNavigationLink';
 import { useAdminApp } from '../app/AdminAppContext';
 import { toastError } from '../shared/api/form-api';
 import { PageHeader } from '../shared/layout/PageHeader';
+import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import type { VpnCommand, VpnRuntimeStatus } from './types';
 import { loadVpnStatus, runVpnCommand } from './vpn-api';
 
@@ -11,11 +12,14 @@ export function VpnStatusApp() {
   const [vpn, setVpn] = useState<VpnRuntimeStatus | null>(null);
   const [busy, setBusy] = useState<VpnCommand | ''>('');
   const [error, setError] = useState('');
+  const [refreshToken, setRefreshToken] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
+    setError('');
     void loadVpnStatus(controller.signal)
       .then((next) => {
+        if (controller.signal.aborted) return;
         setVpn(next);
         setError('');
       })
@@ -25,7 +29,7 @@ export function VpnStatusApp() {
         }
       });
     return () => controller.abort();
-  }, []);
+  }, [refreshToken]);
 
   const run = async (command: VpnCommand) => {
     if (busy || !vpn) return;
@@ -75,7 +79,10 @@ export function VpnStatusApp() {
         </AppNavigationLink>}
       />
 
-      {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
+      {error && <PageErrorPanel title="VPN status unavailable" message={error} stale={vpn !== null}
+        actions={<button type="button" className="icon-text-button" onClick={() => setRefreshToken((value) => value + 1)}>
+          <i className="fas fa-arrows-rotate" aria-hidden="true" /><span>Retry</span>
+        </button>} />}
       {!vpn && !error && (
         <section className="browser-load-progress" role="status" aria-live="polite">
           <i className="fas fa-spinner fa-spin" aria-hidden="true" /><span>Loading VPN status...</span>
