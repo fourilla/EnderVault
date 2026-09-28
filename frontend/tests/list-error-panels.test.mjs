@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
 import { build } from 'vite';
 import * as React from 'react';
 import * as jsx from 'react/jsx-runtime';
@@ -24,7 +25,7 @@ async function compile(file) {
 
 function evaluate(code, dependencies) {
   const module = { exports: {} };
-  vm.runInNewContext(code, { module, exports: module.exports, require(id) {
+  vm.runInNewContext(code, { module, exports: module.exports, AbortController, require(id) {
     if (id === 'react/jsx-runtime') return jsx;
     if (id.endsWith('.css')) return {};
     return dependencies(id);
@@ -35,6 +36,90 @@ function evaluate(code, dependencies) {
 const { PageErrorPanel } = evaluate(await compile('shared/layout/PageErrorPanel'), id => {
   assert.equal(id, 'react');
   return React;
+});
+
+function findPanel(node) {
+  if (!React.isValidElement(node)) return undefined;
+  if (node.type === PageErrorPanel) return node;
+  return React.Children.toArray(node.props.children).map(findPanel).find(Boolean);
+}
+
+test('files and search retry through the existing reload without navigation or selection changes', async () => {
+  const { BrowserListing } = evaluate(await compile('files/BrowserListing'), id => {
+    if (id.endsWith('/PageErrorPanel')) return { PageErrorPanel };
+    if (id.endsWith('/BrowserEntries')) return { EntryGrid: () => null, EntryTable: () => null,
+      icon: value => React.createElement('i', { className: value }) };
+    if (id.endsWith('/BrowserPagination')) return { BrowserPagination: () => null };
+    throw new Error(`Unexpected dependency: ${id}`);
+  });
+  for (const mode of ['browse', 'search']) {
+    for (const payload of [null, { mode, search: { query: 'saved query' }, directories: [], entries: [],
+      page: { totalItems: 0 }, preferences: { view: 'grid' } }]) {
+      let retries = 0;
+      const selected = new Set(['/chosen']);
+      const tree = BrowserListing({ payload, currentState: { mode, query: 'saved query' }, loading: false,
+        error: 'Fetch failed', selected, reload: () => retries++, navigate: () => assert.fail('must not navigate') });
+      const panel = findPanel(tree);
+      assert.equal(panel.props.stale, payload !== null);
+      assert.equal(panel.props.title, mode === 'search' ? 'Search unavailable' : 'Files unavailable');
+      panel.props.actions.props.onClick();
+      assert.equal(retries, 1);
+      assert.deepEqual([...selected], ['/chosen']);
+      assert.match(renderToStaticMarkup(tree), /page-feedback-layout/);
+    }
+  }
+});
+
+test('history-backed lists reuse reload and keep their existing navigation and selection hooks', () => {
+  for (const file of ['recent/RecentApp.tsx', 'bookmarks/BookmarksApp.tsx']) {
+    const source = readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8');
+    assert.match(source, /<PageErrorPanel[\s\S]*?stale=\{payload !== null\}/);
+    assert.match(source, /disabled=\{loading\} onClick=\{reload\}/);
+    assert.match(source, /useNavigationScroll\(payload, loading, state.scrollTop, historyKey, ready\)/);
+    assert.match(source, /useListingRefresh\(reload\)/);
+    assert.doesNotMatch(source, /browser-load-error/);
+  }
+  const app = readFileSync(new URL('../src/files/BrowserApp.tsx', import.meta.url), 'utf8');
+  assert.match(app, /<BrowserListing[\s\S]*?reload=\{reload\}/);
+});
+
+test('sticky note retry retains the applied query instead of submitting uncommitted search text', async () => {
+  const states = ['unsubmitted text', null, '', 'Fetch failed', 0];
+  let index = 0;
+  const effects = [];
+  const queries = [];
+  const { StickyNoteListApp } = evaluate(await compile('sticky-notes/StickyNoteListApp'), id => {
+    if (id === 'react') return {
+      useEffect: (run, deps) => effects.push({ run, deps }),
+      useState() { const slot = index++; return [states[slot], value => {
+        states[slot] = typeof value === 'function' ? value(states[slot]) : value;
+      }]; },
+    };
+    if (id === 'react-router-dom') return { useSearchParams: () => [new URLSearchParams('q=applied'), () => assert.fail('no navigation')] };
+    if (id.endsWith('/PageErrorPanel')) return { PageErrorPanel };
+    if (id.endsWith('/PageHeader')) return { PageHeader: () => null };
+    if (id.endsWith('/RouteSearch')) return { useRouteSearch() {} };
+    if (id.endsWith('/AppNavigationLink') || id.endsWith('/form-api')) return {};
+    if (id.endsWith('/sticky-note-catalog-api')) return { loadStickyNoteCatalog: async query => {
+      queries.push(query); return { notes: [] };
+    } };
+    throw new Error(`Unexpected dependency: ${id}`);
+  });
+  const tree = StickyNoteListApp();
+  findPanel(tree).props.actions.props.onClick();
+  assert.equal(states[4], 1);
+  assert.equal(states[0], 'unsubmitted text');
+  index = 0;
+  effects.length = 0;
+  StickyNoteListApp();
+  const fetchEffect = effects.find(effect => effect.deps?.length === 2);
+  assert.deepEqual([...fetchEffect.deps], ['applied', 1]);
+  const cleanup = fetchEffect.run();
+  await Promise.resolve();
+  assert.deepEqual(queries, ['applied']);
+  assert.equal(states[3], '');
+  assert.deepEqual(states[1], []);
+  cleanup();
 });
 
 for (const page of pages) {

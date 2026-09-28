@@ -107,6 +107,7 @@ export function BrowserApp() {
         currentState={currentState}
         loading={loading}
         error={error}
+        reload={reload}
         selected={selection.selected}
         browse={browse}
         selectEntry={selection.selectEntry}

@@ -53,6 +53,10 @@
   min-width: 0;
 }
 
+.page-error-panel + .browser-list-content > .browser-section:first-child {
+  margin-top: 0;
+}
+
 .page-error-standalone {
   width: min(var(--workspace-max-width), calc(100% - 2 * var(--space-3xl)));
   margin: var(--space-3xl) auto;

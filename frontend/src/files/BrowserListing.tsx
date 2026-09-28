@@ -1,4 +1,5 @@
-import { EntryGrid, EntryTable } from '../shared/browser/BrowserEntries';
+import { EntryGrid, EntryTable, icon } from '../shared/browser/BrowserEntries';
+import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import { BrowserPagination } from '../shared/browser/BrowserPagination';
 import type { BrowserEntry, BrowserHistoryState, BrowserPayload } from './types';
 
@@ -14,6 +15,7 @@ export function BrowserListing({
   itemInteractionProps,
   effectiveState,
   navigate,
+  reload,
 }: {
   payload: BrowserPayload | null;
   currentState: BrowserHistoryState;
@@ -26,6 +28,7 @@ export function BrowserListing({
   itemInteractionProps: (entry: BrowserEntry) => Record<string, unknown>;
   effectiveState: () => BrowserHistoryState;
   navigate: (state: BrowserHistoryState) => void;
+  reload: () => void;
 }) {
   const searchMode = currentState.mode === 'search';
   const searchQuery = payload?.mode === 'search' ? payload.search.query : currentState.query;
@@ -46,7 +49,13 @@ export function BrowserListing({
           </div>
         </section>
       )}
-      {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
+      <div className="page-feedback-layout">
+      {error && <PageErrorPanel title={searchMode ? 'Search unavailable' : 'Files unavailable'}
+        message={error} stale={payload !== null}
+        actions={<button type="button" className="icon-text-button" disabled={loading} onClick={reload}>
+          {icon('fas fa-arrows-rotate')}<span>Retry</span>
+        </button>} />}
+      <div className="browser-list-content">
       {loading && !payload && (searchMode ? (
         <section className="browser-load-progress" role="status" aria-live="polite">
           <i className="fas fa-spinner fa-spin" aria-hidden="true" />
@@ -91,6 +100,8 @@ export function BrowserListing({
             onPageChange={(page) => navigate({ ...effectiveState(), page, scrollTop: 0 })} />
         </>
       )}
+      </div>
+      </div>
     </>
   );
 }
