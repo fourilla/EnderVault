@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { appearanceSizes, appearanceSizeTokens, appearanceTokens, colorPresets, contrastRatio, normalizeAppearanceColor } from '../src/shared/appearance/presets.ts';
+import { appearanceSizes, appearanceSizeTokens, appearanceTokens, colorPresets, colorPresetLabels, contrastRatio, normalizeAppearanceColor } from '../src/shared/appearance/presets.ts';
+
+test('Neon Genesis preserves the requested palette and display name', () => {
+  assert.equal(colorPresetLabels.neonGenesis, 'Neon Genesis');
+  assert.deepEqual(colorPresets.neonGenesis, {
+    accent: '#7C4DFF', accentStrong: '#A7F542', button: '#6840D9', buttonHover: '#8156EE', buttonText: '#F8F7FC',
+    background: '#0C0A10', panel: '#15121B', panelElevated: '#201B29', panelMuted: '#2B2535', border: '#484050', text: '#F4F1F7', mutedText: '#B9B1C1',
+  });
+});
 
 test('appearance maps only supported properties and rejects style injection atomically', () => {
   const appearance = { ...colorPresets.endervault, controlSize: 'medium', cardSize: 'medium' };
@@ -44,10 +52,15 @@ test('table and settings density grow with controls without fixing row heights',
   }
 });
 
-test('preset button text remains legible for normal and hover backgrounds', () => {
-  for (const preset of Object.values(colorPresets)) {
+test('preset contrast meets the baseline except the explicitly requested Neon Genesis hover palette', () => {
+  for (const [name, preset] of Object.entries(colorPresets)) {
     assert.ok(contrastRatio(preset.button, preset.buttonText) >= 4.5);
-    assert.ok(contrastRatio(preset.buttonHover, preset.buttonText) >= 4.5);
+    // Preserve the requested colors; this one hover pair is below the usual 4.5 baseline.
+    if (name === 'neonGenesis') {
+      assert.ok(Math.abs(contrastRatio(preset.buttonHover, preset.buttonText) - 4.37888309062683) < 0.000001);
+    } else {
+      assert.ok(contrastRatio(preset.buttonHover, preset.buttonText) >= 4.5);
+    }
     for (const background of [preset.background, preset.panel, preset.panelElevated, preset.panelMuted]) {
       assert.ok(contrastRatio(background, preset.text) >= 4.5);
       assert.ok(contrastRatio(background, preset.mutedText) >= 4.5);
