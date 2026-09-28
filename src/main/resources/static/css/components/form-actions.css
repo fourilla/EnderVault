@@ -1,3 +1,14 @@
+.form-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-md);
+}
+
+.form-actions.end {
+    justify-content: flex-end;
+}
+
 .share-create-form button {
     white-space: nowrap;
 }

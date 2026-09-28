@@ -109,7 +109,7 @@ export function FileRequestDetailApp() {
           <Policy label="Expires" value={item.expiresLabel} />
           <Policy label="Usage" value={item.usageLabel} wide />
         </dl>
-        <div className="file-request-detail-actions">
+        <div className="form-actions end file-request-detail-actions">
           <button className="ghost icon-text-button" type="button" onClick={() => void copyLink(item.url)}>
             {icon('fas fa-link')}<span>Copy link</span>
           </button>
@@ -188,7 +188,7 @@ export function FileRequestDetailApp() {
         </table></div>
       </section>
 
-      {!item.active && <section className="dashboard-panel file-request-delete-panel">
+      {!item.active && <section className="dashboard-panel">
         <header className="section-heading"><div><h2>Delete Request</h2><p>Deletion is available only after active uploads and pending files are cleared.</p></div></header>
         <div className="form-actions end"><button className="danger icon-text-button" type="button"
           disabled={!payload.canDelete || Boolean(busy)}
