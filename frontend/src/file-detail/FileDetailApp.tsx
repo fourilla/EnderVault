@@ -7,6 +7,7 @@ import { notify, postForm, toastError } from '../shared/api/form-api';
 import { canRetainSnapshot } from '../shared/api/snapshot-errors';
 import { icon } from '../shared/browser/BrowserEntries';
 import { PageBreadcrumbs } from '../shared/layout/PageHeader';
+import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import { FileTools } from './FileTools';
 import { detailQueryKey, loadFileDetail } from './file-detail-api';
 import type { FileDetailPayload, SharePayload } from './types';
@@ -184,12 +185,13 @@ export function FileDetailApp() {
     }}));
   }, [payload]);
 
-  if (!payload) return <main
-    className={'browser-load-state' + (error ? ' browser-load-error' : '')}
-    role={error ? 'alert' : 'status'} aria-live="polite">
-    {error ? <><strong>File details unavailable</strong><span>{error}</span></> : <>
-      {icon('fas fa-spinner fa-spin')}<span>Loading file details...</span>
-    </>}
+  const failurePanel = error && <PageErrorPanel title="File details unavailable" message={error} stale={payload !== null}
+    actions={<button className="icon-text-button" type="button" disabled={loading} onClick={() => refresh()}>
+      {icon('fas fa-arrows-rotate')}<span>Retry</span>
+    </button>} />;
+  if (!payload && error) return failurePanel;
+  if (!payload) return <main className="browser-load-state" role="status" aria-live="polite">
+    {icon('fas fa-spinner fa-spin')}<span>Loading file details...</span>
   </main>;
 
   const mutate = async (endpoint: string, values: Record<string, string>, conflict = false, sameItem = false) => {
@@ -262,9 +264,9 @@ export function FileDetailApp() {
       parent={<Link to={payload.urls.parentDirectory}>{payload.detail.parentPath || 'Files'}</Link>}
       current={payload.detail.name}
     />
-    {error && <section className="browser-load-error" role="alert">{error} Showing the last loaded values.
-      <button className="ghost" type="button" disabled={loading} onClick={() => refresh()}>Retry</button>
-    </section>}
+    <div className="page-feedback-layout">
+    {failurePanel}
+    <div>
     <FileTools payload={payload} />
     <section className="detail-layout">
       <DetailMetadata payload={payload} onToggleFavorite={() => void toggleFavorite()} />
@@ -304,5 +306,7 @@ export function FileDetailApp() {
       path={payload.detail.directory ? payload.detail.path : payload.detail.parentPath}
       actions={bufferActions} />
     <ShareSection key={payload.detail.path} payload={payload} refresh={refresh} />
+    </div>
+    </div>
   </>;
 }

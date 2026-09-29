@@ -4,6 +4,7 @@ import { AppNavigationLink } from '../app/AppNavigationLink';
 import { toggleBookmarkFavorite } from '../shared/api/favorite-api';
 import { notify, postForm, toastError } from '../shared/api/form-api';
 import { PageBreadcrumbs } from '../shared/layout/PageHeader';
+import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import { loadBookmarkDetail } from './bookmark-api';
 import type { BookmarkDetailPayload } from './types';
 
@@ -17,6 +18,7 @@ export function BookmarkDetailApp() {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState<'save' | 'metadata' | 'favorite' | 'delete' | ''>('');
   const [error, setError] = useState('');
+  const [refreshToken, setRefreshToken] = useState(0);
 
   const load = useCallback(async (signal?: AbortSignal) => {
     if (!id) {
@@ -25,6 +27,7 @@ export function BookmarkDetailApp() {
       return;
     }
     const next = await loadBookmarkDetail(id, signal);
+    if (signal?.aborted) return;
     setPayload(next);
     setTitle(next.title);
     setUrl(next.url === '-' ? '' : next.url);
@@ -40,7 +43,7 @@ export function BookmarkDetailApp() {
       if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Bookmark details could not be loaded.');
     });
     return () => controller.abort();
-  }, [load]);
+  }, [load, refreshToken]);
 
   useEffect(() => {
     if (!payload) return;
@@ -128,10 +131,12 @@ export function BookmarkDetailApp() {
     </main>
   );
   if (!payload) return (
-    <main className="browser-load-state browser-load-error" role="alert">
-      <strong>Bookmark details unavailable</strong><span>{error}</span>
+    <PageErrorPanel title="Bookmark details unavailable" message={error} actions={<>
+      {id && <button className="icon-text-button" type="button" onClick={() => setRefreshToken((value) => value + 1)}>
+        <i className="fas fa-arrows-rotate" aria-hidden="true" /><span>Retry</span>
+      </button>}
       <AppNavigationLink className="button-link ghost" href="/files/bookmarks">Open Bookmarks</AppNavigationLink>
-    </main>
+    </>} />
   );
 
   return (

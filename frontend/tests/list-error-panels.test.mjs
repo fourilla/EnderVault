@@ -44,6 +44,62 @@ function findPanel(node) {
   return React.Children.toArray(node.props.children).map(findPanel).find(Boolean);
 }
 
+test('remote defaults retry preserves edited inputs and task retry uses only the task provider', async () => {
+  const states = [], refs = [], effects = [];
+  let index = 0, refIndex = 0, taskRefreshes = 0, resolveDefaults;
+  const { RemoteDownloadApp } = evaluate(await compile('remote-download/RemoteDownloadApp'), id => {
+    if (id === 'react') return {
+      useState(initial) { const slot = index++; if (!(slot in states)) states[slot] = initial;
+        return [states[slot], value => { states[slot] = typeof value === 'function' ? value(states[slot]) : value; }]; },
+      useRef(initial) { const slot = refIndex++; return refs[slot] ??= { current: initial }; },
+      useEffect: run => effects.push(run),
+    };
+    if (id.endsWith('/PageErrorPanel')) return { PageErrorPanel };
+    if (id.endsWith('/AdminAppContext')) return { useAdminApp: () => ({ bootstrap: { outboundRoute: { label: 'Direct' } } }) };
+    if (id.endsWith('/RemoteDownloadTasksContext')) return { useRemoteDownloadTasks: () => ({
+      tasks: [], error: 'Task fetch failed', refresh: () => taskRefreshes++, trackStarted() {},
+    }) };
+    if (id.endsWith('/remote-download-api')) return { loadRemoteDownloadPage: () => new Promise(resolve => { resolveDefaults = resolve; }) };
+    return {};
+  });
+  const walk = (node, predicate) => {
+    if (!React.isValidElement(node)) return undefined;
+    if (predicate(node)) return node;
+    return React.Children.toArray(node.props.children).map(child => walk(child, predicate)).find(Boolean);
+  };
+  const tree = RemoteDownloadApp();
+  const form = walk(tree, node => node.type === 'form');
+  form.props.onChangeCapture();
+  states[1] = 'my destination'; states[3] = 4; states[4] = false;
+  effects[0]();
+  resolveDefaults({ defaultTargetDirectory: 'server default', skipInspectByDefault: true });
+  await Promise.resolve();
+  assert.equal(states[1], 'my destination');
+  assert.equal(states[3], 4);
+  assert.equal(states[4], false);
+  assert.equal(states[5], true);
+  findPanel(tree).props.actions.props.onClick();
+  assert.equal(taskRefreshes, 1);
+});
+
+test('detail error panels preserve recovery boundaries and dashboard partial warnings', () => {
+  const source = file => readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8');
+  for (const file of ['file-detail/FileDetailApp.tsx', 'file-requests/FileRequestDetailApp.tsx']) {
+    const code = source(file);
+    assert.match(code, /stale=\{payload !== null\}/);
+    assert.match(code, /canRetainSnapshot\(reason\)/);
+    assert.doesNotMatch(code, /browser-load-error/);
+  }
+  const detail = source('file-detail/FileDetailApp.tsx');
+  assert.match(detail, /\{failurePanel\}\s*<div>\s*<FileTools payload=\{payload\} \/>/);
+  const dashboard = source('dashboard/DashboardApp.tsx');
+  assert.match(dashboard, /if \(!payload && summary.error\) return <PageErrorPanel/);
+  assert.match(dashboard, /if \(runtime.error\) warnings.push/);
+  const bookmark = source('bookmarks/BookmarkDetailApp.tsx');
+  assert.match(bookmark, /if \(signal\?\.aborted\) return/);
+  assert.match(bookmark, /\[load, refreshToken\]/);
+});
+
 test('files and search retry through the existing reload without navigation or selection changes', async () => {
   const { BrowserListing } = evaluate(await compile('files/BrowserListing'), id => {
     if (id.endsWith('/PageErrorPanel')) return { PageErrorPanel };

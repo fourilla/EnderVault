@@ -5,6 +5,7 @@ import { toastError } from '../shared/api/form-api';
 import { canRetainSnapshot } from '../shared/api/snapshot-errors';
 import { icon } from '../shared/browser/BrowserEntries';
 import { PageHeader } from '../shared/layout/PageHeader';
+import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import {
   cancelFileRequestUploads,
   deleteFileRequest,
@@ -78,7 +79,11 @@ export function FileRequestDetailApp() {
     if (confirmed) await run(options.key, options.action, options.fallback, options.after);
   };
 
-  if (error && !payload) return <section className="dashboard-panel browser-load-error" role="alert">{error}</section>;
+  const failurePanel = error && <PageErrorPanel title="File request unavailable" message={error} stale={payload !== null}
+    actions={<button className="icon-text-button" type="button" onClick={reload}>
+      {icon('fas fa-arrows-rotate')}<span>Retry</span>
+    </button>} />;
+  if (error && !payload) return failurePanel;
   if (!payload) return <section className="browser-load-progress" role="status" aria-live="polite">
     <i className="fas fa-spinner fa-spin" aria-hidden="true" /><span>Loading file request...</span>
   </section>;
@@ -87,9 +92,7 @@ export function FileRequestDetailApp() {
   return (
     <div className="dashboard-workspace file-request-detail-workspace">
       <PageHeader title={item.title} />
-      {error && <section className="browser-load-error" role="alert">{error} Showing the last loaded values.
-        <button className="ghost" type="button" onClick={reload}>Retry</button>
-      </section>}
+      {failurePanel}
 
       <section className="dashboard-panel">
         <header className="section-heading">

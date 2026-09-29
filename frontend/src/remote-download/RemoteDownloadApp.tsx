@@ -3,6 +3,7 @@ import { useAdminApp } from '../app/AdminAppContext';
 import { useRemoteDownloadTasks } from '../app/remote-downloads/RemoteDownloadTasksContext';
 import { toastError } from '../shared/api/form-api';
 import { PageHeader } from '../shared/layout/PageHeader';
+import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import { CurlImportDialog, RemoteDownloadConfirmDialog, RemoteDownloadTaskDialog } from './RemoteDownloadDialogs';
 import { RemoteDownloadTasks } from './RemoteDownloadTasks';
 import {
@@ -32,7 +33,7 @@ const rememberLocalValue = (key: string, value: string | null) => {
 
 export function RemoteDownloadApp() {
   const { bootstrap } = useAdminApp();
-  const { tasks, error: taskError, trackStarted } = useRemoteDownloadTasks();
+  const { tasks, error: taskError, trackStarted, refresh: refreshTasks } = useRemoteDownloadTasks();
   const [url, setUrl] = useState('');
   const [destination, setDestination] = useState('');
   const [networkRoute, setNetworkRoute] = useState<RemoteNetworkRoute>('global');
@@ -47,6 +48,8 @@ export function RemoteDownloadApp() {
   const [busy, setBusy] = useState<'inspect' | 'start' | ''>('');
   const [busyTaskId, setBusyTaskId] = useState('');
   const [error, setError] = useState('');
+  const [refreshToken, setRefreshToken] = useState(0);
+  const formEdited = useRef(false);
   const pendingRequestId = useRef<string | null>(null);
   const startedTask = useRef<RemoteDownloadTask | null>(null);
   const rememberedConnections = useRef(1);
@@ -56,20 +59,22 @@ export function RemoteDownloadApp() {
     setError('');
     void loadRemoteDownloadPage(controller.signal)
       .then((payload) => {
+        if (controller.signal.aborted) return;
+        setSkipInspectDefault(payload.skipInspectByDefault);
+        if (formEdited.current) return;
         const rememberedPreference = localValue(REMEMBER_DESTINATION_KEY);
         const remember = rememberedPreference === null ? true : rememberedPreference === 'true';
         const rememberedPath = remember ? localValue(LAST_DESTINATION_KEY) : null;
         setRememberDestination(remember);
         setDestination(rememberedPath ?? payload.defaultTargetDirectory ?? '');
         setSkipInspection(payload.skipInspectByDefault);
-        setSkipInspectDefault(payload.skipInspectByDefault);
         setConnections(1);
       })
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Remote downloads could not be loaded.');
       });
     return () => controller.abort();
-  }, []);
+  }, [refreshToken]);
 
   useEffect(() => () => {
     const requestId = pendingRequestId.current;
@@ -178,9 +183,14 @@ export function RemoteDownloadApp() {
     <div className="dashboard-workspace">
       <PageHeader title="Remote Download" />
 
-      {(error || taskError) && (
-        <section className="dashboard-panel browser-load-error" role="alert">{error || taskError}</section>
-      )}
+      {error && <PageErrorPanel title="Download defaults unavailable" message={error}
+        actions={<button className="icon-text-button" type="button" onClick={() => setRefreshToken((value) => value + 1)}>
+          <i className="fas fa-arrows-rotate" aria-hidden="true" /><span>Retry</span>
+        </button>} />}
+      {taskError && <PageErrorPanel title="Download tasks unavailable" message={taskError} stale={tasks !== null}
+        actions={<button className="icon-text-button" type="button" onClick={() => void refreshTasks()}>
+          <i className="fas fa-arrows-rotate" aria-hidden="true" /><span>Retry</span>
+        </button>} />}
       {!tasks && !error && !taskError && (
         <section className="browser-load-progress" role="status" aria-live="polite">
           <i className="fas fa-spinner fa-spin" aria-hidden="true" /><span>Loading remote downloads...</span>
@@ -189,7 +199,8 @@ export function RemoteDownloadApp() {
       {tasks && (
         <>
           <section className="dashboard-panel remote-download-panel" aria-label="New remote download">
-            <form className="remote-download-form" onSubmit={inspect}>
+            <form className="remote-download-form" onSubmit={inspect}
+              onChangeCapture={() => { formEdited.current = true; }} onInputCapture={() => { formEdited.current = true; }}>
               <label>
                 URL
                 <input type="url" value={url} onChange={(event) => setUrl(event.currentTarget.value)}
@@ -261,7 +272,7 @@ export function RemoteDownloadApp() {
       )}
 
       <CurlImportDialog open={curlDialogOpen} close={() => setCurlDialogOpen(false)}
-        apply={(nextUrl, nextHeaders) => { setUrl(nextUrl); setCustomHeaders(nextHeaders); }} />
+        apply={(nextUrl, nextHeaders) => { formEdited.current = true; setUrl(nextUrl); setCustomHeaders(nextHeaders); }} />
       <RemoteDownloadConfirmDialog inspection={inspection} busy={busy === 'start'} cancel={discardInspection} start={() => void start()} />
       <RemoteDownloadTaskDialog task={selectedTask} close={() => setSelectedTask(null)} />
     </div>
