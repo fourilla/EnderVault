@@ -2,6 +2,13 @@ html:has(.admin-react-shell) {
   --topbar-row-height: max(32px, var(--icon-button-size), var(--control-height));
   --topbar-height: max(58px, calc(var(--topbar-row-height) + 2 * var(--space-sm) + 1px));
   scroll-padding-top: calc(var(--topbar-height) + var(--space-md));
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
+
+/* Root scrolling no longer inherits the body lock once overflow is explicit. */
+html:has(.admin-react-shell):has(dialog:modal) {
+  overflow-y: hidden;
 }
 
 .admin-react-shell {
