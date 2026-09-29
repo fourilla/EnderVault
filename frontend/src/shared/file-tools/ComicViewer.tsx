@@ -72,7 +72,7 @@ export function ComicViewer({ name, manifest, pageUrl, page, onPageChange }: {
           </button>
         </div>}
       </div>
-      {total > 0 && <div className="comic-stage">
+      {total > 0 && <div className="comic-stage" data-native-context-menu>
         {failedSource === source
           ? <p className="tool-message" role="status">This comic page could not be loaded.</p>
           : <img key={source} className="comic-page-image" src={source}

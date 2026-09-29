@@ -46,7 +46,7 @@ export function ImageViewer({ sourceUrl, name }: { sourceUrl: string; name: stri
         </div>
         {action('fullscreen', 'fas fa-expand', 'Open fullscreen viewer')}
       </div>
-      <div className="image-viewer-stage" data-image-viewer-stage>
+      <div className="image-viewer-stage" data-image-viewer-stage data-native-context-menu>
         <img className="image-viewer-source" src={sourceUrl}
           alt={name} draggable="false" data-image-viewer-source />
       </div>

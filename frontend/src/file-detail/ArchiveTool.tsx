@@ -106,7 +106,7 @@ export function ArchiveTool({ payload }: { payload: FileDetailPayload }) {
     {(error || (!manifest?.extractable && manifest?.message)) && <p className="archive-status muted is-warning">
       {error || manifest?.message}
     </p>}
-    <div className="archive-tree">
+    <div className="archive-tree" data-native-context-menu>
       {!manifest && !error && <p className="archive-tree-message muted">Loading archive entries...</p>}
       {manifest && !manifest.browsable && <p className="archive-tree-message muted">
         Archive contents cannot be browsed because its entry metadata is unavailable.

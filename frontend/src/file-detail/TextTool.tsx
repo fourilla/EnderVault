@@ -74,7 +74,7 @@ export function TextTool({ payload }: { payload: FileDetailPayload }) {
         </button>
       </div>
       {tool.markdown && (
-        <div className="markdown-editor-preview" data-markdown-editor-preview hidden>
+        <div className="markdown-editor-preview" data-markdown-editor-preview data-native-context-menu hidden>
           <p className="markdown-preview-status muted" data-markdown-preview-status aria-live="polite">
             Select Preview to render this Markdown document.
           </p>
