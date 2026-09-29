@@ -1,3 +1,4 @@
+import { LoadingState } from '../shared/layout/LoadingState';
 import { useEffect, useState } from 'react';
 import { AppDialog } from '../shared/dialogs/AppDialog';
 import { AppNavigationLink } from '../app/AppNavigationLink';
@@ -63,10 +64,7 @@ export function ActiveSessionsApp() {
           {icon('fas fa-arrows-rotate')}<span>Retry</span>
         </button>} />}
       {!sessions && !error && (
-        <section className="browser-load-progress" role="status" aria-live="polite">
-          <i className="fas fa-spinner fa-spin" aria-hidden="true" />
-          <span>Loading active sessions...</span>
-        </section>
+        <LoadingState label="Loading active sessions..." />
       )}
       {sessions && (
         <section className="dashboard-panel sessions-panel">

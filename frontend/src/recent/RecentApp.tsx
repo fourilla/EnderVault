@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 're
 import { Link, useNavigate } from 'react-router-dom';
 import { EntryGrid, EntryTable, icon } from '../shared/browser/BrowserEntries';
 import { BrowserPagination } from '../shared/browser/BrowserPagination';
+import { LoadingState } from '../shared/layout/LoadingState';
 import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import { ViewOptionsControl } from '../shared/browser/ViewOptionsControl';
 import type { BrowserEntry } from '../shared/browser/types';
@@ -208,7 +209,7 @@ export function RecentApp() {
           {icon('fas fa-arrows-rotate')}<span>Retry</span>
         </button>} />}
       <div className="browser-list-content">
-      {loading && !payload && <p className="empty browser-grid-empty">Loading recent items...</p>}
+      {loading && !payload && <LoadingState label="Loading recent items..." />}
       {payload && (
         <>
           {payload.directories.length > 0 && (

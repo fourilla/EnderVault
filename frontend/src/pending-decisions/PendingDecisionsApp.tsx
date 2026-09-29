@@ -1,3 +1,4 @@
+import { LoadingState } from '../shared/layout/LoadingState';
 import { useEffect, useState } from 'react';
 import { useHashTarget } from '../shared/browser/useHashTarget';
 import { icon } from '../shared/browser/BrowserEntries';
@@ -53,10 +54,7 @@ export function PendingDecisionsApp() {
           <i className="fas fa-arrows-rotate" aria-hidden="true" /><span>Retry</span>
         </button>} />}
       {!decisions && !error && (
-        <section className="browser-load-progress" role="status" aria-live="polite">
-          <i className="fas fa-spinner fa-spin" aria-hidden="true" />
-          <span>Loading pending decisions...</span>
-        </section>
+        <LoadingState label="Loading pending decisions..." />
       )}
       {decisions && (
         <section className="dashboard-panel" aria-label="Pending decisions">

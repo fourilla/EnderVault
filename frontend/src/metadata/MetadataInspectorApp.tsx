@@ -1,3 +1,4 @@
+import { LoadingState } from '../shared/layout/LoadingState';
 import { useEffect, useState } from 'react';
 import { useHashTarget } from '../shared/browser/useHashTarget';
 import { toastError } from '../shared/api/form-api';
@@ -101,10 +102,7 @@ export function MetadataInspectorApp() {
           <i className="fas fa-arrows-rotate" aria-hidden="true" /><span>Retry</span>
         </button>} />}
       {!payload && !error && (
-        <section className="browser-load-progress" role="status" aria-live="polite">
-          <i className="fas fa-spinner fa-spin" aria-hidden="true" />
-          <span>Loading metadata inspector...</span>
-        </section>
+        <LoadingState label="Loading metadata inspector..." />
       )}
       {payload && (
         <>

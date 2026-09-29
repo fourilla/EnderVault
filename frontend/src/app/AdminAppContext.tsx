@@ -1,3 +1,4 @@
+import { LoadingState } from '../shared/layout/LoadingState';
 import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import {
   useCallback,
@@ -100,10 +101,7 @@ export function AdminAppProvider({ children }: PropsWithChildren) {
   }
   if (!value) {
     return (
-      <main className="browser-load-state" aria-live="polite">
-        <i className="fas fa-spinner fa-spin" aria-hidden="true" />
-        <span>Loading EnderVault...</span>
-      </main>
+      <LoadingState label="Loading EnderVault..." />
     );
   }
   return <AdminAppContext.Provider value={value}>{children}</AdminAppContext.Provider>;

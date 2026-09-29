@@ -3,8 +3,7 @@
   min-width: 0;
 }
 
-.settings-react-loading,
-.settings-spa-loading {
+.settings-react-loading {
   color: var(--muted);
   font-size: var(--font-size-sm);
 }

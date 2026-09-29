@@ -1,0 +1,31 @@
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-lg);
+  min-height: 12rem;
+  min-width: 0;
+  padding: var(--space-xl);
+  color: var(--muted);
+}
+
+.loading-state > i {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-size: var(--font-size-lg);
+}
+
+.loading-state > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.loading-state-compact {
+  min-height: 5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-state > .fa-spin {
+    animation: none;
+  }
+}

@@ -1,3 +1,4 @@
+import { LoadingState } from '../shared/layout/LoadingState';
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { icon } from '../shared/browser/BrowserEntries';
 import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
@@ -187,10 +188,7 @@ export function BookmarksApp() {
         </button>} />}
       <div className="browser-list-content">
       {loading && !payload && (
-        <section className="browser-load-progress" role="status" aria-live="polite">
-          <i className="fas fa-spinner fa-spin" aria-hidden="true" />
-          <span>{state.query ? 'Searching bookmarks...' : 'Loading bookmarks...'}</span>
-        </section>
+        <LoadingState label={state.query ? 'Searching bookmarks...' : 'Loading bookmarks...'} />
       )}
       {payload && (
         <>

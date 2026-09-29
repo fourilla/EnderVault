@@ -1,3 +1,4 @@
+import { LoadingState } from '../shared/layout/LoadingState';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { toastError } from '../shared/api/form-api';
@@ -130,9 +131,7 @@ export function FileRequestsApp() {
           {icon('fas fa-arrows-rotate')}<span>Retry</span>
         </button>} />}
       {!payload && !error && (
-        <section className="browser-load-progress" role="status" aria-live="polite">
-          <i className="fas fa-spinner fa-spin" aria-hidden="true" /><span>Loading file requests...</span>
-        </section>
+        <LoadingState label="Loading file requests..." />
       )}
       {payload && values && (
         <>

@@ -28,10 +28,29 @@ function evaluate(code, dependencies) {
   vm.runInNewContext(code, { module, exports: module.exports, AbortController, require(id) {
     if (id === 'react/jsx-runtime') return jsx;
     if (id.endsWith('.css')) return {};
+    if (id.endsWith('/LoadingState')) return loadingModule;
     return dependencies(id);
   } });
   return module.exports;
 }
+
+const loadingModule = evaluate(await compile('shared/layout/LoadingState'), id => { throw new Error(id); });
+
+test('shared loading states provide accessible labels, spacing and compact sizing', () => {
+  const { LoadingState } = loadingModule;
+  const normal = renderToStaticMarkup(React.createElement(LoadingState, { label: 'Loading page...' }));
+  assert.match(normal, /role="status"/);
+  assert.match(normal, /aria-live="polite"/);
+  assert.match(normal, /aria-hidden="true"/);
+  assert.match(normal, /<span>Loading page\.\.\.<\/span>/);
+  assert.doesNotMatch(normal, /loading-state-compact/);
+  const compact = renderToStaticMarkup(React.createElement(LoadingState, { label: 'Loading settings...', compact: true }));
+  assert.match(compact, /loading-state-compact/);
+  const css = readFileSync(new URL('../src/shared/layout/loading-state.css', import.meta.url), 'utf8');
+  assert.match(css, /gap: var\(--space-lg\)/);
+  assert.match(css, /justify-content: center/);
+  assert.match(css, /prefers-reduced-motion: reduce/);
+});
 
 const { PageErrorPanel } = evaluate(await compile('shared/layout/PageErrorPanel'), id => {
   assert.equal(id, 'react');

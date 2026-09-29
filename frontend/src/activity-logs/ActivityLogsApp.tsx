@@ -1,3 +1,4 @@
+import { LoadingState } from '../shared/layout/LoadingState';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { AppDialog } from '../shared/dialogs/AppDialog';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -166,10 +167,7 @@ export function ActivityLogsApp() {
           {icon('fas fa-arrows-rotate')}<span>Retry</span>
         </button>} />}
       {loading && !payload && (
-        <section className="browser-load-progress" role="status" aria-live="polite">
-          <i className="fas fa-spinner fa-spin" aria-hidden="true" />
-          <span>Loading activity logs...</span>
-        </section>
+        <LoadingState label="Loading activity logs..." />
       )}
 
       {payload && draft && (
@@ -268,9 +266,7 @@ export function ActivityLogsApp() {
             </form>
 
             {loading && (
-              <div className="browser-load-progress log-refresh-progress" role="status" aria-live="polite">
-                <i className="fas fa-spinner fa-spin" aria-hidden="true" /><span>Refreshing logs...</span>
-              </div>
+              <LoadingState label="Refreshing logs..." compact className="log-refresh-progress" />
             )}
 
             {entries.length > 0 && (

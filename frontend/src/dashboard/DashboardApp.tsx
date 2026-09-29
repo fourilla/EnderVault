@@ -1,3 +1,4 @@
+import { LoadingState } from '../shared/layout/LoadingState';
 import { useEffect, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useAdminApp } from '../app/AdminAppContext';
@@ -82,10 +83,7 @@ export function DashboardApp() {
     actions={<button className="icon-text-button" type="button" onClick={refreshAll} disabled={summary.loading}>
       <i className="fas fa-arrows-rotate" aria-hidden="true" /><span>Retry</span>
     </button>} />;
-  if (!payload) return <div className="browser-load-state" role="status">
-    <i className="fas fa-spinner fa-spin" aria-hidden="true" />
-    <span>Loading dashboard...</span>
-  </div>;
+  if (!payload) return <LoadingState label="Loading dashboard..." />;
 
   const operations = mergeOperations(payload.serverTasks, remote.tasks ?? [], activity.items);
   const uploadItems = operations.filter((item) => item.source === 'upload' && item.active).length;

@@ -1,3 +1,4 @@
+import { LoadingState } from '../shared/layout/LoadingState';
 import { useEffect, useState } from 'react';
 import { AppNavigationLink } from '../app/AppNavigationLink';
 import { useAdminApp } from '../app/AdminAppContext';
@@ -84,9 +85,7 @@ export function VpnStatusApp() {
           <i className="fas fa-arrows-rotate" aria-hidden="true" /><span>Retry</span>
         </button>} />}
       {!vpn && !error && (
-        <section className="browser-load-progress" role="status" aria-live="polite">
-          <i className="fas fa-spinner fa-spin" aria-hidden="true" /><span>Loading VPN status...</span>
-        </section>
+        <LoadingState label="Loading VPN status..." />
       )}
       {vpn && (
         <section className="vpn-status-grid">

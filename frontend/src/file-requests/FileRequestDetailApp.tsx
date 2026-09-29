@@ -1,3 +1,4 @@
+import { LoadingState } from '../shared/layout/LoadingState';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AppNavigationLink } from '../app/AppNavigationLink';
@@ -84,9 +85,7 @@ export function FileRequestDetailApp() {
       {icon('fas fa-arrows-rotate')}<span>Retry</span>
     </button>} />;
   if (error && !payload) return failurePanel;
-  if (!payload) return <section className="browser-load-progress" role="status" aria-live="polite">
-    <i className="fas fa-spinner fa-spin" aria-hidden="true" /><span>Loading file request...</span>
-  </section>;
+  if (!payload) return <LoadingState label="Loading file request..." />;
 
   const { item } = payload;
   return (

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { PageErrorPanel } from '../../shared/layout/PageErrorPanel';
+import { LoadingState } from '../../shared/layout/LoadingState';
 
 export function SettingsLoadState({ loaded, error, refresh, loadingLabel, children }: {
   loaded: boolean;
@@ -13,7 +14,7 @@ export function SettingsLoadState({ loaded, error, refresh, loadingLabel, childr
       actions={<button className="icon-text-button" type="button" onClick={refresh}>
         <i className="fas fa-arrows-rotate" aria-hidden="true" /><span>Retry</span>
       </button>} />}
-    {!loaded && !error && <div className="settings-spa-loading" role="status">{loadingLabel}</div>}
+    {!loaded && !error && <LoadingState label={loadingLabel} compact />}
     {children}
   </div>;
 }

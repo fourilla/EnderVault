@@ -1,3 +1,4 @@
+import { LoadingState } from '../shared/layout/LoadingState';
 import { useEffect, useState } from 'react';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
@@ -64,10 +65,7 @@ export function SharedLinksApp() {
           {icon('fas fa-arrows-rotate')}<span>Retry</span>
         </button>} />}
       {!shares && !error && (
-        <section className="browser-load-progress" role="status" aria-live="polite">
-          <i className="fas fa-spinner fa-spin" aria-hidden="true" />
-          <span>Loading shared links...</span>
-        </section>
+        <LoadingState label="Loading shared links..." />
       )}
       {shares && (
         <section className="table-wrap" aria-label="Shared links">

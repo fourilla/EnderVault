@@ -1,3 +1,4 @@
+import { LoadingState } from '../shared/layout/LoadingState';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { moveFavorite, removeFavorite } from '../shared/api/favorite-api';
@@ -76,10 +77,7 @@ export function FavoritesApp() {
           {icon('fas fa-arrows-rotate')}<span>Retry</span>
         </button>} />}
       {loading && !payload && (
-        <section className="browser-load-progress" role="status" aria-live="polite">
-          <i className="fas fa-spinner fa-spin" aria-hidden="true" />
-          <span>Loading favorites...</span>
-        </section>
+        <LoadingState label="Loading favorites..." />
       )}
       {payload && (
         <section className="dashboard-panel favorites-panel" aria-label="Favorite files and directories">

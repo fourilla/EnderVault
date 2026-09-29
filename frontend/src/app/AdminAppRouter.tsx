@@ -1,3 +1,4 @@
+import { LoadingState } from '../shared/layout/LoadingState';
 import { Suspense } from 'react';
 import {
   createBrowserRouter,
@@ -15,10 +16,7 @@ import { ListingHistoryProvider } from '../shared/browser/ListingHistoryContext'
 
 function RouteLoading() {
   return (
-    <main className="browser-load-state" aria-live="polite">
-      <i className="fas fa-spinner fa-spin" aria-hidden="true" />
-      <span>Loading page...</span>
-    </main>
+    <LoadingState label="Loading page..." />
   );
 }
 

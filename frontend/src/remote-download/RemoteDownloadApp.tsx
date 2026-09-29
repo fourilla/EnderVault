@@ -1,3 +1,4 @@
+import { LoadingState } from '../shared/layout/LoadingState';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { useAdminApp } from '../app/AdminAppContext';
 import { useRemoteDownloadTasks } from '../app/remote-downloads/RemoteDownloadTasksContext';
@@ -192,9 +193,7 @@ export function RemoteDownloadApp() {
           <i className="fas fa-arrows-rotate" aria-hidden="true" /><span>Retry</span>
         </button>} />}
       {!tasks && !error && !taskError && (
-        <section className="browser-load-progress" role="status" aria-live="polite">
-          <i className="fas fa-spinner fa-spin" aria-hidden="true" /><span>Loading remote downloads...</span>
-        </section>
+        <LoadingState label="Loading remote downloads..." />
       )}
       {tasks && (
         <>

@@ -1,3 +1,4 @@
+import { LoadingState } from '../shared/layout/LoadingState';
 import { type FormEvent, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useRouteSearch } from '../app/RouteSearch';
@@ -92,9 +93,7 @@ export function StickyNoteListApp() {
         </header>
 
         {!notes && !error && (
-          <div className="browser-load-progress" role="status" aria-live="polite">
-            <i className="fas fa-spinner fa-spin" aria-hidden="true" /><span>Loading sticky notes...</span>
-          </div>
+          <LoadingState label="Loading sticky notes..." />
         )}
         {notes && (
           <div className="table-wrap compact-table">

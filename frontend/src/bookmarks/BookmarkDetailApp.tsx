@@ -1,3 +1,4 @@
+import { LoadingState } from '../shared/layout/LoadingState';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AppNavigationLink } from '../app/AppNavigationLink';
@@ -126,9 +127,7 @@ export function BookmarkDetailApp() {
   };
 
   if (!payload && !error) return (
-    <main className="browser-load-state" aria-live="polite">
-      <i className="fas fa-spinner fa-spin" aria-hidden="true" /><span>Loading bookmark details...</span>
-    </main>
+    <LoadingState label="Loading bookmark details..." />
   );
   if (!payload) return (
     <PageErrorPanel title="Bookmark details unavailable" message={error} actions={<>

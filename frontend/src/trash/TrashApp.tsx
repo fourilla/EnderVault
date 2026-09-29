@@ -1,3 +1,4 @@
+import { LoadingState } from '../shared/layout/LoadingState';
 import { useEffect, useState } from 'react';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
@@ -97,10 +98,7 @@ export function TrashApp() {
           {icon('fas fa-arrows-rotate')}<span>Retry</span>
         </button>} />}
       {loading && !payload && (
-        <section className="browser-load-progress" role="status" aria-live="polite">
-          <i className="fas fa-spinner fa-spin" aria-hidden="true" />
-          <span>Loading trash...</span>
-        </section>
+        <LoadingState label="Loading trash..." />
       )}
       {payload && items.length > 0 && (
         <section className="table-wrap" aria-label="Trash items">

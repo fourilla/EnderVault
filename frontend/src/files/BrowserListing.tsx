@@ -1,3 +1,4 @@
+import { LoadingState } from '../shared/layout/LoadingState';
 import { EntryGrid, EntryTable, icon } from '../shared/browser/BrowserEntries';
 import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import { BrowserPagination } from '../shared/browser/BrowserPagination';
@@ -56,12 +57,7 @@ export function BrowserListing({
           {icon('fas fa-arrows-rotate')}<span>Retry</span>
         </button>} />}
       <div className="browser-list-content">
-      {loading && !payload && (searchMode ? (
-        <section className="browser-load-progress" role="status" aria-live="polite">
-          <i className="fas fa-spinner fa-spin" aria-hidden="true" />
-          <span>Searching...</span>
-        </section>
-      ) : <p className="empty browser-grid-empty">Loading files...</p>)}
+      {loading && !payload && <LoadingState label={searchMode ? 'Searching...' : 'Loading files...'} />}
       {payload && (
         <>
           {payload.directories.length > 0 && (

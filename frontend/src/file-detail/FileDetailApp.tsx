@@ -1,3 +1,4 @@
+import { LoadingState } from '../shared/layout/LoadingState';
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { TransferBufferPanel } from '../files/TransferBufferPanel';
@@ -190,9 +191,7 @@ export function FileDetailApp() {
       {icon('fas fa-arrows-rotate')}<span>Retry</span>
     </button>} />;
   if (!payload && error) return failurePanel;
-  if (!payload) return <main className="browser-load-state" role="status" aria-live="polite">
-    {icon('fas fa-spinner fa-spin')}<span>Loading file details...</span>
-  </main>;
+  if (!payload) return <LoadingState label="Loading file details..." />;
 
   const mutate = async (endpoint: string, values: Record<string, string>, conflict = false, sameItem = false) => {
     if (mutating) return;
