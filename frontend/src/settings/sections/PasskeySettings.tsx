@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSettingsSnapshot } from '../hooks/useSettingsSnapshot';
+import { SettingsLoadState } from '../components/SettingsLoadState';
 import { registerPasskey } from '../passkey-client';
 import { postJson, showError, showNotification } from '../settings-api';
 import type { ActionResponse, PasskeySettingsSnapshot } from '../types';
@@ -42,13 +43,10 @@ export function PasskeySettings({ onDirtyChange }: { onDirtyChange: (dirty: bool
     }
   };
 
-  if (error && !snapshot) return <div className="settings-spa-error">{error}</div>;
-  if (!snapshot) return <div className="settings-spa-loading">Loading passkeys...</div>;
   return (
+    <SettingsLoadState loaded={snapshot !== null} error={error} refresh={refresh} loadingLabel="Loading passkeys...">
+    {snapshot && (
     <div className="settings-spa-form general-settings-form">
-      {error && <div className="settings-spa-error" role="alert">{error} Showing the last loaded values.
-        <button className="ghost" type="button" onClick={refresh}>Retry</button>
-      </div>}
       <section className="settings-detail-section">
         <header className="settings-subsection-heading"><div><h3>Device Registration</h3><p>Register trusted devices for passwordless login.</p></div></header>
         <div className="passkey-register-form">
@@ -83,5 +81,7 @@ export function PasskeySettings({ onDirtyChange }: { onDirtyChange: (dirty: bool
         </div>
       </section>
     </div>
+    )}
+    </SettingsLoadState>
   );
 }

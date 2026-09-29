@@ -3,6 +3,7 @@ import { SettingsField, SettingsSaveBar, SettingsSection, SettingsToggle } from 
 import { useSettingsEditor } from '../hooks/useSettingsEditor';
 import type { AdvancedSettingField, AdvancedSettingsSnapshot, FormValues } from '../types';
 import { useSettingsSnapshot } from '../hooks/useSettingsSnapshot';
+import { SettingsLoadState } from '../components/SettingsLoadState';
 
 const toValues = (snapshot: AdvancedSettingsSnapshot): FormValues => Object.fromEntries(
   snapshot.groups.flatMap((group) => group.fields.map((field) => [
@@ -114,9 +115,9 @@ export function AdvancedSettings({ groupIds = [], includeDeployment = false, onD
   includeDeployment?: boolean;
   onDirtyChange: (dirty: boolean) => void;
 }) {
-  const { snapshot, error } = useSettingsSnapshot<AdvancedSettingsSnapshot>('/api/v1/settings/advanced');
+  const { snapshot, error, refresh } = useSettingsSnapshot<AdvancedSettingsSnapshot>('/api/v1/settings/advanced');
 
-  if (error) return <div className="settings-spa-error">{error}</div>;
-  if (!snapshot) return <div className="settings-spa-loading">Loading advanced settings...</div>;
-  return <AdvancedSettingsEditor snapshot={snapshot} groupIds={groupIds} includeDeployment={includeDeployment} onDirtyChange={onDirtyChange} />;
+  return <SettingsLoadState loaded={snapshot !== null} error={error} refresh={refresh} loadingLabel="Loading advanced settings...">
+    {snapshot && <AdvancedSettingsEditor snapshot={snapshot} groupIds={groupIds} includeDeployment={includeDeployment} onDirtyChange={onDirtyChange} />}
+  </SettingsLoadState>;
 }

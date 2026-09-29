@@ -229,13 +229,6 @@ body:has(.admin-react-shell) .toast-region {
   justify-content: flex-start;
 }
 
-.browser-load-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--space-sm);
-}
-
 .activity-control-indicator {
   position: absolute;
   top: 6px;

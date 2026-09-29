@@ -38,6 +38,48 @@ const { PageErrorPanel } = evaluate(await compile('shared/layout/PageErrorPanel'
   return React;
 });
 
+test('settings load state keeps the editor at the same position across refresh failures', async () => {
+  const { SettingsLoadState } = evaluate(await compile('settings/components/SettingsLoadState'), id => {
+    assert.ok(id.endsWith('/PageErrorPanel'));
+    return { PageErrorPanel };
+  });
+  const editor = React.createElement('input', { defaultValue: 'Unsaved value' });
+  let retries = 0;
+  const renderState = (loaded, error) => SettingsLoadState({ loaded, error,
+    refresh: () => retries++, loadingLabel: 'Loading settings...', children: loaded ? editor : null });
+  const normal = renderState(true, '');
+  const failed = renderState(true, 'Offline');
+  assert.match(normal.props.className, /settings-load-state/);
+  assert.equal(failed.props.className, normal.props.className);
+  assert.equal(renderState(false, 'Offline').props.className, normal.props.className);
+  assert.equal(normal.props.children[2], editor);
+  assert.equal(failed.props.children[2], editor);
+  assert.match(renderToStaticMarkup(failed), /Showing the last loaded values/);
+  findPanel(failed).props.actions.props.onClick();
+  assert.equal(retries, 1);
+  assert.doesNotMatch(renderToStaticMarkup(renderState(false, 'Forbidden')), /Unsaved value|last loaded/);
+  assert.match(renderToStaticMarkup(renderState(false, '')), /role="status"/);
+});
+
+test('settings heading spacing belongs to the load region without doubling form spacing', () => {
+  const css = readFileSync(new URL('../src/settings/settings-app.css', import.meta.url), 'utf8');
+  assert.match(css, /\.settings-load-state\s*\{\s*padding-top: var\(--space-2xl\);\s*\}/);
+  assert.match(css, /\.settings-load-state > \.settings-spa-form\s*\{\s*padding-top: 0;\s*\}/);
+});
+
+test('all settings sections share load feedback while saving retains its own error notification', () => {
+  for (const name of ['General', 'Advanced', 'Account', 'Bookmark', 'FileRequest', 'Session', 'Telegram', 'Vpn', 'Passkey']) {
+    const source = readFileSync(new URL(`../src/settings/sections/${name}Settings.tsx`, import.meta.url), 'utf8');
+    assert.match(source, /<SettingsLoadState loaded=\{snapshot !== null\} error=\{error\} refresh=\{refresh\}/);
+    assert.doesNotMatch(source, /settings-spa-error/);
+  }
+  const query = readFileSync(new URL('../src/settings/hooks/useSettingsSnapshot.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(query, /showError/);
+  assert.match(query, /if \(!canRetainSnapshot\(reason\)\) setStored\(null\)/);
+  const editor = readFileSync(new URL('../src/settings/hooks/useSettingsEditor.ts', import.meta.url), 'utf8');
+  assert.match(editor, /showError\(error\)/);
+});
+
 function findPanel(node) {
   if (!React.isValidElement(node)) return undefined;
   if (node.type === PageErrorPanel) return node;

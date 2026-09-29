@@ -1,6 +1,7 @@
 import { SettingsField, SettingsSaveBar, SettingsSection, SettingsToggle } from '../components/SettingsControls';
 import { useSettingsEditor } from '../hooks/useSettingsEditor';
 import { useSettingsSnapshot } from '../hooks/useSettingsSnapshot';
+import { SettingsLoadState } from '../components/SettingsLoadState';
 import type { BookmarkSettingsSnapshot, FormValues } from '../types';
 
 const toValues = (snapshot: BookmarkSettingsSnapshot): FormValues => ({
@@ -57,8 +58,8 @@ function Editor({ snapshot, onDirtyChange }: { snapshot: BookmarkSettingsSnapsho
 }
 
 export function BookmarkSettings({ onDirtyChange }: { onDirtyChange: (dirty: boolean) => void }) {
-  const { snapshot, error } = useSettingsSnapshot<BookmarkSettingsSnapshot>('/api/v1/settings/bookmarks');
-  if (error) return <div className="settings-spa-error">{error}</div>;
-  if (!snapshot) return <div className="settings-spa-loading">Loading bookmark settings...</div>;
-  return <Editor snapshot={snapshot} onDirtyChange={onDirtyChange} />;
+  const { snapshot, error, refresh } = useSettingsSnapshot<BookmarkSettingsSnapshot>('/api/v1/settings/bookmarks');
+  return <SettingsLoadState loaded={snapshot !== null} error={error} refresh={refresh} loadingLabel="Loading bookmark settings...">
+    {snapshot && <Editor snapshot={snapshot} onDirtyChange={onDirtyChange} />}
+  </SettingsLoadState>;
 }

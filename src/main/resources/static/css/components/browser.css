@@ -2,10 +2,6 @@
     margin-top: var(--space-4xl);
 }
 
-.browser-load-error {
-    color: var(--danger);
-}
-
 .browser-load-progress {
     display: flex;
     min-height: 12rem;

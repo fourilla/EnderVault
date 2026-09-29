@@ -4,17 +4,9 @@
 }
 
 .settings-react-loading,
-.settings-spa-loading,
-.settings-spa-error {
+.settings-spa-loading {
   color: var(--muted);
   font-size: var(--font-size-sm);
-}
-
-.settings-spa-error {
-  border: 1px solid var(--danger);
-  border-radius: var(--radius-panel);
-  color: var(--danger);
-  padding: var(--space-xl);
 }
 
 .settings-spa-shell {
@@ -211,6 +203,14 @@ button.settings-spa-nav-item.is-active {
 
 .settings-spa-form {
   padding-top: var(--space-2xl);
+}
+
+.settings-load-state {
+  padding-top: var(--space-2xl);
+}
+
+.settings-load-state > .settings-spa-form {
+  padding-top: 0;
 }
 
 .settings-spa-form .settings-detail-section {

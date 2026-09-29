@@ -2,6 +2,7 @@ import { SettingsField, SettingsSaveBar, SettingsSection } from '../components/S
 import { AppNavigationLink } from '../../app/AppNavigationLink';
 import { useSettingsEditor } from '../hooks/useSettingsEditor';
 import { useSettingsSnapshot } from '../hooks/useSettingsSnapshot';
+import { SettingsLoadState } from '../components/SettingsLoadState';
 import type { FormValues, SessionSettingsSnapshot } from '../types';
 
 const toValues = (snapshot: SessionSettingsSnapshot): FormValues => ({
@@ -42,8 +43,8 @@ function Editor({ snapshot, onDirtyChange }: { snapshot: SessionSettingsSnapshot
 }
 
 export function SessionSettings({ onDirtyChange }: { onDirtyChange: (dirty: boolean) => void }) {
-  const { snapshot, error } = useSettingsSnapshot<SessionSettingsSnapshot>('/api/v1/settings/sessions');
-  if (error) return <div className="settings-spa-error">{error}</div>;
-  if (!snapshot) return <div className="settings-spa-loading">Loading session settings...</div>;
-  return <Editor snapshot={snapshot} onDirtyChange={onDirtyChange} />;
+  const { snapshot, error, refresh } = useSettingsSnapshot<SessionSettingsSnapshot>('/api/v1/settings/sessions');
+  return <SettingsLoadState loaded={snapshot !== null} error={error} refresh={refresh} loadingLabel="Loading session settings...">
+    {snapshot && <Editor snapshot={snapshot} onDirtyChange={onDirtyChange} />}
+  </SettingsLoadState>;
 }

@@ -1,6 +1,7 @@
 import { SettingsField, SettingsPasswordField, SettingsSaveBar, SettingsSection } from '../components/SettingsControls';
 import { useSettingsEditor } from '../hooks/useSettingsEditor';
 import { useSettingsSnapshot } from '../hooks/useSettingsSnapshot';
+import { SettingsLoadState } from '../components/SettingsLoadState';
 import type { AccountSettingsSnapshot, FormValues } from '../types';
 
 const toValues = (snapshot: AccountSettingsSnapshot): FormValues => ({
@@ -46,8 +47,8 @@ function Editor({ snapshot, onDirtyChange }: { snapshot: AccountSettingsSnapshot
 }
 
 export function AccountSettings({ onDirtyChange }: { onDirtyChange: (dirty: boolean) => void }) {
-  const { snapshot, error } = useSettingsSnapshot<AccountSettingsSnapshot>('/api/v1/settings/account');
-  if (error) return <div className="settings-spa-error">{error}</div>;
-  if (!snapshot) return <div className="settings-spa-loading">Loading account settings...</div>;
-  return <Editor snapshot={snapshot} onDirtyChange={onDirtyChange} />;
+  const { snapshot, error, refresh } = useSettingsSnapshot<AccountSettingsSnapshot>('/api/v1/settings/account');
+  return <SettingsLoadState loaded={snapshot !== null} error={error} refresh={refresh} loadingLabel="Loading account settings...">
+    {snapshot && <Editor snapshot={snapshot} onDirtyChange={onDirtyChange} />}
+  </SettingsLoadState>;
 }

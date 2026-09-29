@@ -1,6 +1,7 @@
 import { SettingsField, SettingsSaveBar, SettingsSection, type FieldDefinition } from '../components/SettingsControls';
 import { useSettingsEditor } from '../hooks/useSettingsEditor';
 import { useSettingsSnapshot } from '../hooks/useSettingsSnapshot';
+import { SettingsLoadState } from '../components/SettingsLoadState';
 import type { FormValues, VpnSettingsSnapshot } from '../types';
 
 const toValues = (snapshot: VpnSettingsSnapshot): FormValues => ({
@@ -63,8 +64,8 @@ function Editor({ snapshot, onDirtyChange }: { snapshot: VpnSettingsSnapshot; on
 }
 
 export function VpnSettings({ onDirtyChange }: { onDirtyChange: (dirty: boolean) => void }) {
-  const { snapshot, error } = useSettingsSnapshot<VpnSettingsSnapshot>('/api/v1/settings/vpn');
-  if (error) return <div className="settings-spa-error">{error}</div>;
-  if (!snapshot) return <div className="settings-spa-loading">Loading VPN settings...</div>;
-  return <Editor snapshot={snapshot} onDirtyChange={onDirtyChange} />;
+  const { snapshot, error, refresh } = useSettingsSnapshot<VpnSettingsSnapshot>('/api/v1/settings/vpn');
+  return <SettingsLoadState loaded={snapshot !== null} error={error} refresh={refresh} loadingLabel="Loading VPN settings...">
+    {snapshot && <Editor snapshot={snapshot} onDirtyChange={onDirtyChange} />}
+  </SettingsLoadState>;
 }
