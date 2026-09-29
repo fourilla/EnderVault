@@ -15,6 +15,15 @@ export function ShellNavigationLink({ entry, className, onNavigate }: ShellNavig
     </>
   );
 
+  if (entry.surface === 'standalone') {
+    return <a className={className} href={entry.path} target="_blank" rel="noopener noreferrer"
+      data-document-navigation title={`${entry.label} (opens in a new tab)`} onClick={onNavigate}>
+      {content}
+      <i className="fas fa-arrow-up-right-from-square" aria-hidden="true" />
+      <span className="visually-hidden"> (opens in a new tab)</span>
+    </a>;
+  }
+
   if (entry.surface === 'spa') {
     return (
       <NavLink

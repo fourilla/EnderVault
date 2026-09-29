@@ -79,7 +79,7 @@ export function AdminTopbar({ sidebarCollapsed, onToggleSidebar }: {
       </div>
       <TopbarSearch />
       <div className="topbar-actions">
-        <ShellPopover id="applications" icon="fas fa-grip" label="Applications">
+        <ShellPopover id="applications" icon="fas fa-box-open" label="Applications">
           <strong className="topbar-control-title">Applications</strong>
           <p>Sharing, transfers, operations, and application settings.</p>
           <NavigationGroups entries={available('apps')} />
