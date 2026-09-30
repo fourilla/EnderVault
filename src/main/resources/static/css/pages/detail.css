@@ -381,6 +381,9 @@ body.is-comic-viewer-fullscreen {
 .text-editor {
     --text-editor-content-height: 64vh;
     --text-editor-content-min-height: 480px;
+    /* Editor-only spacing follows control size without changing shared page spacing. */
+    --text-editor-control-gap: min(calc((var(--control-height) - 22px) / 2), calc((var(--control-height) - 6px) / 4));
+    --text-editor-section-gap: calc((var(--control-height) - 14px) / 2);
 
     display: grid;
     gap: var(--space-lg);
@@ -523,7 +526,7 @@ body.is-comic-viewer-fullscreen {
     flex-wrap: nowrap;
     align-items: center;
     justify-content: flex-end;
-    gap: var(--space-md);
+    gap: var(--text-editor-control-gap);
     margin-left: auto;
     overflow-x: auto;
     padding: var(--space-xs);
@@ -558,14 +561,16 @@ body.is-comic-viewer-fullscreen {
 }
 
 .editor-control {
-    height: 34px;
+    height: var(--control-height);
     max-width: 160px;
     border: 1px solid var(--line);
     border-radius: var(--radius-panel);
     background: var(--panel-muted);
     color: var(--text);
-    padding: 0 10px;
-    font: inherit;
+    padding: var(--field-padding);
+    font-family: inherit;
+    font-size: var(--field-font-size);
+    line-height: var(--field-line-height);
 }
 
 .editor-control.compact {
@@ -600,7 +605,7 @@ body.is-text-editor-fullscreen {
 }
 
 .text-editor.is-codemirror-enhanced {
-    gap: var(--space-xl);
+    gap: var(--text-editor-section-gap);
 }
 
 .text-editor .CodeMirror {

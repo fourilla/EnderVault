@@ -56,9 +56,10 @@ export function TextTool({ payload }: { payload: FileDetailPayload }) {
         message="Your changes have not been saved to the original file. Only successfully saved drafts will remain after leaving." />
       <CsrfInput />
       <input type="hidden" name="path" value={detail.path} />
-      <input type="hidden" name="editorToken" value="" data-text-editor-token readOnly />
-      <input type="hidden" name="draftId" value="" data-text-draft-id readOnly />
-      <input type="hidden" name="forceOverwrite" value="false" data-text-force-overwrite readOnly />
+      {/* The imperative editor owns these values; React must not reset them on dirty-state renders. */}
+      <input type="hidden" name="editorToken" data-text-editor-token />
+      <input type="hidden" name="draftId" data-text-draft-id />
+      <input type="hidden" name="forceOverwrite" data-text-force-overwrite />
       <div className="text-editor-toolbar">
         {tool.markdown && (
           <div className="text-editor-view-tabs" role="tablist" aria-label="Markdown view">
