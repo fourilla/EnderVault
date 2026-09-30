@@ -1,0 +1,52 @@
+.file-tool-viewer {
+    --file-tool-control-gap: min(calc((var(--control-height) - 22px) / 2), calc((var(--control-height) - 6px) / 4));
+    --file-tool-section-gap: calc((var(--control-height) - 14px) / 2);
+    display: grid;
+    gap: var(--file-tool-section-gap);
+}
+
+.file-tool-toolbar,
+.file-tool-control-group {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: var(--file-tool-control-gap);
+}
+
+.file-tool-toolbar {
+    flex-wrap: wrap;
+    justify-content: space-between;
+    color: var(--muted);
+    font-size: var(--field-font-size);
+}
+
+.file-tool-control-group { flex-wrap: wrap; }
+.file-tool-control-group.is-nowrap { flex-wrap: nowrap; }
+.file-tool-control-group.is-trailing { margin-left: auto; justify-content: flex-end; }
+
+.file-tool-toolbar > .icon-button:last-child { margin-inline-start: auto; }
+
+.file-tool-toolbar .icon-button {
+    flex: 0 0 auto;
+    width: var(--control-height);
+    min-width: var(--control-height);
+    height: var(--control-height);
+    min-height: var(--control-height);
+}
+
+.file-tool-toolbar select,
+.file-tool-toolbar input[type="number"] {
+    height: var(--control-height);
+    min-height: var(--control-height);
+    padding: var(--field-padding);
+    font-family: inherit;
+    font-size: var(--field-font-size);
+    line-height: var(--field-line-height);
+}
+
+.file-tool-toolbar .file-tool-view-tab {
+    height: var(--control-height);
+    min-height: var(--control-height);
+    padding: 0 var(--button-padding-x);
+    font-size: var(--button-font-size);
+}

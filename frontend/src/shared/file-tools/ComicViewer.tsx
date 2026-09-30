@@ -47,13 +47,13 @@ export function ComicViewer({ name, manifest, pageUrl, page, onPageChange }: {
     </button>
   );
   return (
-    <div className={'comic-viewer' + (fullscreen ? ' is-comic-fullscreen' : '')}>
-      <div className="comic-toolbar">
+    <div className={'comic-viewer file-tool-viewer' + (fullscreen ? ' is-comic-fullscreen' : '')}>
+      <div className="comic-toolbar file-tool-toolbar">
         <span className="comic-status">{total ? `Page ${page + 1} / ${total}` : 'No image pages found.'}</span>
-        {total > 0 && <div className="comic-actions">
+        {total > 0 && <div className="comic-actions file-tool-control-group is-trailing">
           {nav('First page', 0, 'fas fa-angles-left', page === 0)}
           {nav('Previous page', page - 1, 'fas fa-chevron-left', page === 0)}
-          <form className="comic-page-form" onSubmit={(event) => {
+          <form className="comic-page-form file-tool-control-group is-nowrap" onSubmit={(event) => {
             event.preventDefault();
             const value = Number(new FormData(event.currentTarget).get('comicPage'));
             if (Number.isFinite(value)) showPage(value - 1);

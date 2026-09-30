@@ -40,7 +40,7 @@ export function TextTool({ payload }: { payload: FileDetailPayload }) {
   return (
     <form
       ref={rootRef}
-      className="text-editor"
+      className="text-editor file-tool-viewer"
       method="post"
       action="/api/v1/files/text/save"
       data-text-load-url={`/api/v1/files/text/load?path=${encodeURIComponent(detail.path)}`}
@@ -60,12 +60,12 @@ export function TextTool({ payload }: { payload: FileDetailPayload }) {
       <input type="hidden" name="editorToken" data-text-editor-token />
       <input type="hidden" name="draftId" data-text-draft-id />
       <input type="hidden" name="forceOverwrite" data-text-force-overwrite />
-      <div className="text-editor-toolbar">
+      <div className="text-editor-toolbar file-tool-toolbar">
         {tool.markdown && (
-          <div className="text-editor-view-tabs" role="tablist" aria-label="Markdown view">
-            <button className="text-editor-view-tab is-active" type="button" role="tab"
+          <div className="text-editor-view-tabs file-tool-control-group is-nowrap" role="tablist" aria-label="Markdown view">
+            <button className="text-editor-view-tab file-tool-view-tab is-active" type="button" role="tab"
               aria-selected="true" data-markdown-source-tab>Source</button>
-            <button className="text-editor-view-tab" type="button" role="tab"
+            <button className="text-editor-view-tab file-tool-view-tab" type="button" role="tab"
               aria-selected="false" data-markdown-preview-tab>Preview</button>
           </div>
         )}

@@ -252,45 +252,17 @@ button.shared-download-button:disabled:hover {
     background: var(--panel);
 }
 
-.comic-viewer {
-    display: grid;
-    gap: var(--space-xl);
-}
-
-.comic-toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-lg);
-}
-
 .comic-status {
     color: var(--muted);
-    font-size: var(--font-size-sm);
     font-weight: 700;
-}
-
-.comic-actions,
-.comic-page-form {
-    display: flex;
-    align-items: center;
-    gap: var(--space-md);
-}
-
-.comic-actions {
-    flex-wrap: wrap;
-    justify-content: flex-end;
 }
 
 .comic-page-input {
     width: 78px;
-    height: 34px;
     border: 1px solid var(--line);
     border-radius: var(--radius-panel);
     background: var(--panel-muted);
     color: var(--text);
-    padding: 0 8px;
     text-align: center;
 }
 
@@ -381,22 +353,6 @@ body.is-comic-viewer-fullscreen {
 .text-editor {
     --text-editor-content-height: 64vh;
     --text-editor-content-min-height: 480px;
-    /* Editor-only spacing follows control size without changing shared page spacing. */
-    --text-editor-control-gap: min(calc((var(--control-height) - 22px) / 2), calc((var(--control-height) - 6px) / 4));
-    --text-editor-section-gap: calc((var(--control-height) - 14px) / 2);
-
-    display: grid;
-    gap: var(--space-lg);
-}
-
-.text-editor-toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-lg);
-    color: var(--muted);
-    font-size: var(--font-size-sm);
 }
 
 .text-editor-toolbar > .icon-button {
@@ -405,24 +361,14 @@ body.is-comic-viewer-fullscreen {
 }
 
 .text-editor-view-tabs {
-    display: inline-flex;
     flex: 0 0 auto;
-    align-items: center;
-    gap: var(--space-sm);
-    border: 1px solid var(--line);
-    border-radius: var(--radius-panel);
-    background: var(--panel-muted);
-    padding: var(--space-xs);
 }
 
 .text-editor-view-tab {
-    min-height: 30px;
-    border: 0;
-    border-radius: calc(var(--radius-panel) - 2px);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
     background: transparent;
     color: var(--muted);
-    padding: 0 var(--space-xl);
-    font-size: var(--font-size-sm);
 }
 
 .text-editor-view-tab:hover,
@@ -516,23 +462,6 @@ body.is-comic-viewer-fullscreen {
     gap: var(--space-md);
 }
 
-.text-editor.is-codemirror-enhanced .text-editor-toolbar {
-    flex-wrap: nowrap;
-}
-
-.text-editor-controls {
-    display: flex;
-    flex: 0 1 auto;
-    flex-wrap: nowrap;
-    align-items: center;
-    justify-content: flex-end;
-    gap: var(--text-editor-control-gap);
-    margin-left: auto;
-    overflow-x: auto;
-    padding: var(--space-xs);
-    scrollbar-width: thin;
-}
-
 .text-editor.is-markdown-preview .source-only-control {
     display: none;
 }
@@ -561,16 +490,13 @@ body.is-comic-viewer-fullscreen {
 }
 
 .editor-control {
-    height: var(--control-height);
+    width: auto;
+    flex: 0 0 auto;
     max-width: 160px;
     border: 1px solid var(--line);
     border-radius: var(--radius-panel);
     background: var(--panel-muted);
     color: var(--text);
-    padding: var(--field-padding);
-    font-family: inherit;
-    font-size: var(--field-font-size);
-    line-height: var(--field-line-height);
 }
 
 .editor-control.compact {
@@ -602,10 +528,6 @@ body.is-text-editor-fullscreen {
     font-family: "Consolas", "Cascadia Mono", monospace;
     line-height: 1.45;
     white-space: pre;
-}
-
-.text-editor.is-codemirror-enhanced {
-    gap: var(--text-editor-section-gap);
 }
 
 .text-editor .CodeMirror {

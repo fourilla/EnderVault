@@ -925,7 +925,7 @@ const attachEditorControls = (form, editor, mode, lineWrapping, fontSize) => {
     }
 
     const controls = document.createElement("div");
-    controls.className = "text-editor-controls js-only";
+    controls.className = "text-editor-controls file-tool-control-group is-trailing js-only";
     controls.dataset.editorControls = "true";
     const canEdit = saveButton ? !saveButton.disabled : true;
     if (saveButton) {
@@ -1035,10 +1035,11 @@ const attachEditorControls = (form, editor, mode, lineWrapping, fontSize) => {
         }
     });
 
-    controls.append(modeSelect, fontSelect, searchButton, wrapButton, fullscreenButton, editButton);
+    controls.append(modeSelect, fontSelect, searchButton, wrapButton, editButton);
     if (saveButton) {
         controls.append(saveButton);
     }
+    controls.append(fullscreenButton);
     toolbar.append(controls);
     setEditorEditMode(form, editor, editButton, saveButton, false, canEdit);
 };
