@@ -1,0 +1,39 @@
+.overflow-marquee {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.overflow-marquee-track {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overflow-marquee.is-overflowing:hover .overflow-marquee-track {
+  width: max-content;
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+  animation: overflow-marquee var(--marquee-duration) linear 350ms infinite;
+}
+
+@keyframes overflow-marquee {
+  0%, 12% { transform: translateX(0); }
+  82%, 100% { transform: translateX(var(--marquee-distance)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overflow-marquee.is-overflowing:hover .overflow-marquee-track { animation: none; }
+}
+
+.table-wrap .item-name:has(> .overflow-marquee) {
+  display: inline-flex;
+  align-items: center;
+}
+
+.table-wrap .item-name > .item-icon { flex: 0 0 auto; }

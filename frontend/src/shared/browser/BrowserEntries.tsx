@@ -1,5 +1,6 @@
 import { MouseEvent, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { OverflowMarquee } from '../layout/OverflowMarquee';
 import type { BrowserEntry } from './types';
 
 export const icon = (className: string) => <i className={className} aria-hidden="true" />;
@@ -19,7 +20,7 @@ function EntryName({
   const href = entry.type === 'directory' ? '/files' : entry.detailUrl;
   if (entry.type === 'file') {
     return <Link className="item-name" to={entry.detailUrl} title={entry.name}>
-      <span>{entry.name}</span>
+      <OverflowMarquee text={entry.name} />
     </Link>;
   }
   return (
@@ -30,7 +31,7 @@ function EntryName({
       onClick={handleClick}
     >
       {entry.type === 'directory' && icon('fas fa-folder item-icon')}
-      <span>{entry.name}</span>
+      <OverflowMarquee text={entry.name} />
     </a>
   );
 }
@@ -179,7 +180,7 @@ export function EntryTable({
                     onClick={() => onBrowse(entry.parentPath)}
                     title={entry.parentPath || 'Root'}
                   >
-                    {entry.parentPath || 'Root'}
+                    <OverflowMarquee text={entry.parentPath || 'Root'} />
                   </button>
                 </td>
               )}

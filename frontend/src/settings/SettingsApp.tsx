@@ -9,7 +9,7 @@ import { PasskeySettings } from './sections/PasskeySettings';
 import { SessionSettings } from './sections/SessionSettings';
 import { TelegramSettings } from './sections/TelegramSettings';
 import { VpnSettings } from './sections/VpnSettings';
-import { OverflowMarquee } from './components/OverflowMarquee';
+import { OverflowMarquee } from '../shared/layout/OverflowMarquee';
 import { UnsavedChangesGuard } from '../shared/dialogs/UnsavedChangesGuard';
 import './settings-app.css';
 

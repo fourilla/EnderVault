@@ -1,4 +1,5 @@
 import { LoadingState } from '../shared/layout/LoadingState';
+import { OverflowMarquee } from '../shared/layout/OverflowMarquee';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { moveFavorite, removeFavorite } from '../shared/api/favorite-api';
@@ -88,7 +89,7 @@ export function FavoritesApp() {
           <div className="table-wrap compact-table">
             <table>
               <thead>
-                <tr><th>Name</th><th>Type</th><th>Path</th><th>Added</th><th>Actions</th></tr>
+                <tr><th>Name</th><th>Type</th><th>Target</th><th>Added</th><th>Actions</th></tr>
               </thead>
               <tbody>
                 {payload.items.map((entry, index) => (
@@ -98,15 +99,15 @@ export function FavoritesApp() {
                         target={entry.openInNewTab ? '_blank' : undefined}
                         rel={entry.openInNewTab ? 'noopener noreferrer' : undefined}
                         title={entry.targetLabel}>
-                        <i className={`${entry.iconClass} item-icon`} aria-hidden="true" /><span>{entry.name}</span>
+                        <i className={`${entry.iconClass} item-icon`} aria-hidden="true" /><OverflowMarquee text={entry.name} />
                       </a>
                       {entry.hidden && <span className="status-badge expired hidden-badge">Hidden</span>}
                     </td>
                     <td>{entry.typeLabel}</td>
-                    <td><span className="path-cell" title={entry.targetLabel}>{entry.targetLabel}</span></td>
+                    <td><span className="path-cell"><OverflowMarquee text={entry.targetLabel} /></span></td>
                     <td>{entry.createdLabel}</td>
                     <td>
-                      <div className="table-actions favorite-row-actions">
+                      <div className="table-actions">
                         <button className="ghost icon-button action-icon" type="button"
                           disabled={index === 0 || busyPath === entry.path}
                           title="Move up" aria-label="Move up" onClick={() => void move(entry, 'up')}>

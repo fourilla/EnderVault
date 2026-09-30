@@ -1,4 +1,5 @@
 import { LoadingState } from '../shared/layout/LoadingState';
+import { OverflowMarquee } from '../shared/layout/OverflowMarquee';
 import { useEffect, useState } from 'react';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
@@ -115,16 +116,16 @@ export function TrashApp() {
                     <td>
                       <span className="item-name" title={item.originalName}>
                         {icon(item.directory ? 'fas fa-folder item-icon' : 'fas fa-file item-icon')}
-                        <span>{item.originalName}</span>
+                        <OverflowMarquee text={item.originalName} />
                       </span>
                     </td>
-                    <td><span className="path-cell" title={item.originalPath}>{item.originalPath}</span></td>
+                    <td><span className="path-cell"><OverflowMarquee text={item.originalPath} /></span></td>
                     <td>{item.typeLabel}</td>
                     <td>{item.sizeLabel}</td>
                     <td>{item.deletedLabel}</td>
                     <td>{item.expiresLabel}</td>
                     <td>
-                      <div className="table-actions trash-row-actions">
+                      <div className="table-actions">
                         <button className="icon-button action-icon" type="button"
                           disabled={Boolean(busyAction)} title="Restore" aria-label="Restore"
                           onClick={() => void restore(item)}>

@@ -292,6 +292,7 @@ for (const page of pages) {
         if (id.endsWith('/PageErrorPanel')) return { PageErrorPanel };
         if (id.endsWith('/PageHeader')) return { PageHeader: () => null };
         if (id.endsWith('/FloatingPageActions')) return { FloatingPageActions: () => null };
+        if (id.endsWith('/OverflowMarquee')) return { OverflowMarquee: ({ text }) => React.createElement('span', null, text) };
         if (id.endsWith('/BrowserEntries')) return { icon: value => React.createElement('i', { className: value }) };
         if (id.endsWith('-api')) return {};
         throw new Error(`Unexpected dependency: ${id}`);
