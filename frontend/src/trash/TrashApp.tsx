@@ -1,5 +1,6 @@
 import { LoadingState } from '../shared/layout/LoadingState';
 import { OverflowMarquee } from '../shared/layout/OverflowMarquee';
+import { StableTable } from '../shared/browser/StableTable';
 import { useEffect, useState } from 'react';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
@@ -103,7 +104,7 @@ export function TrashApp() {
       )}
       {payload && items.length > 0 && (
         <section className="table-wrap" aria-label="Trash items">
-            <table>
+            <StableTable columns={['text', 'text', 'type', 'size', 'date', 'date', 'actions']} actionCount={2}>
               <thead>
                 <tr>
                   <th>Name</th><th>Original path</th><th>Type</th><th>Size</th>
@@ -141,7 +142,7 @@ export function TrashApp() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </StableTable>
         </section>
       )}
       {payload && items.length === 0 && <p className="empty browser-grid-empty">No trash items.</p>}

@@ -1,6 +1,7 @@
 import { MouseEvent, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { OverflowMarquee } from '../layout/OverflowMarquee';
+import { StableTable } from './StableTable';
 import type { BrowserEntry } from './types';
 
 export const icon = (className: string) => <i className={className} aria-hidden="true" />;
@@ -127,7 +128,11 @@ export function EntryTable({
 }) {
   return (
     <div className="table-wrap">
-      <table>
+      <StableTable columns={[
+        ...(selectable ? ['select' as const] : []), 'text',
+        ...(showLocation ? ['text' as const] : []), 'type', 'size',
+        ...(showAccessed ? ['date' as const] : []), 'date', 'actions',
+      ]} actionCount={onFavorite ? 4 : 3}>
         <thead>
           <tr>
             {selectable && (
@@ -169,8 +174,10 @@ export function EntryTable({
                 </td>
               )}
               <td>
+                <div className="table-item-label">
                 <EntryName entry={entry} onBrowse={onBrowse} />
                 {entry.hidden && <span className="status-badge expired hidden-badge">Hidden</span>}
+                </div>
               </td>
               {showLocation && (
                 <td>
@@ -208,7 +215,7 @@ export function EntryTable({
             </tr>
           ))}
         </tbody>
-      </table>
+      </StableTable>
     </div>
   );
 }
