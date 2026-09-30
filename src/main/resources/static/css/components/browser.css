@@ -61,6 +61,10 @@ td input[readonly] {
 }
 
 .table-wrap {
+    --badge-font-size: calc(var(--table-font-size) - 3px);
+    --badge-min-height: max(calc(var(--badge-font-size) * 2 + 2px), calc(var(--control-height) - 12px));
+    --badge-padding-y: max(2px, calc((var(--control-height) - 30px) / 4));
+    --badge-padding-x: max(7px, calc(var(--button-padding-x) - 5px));
     overflow-x: auto;
     border: 1px solid var(--line);
     border-radius: var(--radius-panel);
@@ -175,11 +179,11 @@ td input[readonly] {
 .status-badge {
     display: inline-flex;
     align-items: center;
-    min-height: var(--toast-close-size);
+    min-height: var(--badge-min-height, var(--toast-close-size));
     border: 1px solid var(--line);
     border-radius: var(--radius-pill);
-    padding: var(--space-2xs) 9px;
-    font-size: var(--font-size-xs);
+    padding: var(--badge-padding-y, var(--space-2xs)) var(--badge-padding-x, 9px);
+    font-size: var(--badge-font-size, var(--font-size-xs));
     font-weight: 700;
 }
 
@@ -226,8 +230,8 @@ td input[readonly] {
 .card-hidden-badge {
     position: absolute;
     z-index: 3;
-    top: var(--space-lg);
-    right: var(--space-lg);
+    top: var(--card-badge-inset, var(--space-lg));
+    right: var(--card-badge-inset, var(--space-lg));
     margin-left: 0;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
 }
@@ -257,6 +261,15 @@ td input[readonly] {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--browser-card-min-width)), 1fr));
     gap: var(--browser-card-gap);
+}
+
+.browser-card,
+.readonly-file-card {
+    --badge-font-size: calc(var(--card-meta-font-size) - 1px);
+    --badge-min-height: calc(var(--card-meta-font-size) * 2);
+    --badge-padding-y: max(2px, calc((var(--card-body-padding) - 8px) / 2));
+    --badge-padding-x: max(7px, calc(var(--card-body-padding) - 3px));
+    --card-badge-inset: calc(var(--card-body-padding) - 2px);
 }
 
 .browser-card {

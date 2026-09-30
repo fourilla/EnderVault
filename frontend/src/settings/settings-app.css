@@ -374,6 +374,7 @@ button.settings-spa-nav-item.is-active {
 .appearance-preview .browser-card:not(.is-selected):hover .card-name { color: var(--text); }
 .appearance-preview .table-wrap tbody tr:not(.is-selected):hover td { background: transparent; }
 .appearance-preview .table-wrap tbody tr:not(.is-selected):hover .item-name { color: var(--text); }
+.appearance-preview .is-hidden-item:hover { opacity: 0.68; }
 .appearance-preview .settings-spa-nav-item.is-active:hover { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 52%, var(--line)); }
 .appearance-preview .settings-spa-nav-item > span { width: fit-content; justify-self: start; }
 /* aria-disabled keeps sample regions inspectable; capture handlers block activation. */

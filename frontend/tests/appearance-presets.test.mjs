@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import { appearanceSizes, appearanceSizeTokens, appearanceTokens, colorPresets, colorPresetLabels, contrastRatio, normalizeAppearanceColor } from '../src/shared/appearance/presets.ts';
 
 test('preset names match available palettes and Amethyst is no longer offered', () => {
@@ -103,4 +104,47 @@ test('size steps grow together and card size is independent', () => {
   }
   assert.equal(appearanceSizeTokens('medium', 'extra-large')['--control-height'], '38px');
   assert.throws(() => appearanceSizeTokens('123px', 'medium'));
+});
+
+test('badge sizing is scoped to tables and file cards with safe values at every size', () => {
+  const css = readFileSync(new URL('../../src/main/resources/static/css/components/browser.css', import.meta.url), 'utf8');
+  const table = css.match(/\.table-wrap\s*\{([^}]+)\}/)[1];
+  const cards = css.match(/\.browser-card,\s*\.readonly-file-card\s*\{([^}]+)\}/)[1];
+  const badge = css.match(/\.status-badge\s*\{([^}]+)\}/)[1];
+  assert.match(table, /--badge-font-size: calc\(var\(--table-font-size\) - 3px\)/);
+  assert.match(cards, /--badge-font-size: calc\(var\(--card-meta-font-size\) - 1px\)/);
+  assert.doesNotMatch(cards, /--control-height|--table-font-size/);
+  assert.doesNotMatch(table, /--card-/);
+  assert.match(badge, /var\(--badge-font-size, var\(--font-size-xs\)\)/);
+  assert.match(badge, /var\(--badge-min-height, var\(--toast-close-size\)\)/);
+  for (const scope of [table, cards]) {
+    assert.match(scope, /--badge-padding-y: max\(2px,/);
+    assert.match(scope, /--badge-padding-x: max\(7px,/);
+  }
+  assert.match(table, /--badge-min-height: max\(calc\(var\(--badge-font-size\) \* 2 \+ 2px\),/);
+  for (const size of appearanceSizes) {
+    const tokens = appearanceSizeTokens(size, size);
+    assert.ok(parseFloat(tokens['--table-font-size']) - 3 >= 10);
+    assert.ok(parseFloat(tokens['--card-meta-font-size']) - 1 >= 10);
+    assert.ok((parseFloat(tokens['--control-height']) - 30) / 4 >= 0);
+    assert.ok((parseFloat(tokens['--card-body-padding']) - 8) / 2 >= 0);
+  }
+});
+
+test('hidden preview rows retain their opacity when inspected', () => {
+  const css = readFileSync(new URL('../src/settings/settings-app.css', import.meta.url), 'utf8');
+  assert.match(css, /\.appearance-preview \.is-hidden-item:hover\s*\{\s*opacity: 0\.68;/);
+});
+
+test('file extension labels keep fixed typography and spacing regardless of appearance size', () => {
+  const css = readFileSync(new URL('../../src/main/resources/static/css/components/browser.css', import.meta.url), 'utf8');
+  const extension = css.match(/\.thumb-extension\s*\{([^}]+)\}/)[1];
+  const center = css.match(/\.thumb-extension-center\s*\{([^}]+)\}/)[1];
+  const overlay = css.match(/\.thumb-extension-overlay\s*\{([^}]+)\}/)[1];
+  assert.match(extension, /font-size: var\(--font-size-xs\)/);
+  assert.match(extension, /font-family: inherit/);
+  assert.match(extension, /font-weight: 700/);
+  assert.match(center, /padding: 9px var\(--space-xl\)/);
+  assert.match(overlay, /padding: 5px var\(--space-md\)/);
+  assert.doesNotMatch(extension + center + overlay, /--card-|--badge-|--control-/);
 });

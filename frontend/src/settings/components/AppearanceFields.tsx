@@ -54,7 +54,7 @@ export function AppearanceFields({ values, change }: { values: FormValues; chang
           </span>
         </label>;
       })}
-      <SettingsField field={{ name: 'appearanceControlSize', label: 'Button size', type: 'select', options }} values={values} onChange={change} />
+      <SettingsField field={{ name: 'appearanceControlSize', label: 'UI element size', type: 'select', options }} values={values} onChange={change} />
       <SettingsField field={{ name: 'appearanceCardSize', label: 'File card size', type: 'select', options }} values={values} onChange={change} />
     </div>
     </div>

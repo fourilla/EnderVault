@@ -59,7 +59,8 @@ export function AppearancePreview({ appearance, valid, onInspectColor }: {
       <div className="table-wrap appearance-preview-table" data-preview-color="panel" data-preview-border="border"><table>
         <thead data-preview-color="panelMuted"><tr><th data-preview-border="border"><span data-preview-color="text">Name</span></th><th data-preview-border="border"><span data-preview-color="text">Type</span></th></tr></thead>
         <tbody><tr><td data-preview-border="border"><span className="item-name" data-preview-color="text">Documents</span></td><td data-preview-border="border"><span data-preview-color="text">Directory</span></td></tr>
-          <tr className="is-selected" data-preview-color="selection"><td><span className="item-name" data-preview-color="accentStrong">Selected.png</span></td><td><span data-preview-color="text">Image</span></td></tr></tbody>
+          <tr className="is-selected" data-preview-color="selection"><td><span className="item-name" data-preview-color="accentStrong">Selected.png</span></td><td><span data-preview-color="text">Image</span></td></tr>
+          <tr className="is-hidden-item"><td data-preview-border="border"><span className="item-name" data-preview-color="text">.env</span><span className="status-badge expired hidden-badge" data-preview-color="panelMuted" data-preview-border="border"><span data-preview-color="mutedText">Hidden</span></span></td><td data-preview-border="border"><span data-preview-color="text">File</span></td></tr></tbody>
       </table></div>
       <div className="appearance-preview-notifications">
         {notifications.map(([kind, icon, message]) => <div key={kind} className={`toast toast-${kind}`} data-preview-color="panelElevated" data-preview-border="border"
