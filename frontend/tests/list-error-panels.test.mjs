@@ -36,6 +36,38 @@ function evaluate(code, dependencies) {
 
 const loadingModule = evaluate(await compile('shared/layout/LoadingState'), id => { throw new Error(id); });
 
+test('shared option rows preserve checkbox and switch semantics, values and descriptions', async () => {
+  const { OptionRow } = evaluate(await compile('shared/forms/OptionRow'), id => {
+    assert.equal(id, 'react');
+    return { ...React, useId: () => 'toggle-description' };
+  });
+  let changed;
+  const element = OptionRow({ label: 'Scan area', description: 'Area description', checked: true,
+    disabled: true, onChange: (value) => { changed = value; } });
+  const html = renderToStaticMarkup(element);
+  assert.doesNotMatch(html, /role="switch"/);
+  assert.match(html, /option-input-checkbox/);
+  assert.match(html, /disabled=""/);
+  assert.match(html, /checked=""/);
+  assert.match(html, /aria-describedby="toggle-description"/);
+  assert.match(html, /id="toggle-description"/);
+  const input = element.props.children[1];
+  input.props.onChange({ currentTarget: { checked: false } });
+  assert.equal(changed, false);
+  const switchElement = OptionRow({ label: 'Enabled', control: 'switch', checked: false,
+    onChange: (value) => { changed = value; } });
+  const switchHtml = renderToStaticMarkup(switchElement);
+  assert.match(switchHtml, /role="switch"/);
+  assert.match(switchHtml, /option-input-switch/);
+  assert.doesNotMatch(switchHtml, /checked=""|disabled=""|aria-describedby/);
+  switchElement.props.children[1].props.onChange({ currentTarget: { checked: true } });
+  assert.equal(changed, true);
+  const forms = readFileSync(new URL('../../src/main/resources/static/css/components/forms.css', import.meta.url), 'utf8');
+  const settings = readFileSync(new URL('../../src/main/resources/static/css/pages/settings.css', import.meta.url), 'utf8');
+  assert.match(forms, /:is\(\.option-input-switch, \.settings-switch-input\):checked/);
+  assert.doesNotMatch(settings, /\.settings-switch-input::before/);
+});
+
 test('shared loading states provide accessible labels, spacing and compact sizing', () => {
   const { LoadingState } = loadingModule;
   const normal = renderToStaticMarkup(React.createElement(LoadingState, { label: 'Loading page...' }));

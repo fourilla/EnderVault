@@ -132,7 +132,7 @@ button.archive-tree-toggle:focus-visible {
     padding-top: var(--space-xl);
 }
 
-.archive-extract-form label {
+.archive-extract-form label:not(.option-row) {
     display: grid;
     gap: var(--space-sm);
     min-width: 0;
@@ -146,28 +146,6 @@ button.archive-tree-toggle:focus-visible {
     gap: var(--space-xl);
     border-bottom: 1px solid var(--line);
     padding-bottom: var(--space-lg);
-}
-
-.archive-extract-form .archive-container-option {
-    display: flex;
-    grid-template-columns: none;
-    align-items: flex-start;
-    gap: var(--space-md);
-    align-self: center;
-}
-
-.archive-container-option input {
-    flex: 0 0 auto;
-    margin-top: 3px;
-}
-
-.archive-container-option span {
-    display: grid;
-    gap: var(--space-xs);
-}
-
-.archive-container-option small {
-    font-size: var(--font-size-xs);
 }
 
 .archive-container-name-field {

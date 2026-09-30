@@ -384,17 +384,7 @@
 }
 
 .settings-control-row {
-    display: grid;
     grid-template-columns: minmax(220px, 1fr) minmax(300px, 0.9fr);
-    align-items: center;
-    gap: var(--space-xl);
-    width: 100%;
-    min-height: calc(var(--control-height) + 2 * var(--settings-row-padding-y) + 2px);
-    min-width: 0;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-panel);
-    background: var(--panel-muted);
-    padding: var(--settings-row-padding-y) var(--space-lg);
 }
 
 .settings-control-row.is-multiline {
@@ -458,48 +448,6 @@
     min-height: var(--control-height);
     align-items: center;
     justify-content: flex-end;
-}
-
-.settings-switch-input {
-    position: relative;
-    width: 44px;
-    height: 24px;
-    flex: 0 0 auto;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    outline: 0;
-    background: #26313d;
-    appearance: none;
-    cursor: pointer;
-    transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
-}
-
-.settings-switch-input::before {
-    content: "";
-    position: absolute;
-    top: 3px;
-    left: 3px;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: var(--muted);
-    box-shadow: var(--shadow-soft);
-    transition: transform 0.16s ease, background 0.16s ease;
-}
-
-.settings-switch-input:checked {
-    border-color: rgba(96, 165, 250, 0.75);
-    background: var(--accent);
-}
-
-.settings-switch-input:checked::before {
-    transform: translateX(20px);
-    background: #ffffff;
-}
-
-.settings-switch-input:focus-visible {
-    outline: 2px solid var(--focus);
-    outline-offset: 2px;
 }
 
 .settings-dependent-locked {

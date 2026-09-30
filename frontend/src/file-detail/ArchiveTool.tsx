@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { OptionRow } from '../shared/forms/OptionRow';
 import { notify, postForm, toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
 import type { ArchiveEntriesPayload, ArchiveEntryPayload, FileDetailPayload } from './types';
@@ -117,12 +118,10 @@ export function ArchiveTool({ payload }: { payload: FileDetailPayload }) {
     </div>
     <form className="archive-extract-form" onSubmit={extract}>
       <div className="archive-layout-options">
-        <label className="archive-container-option">
-          <input type="checkbox" checked={createContainer} onChange={(event) => {
-            layoutTouched.current = true; setCreateContainer(event.target.checked);
+        <OptionRow control="checkbox" label="Create containing directory" description={hint}
+          checked={createContainer} onChange={(checked) => {
+            layoutTouched.current = true; setCreateContainer(checked);
           }} />
-          <span><strong>Create containing directory</strong><small className="muted">{hint}</small></span>
-        </label>
         <label className={'archive-container-name-field' + (!createContainer ? ' is-disabled' : '')}
           aria-disabled={!createContainer}>
           <span>Output directory name</span>

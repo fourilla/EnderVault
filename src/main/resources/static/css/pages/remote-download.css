@@ -28,7 +28,7 @@
     padding-top: var(--space-lg);
 }
 
-.remote-request-options-body > label:not(.remote-request-toggle) {
+.remote-request-options-body > label:not(.option-row) {
     display: grid;
     align-content: start;
     gap: var(--space-sm);
@@ -76,31 +76,6 @@
 
 .remote-curl-dialog {
     width: min(680px, calc(100vw - 32px));
-}
-
-.remote-request-toggle {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-xl);
-    min-height: var(--control-height);
-    border: 1px solid var(--line);
-    border-radius: var(--radius-control);
-    padding: var(--space-md) var(--space-lg);
-}
-
-.remote-request-toggle span,
-.remote-request-toggle small {
-    display: block;
-}
-
-.remote-request-toggle small {
-    margin-top: var(--space-xs);
-    color: var(--muted);
-}
-
-.remote-request-toggle input {
-    flex: 0 0 auto;
 }
 
 .remote-download-form label {

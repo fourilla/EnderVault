@@ -1,4 +1,5 @@
 import { LoadingState } from '../shared/layout/LoadingState';
+import { OptionRow } from '../shared/forms/OptionRow';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { useAdminApp } from '../app/AdminAppContext';
 import { useRemoteDownloadTasks } from '../app/remote-downloads/RemoteDownloadTasksContext';
@@ -239,16 +240,12 @@ export function RemoteDownloadApp() {
                       title={skipInspection ? 'Skipped inspection supports one connection only.' : undefined}
                       onChange={(event) => setConnections(Math.max(1, Math.min(8, Number(event.currentTarget.value) || 1)))} />
                   </label>
-                  <label className="remote-request-toggle">
-                    <span><strong>Remember last destination</strong><small>Keep the last queued destination in this browser.</small></span>
-                    <input type="checkbox" checked={rememberDestination} disabled={Boolean(busy)}
-                      onChange={(event) => toggleRememberDestination(event.currentTarget.checked)} />
-                  </label>
-                  <label className="remote-request-toggle">
-                    <span><strong>Skip inspection</strong><small>No metadata request is sent before confirmation. Requires 1 connection.</small></span>
-                    <input type="checkbox" checked={skipInspection} disabled={Boolean(busy)}
-                      onChange={(event) => toggleSkipInspection(event.currentTarget.checked)} />
-                  </label>
+                  <OptionRow control="checkbox" label="Remember last destination"
+                    description="Keep the last queued destination in this browser."
+                    checked={rememberDestination} disabled={Boolean(busy)} onChange={toggleRememberDestination} />
+                  <OptionRow control="checkbox" label="Skip inspection"
+                    description="No metadata request is sent before confirmation. Requires 1 connection."
+                    checked={skipInspection} disabled={Boolean(busy)} onChange={toggleSkipInspection} />
                   <div className="remote-request-field remote-custom-headers">
                     <div className="remote-request-field-heading">
                       <label htmlFor="remoteCustomHeaders">Custom headers</label>

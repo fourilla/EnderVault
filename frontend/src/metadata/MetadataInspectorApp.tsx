@@ -1,4 +1,5 @@
 import { LoadingState } from '../shared/layout/LoadingState';
+import { OptionRow } from '../shared/forms/OptionRow';
 import { useEffect, useState } from 'react';
 import { useHashTarget } from '../shared/browser/useHashTarget';
 import { toastError } from '../shared/api/form-api';
@@ -128,12 +129,10 @@ export function MetadataInspectorApp() {
               )}
               <div className="metadata-area-list">
                 {payload.areas.map((area) => (
-                  <label className="metadata-area-row" id={`metadata-scan-area-${area.name}`} key={area.name}>
-                    <input type="checkbox" checked={selectedAreas?.has(area.name) ?? false} disabled={controlsDisabled}
-                      onChange={(event) => toggleArea(area.name, event.currentTarget.checked)} />
-                    <i className={area.iconClass} aria-hidden="true" />
-                    <span><strong>{area.label}</strong><small>{area.description}</small></span>
-                  </label>
+                  <OptionRow control="checkbox" id={`metadata-scan-area-${area.name}`} key={area.name}
+                    label={area.label} description={area.description} icon={area.iconClass}
+                    checked={selectedAreas?.has(area.name) ?? false} disabled={controlsDisabled}
+                    onChange={(checked) => toggleArea(area.name, checked)} />
                 ))}
               </div>
               <div className="settings-actions-top metadata-actions-top">
