@@ -8,6 +8,7 @@ import { ShellNavigationLink } from './ShellNavigationLink';
 import { ShellPopover } from './ShellPopover';
 import { StickyNoteControl } from './StickyNoteControl';
 import { useAdminApp } from './AdminAppContext';
+import { useTopbarPopover } from './TopbarPopoverContext';
 
 const groupLabel: Record<string, string> = {
   sharing: 'Sharing',
@@ -62,6 +63,7 @@ export function AdminTopbar({ sidebarCollapsed, onToggleSidebar }: {
   onToggleSidebar: () => void;
 }) {
   const { bootstrap } = useAdminApp();
+  const { closeAll } = useTopbarPopover();
   const activeSessionCount = bootstrap.sessions.activeCount;
   const available = (placement: 'apps' | 'account') => navigationFor(placement)
     .filter((entry) => navigationEntryAvailable(entry, bootstrap.capabilities));
@@ -72,7 +74,7 @@ export function AdminTopbar({ sidebarCollapsed, onToggleSidebar }: {
         <button type="button" className="ghost icon-button sidebar-collapse-toggle"
           aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          aria-expanded={!sidebarCollapsed} aria-controls="admin-sidebar" onClick={onToggleSidebar}>
+          aria-expanded={!sidebarCollapsed} aria-controls="admin-sidebar" onClick={() => { closeAll(); onToggleSidebar(); }}>
           <i className="fas fa-bars" aria-hidden="true" />
         </button>
         <Link className="sidebar-brand" to="/files">EnderVault</Link>

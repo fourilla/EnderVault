@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Outlet, ScrollRestoration, useLocation } from 'react-router-dom';
 import { AdminSidebar } from './AdminSidebar';
 import { AdminTopbar } from './AdminTopbar';
+import { SidebarDrawer } from './SidebarDrawer';
+import { useSidebarLayout } from './useSidebarLayout';
 import { navigationEntryForPathname } from './navigation';
 import { SpaNavigationBridge } from './SpaNavigationBridge';
 import { TopbarPopoverProvider } from './TopbarPopoverContext';
@@ -13,15 +15,10 @@ import './app-shell.css';
 
 export function AppShell() {
   const location = useLocation();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    try { return localStorage.getItem('endervault.sidebar.collapsed') === 'true'; }
-    catch { return false; }
-  });
-
-  useEffect(() => {
-    try { localStorage.setItem('endervault.sidebar.collapsed', String(sidebarCollapsed)); }
-    catch { /* Navigation remains usable when browser storage is unavailable. */ }
-  }, [sidebarCollapsed]);
+  const sidebar = useSidebarLayout(location.key);
+  const [favoritesOpen, setFavoritesOpen] = useState(true);
+  const sidebarContent = <AdminSidebar favoritesOpen={favoritesOpen}
+    onToggleFavorites={() => setFavoritesOpen((open) => !open)} />;
 
   useEffect(() => {
     const entry = navigationEntryForPathname(location.pathname);
@@ -50,14 +47,16 @@ export function AppShell() {
   return (
     <RemoteDownloadTasksProvider>
       <ShellStatusProvider>
-        <div className={`app-shell admin-react-shell${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
+        <div className={`app-shell admin-react-shell${sidebar.collapsed ? ' sidebar-collapsed' : ''}`}>
           <SpaNavigationBridge />
           <DialogHost routeKey={location.key} />
           <TopbarPopoverProvider>
             <DecisionDialogProvider>
-            <AdminTopbar sidebarCollapsed={sidebarCollapsed}
-              onToggleSidebar={() => setSidebarCollapsed((value) => !value)} />
-            <AdminSidebar />
+            <AdminTopbar sidebarCollapsed={sidebar.mobile ? !sidebar.drawerOpen : sidebar.collapsed}
+              onToggleSidebar={sidebar.toggle} />
+            {sidebar.mobile ? <SidebarDrawer open={sidebar.drawerOpen} close={sidebar.closeDrawer}>
+              {sidebarContent}
+            </SidebarDrawer> : sidebarContent}
             <div className="app-main" data-file-dropzone>
               <main className="workspace">
                 <Outlet />

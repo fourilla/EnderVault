@@ -75,7 +75,8 @@
 
     --control-height: 38px;
     --nav-row-height: 40px;
-    --topbar-height: 58px;
+    --topbar-base-height: 58px;
+    --topbar-height: var(--topbar-base-height);
     --icon-button-size: 42px;
     --icon-button-font-size: 17px;
     --action-icon-size: 36px;

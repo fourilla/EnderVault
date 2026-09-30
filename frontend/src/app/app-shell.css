@@ -1,6 +1,6 @@
 html:has(.admin-react-shell) {
   --topbar-row-height: max(32px, var(--icon-button-size), var(--control-height));
-  --topbar-height: max(58px, calc(var(--topbar-row-height) + 2 * var(--space-sm) + 1px));
+  --topbar-height: max(var(--topbar-base-height), calc(var(--topbar-row-height) + 2 * var(--space-sm) + 1px));
   scroll-padding-top: calc(var(--topbar-height) + var(--space-md));
   overflow-y: scroll;
   scrollbar-gutter: stable;
@@ -82,8 +82,7 @@ html:has(.admin-react-shell):has(dialog:modal) {
 }
 
 @media (max-width: 720px) {
-  .admin-react-shell { grid-template-rows: auto auto minmax(0, 1fr); }
-  .sidebar-collapse-toggle { display: none; }
+  .admin-react-shell { grid-template-rows: var(--topbar-height) minmax(0, 1fr); }
 }
 
 .admin-react-shell .app-topbar {
@@ -162,27 +161,36 @@ body:has(.admin-react-shell) .toast-region {
     --topbar-height: calc(2 * var(--topbar-row-height) + 3 * var(--space-sm) + 1px);
   }
   .admin-react-shell .app-topbar {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(max-content, 1fr) auto;
     grid-template-rows: repeat(2, var(--topbar-row-height));
     row-gap: var(--space-sm);
     padding-block: var(--space-sm);
   }
+  .admin-react-shell .admin-shell-brand { grid-column: 1; grid-row: 1; }
   .admin-react-shell .topbar-search { grid-column: 1 / -1; grid-row: 2; max-width: none; }
-  .admin-react-shell .topbar-actions { grid-column: 2; grid-row: 1; }
+  .admin-react-shell .topbar-actions { grid-column: 2; grid-row: 1; justify-content: flex-end; }
 }
 
-@media (max-width: 600px) {
-  html:has(.admin-react-shell) {
-    --topbar-height: calc(3 * var(--topbar-row-height) + 4 * var(--space-sm) + 1px);
-  }
-  .admin-react-shell .app-topbar {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: repeat(3, var(--topbar-row-height));
-    padding-inline: var(--space-sm);
-  }
-  .admin-react-shell .topbar-search { grid-row: 3; }
-  .admin-react-shell .topbar-actions { grid-column: 1; grid-row: 2; justify-content: space-between; gap: 0; }
+.sidebar-drawer {
+  position: fixed;
+  inset: var(--topbar-height) auto 0 0;
+  margin: 0;
+  width: min(320px, 100%);
+  max-width: 100%;
+  height: calc(100dvh - var(--topbar-height));
+  max-height: none;
+  padding: 0;
+  border: 0;
+  border-right: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  overflow: hidden;
 }
+.sidebar-drawer[open] { display: flex; flex-direction: column; }
+.sidebar-drawer::backdrop { background: rgba(0, 0, 0, 0.4); }
+.sidebar-drawer-content { flex: 1; min-height: 0; overflow-y: auto; }
+.sidebar-drawer .sidebar { position: static; height: auto; min-height: 100%; border: 0; }
+.sidebar-drawer .sidebar-nav { display: grid; overflow: visible; }
 
 .admin-shell-popover.is-open .topbar-control-popover {
   visibility: visible;

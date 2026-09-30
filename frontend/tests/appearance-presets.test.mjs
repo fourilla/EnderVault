@@ -19,7 +19,8 @@ test('Neon Genesis preserves the requested palette and display name', () => {
 test('appearance maps only supported properties and rejects style injection atomically', () => {
   const appearance = { ...colorPresets.endervault, controlSize: 'medium', cardSize: 'medium' };
   assert.equal(appearanceTokens(appearance)['--button-primary-bg'], '#5BBDB4');
-  assert.equal(appearanceTokens(appearance)['--topbar-height'], '58px');
+  assert.equal(appearanceTokens(appearance)['--topbar-base-height'], '58px');
+  assert.equal(appearanceTokens(appearance)['--topbar-height'], undefined);
   assert.equal(appearanceTokens(appearance)['--bg'], '#0F141A');
   assert.equal(appearanceTokens(appearance)['--text'], '#EDF3F7');
   assert.throws(() => appearanceTokens({ ...appearance, button: 'url(example)' }));
@@ -98,7 +99,7 @@ test('size steps grow together and card size is independent', () => {
   for (const size of appearanceSizes) {
     const tokens = appearanceSizeTokens(size, 'medium');
     assert.ok(parseInt(tokens['--control-height']) > previous);
-    assert.ok(parseInt(tokens['--topbar-height']) > parseInt(tokens['--icon-button-size']));
+    assert.ok(parseInt(tokens['--topbar-base-height']) > parseInt(tokens['--icon-button-size']));
     assert.equal(tokens['--browser-card-min-width'], '190px');
     previous = parseInt(tokens['--control-height']);
   }
@@ -134,6 +135,18 @@ test('badge sizing is scoped to tables and file cards with safe values at every 
 test('hidden preview rows retain their opacity when inspected', () => {
   const css = readFileSync(new URL('../src/settings/settings-app.css', import.meta.url), 'utf8');
   assert.match(css, /\.appearance-preview \.is-hidden-item:hover\s*\{\s*opacity: 0\.68;/);
+});
+
+test('topbar responsive height remains CSS-owned and compact layout stays two rows', () => {
+  const css = readFileSync(new URL('../src/app/app-shell.css', import.meta.url), 'utf8');
+  for (const size of appearanceSizes) {
+    assert.equal(appearanceSizeTokens(size, size)['--topbar-height'], undefined);
+  }
+  assert.match(css, /--topbar-height: max\(var\(--topbar-base-height\)/);
+  assert.match(css, /grid-template-rows: repeat\(2, var\(--topbar-row-height\)\)/);
+  assert.match(css, /\.topbar-actions \{ grid-column: 2; grid-row: 1; justify-content: flex-end;/);
+  assert.doesNotMatch(css, /repeat\(3, var\(--topbar-row-height\)\)|grid-row: 3|\.topbar-actions\s*\{[^}]*justify-content: space-between/);
+  assert.doesNotMatch(css, /max-width: 600px/);
 });
 
 test('file extension labels keep fixed typography and spacing regardless of appearance size', () => {

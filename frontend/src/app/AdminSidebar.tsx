@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { useAdminApp } from './AdminAppContext';
 import {
@@ -30,9 +29,10 @@ function SidebarFavorite({ favorite }: { favorite: AdminAppFavorite }) {
     target={favorite.openInNewTab ? '_blank' : undefined}>{content}</a>;
 }
 
-export function AdminSidebar() {
+export function AdminSidebar({ favoritesOpen, onToggleFavorites }: {
+  favoritesOpen: boolean; onToggleFavorites: () => void;
+}) {
   const { bootstrap } = useAdminApp();
-  const [favoritesOpen, setFavoritesOpen] = useState(true);
   const entries = navigationFor('sidebar')
     .filter((entry) => navigationEntryAvailable(entry, bootstrap.capabilities));
 
@@ -56,7 +56,7 @@ export function AdminSidebar() {
               aria-controls="sidebar-favorites-list"
               aria-expanded={favoritesOpen}
               title={favoritesOpen ? 'Collapse favorites' : 'Expand favorites'}
-              onClick={() => setFavoritesOpen((open) => !open)}
+              onClick={onToggleFavorites}
             >
               <i className="fas fa-chevron-down" aria-hidden="true" />
               <span className="sr-only">{favoritesOpen ? 'Collapse favorites' : 'Expand favorites'}</span>
