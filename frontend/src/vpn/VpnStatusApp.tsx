@@ -1,6 +1,5 @@
 import { LoadingState } from '../shared/layout/LoadingState';
 import { useEffect, useState } from 'react';
-import { AppNavigationLink } from '../app/AppNavigationLink';
 import { useAdminApp } from '../app/AdminAppContext';
 import { toastError } from '../shared/api/form-api';
 import { PageHeader } from '../shared/layout/PageHeader';
@@ -75,9 +74,6 @@ export function VpnStatusApp() {
       <PageHeader
         title="VPN Status"
         description="Monitor and control the private Gluetun outbound tunnel."
-        actions={<AppNavigationLink className="ghost icon-text-button" href="/admin/settings?section=vpn">
-          <i className="fas fa-gear" aria-hidden="true" /><span>Settings</span>
-        </AppNavigationLink>}
       />
 
       {error && <PageErrorPanel title="VPN status unavailable" message={error} stale={vpn !== null}
