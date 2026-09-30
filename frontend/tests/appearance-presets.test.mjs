@@ -2,6 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { appearanceSizes, appearanceSizeTokens, appearanceTokens, colorPresets, colorPresetLabels, contrastRatio, normalizeAppearanceColor } from '../src/shared/appearance/presets.ts';
 
+test('preset names match available palettes and Amethyst is no longer offered', () => {
+  assert.deepEqual(Object.keys(colorPresets), Object.keys(colorPresetLabels));
+  assert.equal(Object.hasOwn(colorPresets, 'amethyst'), false);
+});
+
 test('Neon Genesis preserves the requested palette and display name', () => {
   assert.equal(colorPresetLabels.neonGenesis, 'Neon Genesis');
   assert.deepEqual(colorPresets.neonGenesis, {

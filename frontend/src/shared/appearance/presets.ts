@@ -38,12 +38,10 @@ export const colorPresets = {
     background: '#0E1012', panel: '#16191C', panelElevated: '#20242A', panelMuted: '#292F35', border: '#3C444D', text: '#EEF1F4', mutedText: '#A7AFB8' },
   frost: { accent: '#88C0D0', accentStrong: '#9BD4E3', button: '#456582', buttonHover: '#52718E', buttonText: '#F2F5F8',
     background: '#151A21', panel: '#1D242E', panelElevated: '#252E3A', panelMuted: '#2E3947', border: '#465467', text: '#ECEFF4', mutedText: '#AAB6C4' },
-  amethyst: { accent: '#BD93F9', accentStrong: '#D4B5FF', button: '#6F4AA8', buttonHover: '#7E59BA', buttonText: '#FAF7FF',
-    background: '#14151C', panel: '#1C1D26', panelElevated: '#252733', panelMuted: '#303342', border: '#45485A', text: '#F8F8F2', mutedText: '#B7B9C8' },
   neonGenesis: { accent: '#7C4DFF', accentStrong: '#A7F542', button: '#6840D9', buttonHover: '#8156EE', buttonText: '#F8F7FC',
     background: '#0C0A10', panel: '#15121B', panelElevated: '#201B29', panelMuted: '#2B2535', border: '#484050', text: '#F4F1F7', mutedText: '#B9B1C1' },
 } as const;
-export const colorPresetLabels = { endervault: 'EnderVault', blue: 'Electric Blue', rose: 'Black & Hot Pink', olive: 'Olive', graphite: 'Graphite', gunmetal: 'Gunmetal', frost: 'EnderVault Frost', amethyst: 'Amethyst', neonGenesis: 'Neon Genesis' } as const;
+export const colorPresetLabels = { endervault: 'EnderVault', blue: 'Electric Blue', rose: 'Black & Hot Pink', olive: 'Olive', graphite: 'Graphite', gunmetal: 'Gunmetal', frost: 'EnderVault Frost', neonGenesis: 'Neon Genesis' } as const;
 
 export function normalizeAppearanceColor(value: string): string {
   if (!/^#[0-9a-f]{6}$/i.test(value)) throw new Error('Use a six-digit hexadecimal color.');

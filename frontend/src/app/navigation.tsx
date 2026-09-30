@@ -208,7 +208,7 @@ export const navigationEntries: readonly NavigationEntry[] = [
     id: 'read-only',
     path: '/files/read-only',
     label: 'Read-only browser',
-    icon: 'fas fa-eye',
+    icon: 'fas fa-mobile-screen-button',
     placement: 'apps',
     group: 'application',
     surface: 'standalone',
