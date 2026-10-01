@@ -1,4 +1,7 @@
 import { LoadingState } from '../shared/layout/LoadingState';
+import { StableTable } from '../shared/browser/StableTable';
+import { OverflowMarquee } from '../shared/layout/OverflowMarquee';
+import { formatBytes } from '../shared/format-bytes';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { toastError } from '../shared/api/form-api';
@@ -196,18 +199,22 @@ export function FileRequestsApp() {
               {payload.requests.length > 0 && <button className="ghost" type="button" disabled={Boolean(busy)}
                 onClick={() => void deleteExpired()}>Delete expired</button>}
             </header>
-            <div className="table-wrap compact-table"><table className="file-requests-table">
+            <div className="table-wrap compact-table"><StableTable className="file-requests-table"
+              columns={['text', 'text', 'usage', 'restrictions', 'date', 'status', 'actions']} actionCount={3}>
               <thead><tr><th>Request</th><th>Destination</th><th>Usage</th><th>Restrictions</th><th>Expires</th><th>Status</th><th>Actions</th></tr></thead>
               <tbody>
                 {payload.requests.map((item) => <tr key={item.id}>
-                  <td><Link className="table-primary-text" title={item.title} to={`/admin/file-requests/${item.id}`}>{item.title}</Link><small>{item.createdLabel}</small></td>
-                  <td><span className="table-primary-text" title={item.destinationLabel}>{item.destinationLabel}</span></td>
-                  <td title={item.usageLabel}>{item.usageLabel}</td>
-                  <td><span>{item.fileLimitLabel} each</span><small title={item.extensionsLabel}>{item.extensionsLabel}</small></td>
+                  <td><Link className="table-primary-text" to={`/admin/file-requests/${item.id}`}><OverflowMarquee text={item.title} /></Link><small>{item.createdLabel}</small></td>
+                  <td><span className="table-primary-text"><OverflowMarquee text={item.destinationLabel} /></span></td>
+                  <td title={item.usageLabel}><div className="table-cell-stack">
+                    <span>{item.acceptedFiles} / {item.maxFiles} files</span>
+                    <span>{formatBytes(item.acceptedBytes)} / {formatBytes(item.maxTotalBytes)}</span>
+                  </div></td>
+                  <td><span>{item.fileLimitLabel} each</span><small><OverflowMarquee text={item.extensionsLabel} /></small></td>
                   <td>{item.expiresLabel}</td>
                   <td><span className={`status-badge ${item.statusClass}`}>{item.statusLabel}</span></td>
                   <td><div className="table-actions">
-                    <Link className="ghost icon-button action-icon" title="Details" aria-label="Details" to={`/admin/file-requests/${item.id}`}>{icon('fas fa-circle-info')}</Link>
+                    <Link className="button-link ghost icon-button action-icon" title="Details" aria-label="Details" to={`/admin/file-requests/${item.id}`}>{icon('fas fa-circle-info')}</Link>
                     <button className="ghost icon-button action-icon" type="button" title="Copy request link" aria-label="Copy request link"
                       onClick={() => void copy(item.url)}>{icon('fas fa-link')}</button>
                     {item.active ? <button className="danger icon-button action-icon" type="button" title="Revoke" aria-label="Revoke"
@@ -218,7 +225,7 @@ export function FileRequestsApp() {
                 </tr>)}
                 {payload.requests.length === 0 && <tr className="empty-row"><td colSpan={7} className="empty">No file requests have been issued.</td></tr>}
               </tbody>
-            </table></div>
+            </StableTable></div>
           </section>
         </>
       )}

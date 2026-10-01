@@ -4,6 +4,31 @@ import { readFileSync } from 'node:fs';
 
 const source = path => readFileSync(new URL(`../src/${path}`, import.meta.url), 'utf8');
 
+test('phase two keeps action capacity, selectable share URLs and request secondary information', () => {
+  const bookmarks = source('bookmarks/BookmarkEntries.tsx');
+  assert.match(bookmarks, /columns=\{\['select', 'text', 'type', 'date', 'actions'\]\} actionCount=\{4\}/);
+  assert.match(bookmarks, /<OverflowMarquee text=\{entry.title\}/);
+  const shares = source('shares/SharedLinksApp.tsx');
+  assert.match(shares, /'type', 'date', 'status', 'actions'\]\} actionCount=\{4\}/);
+  assert.match(shares, /colSpan=\{6\}/);
+  assert.match(shares, /aria-label=\{`Created:/);
+  assert.match(shares, /aria-label=\{`Expires:/);
+  assert.match(shares, /<input readOnly value=\{share.url\}/);
+  const requests = source('file-requests/FileRequestsApp.tsx');
+  assert.match(requests, /<Link className="button-link ghost icon-button action-icon" title="Details"/);
+  assert.match(requests, /<StableTable className="file-requests-table"/);
+  assert.match(requests, /'usage', 'restrictions', 'date', 'status', 'actions'\]\} actionCount=\{3\}/);
+  assert.match(requests, /<small>\{item.createdLabel\}<\/small>/);
+  assert.match(requests, /<small><OverflowMarquee text=\{item.extensionsLabel\}/);
+  assert.match(requests, /<td title=\{item.usageLabel\}><div className="table-cell-stack">/);
+  assert.match(requests, /\{item.acceptedFiles\} \/ \{item.maxFiles\} files/);
+  assert.match(requests, /formatBytes\(item.acceptedBytes\)/);
+  assert.match(requests, /formatBytes\(item.maxTotalBytes\)/);
+  const css = source('shared/browser/stable-table.css');
+  assert.match(css, /\.stable-table td input\[readonly\] \{[^}]*min-width: 0/s);
+  assert.match(css, /\.stable-table \.bookmark-favicon \{ flex: 0 0 22px/);
+});
+
 test('stable columns depend on the table schema rather than current row data', () => {
   const component = source('shared/browser/StableTable.tsx');
   assert.match(component, /<colgroup>/);

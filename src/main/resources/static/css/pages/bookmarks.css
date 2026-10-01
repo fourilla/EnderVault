@@ -62,13 +62,6 @@
     margin-right: 0;
 }
 
-.bookmark-link-title {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
 .bookmark-detail-title-row {
     display: flex;
     align-items: center;

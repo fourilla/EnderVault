@@ -9,7 +9,8 @@ import { useRemoteDownloadTasks } from '../app/remote-downloads/RemoteDownloadTa
 import { usePolledJson } from '../shared/api/usePolledJson';
 import { PageHeader } from '../shared/layout/PageHeader';
 import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
-import { formatBytes, mergeOperations, uptimeLabel, usagePercent } from './dashboard-model';
+import { mergeOperations, uptimeLabel, usagePercent } from './dashboard-model';
+import { formatBytes } from '../shared/format-bytes';
 import type { DashboardPayload, RuntimeResources } from './types';
 import './dashboard-app.css';
 

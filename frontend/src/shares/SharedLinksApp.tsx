@@ -1,4 +1,6 @@
 import { LoadingState } from '../shared/layout/LoadingState';
+import { StableTable } from '../shared/browser/StableTable';
+import { OverflowMarquee } from '../shared/layout/OverflowMarquee';
 import { useEffect, useState } from 'react';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
@@ -69,22 +71,30 @@ export function SharedLinksApp() {
       )}
       {shares && (
         <section className="table-wrap" aria-label="Shared links">
-          <table>
+          <StableTable columns={['text', 'text', 'type', 'date', 'status', 'actions']} actionCount={4}>
             <thead>
-              <tr><th>Link</th><th>Target</th><th>Type</th><th>Created</th><th>Expires</th><th>Preview</th><th>Status</th><th>Actions</th></tr>
+              <tr><th>Link</th><th>Target</th><th>Type</th><th>Dates</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody>
               {shares.map((share) => (
                 <tr key={share.token} data-share-status={share.statusClass}>
                   <td><input readOnly value={share.url} aria-label={`Share URL for ${share.path}`} /></td>
-                  <td><span className="item-name" title={share.path}>{share.path}</span></td>
+                  <td><span className="item-name"><OverflowMarquee text={share.path} /></span></td>
                   <td>{share.type}</td>
-                  <td>{share.createdLabel}</td>
-                  <td>{share.expiresLabel}</td>
-                  <td><span className={`status-badge ${share.previewEnabled ? 'active' : 'info'}`}>
-                    {share.previewEnabled ? 'Enabled' : 'Disabled'}
-                  </span></td>
-                  <td><span className={`status-badge ${share.statusClass}`}>{share.statusLabel}</span></td>
+                  <td><div className="table-cell-stack">
+                    <span title="Created" aria-label={`Created: ${share.createdLabel}`}>
+                      <i className="fas fa-calendar-plus" aria-hidden="true" /> {share.createdLabel}
+                    </span>
+                    <span title="Expires" aria-label={`Expires: ${share.expiresLabel}`}>
+                      <i className="fas fa-hourglass-end" aria-hidden="true" /> {share.expiresLabel}
+                    </span>
+                  </div></td>
+                  <td><div className="table-cell-stack">
+                    <span className={`status-badge ${share.statusClass}`}>{share.statusLabel}</span>
+                    <span className={`status-badge ${share.previewEnabled ? 'active' : 'info'}`}>
+                      Preview {share.previewEnabled ? 'on' : 'off'}
+                    </span>
+                  </div></td>
                   <td>
                     <div className="table-actions">
                       <button className="ghost icon-button action-icon" type="button" title="Copy link" aria-label="Copy link"
@@ -112,9 +122,9 @@ export function SharedLinksApp() {
                   </td>
                 </tr>
               ))}
-              {shares.length === 0 && <tr className="empty-row"><td colSpan={8} className="empty">No shared links yet.</td></tr>}
+              {shares.length === 0 && <tr className="empty-row"><td colSpan={6} className="empty">No shared links yet.</td></tr>}
             </tbody>
-          </table>
+          </StableTable>
         </section>
       )}
       </div>

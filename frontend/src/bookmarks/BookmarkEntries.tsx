@@ -1,5 +1,7 @@
 import { Fragment, useEffect, useRef } from 'react';
 import { icon } from '../shared/browser/BrowserEntries';
+import { StableTable } from '../shared/browser/StableTable';
+import { OverflowMarquee } from '../shared/layout/OverflowMarquee';
 import type { BookmarkEntry } from './types';
 
 function SelectionHeader({
@@ -44,7 +46,7 @@ function BookmarkName({ entry, browse }: { entry: BookmarkEntry; browse: (id: st
       {directory ? icon('fas fa-folder item-icon') : entry.faviconUrl ? (
         <img className="bookmark-favicon" src={entry.faviconUrl} alt="" loading="lazy" />
       ) : icon('fas fa-link item-icon')}
-      <span className={directory ? undefined : 'bookmark-link-title'}>{entry.title}</span>
+      <OverflowMarquee text={entry.title} />
     </a>
   );
 }
@@ -102,7 +104,7 @@ export function BookmarkTable({
     <section className="browser-section bookmarks-panel" aria-label={'Bookmark ' + heading.toLowerCase()}>
       <header className="section-heading"><h2>{heading} ({entries.length})</h2></header>
       <div className="table-wrap">
-        <table>
+        <StableTable columns={['select', 'text', 'type', 'date', 'actions']} actionCount={4}>
           <thead><tr>
             <SelectionHeader entries={entries} selected={selected} select={select}
               label={'Select all bookmark ' + heading.toLowerCase() + ' in this table'} />
@@ -151,7 +153,7 @@ export function BookmarkTable({
               </tr>
             ))}
           </tbody>
-        </table>
+        </StableTable>
       </div>
     </section>
   );

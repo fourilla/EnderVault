@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mergeOperations, formatBytes, usagePercent, uptimeLabel } from '../src/dashboard/dashboard-model.ts';
+import { mergeOperations, usagePercent, uptimeLabel } from '../src/dashboard/dashboard-model.ts';
+import { formatBytes } from '../src/shared/format-bytes.ts';
 
 test('live server state replaces stale summary without double counting', () => {
   const result = mergeOperations([
