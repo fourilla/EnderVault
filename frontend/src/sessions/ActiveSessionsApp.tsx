@@ -1,7 +1,6 @@
 import { LoadingState } from '../shared/layout/LoadingState';
 import { useEffect, useState } from 'react';
 import { AppDialog } from '../shared/dialogs/AppDialog';
-import { AppNavigationLink } from '../app/AppNavigationLink';
 import { useAdminApp } from '../app/AdminAppContext';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
@@ -73,9 +72,6 @@ export function ActiveSessionsApp() {
               <h2>Signed-in Devices</h2>
               <p>Revoke a forgotten or unrecognized browser session.</p>
             </div>
-            <AppNavigationLink className="ghost icon-text-button" href="/admin/settings?section=sessions">
-              {icon('fas fa-sliders')}<span>Session settings</span>
-            </AppNavigationLink>
           </header>
 
           <p className="session-security-note">

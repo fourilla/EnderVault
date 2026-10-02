@@ -1,5 +1,4 @@
 import { SettingsField, SettingsSaveBar, SettingsSection } from '../components/SettingsControls';
-import { AppNavigationLink } from '../../app/AppNavigationLink';
 import { useSettingsEditor } from '../hooks/useSettingsEditor';
 import { useSettingsSnapshot } from '../hooks/useSettingsSnapshot';
 import { SettingsLoadState } from '../components/SettingsLoadState';
@@ -30,11 +29,6 @@ function Editor({ snapshot, onDirtyChange }: { snapshot: SessionSettingsSnapshot
           <article><span>Active sessions</span><strong>{snapshot.activeSessions}</strong></article>
           <article><span>Concurrent limit</span><strong>{concurrentLabel}</strong></article>
           <article><span>Idle timeout</span><strong>{idleTimeoutLabel}</strong></article>
-        </div>
-        <div className="settings-inline-actions">
-          <AppNavigationLink className="ghost icon-text-button" href="/admin/sessions">
-            <i className="fas fa-laptop" aria-hidden="true" /><span>Manage active sessions</span>
-          </AppNavigationLink>
         </div>
       </SettingsSection>
       <p className="settings-config-path">Stored in <code>{snapshot.configPath}</code></p>
