@@ -16,7 +16,12 @@ export function OverflowMarquee({ text }: { text: string }) {
       const viewport = viewportRef.current;
       const track = trackRef.current;
       if (!viewport || !track) return;
-      setDistance(Math.max(0, Math.ceil(track.scrollWidth - viewport.clientWidth)));
+      // Integer scroll widths can miss text clipped at a fractional pixel boundary.
+      const range = document.createRange();
+      range.selectNodeContents(track);
+      setDistance(Math.max(0, Math.ceil(
+        range.getBoundingClientRect().width - viewport.getBoundingClientRect().width,
+      )));
     };
 
     update();
@@ -31,7 +36,7 @@ export function OverflowMarquee({ text }: { text: string }) {
     return () => observer.disconnect();
   }, [text]);
 
-  const overflowing = distance > 1;
+  const overflowing = distance > 0;
   const style: MarqueeStyle = overflowing ? {
     '--marquee-distance': `-${distance}px`,
     '--marquee-duration': `${Math.min(9000, Math.max(2600, 1800 + distance * 22))}ms`,
