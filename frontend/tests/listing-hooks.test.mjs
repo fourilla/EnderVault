@@ -24,6 +24,9 @@ async function compile(file) {
 const contextCode = await compile('shared/browser/ListingHistoryContext.tsx');
 const scrollCode = await compile('shared/browser/useNavigationScroll.ts');
 const filesCode = await compile('files/useBrowserNavigation.ts');
+const filesAppCode = await compile('files/BrowserApp.tsx');
+const fileActionsCode = await compile('files/useFileActions.ts');
+const fileEntryActionsCode = await compile('shared/browser/file-entry-actions.ts');
 const selectionCode = await compile('shared/browser/useItemSelection.ts');
 const entrySelectionCode = await compile('shared/browser/useEntrySelection.ts');
 const shortcutCode = await compile('shared/browser/useSelectionShortcuts.ts');
@@ -244,11 +247,11 @@ test('snapshot setter from an old visit cannot remove or replace the current row
 // Actual page, Router, selection and shortcut hooks; leaf components and network are controlled.
 function setupSelectablePage(t, kind) {
   const h = hooks(), pending = [], posts = [], confirmations = [], listeners = new Map(), scrolls = [];
-  const config = kind === 'bookmarks' ? bookmarkHistory : recentHistory;
+  const config = kind === 'files' ? browserHistory : kind === 'bookmarks' ? bookmarkHistory : recentHistory;
   const router = createMemoryRouter([{ path: '*', element: null }], { initialEntries: [config.pathname] });
   const window = { scrollY: 0, clearTimeout, setTimeout,
     scrollTo({ top }) { this.scrollY = top; scrolls.push(top); },
-    EnderVault: { askConfirmation(options) {
+    EnderVault: { requestJson: async () => ({}), askConfirmation(options) {
       return new Promise((resolve) => confirmations.push({ options, resolve }));
     } },
   };
@@ -273,6 +276,8 @@ function setupSelectablePage(t, kind) {
     'react-router-dom': { useLocation: () => router.state.location, useNavigate: () => routeNavigate, Link: 'Link' },
     './scroll-restoration': { createScrollRestoration },
     './bookmark-history': { bookmarkHistory }, './recent-history': { recentHistory },
+    './browser-history': { browserHistory },
+    './browser-api': { canonicalState, loadBrowserPayload: request },
     './bookmark-api': { bookmarkRequestKeyFor, loadBookmarks: request },
     './recent-api': { canonicalRecentState, recentRequestKeyFor, loadRecentPayload: request },
     '../shared/browser/useListingRefresh': { useListingRefresh: (callback) => { refresh = callback; } },
@@ -287,13 +292,20 @@ function setupSelectablePage(t, kind) {
     './useBookmarkContextMenu': { useBookmarkContextMenu() {} },
     './BookmarkEntries': { BookmarkTable: 'BookmarkTable', BookmarkBreadcrumbs: 'BookmarkBreadcrumbs' },
     './BookmarkDialogs': { BookmarkDialogs: 'BookmarkDialogs' },
+    './BrowserBreadcrumbs': { BrowserBreadcrumbs: 'BrowserBreadcrumbs' },
+    './BrowserListing': { BrowserListing: 'BrowserListing' },
+    './BrowserToolbar': { BrowserToolbar: 'BrowserToolbar' },
+    './TransferBufferPanel': { TransferBufferPanel: 'TransferBufferPanel' },
+    './useFileContextMenu': { useFileContextMenu() {} },
+    '../app/uploads/UploadManagerContext': { useUploadManager: () => ({}) },
+    './useAdminUploadDropzone': { useAdminUploadDropzone() {} },
     '../app/AdminAppContext': { useAdminApp: () => ({ bootstrap: { capabilities: {} } }) },
     '../app/RouteSearch': { useRouteSearch: (options) => { search = options; } },
     '../app/FloatingPageActions': { FloatingPageActions: 'FloatingPageActions' },
     '../shared/api/favorite-api': { toggleBookmarkFavorite() {} },
     '../shared/api/form-api': { notify() {}, toastError() {},
       postForm: async (url, fields) => { posts.push({ url, fields }); return {}; } },
-    './bookmarks-app.css': {}, './recent-app.css': {},
+    './bookmarks-app.css': {}, './recent-app.css': {}, './files-app.css': {},
   };
   let search, refresh, tree;
   function request(state, signal) {
@@ -305,6 +317,9 @@ function setupSelectablePage(t, kind) {
   };
   const loadModule = (code) => load(code, require, window, document);
   modules['../api/form-api'] = modules['../shared/api/form-api'];
+  modules['../api/favorite-api'] = { togglePathFavorite() {} };
+  modules['../api/share-api'] = { createShareAndCopy() {} };
+  modules['../shared/browser/file-entry-actions'] = loadModule(fileEntryActionsCode);
   modules['../shared/browser/ListingHistoryContext'] = loadModule(contextCode);
   modules['../shared/browser/useNavigationScroll'] = loadModule(scrollCode);
   modules['../shared/browser/useItemSelection'] = modules['./useItemSelection'] = loadModule(selectionCode);
@@ -312,7 +327,10 @@ function setupSelectablePage(t, kind) {
   modules['../shared/browser/useSelectionShortcuts'] = loadModule(shortcutCode);
   modules['./useBookmarkActions'] = loadModule(bookmarkActionsCode);
   modules['./recent-actions'] = loadModule(recentActionsCode);
-  const app = kind === 'bookmarks' ? loadModule(bookmarksCode).BookmarksApp : loadModule(recentCode).RecentApp;
+  modules['./useFileActions'] = loadModule(fileActionsCode);
+  modules['./useBrowserNavigation'] = loadModule(filesCode);
+  const app = kind === 'files' ? loadModule(filesAppCode).BrowserApp
+    : kind === 'bookmarks' ? loadModule(bookmarksCode).BookmarksApp : loadModule(recentCode).RecentApp;
   const render = () => (tree = h.render(app));
   function find(type, predicate = () => true) {
     const nodes = [];
@@ -326,7 +344,10 @@ function setupSelectablePage(t, kind) {
     visit(tree);
     return nodes;
   }
-  const tables = () => kind === 'bookmarks' ? find('BookmarkTable') : [...find('EntryTable'), ...find('EntryGrid')];
+  const tables = () => kind === 'files'
+    ? find('BrowserListing', (props) => props.payload).map((props) => ({ ...props,
+      entries: [...props.payload.directories, ...props.payload.entries] }))
+    : kind === 'bookmarks' ? find('BookmarkTable') : [...find('EntryTable'), ...find('EntryGrid')];
   const items = () => tables().flatMap((table) => table.entries);
   const identity = (entry) => kind === 'bookmarks' ? entry.id : entry.path;
   const rowClick = (entry, modifiers) => {
@@ -351,7 +372,8 @@ function setupSelectablePage(t, kind) {
       const data = kind === 'bookmarks'
         ? { currentDirectoryId: state.directoryId || '', directories: [directory], links: entries,
           breadcrumbs: [], totalItems: 4, search: { query: state.query, performed: Boolean(state.query) } }
-        : { ...payload({ ...state, sort: state.sort || 'recent', direction: state.direction || 'desc' }),
+        : { ...payload({ ...state, sort: state.sort || (kind === 'files' ? 'name' : 'recent'),
+          direction: state.direction || (kind === 'files' ? 'asc' : 'desc') }),
           directories: [directory], entries, totalItems: 4,
           page: { number: state.page, totalPages: 3, totalItems: 9, startItem: 1, endItem: 3 } };
       pending[index].resolve(transform(data));
@@ -362,6 +384,21 @@ function setupSelectablePage(t, kind) {
       search.onSubmit({ preventDefault() {} }); render();
     },
   };
+}
+
+for (const mode of ['browse', 'search']) {
+  test(`Files ${mode}: router departure during Delete confirmation prevents submission before unmount`, async (t) => {
+    const s = setupSelectablePage(t, 'files');
+    s.render(); await s.finish();
+    if (mode === 'search') { await s.search('needle'); await s.finish(); }
+    s.key('a', { ctrlKey: true }); s.key('Delete');
+    assert.equal(s.confirmations.length, 1);
+    await s.router.navigate('/dashboard');
+    // Resolve before React unmount/cleanup: only Router ownership can reject this interval.
+    s.confirmations[0].resolve(true);
+    await flush();
+    assert.equal(s.posts.length, 0);
+  });
 }
 
 for (const kind of ['bookmarks', 'recent']) {

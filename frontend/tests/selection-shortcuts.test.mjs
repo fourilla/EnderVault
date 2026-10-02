@@ -312,7 +312,7 @@ test('Files/Search, Bookmarks and Recent explicitly opt in; public and non-selec
   assert.match(app, /selectAll: selection\.selectAll/);
   assert.match(app, /clearSelection: selection\.clearSelection/);
   assert.match(app, /contextKey: listingRequestKeyFor\(currentState\)/);
-  assert.match(app, /deleteSelection: \(isCurrent\) => actions\.moveEntriesToTrash\(selection\.selectedEntries, isCurrent\)/);
+  assert.match(app, /deleteSelection: \(guard\) => actions\.moveEntriesToTrash\(selection\.selectedEntries, \(\) => guard\(\) && isCurrent\(\)\)/);
   for (const file of ['bookmarks/BookmarksApp.tsx', 'recent/RecentApp.tsx']) {
     const page = readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8');
     assert.match(page, /useSelectionShortcuts\(\{[\s\S]*payload && !loading && !error && entries\.length > 0/);

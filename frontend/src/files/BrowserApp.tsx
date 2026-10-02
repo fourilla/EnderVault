@@ -32,6 +32,7 @@ export function BrowserApp() {
     searchText,
     setSearchText,
     effectiveState,
+    isCurrent,
     navigate,
     browse,
     applyView,
@@ -61,7 +62,7 @@ export function BrowserApp() {
     selectedCount: selection.selectedEntries.length,
     selectAll: selection.selectAll,
     clearSelection: selection.clearSelection,
-    deleteSelection: (isCurrent) => actions.moveEntriesToTrash(selection.selectedEntries, isCurrent),
+    deleteSelection: (guard) => actions.moveEntriesToTrash(selection.selectedEntries, () => guard() && isCurrent()),
     scope: () => document.querySelector<HTMLElement>('.app-main'),
   });
 

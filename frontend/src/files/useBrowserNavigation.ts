@@ -183,6 +183,7 @@ export function useBrowserNavigation() {
     searchText,
     setSearchText,
     effectiveState,
+    isCurrent,
     navigate,
     browse,
     applyView,
