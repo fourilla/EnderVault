@@ -82,7 +82,7 @@ Remote Download는 기본적으로 비활성화되어 있습니다.
 - 페이지 및 파일 context 기반 Sticky Note
 - Bookmark 대상 페이지의 title 자동 완성 및 favicon 조회·캐시
 - Activity Log
-- 전역 작업 및 decision notification
+- 작업 상태 알림 및 파일 충돌의 보류·후속 처리
 - 선택적 Telegram notification
 
 ### Authentication & Administration
