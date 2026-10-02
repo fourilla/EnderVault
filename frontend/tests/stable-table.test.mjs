@@ -32,7 +32,14 @@ test('phase two keeps action capacity, selectable share URLs and request seconda
   assert.match(requests, /<Link className="button-link ghost icon-button action-icon" title="Details"/);
   assert.match(requests, /<StableTable className="file-requests-table"/);
   assert.match(requests, /'usage', 'restrictions', 'date', 'status', 'actions'\]\} actionCount=\{3\}/);
-  assert.match(requests, /<small>\{item.createdLabel\}<\/small>/);
+  assert.match(requests, /<th>Created \/ Expires<\/th>/);
+  assert.match(requests, /<td><div className="table-cell-stack">\s*<span title="Created" aria-label=\{`Created: \$\{item.createdLabel\}`\}>/);
+  assert.match(requests, /<span title="Expires" aria-label=\{`Expires: \$\{item.expiresLabel\}`\}>/);
+  assert.doesNotMatch(requests, /<small>\{item.createdLabel\}<\/small>/);
+  for (const table of [shares, requests]) {
+    assert.match(table, /className="fas fa-calendar-plus" aria-hidden="true"/);
+    assert.match(table, /className="fas fa-hourglass-end" aria-hidden="true"/);
+  }
   assert.match(requests, /<small><OverflowMarquee text=\{item.extensionsLabel\}/);
   assert.match(requests, /<td title=\{item.usageLabel\}><div className="table-cell-stack">/);
   assert.match(requests, /\{item.acceptedFiles\} \/ \{item.maxFiles\} files/);
