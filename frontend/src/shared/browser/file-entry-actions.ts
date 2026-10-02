@@ -40,24 +40,28 @@ export function createFileEntryActions<T extends EntryListing>({
       setSelected(new Set());
     } catch (reason) { toastError(reason, 'Items could not be added to the transfer buffer.'); }
   };
-  const moveEntriesToTrash = async (entries = selectedEntries) => {
-    if (!entries.length) return;
+  const moveEntriesToTrash = async (entries = selectedEntries, isCurrent = () => true) => {
+    if (!entries.length || !isCurrent()) return;
     const path = currentPath();
-    const confirmed = await window.EnderVault?.askConfirmation({
-      title: 'Move to trash', message: 'Move the selected items to trash?',
-      confirmLabel: 'Move to trash', danger: true,
-    });
-    if (!confirmed) return;
+    const paths = entries.map((entry) => entry.path);
     try {
-      const body = await postForm('/api/v1/files/trash', { path, paths: entries.map((entry) => entry.path) });
+      const confirmed = await window.EnderVault?.askConfirmation({
+        title: 'Move to trash', message: 'Move the selected items to trash?',
+        confirmLabel: 'Move to trash', danger: true,
+      });
+      if (!confirmed || !isCurrent()) return;
+      const body = await postForm('/api/v1/files/trash', { path, paths });
       notify(body);
-      setSelected(new Set());
+      if (isCurrent()) {
+        const removed = new Set(paths);
+        setSelected((current) => new Set([...current].filter((item) => !removed.has(item))));
+      }
       if (body.task) {
         window.EnderVaultServerTasks?.track(body.task, {
           announceStart: true,
           refreshUrl: '/files?path=' + encodeURIComponent(path),
         });
-      } else { reload(); }
+      } else if (isCurrent()) { reload(); }
     } catch (reason) { toastError(reason, 'Items could not be moved to trash.'); }
   };
   const downloadEntries = (entries = selectedEntries) => {

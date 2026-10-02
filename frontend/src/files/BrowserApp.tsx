@@ -57,9 +57,11 @@ export function BrowserApp() {
   });
   useSelectionShortcuts({
     enabled: Boolean(payload && !loading && !error && payload.directories.length + payload.entries.length > 0),
+    contextKey: listingRequestKeyFor(currentState),
     selectedCount: selection.selectedEntries.length,
     selectAll: selection.selectAll,
     clearSelection: selection.clearSelection,
+    deleteSelection: (isCurrent) => actions.moveEntriesToTrash(selection.selectedEntries, isCurrent),
     scope: () => document.querySelector<HTMLElement>('.app-main'),
   });
 
