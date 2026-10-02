@@ -29,10 +29,10 @@ test('collapsed height and resize clearance follow UI density while expanded bou
   assert.match(rule('.sticky-note-status'), /flex: 0 0 auto/);
   assert.match(rule('.sticky-note-status'), /padding: 2px calc\(var\(--sticky-note-content-padding\) \+ var\(--sticky-note-resize-size\)\)/);
   const card = rule('.sticky-note-card');
-  assert.match(card, /min-width: 220px/);
+  assert.match(card, /min-width: min\(220px, max\(0px, calc\(100% - 16px\)\)\)/);
   assert.match(card, /min-height: 140px/);
-  assert.match(card, /max-width: min\(600px, calc\(100vw - 16px\)\)/);
-  assert.match(card, /max-height: min\(700px, calc\(100vh - 16px\)\)/);
+  assert.match(card, /max-width: min\(600px, max\(0px, calc\(100% - 16px\)\)\)/);
+  assert.match(card, /max-height: 700px/);
   assert.doesNotMatch(card, /(?:^|;)\s*(?:width|height|transform):/);
 });
 

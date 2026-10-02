@@ -8,14 +8,23 @@
     color: var(--success);
 }
 
+.app-main:has(> .sticky-note-layer) {
+    position: relative;
+    display: flow-root;
+    min-height: var(--sticky-note-page-height, 0px);
+}
+
 .sticky-note-layer {
-    position: fixed;
+    position: absolute;
     inset: 0;
     z-index: 45;
     pointer-events: none;
 }
 
-.sticky-note-layer.is-interacting {
+.sticky-note-layer.is-interacting::before {
+    content: "";
+    position: fixed;
+    inset: 0;
     pointer-events: auto;
 }
 
@@ -35,13 +44,13 @@
 }
 
 .sticky-note-card {
-    position: fixed;
+    position: absolute;
     display: flex;
     flex-direction: column;
-    min-width: 220px;
+    min-width: min(220px, max(0px, calc(100% - 16px)));
     min-height: 140px;
-    max-width: min(600px, calc(100vw - 16px));
-    max-height: min(700px, calc(100vh - 16px));
+    max-width: min(600px, max(0px, calc(100% - 16px)));
+    max-height: 700px;
     overflow: hidden;
     pointer-events: auto;
     border: 1px solid var(--sticky-note-border);
@@ -187,11 +196,4 @@
     color: color-mix(in srgb, var(--sticky-note-text) 66%, transparent);
     font-size: var(--sticky-note-status-font-size);
     text-align: right;
-}
-
-@media (max-width: 720px) {
-    .sticky-note-card {
-        max-width: calc(100vw - 12px);
-        max-height: calc(100vh - 12px);
-    }
 }

@@ -160,6 +160,43 @@ class StickyNoteFlowTest {
     }
 
     @Test
+    void pagePlacementRoundTripsAndRejectsInvalidAndOldClientUpdates() throws Exception {
+        String createJson = """
+                {"targetType":"PAGE", "targetKey":"dashboard", "surface":"PAGE",
+                "x":120, "y":45000, "xRatio":0.75}
+                """;
+        MvcResult created = mockMvc.perform(post("/api/v1/sticky-notes").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(createJson))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.note.xRatio").value(0.75))
+                .andExpect(jsonPath("$.note.y").value(45000)).andReturn();
+        String id = objectMapper.readTree(created.getResponse().getContentAsByteArray()).path("note").path("id").asText();
+
+        String updated = """
+                {"content":"Page note", "x":160, "y":85000, "xRatio":0.9,
+                "width":600, "height":700, "collapsed":true, "layer":1}
+                """;
+        mockMvc.perform(put("/api/v1/sticky-notes/{id}", id).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(updated))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.note.xRatio").value(0.9))
+                .andExpect(jsonPath("$.note.y").value(85000));
+        mockMvc.perform(put("/api/v1/sticky-notes/{id}", id).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(updated.replace("\"xRatio\":0.9,", "")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.notification.message").value("Refresh this page before editing the sticky note."));
+        mockMvc.perform(put("/api/v1/sticky-notes/{id}", id).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(updated.replace("0.9", "1.2")))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/sticky-notes").param("targetType", "PAGE")
+                        .param("targetKey", "dashboard").param("surface", "PAGE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.notes[0].xRatio").value(0.9))
+                .andExpect(jsonPath("$.notes[0].width").value(600));
+        mockMvc.perform(delete("/api/v1/sticky-notes/{id}", id).with(csrf())).andExpect(status().isOk());
+    }
+
+    @Test
     void removedSearchHtmlEndpointIsNotAvailable() throws Exception {
         mockMvc.perform(get("/files/search"))
                 .andExpect(status().isNotFound());

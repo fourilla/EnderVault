@@ -1,3 +1,5 @@
+import { NOTE_MARGIN, projectNotePosition, pagePlacement, defaultNotePlacement, edgeScrollDelta } from "./sticky-note-placement.js";
+
 (function () {
     const metaValue = (name) => document.querySelector(`meta[name="${name}"]`)?.content || "";
     const context = {
@@ -13,8 +15,8 @@
 
     const apiRoot = "/api/v1/sticky-notes";
     const hiddenPreferenceKey = "endervault.stickyNotes.hidden";
-    let controls = document.querySelector("[data-sticky-note-controls]");
-    let appMain = document.querySelector(".app-main") || document.body;
+    let controls = null;
+    let appMain = null;
     const states = new Map();
     const minimumWidth = 220;
     const minimumHeight = 140;
@@ -24,7 +26,9 @@
     let layer;
     let activePointerInteractions = 0;
     let contextRevision = 0;
-    let initialized = false;
+    let layoutObserver;
+    let layoutFrame = null;
+    let controlListeners = [];
 
     const csrfHeaders = () => {
         const csrf = window.EnderVault?.csrfPair();
@@ -50,8 +54,9 @@
         content: state.editor.value,
         x: state.x,
         y: state.y,
-        width: Math.round(state.card.offsetWidth),
-        height: state.collapsed ? state.expandedHeight : Math.round(state.card.offsetHeight),
+        xRatio: state.xRatio,
+        width: state.width,
+        height: state.height,
         collapsed: state.collapsed,
         layer: state.layer
     });
@@ -82,6 +87,10 @@
                 return;
             }
             const backup = JSON.parse(raw);
+            if (backup.content === state.editor.value) {
+                clearLocalBackup(state);
+                return;
+            }
             if (typeof backup.content === "string" && backup.content !== state.editor.value) {
                 state.editor.value = backup.content;
                 state.dirty = true;
@@ -97,7 +106,7 @@
     };
 
     const flush = async (state) => {
-        if (!state.dirty) {
+        if (!state.dirty || states.get(state.id) !== state) {
             return;
         }
         if (state.saving) {
@@ -117,12 +126,20 @@
                 headers: jsonHeaders(),
                 body: JSON.stringify(snapshot(state))
             });
+            if (states.get(state.id) !== state) {
+                return;
+            }
             if (body.note) {
                 state.revision = body.note.revision;
             }
-            clearLocalBackup(state);
-            setStatus(state, "Saved");
+            if (!state.dirty) {
+                clearLocalBackup(state);
+            }
+            setStatus(state, state.dirty ? "Unsaved" : "Saved");
         } catch (error) {
+            if (states.get(state.id) !== state) {
+                return;
+            }
             state.dirty = true;
             rememberLocally(state);
             setStatus(state, "Not saved");
@@ -132,7 +149,7 @@
             }
         } finally {
             state.saving = false;
-            if (state.pending) {
+            if (state.pending && states.get(state.id) === state) {
                 state.pending = false;
                 void flush(state);
             }
@@ -151,15 +168,51 @@
         }
     };
 
-    const appMainLeft = () => appMain.getBoundingClientRect().left;
+    const containerGeometry = () => {
+        const rect = appMain.getBoundingClientRect();
+        return { left: rect.left, top: rect.top, width: appMain.clientWidth, documentTop: rect.top + window.scrollY };
+    };
+
+    const updatePageExtent = () => {
+        if (!appMain || !layer) {
+            return;
+        }
+        const geometry = containerGeometry();
+        let bottom = 0;
+        if (!layer.hidden) {
+            states.forEach((state) => {
+                const position = projectNotePosition(state, geometry, state.card.offsetWidth);
+                bottom = Math.max(bottom, position.y + state.card.offsetHeight + NOTE_MARGIN);
+            });
+        }
+        const value = `${Math.ceil(bottom)}px`;
+        if (appMain.style.getPropertyValue("--sticky-note-page-height") !== value) {
+            appMain.style.setProperty("--sticky-note-page-height", value);
+        }
+    };
 
     const applyPosition = (state) => {
-        const maxX = Math.max(0, window.innerWidth - appMainLeft() - state.card.offsetWidth - 8);
-        const maxY = Math.max(0, window.innerHeight - state.card.offsetHeight - 8);
-        state.x = clamp(state.x, 0, maxX);
-        state.y = clamp(state.y, 0, maxY);
-        state.card.style.left = `${appMainLeft() + state.x}px`;
-        state.card.style.top = `${state.y}px`;
+        const position = projectNotePosition(state, containerGeometry(), state.card.offsetWidth);
+        state.card.style.left = `${position.x}px`;
+        state.card.style.top = `${position.y}px`;
+    };
+
+    const applyLayout = () => {
+        if (!layer) {
+            return;
+        }
+        states.forEach(applyPosition);
+        updatePageExtent();
+    };
+
+    const scheduleLayout = () => {
+        if (!layer || layoutFrame !== null) {
+            return;
+        }
+        layoutFrame = window.requestAnimationFrame(() => {
+            layoutFrame = null;
+            applyLayout();
+        });
     };
 
     const beginPointerInteraction = (state) => {
@@ -192,18 +245,16 @@
         if (collapsed === state.collapsed) {
             return;
         }
-        if (collapsed) {
-            state.expandedHeight = Math.max(140, state.card.offsetHeight);
-        }
         state.collapsed = collapsed;
         state.card.classList.toggle("is-collapsed", collapsed);
         state.collapseIcon.className = collapsed ? "fas fa-chevron-down" : "fas fa-chevron-up";
         state.collapseButton.title = collapsed ? "Expand sticky note" : "Collapse sticky note";
         state.collapseButton.setAttribute("aria-label", state.collapseButton.title);
         if (!collapsed) {
-            state.card.style.height = `${state.expandedHeight}px`;
+            state.card.style.height = `${state.height}px`;
         }
         applyPosition(state);
+        updatePageExtent();
         if (persist) {
             scheduleSave(state);
         }
@@ -216,15 +267,12 @@
             confirmLabel: "Delete",
             danger: true
         });
-        if (!confirmed) {
+        if (!confirmed || states.get(state.id) !== state) {
             return;
         }
         try {
             const body = await requestDelete(state.id);
             clearLocalBackup(state);
-            state.resizeObserver?.disconnect();
-            state.card.remove();
-            states.delete(state.id);
             document.dispatchEvent(new CustomEvent("endervault:sticky-note-deleted", {
                 detail: { id: state.id }
             }));
@@ -234,90 +282,147 @@
         }
     };
 
+    const trackPointer = (state, handle, event, onMove, onEnd, autoScroll = false) => {
+        let pointer = { clientX: event.clientX, clientY: event.clientY };
+        let finished = false;
+        let scrolling = false;
+        let frame = null;
+        let lastTime = null;
+
+        const finish = (persist = true) => {
+            if (finished) {
+                return;
+            }
+            finished = true;
+            window.cancelAnimationFrame(frame);
+            handle.removeEventListener("pointermove", move);
+            handle.removeEventListener("pointerup", ended);
+            handle.removeEventListener("pointercancel", ended);
+            handle.removeEventListener("lostpointercapture", ended);
+            window.removeEventListener("blur", ended);
+            document.removeEventListener("visibilitychange", visibilityChanged);
+            state.endInteraction = null;
+            if (handle.hasPointerCapture(event.pointerId)) {
+                handle.releasePointerCapture(event.pointerId);
+            }
+            endPointerInteraction(state);
+            onEnd(persist);
+        };
+        const ended = (endEvent) => {
+            if (endEvent?.pointerId != null && endEvent.pointerId !== event.pointerId) {
+                return;
+            }
+            finish();
+        };
+        const visibilityChanged = () => {
+            if (document.visibilityState === "hidden") {
+                finish();
+            }
+        };
+        const tick = (time) => {
+            frame = null;
+            if (finished || document.querySelector("dialog:modal")) {
+                finish();
+                return;
+            }
+            const top = Math.max(0, document.querySelector(".app-topbar")?.getBoundingClientRect().bottom || 0);
+            const delta = edgeScrollDelta(pointer.clientY, top, window.innerHeight, lastTime === null ? 16 : time - lastTime);
+            lastTime = time;
+            if (delta !== 0) {
+                const previous = window.scrollY;
+                window.scrollBy({ top: delta, behavior: "instant" });
+                if (window.scrollY !== previous) {
+                    onMove(pointer);
+                }
+            }
+            frame = window.requestAnimationFrame(tick);
+        };
+        const move = (moveEvent) => {
+            if (moveEvent.pointerId !== event.pointerId) {
+                return;
+            }
+            moveEvent.preventDefault();
+            pointer = { clientX: moveEvent.clientX, clientY: moveEvent.clientY };
+            if (onMove(pointer) && autoScroll && !scrolling) {
+                scrolling = true;
+                frame = window.requestAnimationFrame(tick);
+            }
+        };
+
+        state.endInteraction = finish;
+        handle.setPointerCapture(event.pointerId);
+        beginPointerInteraction(state);
+        handle.addEventListener("pointermove", move);
+        handle.addEventListener("pointerup", ended);
+        handle.addEventListener("pointercancel", ended);
+        handle.addEventListener("lostpointercapture", ended);
+        window.addEventListener("blur", ended);
+        document.addEventListener("visibilitychange", visibilityChanged);
+    };
+
     const enableDragging = (state, handle) => {
         handle.addEventListener("pointerdown", (event) => {
-            if (event.button !== 0 || event.target.closest("button")) {
+            if (event.button !== 0 || event.target.closest("button") || state.endInteraction) {
                 return;
             }
             bringToFront(state, false);
-            const cardRect = state.card.getBoundingClientRect();
-            const offsetX = event.clientX - cardRect.left;
-            const offsetY = event.clientY - cardRect.top;
-            const startX = event.clientX;
-            const startY = event.clientY;
+            const rect = state.card.getBoundingClientRect();
+            const offsetX = event.clientX - rect.left;
+            const offsetY = event.clientY - rect.top;
             let moved = false;
-            handle.setPointerCapture(event.pointerId);
-            beginPointerInteraction(state);
-
-            const onMove = (moveEvent) => {
-                if (!moved && Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) < 3) {
-                    return;
+            trackPointer(state, handle, event, (pointer) => {
+                if (!moved && Math.hypot(pointer.clientX - event.clientX, pointer.clientY - event.clientY) < 3) {
+                    return false;
                 }
                 moved = true;
-                moveEvent.preventDefault();
-                state.x = moveEvent.clientX - appMainLeft() - offsetX;
-                state.y = moveEvent.clientY - offsetY;
-                applyPosition(state);
-            };
-            const onEnd = () => {
-                handle.removeEventListener("pointermove", onMove);
-                handle.removeEventListener("pointerup", onEnd);
-                handle.removeEventListener("pointercancel", onEnd);
-                endPointerInteraction(state);
-                if (moved) {
+                const geometry = containerGeometry();
+                Object.assign(state, pagePlacement(pointer.clientX - geometry.left - offsetX,
+                        pointer.clientY - geometry.top - offsetY, geometry.width, state.card.offsetWidth,
+                        state.xRatio ?? 0));
+                applyLayout();
+                return true;
+            }, (persist) => {
+                if (persist && moved) {
                     scheduleSave(state);
                 }
-            };
-            handle.addEventListener("pointermove", onMove);
-            handle.addEventListener("pointerup", onEnd);
-            handle.addEventListener("pointercancel", onEnd);
+            }, true);
         });
     };
 
     const enableResizing = (state, handle) => {
         handle.addEventListener("pointerdown", (event) => {
-            if (event.button !== 0 || state.collapsed) {
+            if (event.button !== 0 || state.collapsed || state.endInteraction) {
                 return;
             }
             event.preventDefault();
             event.stopPropagation();
             bringToFront(state, false);
-            const cardRect = state.card.getBoundingClientRect();
-            const startX = event.clientX;
-            const startY = event.clientY;
-            const startWidth = cardRect.width;
-            const startHeight = cardRect.height;
-            const maxWidth = Math.max(minimumWidth, Math.min(maximumWidth, window.innerWidth - cardRect.left - 8));
-            const maxHeight = Math.max(minimumHeight, Math.min(maximumHeight, window.innerHeight - cardRect.top - 8));
+            const rect = state.card.getBoundingClientRect();
+            const initialGeometry = containerGeometry();
+            const left = rect.left - initialGeometry.left;
+            const top = rect.top - initialGeometry.top;
             let resized = false;
-            state.resizing = true;
-            handle.setPointerCapture(event.pointerId);
-            beginPointerInteraction(state);
-
-            const onMove = (moveEvent) => {
-                moveEvent.preventDefault();
-                const width = clamp(startWidth + moveEvent.clientX - startX, minimumWidth, maxWidth);
-                const height = clamp(startHeight + moveEvent.clientY - startY, minimumHeight, maxHeight);
-                resized = resized || Math.round(width) !== Math.round(startWidth)
-                        || Math.round(height) !== Math.round(startHeight);
-                state.card.style.width = `${Math.round(width)}px`;
-                state.card.style.height = `${Math.round(height)}px`;
-                state.expandedHeight = Math.round(height);
-                applyPosition(state);
-            };
-            const onEnd = () => {
-                handle.removeEventListener("pointermove", onMove);
-                handle.removeEventListener("pointerup", onEnd);
-                handle.removeEventListener("pointercancel", onEnd);
-                state.resizing = false;
-                endPointerInteraction(state);
-                if (resized) {
+            trackPointer(state, handle, event, (pointer) => {
+                const geometry = containerGeometry();
+                const maxWidth = Math.max(minimumWidth, Math.min(maximumWidth, geometry.width - left - NOTE_MARGIN));
+                const width = Math.round(clamp(rect.width + pointer.clientX - event.clientX, minimumWidth, maxWidth));
+                const height = Math.round(clamp(rect.height + pointer.clientY - event.clientY, minimumHeight, maximumHeight));
+                if (!resized && width === Math.round(rect.width) && height === Math.round(rect.height)) {
+                    return false;
+                }
+                resized = true;
+                state.width = width;
+                state.height = height;
+                state.card.style.width = `${width}px`;
+                state.card.style.height = `${height}px`;
+                Object.assign(state, pagePlacement(left, top, geometry.width, state.card.offsetWidth, state.xRatio ?? 0));
+                applyLayout();
+                return true;
+            }, (persist) => {
+                if (persist && resized) {
                     scheduleSave(state);
                 }
-            };
-            handle.addEventListener("pointermove", onMove);
-            handle.addEventListener("pointerup", onEnd);
-            handle.addEventListener("pointercancel", onEnd);
+            });
         });
     };
 
@@ -384,7 +489,9 @@
             collapseIcon: collapse.icon,
             x: note.x,
             y: note.y,
-            expandedHeight: note.height,
+            xRatio: note.xRatio ?? null,
+            width: note.width,
+            height: note.height,
             collapsed: false,
             layer: note.layer,
             revision: note.revision,
@@ -394,16 +501,14 @@
             debounceTimer: null,
             maxTimer: null,
             errorShown: false,
-            resizing: false,
-            resizeObserver: null,
-            lastWidth: note.width,
-            lastHeight: note.height
+            endInteraction: null
         };
         states.set(note.id, state);
         topLayer = Math.max(topLayer, note.layer);
         restoreLocalBackup(state);
         setCollapsed(state, note.collapsed, false);
         applyPosition(state);
+        updatePageExtent();
         if (state.dirty) {
             scheduleSave(state);
         }
@@ -422,32 +527,22 @@
         enableDragging(state, header);
         enableResizing(state, resizeHandle);
 
-        if (window.ResizeObserver) {
-            state.resizeObserver = new ResizeObserver(() => {
-                if (state.collapsed) {
-                    return;
-                }
-                const width = Math.round(card.offsetWidth);
-                const height = Math.round(card.offsetHeight);
-                if (width === state.lastWidth && height === state.lastHeight) {
-                    return;
-                }
-                state.lastWidth = width;
-                state.lastHeight = height;
-                state.expandedHeight = height;
-                applyPosition(state);
-                if (!state.resizing) {
-                    scheduleSave(state);
-                }
-            });
-            state.resizeObserver.observe(card);
-        }
+        layoutObserver?.observe(card);
     };
 
     const createNote = async (clientX = null, clientY = null) => {
+        if (!layer) {
+            return;
+        }
         const offset = states.size * 24;
-        const requestedX = Number.isFinite(clientX) ? clientX - appMainLeft() : 24 + offset;
-        const requestedY = Number.isFinite(clientY) ? clientY : 84 + offset;
+        const geometry = containerGeometry();
+        const topbarBottom = document.querySelector(".app-topbar")?.getBoundingClientRect().bottom || 0;
+        const noteWidth = Math.min(280, Math.max(0, geometry.width - 2 * NOTE_MARGIN));
+        const position = Number.isFinite(clientX) && Number.isFinite(clientY)
+                ? pagePlacement(clientX - geometry.left, clientY - geometry.top, geometry.width, noteWidth)
+                : defaultNotePlacement(geometry, { top: topbarBottom, bottom: window.innerHeight },
+                        { width: noteWidth, height: 220 }, offset);
+        const revision = contextRevision;
         try {
             const body = await window.EnderVault.requestJson(apiRoot, {
                 method: "POST",
@@ -456,21 +551,31 @@
                     targetType: context.targetType,
                     targetKey: context.targetKey,
                     surface: context.surface,
-                    x: Math.max(0, Math.round(requestedX)),
-                    y: Math.max(0, Math.round(requestedY))
+                    ...position
                 })
             });
-            setAllHidden(false);
-            renderNote(body.note);
-            states.get(body.note.id)?.editor.focus();
+            if (revision === contextRevision && layer) {
+                setAllHidden(false);
+                renderNote(body.note);
+                states.get(body.note.id)?.editor.focus({ preventScroll: true });
+            }
             window.EnderVault.showNotification(body.notification);
         } catch (error) {
-            showToast("error", error.message || "Sticky note could not be created.");
+            if (revision === contextRevision && layer) {
+                showToast("error", error.message || "Sticky note could not be created.");
+            }
         }
     };
 
     const setAllHidden = (hidden) => {
+        if (!layer) {
+            return;
+        }
+        if (hidden) {
+            states.forEach((state) => state.endInteraction?.());
+        }
         layer.hidden = hidden;
+        updatePageExtent();
         const button = controls?.querySelector("[data-sticky-note-visibility]");
         const trigger = controls?.querySelector("[data-sticky-note-trigger]");
         const label = button?.querySelector("[data-sticky-note-visibility-label]");
@@ -533,12 +638,16 @@
 
     const clearRenderedNotes = () => {
         states.forEach((state) => {
+            state.endInteraction?.();
+            window.clearTimeout(state.debounceTimer);
+            window.clearTimeout(state.maxTimer);
             keepaliveFlush(state);
-            state.resizeObserver?.disconnect();
+            layoutObserver?.unobserve(state.card);
             state.card.remove();
         });
         states.clear();
         topLayer = 1;
+        updatePageExtent();
     };
 
     const loadCurrentContext = async () => {
@@ -548,8 +657,16 @@
             targetKey: context.targetKey,
             surface: context.surface
         });
-        const body = await window.EnderVault.requestJson(`${apiRoot}?${query}`);
-        if (revision !== contextRevision) {
+        let body;
+        try {
+            body = await window.EnderVault.requestJson(`${apiRoot}?${query}`);
+        } catch (error) {
+            if (revision === contextRevision && layer) {
+                throw error;
+            }
+            return;
+        }
+        if (revision !== contextRevision || !layer) {
             return;
         }
         body.notes.forEach(renderNote);
@@ -589,35 +706,71 @@
             return;
         }
         clearLocalBackup(state);
-        state.resizeObserver?.disconnect();
+        state.endInteraction?.(false);
+        window.clearTimeout(state.debounceTimer);
+        window.clearTimeout(state.maxTimer);
+        layoutObserver?.unobserve(state.card);
         state.card.remove();
         states.delete(id);
+        updatePageExtent();
     });
 
-    const initialize = async () => {
-        if (initialized) {
+    const detachShell = (host = layer) => {
+        if (!layer || host !== layer) {
             return;
         }
-        controls = document.querySelector("[data-sticky-note-controls]");
-        if (!window.EnderVault || !controls) {
-            return;
-        }
-        initialized = true;
-        appMain = document.querySelector(".app-main") || document.body;
-        controls.hidden = false;
-        layer = document.createElement("div");
-        layer.className = "sticky-note-layer";
-        layer.setAttribute("aria-label", "Sticky notes");
-        document.body.append(layer);
+        contextRevision += 1;
+        clearRenderedNotes();
+        window.cancelAnimationFrame(layoutFrame);
+        layoutFrame = null;
+        layoutObserver?.disconnect();
+        layoutObserver = null;
+        controlListeners.forEach((remove) => remove());
+        controlListeners = [];
+        layer.classList.remove("is-interacting");
+        activePointerInteractions = 0;
+        layer = null;
+        appMain = null;
+        controls = null;
+    };
 
-        controls.querySelector("[data-sticky-note-add]")?.addEventListener("click", () => void createNote());
-        controls.querySelector("[data-sticky-note-visibility]")?.addEventListener("click", () => setAllHidden(!layer.hidden));
-        controls.querySelector("[data-sticky-note-trigger]")?.addEventListener("click", () => setAllHidden(!layer.hidden));
+    const initialize = async () => {
+        const nextControls = document.querySelector("[data-sticky-note-controls]");
+        const nextMain = document.querySelector(".app-main");
+        const nextLayer = document.querySelector("[data-sticky-note-layer]");
+        if (!window.EnderVault || !nextControls || !nextMain || !nextLayer) {
+            return;
+        }
+        if (layer === nextLayer && appMain === nextMain && controls === nextControls) {
+            return;
+        }
+        detachShell();
+        controls = nextControls;
+        appMain = nextMain;
+        layer = nextLayer;
+        controls.hidden = false;
+        if (window.ResizeObserver) {
+            layoutObserver = new window.ResizeObserver(scheduleLayout);
+            layoutObserver.observe(appMain);
+        }
+
+        const bindControl = (selector, handler) => {
+            const button = controls.querySelector(selector);
+            if (!button) {
+                return;
+            }
+            button.addEventListener("click", handler);
+            controlListeners.push(() => button.removeEventListener("click", handler));
+        };
+        bindControl("[data-sticky-note-add]", () => void createNote());
+        bindControl("[data-sticky-note-visibility]", () => setAllHidden(!layer.hidden));
+        bindControl("[data-sticky-note-trigger]", () => setAllHidden(!layer.hidden));
         window.EnderVaultContextMenus?.registerGlobalAction({
             id: "new-sticky-note",
             group: "sticky-note",
             label: "New sticky note",
             icon: "fas fa-note-sticky",
+            visible: () => Boolean(layer),
             run: (menuContext) => createNote(menuContext?.event?.clientX, menuContext?.event?.clientY)
         });
 
@@ -634,14 +787,24 @@
         } catch (error) {
             showToast("error", error.message || "Sticky notes could not be loaded.");
         }
-        window.addEventListener("resize", () => states.forEach(applyPosition));
-        window.addEventListener("pagehide", () => states.forEach(keepaliveFlush));
-        document.addEventListener("visibilitychange", () => {
-            if (document.visibilityState === "hidden") {
-                states.forEach(keepaliveFlush);
-            }
-        });
     };
+
+    const flushBeforeLeaving = () => states.forEach((state) => {
+        state.endInteraction?.();
+        keepaliveFlush(state);
+    });
+    window.addEventListener("resize", scheduleLayout);
+    window.addEventListener("pagehide", flushBeforeLeaving);
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden") {
+            flushBeforeLeaving();
+        }
+    });
+    document.addEventListener("endervault:spa-shell-disposed", (event) => {
+        if (event.detail?.host) {
+            detachShell(event.detail.host);
+        }
+    });
 
     const initializeWhenReady = () => void initialize();
     if (document.readyState === "loading") {

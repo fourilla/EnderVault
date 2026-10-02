@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Outlet, ScrollRestoration, useLocation } from 'react-router-dom';
 import { AdminSidebar } from './AdminSidebar';
 import { AdminTopbar } from './AdminTopbar';
@@ -16,9 +16,17 @@ import './app-shell.css';
 export function AppShell() {
   const location = useLocation();
   const sidebar = useSidebarLayout(location.key);
+  const stickyNoteHost = useRef<HTMLDivElement>(null);
   const [favoritesOpen, setFavoritesOpen] = useState(true);
   const sidebarContent = <AdminSidebar favoritesOpen={favoritesOpen}
     onToggleFavorites={() => setFavoritesOpen((open) => !open)} />;
+
+  useEffect(() => {
+    const host = stickyNoteHost.current;
+    return () => {
+      document.dispatchEvent(new CustomEvent('endervault:spa-shell-disposed', { detail: { host } }));
+    };
+  }, []);
 
   useEffect(() => {
     const entry = navigationEntryForPathname(location.pathname);
@@ -61,6 +69,7 @@ export function AppShell() {
               <main className="workspace">
                 <Outlet />
               </main>
+              <div ref={stickyNoteHost} className="sticky-note-layer" data-sticky-note-layer aria-label="Sticky notes" />
               <ScrollRestoration />
             </div>
             </DecisionDialogProvider>
