@@ -1,5 +1,9 @@
 import type { RecentHistoryState, RecentPayload } from './types';
 
+export const recentRequestKeyFor = (state: RecentHistoryState) => [
+  state.query, state.page, state.sort || '', state.direction || '', state.hidden || '', state.pageSize || '',
+].join('\u0000');
+
 export const loadRecentPayload = async (state: RecentHistoryState, signal: AbortSignal) => {
   const query = new URLSearchParams();
   if (state.query) query.set('q', state.query);

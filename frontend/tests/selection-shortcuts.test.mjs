@@ -304,7 +304,7 @@ test('selection identity follows all request conditions but ignores view and scr
   assert.equal(key(initial), key({ ...initial, view: 'grid', scrollTop: 600 }));
 });
 
-test('only Files/Search registers shortcuts in this stage and empty/loading/failed lists disable them', () => {
+test('Files/Search, Bookmarks and Recent explicitly opt in; public and non-selectable lists do not', () => {
   const app = readFileSync(new URL('../src/files/BrowserApp.tsx', import.meta.url), 'utf8');
   assert.match(app, /listingRequestKeyFor\(currentState\)/);
   assert.match(app, /useSelectionShortcuts\(\{[\s\S]*payload && !loading && !error/);
@@ -313,7 +313,19 @@ test('only Files/Search registers shortcuts in this stage and empty/loading/fail
   assert.match(app, /clearSelection: selection\.clearSelection/);
   assert.match(app, /contextKey: listingRequestKeyFor\(currentState\)/);
   assert.match(app, /deleteSelection: \(isCurrent\) => actions\.moveEntriesToTrash\(selection\.selectedEntries, isCurrent\)/);
-  for (const file of ['bookmarks/BookmarksApp.tsx', 'recent/RecentApp.tsx', 'shares/SharedLinksApp.tsx',
+  for (const file of ['bookmarks/BookmarksApp.tsx', 'recent/RecentApp.tsx']) {
+    const page = readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8');
+    assert.match(page, /useSelectionShortcuts\(\{[\s\S]*payload && !loading && !error && entries\.length > 0/);
+    assert.match(page, /contextKey: selectionKey/);
+    assert.match(page, /selectAll: selection\.selectAll/);
+    assert.match(page, /clearSelection: selection\.clearSelection/);
+    assert.match(page, /guard\(\) && isCurrent\(\)/);
+  }
+  const bookmarks = readFileSync(new URL('../src/bookmarks/BookmarksApp.tsx', import.meta.url), 'utf8');
+  assert.match(bookmarks, /deleteSelection: \(guard\) => actions\.deleteEntries\(selection\.selectedItems/);
+  const recent = readFileSync(new URL('../src/recent/RecentApp.tsx', import.meta.url), 'utf8');
+  assert.match(recent, /deleteSelection: \(guard\) => removeEntries\(selection\.selectedEntries, \{\s*confirm: true/);
+  for (const file of ['shares/SharedLinksApp.tsx',
     'file-requests/FileRequestsApp.tsx', 'shared-file/SharedComicViewer.tsx']) {
     assert.doesNotMatch(readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8'), /useSelectionShortcuts/);
   }

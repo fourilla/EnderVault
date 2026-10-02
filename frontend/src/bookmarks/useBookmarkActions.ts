@@ -64,31 +64,34 @@ export function useBookmarkActions({
     }
   };
 
-  const deleteEntries = async (entries = selectedEntries) => {
-    if (entries.length === 0) return;
-    const confirmed = await window.EnderVault?.askConfirmation({
-      title: entries.length === 1 ? 'Delete bookmark' : 'Delete bookmarks',
-      message: entries.length === 1
-        ? `Delete "${entries[0].title}"?`
-        : `Delete ${entries.length} selected bookmark items?`,
-      confirmLabel: 'Delete',
-      danger: true,
-    });
-    if (!confirmed) return;
+  const deleteEntries = async (entries = selectedEntries, isCurrent = () => true) => {
+    if (entries.length === 0 || !isCurrent()) return;
+    const ids = entries.map((entry) => entry.id);
+    const title = entries[0].title;
+    const { directoryId, query } = effectiveState();
     try {
-      const state = effectiveState();
-      const body = entries.length === 1
+      const confirmed = await window.EnderVault?.askConfirmation({
+        title: ids.length === 1 ? 'Delete bookmark' : 'Delete bookmarks',
+        message: ids.length === 1 ? `Delete "${title}"?` : `Delete ${ids.length} selected bookmark items?`,
+        confirmLabel: 'Delete',
+        danger: true,
+      });
+      if (!confirmed || !isCurrent()) return;
+      const body = ids.length === 1
         ? await postForm('/api/v1/bookmarks/delete', {
-          id: entries[0].id, parentId: state.directoryId, q: state.query,
+          id: ids[0], parentId: directoryId, q: query,
         })
         : await postForm('/api/v1/bookmarks/delete-selected', {
-          bookmarkIds: entries.map((entry) => entry.id),
-          parentId: state.directoryId,
-          q: state.query,
+          bookmarkIds: ids,
+          parentId: directoryId,
+          q: query,
         });
       notify(body);
-      setSelected(new Set());
-      reload();
+      if (isCurrent()) {
+        const removed = new Set(ids);
+        setSelected((current) => new Set([...current].filter((id) => !removed.has(id))));
+        reload();
+      }
     } catch (reason) {
       toastError(reason, 'Bookmark deletion failed.');
     }

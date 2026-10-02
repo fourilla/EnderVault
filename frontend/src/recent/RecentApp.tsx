@@ -5,8 +5,9 @@ import { BrowserPagination } from '../shared/browser/BrowserPagination';
 import { LoadingState } from '../shared/layout/LoadingState';
 import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import { ViewOptionsControl } from '../shared/browser/ViewOptionsControl';
-import type { BrowserEntry } from '../shared/browser/types';
+import type { BrowserView } from '../shared/browser/types';
 import { useEntrySelection } from '../shared/browser/useEntrySelection';
+import { useSelectionShortcuts } from '../shared/browser/useSelectionShortcuts';
 import { useNavigationScroll } from '../shared/browser/useNavigationScroll';
 import { createFileEntryActions } from '../shared/browser/file-entry-actions';
 import { fileEntryMenuActions } from '../shared/browser/file-entry-menu-actions';
@@ -16,7 +17,8 @@ import { useAdminApp } from '../app/AdminAppContext';
 import { useRouteSearch } from '../app/RouteSearch';
 import { FloatingPageActions } from '../app/FloatingPageActions';
 import { notify, postForm, toastError } from '../shared/api/form-api';
-import { canonicalRecentState, loadRecentPayload } from './recent-api';
+import { canonicalRecentState, loadRecentPayload, recentRequestKeyFor } from './recent-api';
+import { createRecentActions } from './recent-actions';
 import { recentHistory } from './recent-history';
 import { useListingHistory, useListingSnapshot } from '../shared/browser/ListingHistoryContext';
 import type { RecentHistoryState, RecentPayload, RecentSort } from './types';
@@ -85,8 +87,10 @@ export function RecentApp() {
   const openDirectory = useCallback((path: string) => {
     routeNavigate('/files?path=' + encodeURIComponent(path));
   }, [routeNavigate]);
+  const current = effectiveState();
+  const selectionKey = recentRequestKeyFor(current);
   const selection = useEntrySelection(entries, true, openDirectory,
-    [state.query, state.page].join('\u0000'), openFile);
+    selectionKey, openFile);
   const reload = useCallback(() => setRefreshToken((current) => current + 1), []);
   useListingRefresh(reload);
   const actions = createFileEntryActions({
@@ -94,21 +98,20 @@ export function RecentApp() {
     zipDownloadUrl: '/files/recent/download.zip',
   });
 
-  const removeEntries = async (entries: BrowserEntry[]) => {
-    if (entries.length === 0) return;
-    try {
-      const body = await postForm('/api/v1/recent/remove', {
-        paths: entries.map((entry) => entry.path),
-        q: state.query,
-        page: state.page,
-      });
-      notify(body);
-      selection.setSelected(new Set());
-      reload();
-    } catch (reason) {
-      toastError(reason, 'Recent items could not be removed.');
-    }
-  };
+  const { removeEntries } = createRecentActions({
+    setSelected: selection.setSelected, effectiveState, reload,
+  });
+  useSelectionShortcuts({
+    enabled: Boolean(payload && !loading && !error && entries.length > 0),
+    contextKey: selectionKey,
+    selectedCount: selection.selectedEntries.length,
+    selectAll: selection.selectAll,
+    clearSelection: selection.clearSelection,
+    deleteSelection: (guard) => removeEntries(selection.selectedEntries, {
+      confirm: true, isCurrent: () => guard() && isCurrent(),
+    }),
+    scope: () => document.querySelector<HTMLElement>('.app-main'),
+  });
 
   const menuActions = fileEntryMenuActions({ actions, browse: openDirectory, openFile,
     createFileRequest: adminApp.bootstrap.capabilities.fileRequests ? (path) => routeNavigate('/admin/file-requests?'
@@ -145,8 +148,21 @@ export function RecentApp() {
     event.preventDefault();
     navigate({ ...effectiveState(), query: searchText.trim(), page: 1, scrollTop: 0 });
   };
-  const applyPreferences = (updates: Partial<RecentHistoryState>) =>
-    navigate({ ...effectiveState(), ...updates, page: 1, scrollTop: 0 });
+  const applyView = (view: BrowserView) => {
+    if (!isCurrent() || !payloadRef.current || payloadRef.current.preferences.view === view) return;
+    const next = { ...effectiveState(), view };
+    stateRef.current = next;
+    remember(next);
+    const updated = { ...payloadRef.current, preferences: { ...payloadRef.current.preferences, view } };
+    payloadRef.current = updated;
+    setPayload(updated);
+    // Persist through the existing Recent GET without replacing the visit or clearing its items.
+    reload();
+  };
+  const applyPreferences = (updates: Partial<RecentHistoryState>) => {
+    if (updates.view && Object.keys(updates).every((key) => key === 'view')) applyView(updates.view);
+    else navigate({ ...effectiveState(), ...updates, page: 1, scrollTop: 0 });
+  };
   const resetPreferences = async () => {
     const body = await postForm('/api/v1/browser-preferences/reset', { target: 'recent', q: state.query });
     notify(body);
@@ -154,7 +170,6 @@ export function RecentApp() {
       direction: undefined, hidden: undefined, pageSize: undefined, scrollTop: 0 }, true);
   };
   const preferences = payload?.preferences;
-  const current = effectiveState();
   useRouteSearch({ label: 'Search in recent', value: searchText,
     onChange: setSearchText, onSubmit: submitSearch });
   return (
