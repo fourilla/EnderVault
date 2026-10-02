@@ -13,7 +13,12 @@ const code = (Array.isArray(result) ? result[0] : result).output.find((item) => 
 
 function setup(itemKey) {
   let index = 0;
-  const slots = [], effects = [], listeners = new Map();
+  const slots = [], effects = [], listeners = new Map(), timers = new Map();
+  let timerId = 0;
+  const window = {
+    setTimeout: (fn) => { timers.set(++timerId, fn); return timerId; },
+    clearTimeout: (id) => timers.delete(id),
+  };
   const document = {
     addEventListener: (name, listener) => listeners.set(name, listener),
     removeEventListener: (name, listener) => { if (listeners.get(name) === listener) listeners.delete(name); },
@@ -37,7 +42,7 @@ function setup(itemKey) {
     },
   };
   const module = { exports: {} };
-  vm.runInNewContext(code, { module, exports: module.exports, document, require: () => react });
+  vm.runInNewContext(code, { module, exports: module.exports, document, window, require: () => react });
   const items = [{ path: 'a.txt', id: 'a' }, { path: 'b.txt', id: 'b' }, { path: 'c.txt', id: 'c' }];
   const props = { items, enabled: true, locationKey: 'page', itemKey, openItem() {} };
   const render = () => {
@@ -50,7 +55,8 @@ function setup(itemKey) {
   const click = (ancestors) => listeners.get('click')({ target: {
     closest: (selector) => selector.split(',').some((part) => ancestors.includes(part.trim())) ? {} : null,
   } });
-  return { items, render, click, props, cleanup: () => slots.forEach((slot) => slot?.cleanup?.()) };
+  return { items, render, click, props, timers, listeners,
+    cleanup: () => slots.forEach((slot) => slot?.cleanup?.()) };
 }
 
 for (const [name, key] of [['Files', (item) => item.path], ['Bookmarks', (item) => item.id]]) {
@@ -88,3 +94,77 @@ test('row, toolbar and dialog interactions preserve selection; actual background
     assert.equal(s.render().selected.size, 0);
   } finally { s.cleanup(); }
 });
+
+test('selectAll selects exactly the supplied page and is idempotent, never a toggle', () => {
+  const s = setup((item) => item.path);
+  try {
+    s.props.items = [s.items[0], { path: 'visible-hidden.txt', hidden: true }];
+    s.render().selectAll();
+    const selected = s.render().selected;
+    assert.deepEqual([...selected], ['a.txt', 'visible-hidden.txt']);
+    s.render().selectAll();
+    assert.equal(s.render().selected, selected);
+    s.render().clearSelection();
+    assert.equal(s.render().selected.size, 0);
+    const cleared = s.render().selected;
+    s.render().clearSelection();
+    assert.equal(s.render().selected, cleared);
+    s.props.enabled = false;
+    s.render().selectAll();
+    assert.equal(s.render().selected.size, 0);
+  } finally { s.cleanup(); }
+});
+
+test('refresh prunes missing identities without selecting newly added items or using their names', () => {
+  const s = setup((item) => item.path);
+  try {
+    s.render().selectAll(); s.render();
+    s.props.items = [s.items[2], s.items[0]];
+    s.render();
+    assert.deepEqual([...s.render().selected], ['a.txt', 'c.txt']);
+    s.props.items = [{ path: 'd.txt', name: 'a.txt' }, s.items[2]];
+    s.render();
+    assert.deepEqual([...s.render().selected], ['c.txt']);
+    s.props.items = [];
+    s.render();
+    assert.equal(s.render().selected.size, 0);
+    s.render().selectAll();
+    assert.equal(s.render().selected.size, 0);
+  } finally { s.cleanup(); }
+});
+
+test('a same-list view change preserves selection while a changed condition key clears it', () => {
+  const s = setup((item) => item.path);
+  try {
+    s.render().selectItem(s.items[0], true);
+    s.props.items = s.items.map((item) => ({ ...item }));
+    s.render();
+    assert.deepEqual([...s.render().selected], ['a.txt']);
+    s.props.locationKey = 'different-sort-or-visibility';
+    s.render();
+    assert.equal(s.render().selected.size, 0);
+  } finally { s.cleanup(); }
+});
+
+test('selection-only pages never register keyboard listeners', () => {
+  const s = setup((item) => item.id);
+  try {
+    assert.equal(s.listeners.has('keydown'), false);
+  } finally { s.cleanup(); }
+  assert.equal(s.listeners.size, 0);
+});
+
+for (const change of ['location', 'disabled', 'unmount']) {
+  test(`pending long presses are canceled on ${change}, before they can select an old item`, () => {
+    const s = setup((item) => item.path);
+    s.render().itemInteractionProps(s.items[0]).onPointerDown({ button: 0, pointerId: 1,
+      clientX: 0, clientY: 0, target: { closest: () => null } });
+    assert.equal(s.timers.size, 1);
+    if (change === 'location') s.props.locationKey = 'next';
+    if (change === 'disabled') s.props.enabled = false;
+    if (change === 'unmount') s.cleanup();
+    else { s.render(); s.cleanup(); }
+    assert.equal(s.timers.size, 0);
+    assert.equal(s.listeners.size, 0);
+  });
+}

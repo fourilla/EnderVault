@@ -7,7 +7,7 @@ import type { BrowserHistoryState, BrowserPayload, BrowserView } from './types';
 import { useNavigationScroll } from '../shared/browser/useNavigationScroll';
 import { useListingRefresh } from '../shared/browser/useListingRefresh';
 
-const listingRequestKeyFor = (state: BrowserHistoryState) => [
+export const listingRequestKeyFor = (state: BrowserHistoryState) => [
   state.mode,
   state.path,
   state.query,

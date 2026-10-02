@@ -5,8 +5,9 @@ import { icon } from '../shared/browser/BrowserEntries';
 import { BrowserListing } from './BrowserListing';
 import { BrowserToolbar } from './BrowserToolbar';
 import { TransferBufferPanel } from './TransferBufferPanel';
-import { useBrowserNavigation } from './useBrowserNavigation';
+import { listingRequestKeyFor, useBrowserNavigation } from './useBrowserNavigation';
 import { useEntrySelection } from '../shared/browser/useEntrySelection';
+import { useSelectionShortcuts } from '../shared/browser/useSelectionShortcuts';
 import { useFileActions } from './useFileActions';
 import { useFileContextMenu } from './useFileContextMenu';
 import { useAdminApp } from '../app/AdminAppContext';
@@ -22,7 +23,6 @@ export function BrowserApp() {
   const uploadManager = useUploadManager();
   const navigation = useBrowserNavigation();
   const {
-    state,
     stateRef,
     payload,
     payloadRef,
@@ -39,11 +39,12 @@ export function BrowserApp() {
     submitSearch,
     reload,
   } = navigation;
+  const currentState = effectiveState();
   const selection = useEntrySelection(
     payload ? [...payload.directories, ...payload.entries] : [],
     Boolean(payload),
     browse,
-    [state.mode, state.path, state.query, state.page].join('\u0000'),
+    listingRequestKeyFor(currentState),
     openFile,
   );
   const actions = useFileActions({
@@ -54,7 +55,13 @@ export function BrowserApp() {
     navigate,
     reload,
   });
-  const currentState = effectiveState();
+  useSelectionShortcuts({
+    enabled: Boolean(payload && !loading && !error && payload.directories.length + payload.entries.length > 0),
+    selectedCount: selection.selectedEntries.length,
+    selectAll: selection.selectAll,
+    clearSelection: selection.clearSelection,
+    scope: () => document.querySelector<HTMLElement>('.app-main'),
+  });
 
   useRouteSearch({ label: 'Search current directory', value: searchText,
     onChange: setSearchText, onSubmit: submitSearch });

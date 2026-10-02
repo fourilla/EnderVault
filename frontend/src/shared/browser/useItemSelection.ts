@@ -28,8 +28,6 @@ export function useItemSelection<T>({
   selectedRef.current = selected;
   enabledRef.current = enabled;
 
-  useEffect(() => setSelected(new Set()), [locationKey]);
-
   const selectedItems = useMemo(
     () => items.filter((item) => selected.has(itemKey(item))),
     [itemKey, items, selected],
@@ -61,6 +59,36 @@ export function useItemSelection<T>({
     longPressRef.current.pointerId = null;
     longPressRef.current.item = null;
   };
+
+  const clearSelection = () => {
+    setSelected((current) => current.size ? new Set() : current);
+  };
+
+  const selectAll = () => {
+    if (!enabledRef.current || items.length === 0) return;
+    const keys = new Set(items.map(itemKey));
+    setSelected((current) => current.size === keys.size && [...keys].every((key) => current.has(key))
+      ? current : keys);
+  };
+
+  useEffect(() => {
+    clearSelection();
+    cancelLongPress();
+    longPressRef.current.suppressClick = false;
+  }, [locationKey]);
+
+  useEffect(() => {
+    const visibleKeys = new Set(items.map(itemKey));
+    setSelected((current) => {
+      const retained = [...current].filter((key) => visibleKeys.has(key));
+      return retained.length === current.size ? current : new Set(retained);
+    });
+  }, [items, itemKey]);
+
+  useEffect(() => {
+    if (!enabled) cancelLongPress();
+    return cancelLongPress;
+  }, [enabled]);
 
   const itemInteractionProps = (item: T) => ({
     onPointerDown: (event: React.PointerEvent<HTMLElement>) => {
@@ -128,7 +156,7 @@ export function useItemSelection<T>({
       if (target.closest('[data-context-item="true"], .select-all-checkbox, .select-all-label, dialog, .toolbar, .floating-page-actions, .transfer-buffer-panel, .toast-region, .context-menu')) {
         return;
       }
-      setSelected(new Set());
+      clearSelection();
     };
     document.addEventListener('click', clearSelectionFromBackground);
     return () => document.removeEventListener('click', clearSelectionFromBackground);
@@ -140,6 +168,8 @@ export function useItemSelection<T>({
     setSelected,
     selectedItems,
     selectItem,
+    selectAll,
+    clearSelection,
     itemInteractionProps,
   };
 }
