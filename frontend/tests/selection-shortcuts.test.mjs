@@ -95,7 +95,18 @@ test('unavailable, detached, composing and already-handled events preserve nativ
     assert.equal(s.press('a', { ctrlKey: true }).defaultPrevented, false);
     s.document.visibilityState = 'visible'; s.detach();
     assert.equal(s.press('a', { ctrlKey: true }).defaultPrevented, false);
-    assert.deepEqual(s.calls, []);
+    assert.deepEqual(s.calls, ['clear']);
+  } finally { s.cleanup(); }
+});
+
+test('Escape resets a remaining Shift anchor even with zero selected items, without consuming the native key', () => {
+  const s = setup();
+  try {
+    s.options.selectedCount = 0; s.render();
+    assert.equal(s.press('Escape').defaultPrevented, false);
+    assert.deepEqual(s.calls, ['clear']);
+    assert.equal(s.press('Delete').defaultPrevented, false);
+    assert.deepEqual(s.calls, ['clear']);
   } finally { s.cleanup(); }
 });
 
@@ -121,6 +132,7 @@ test('selection checkboxes and item links are list controls; Shell and other con
   const s = setup();
   try {
     for (const target of [node('input', { checkbox: 'row-select-checkbox', row: true }),
+      node('input', { checkbox: 'card-check', row: true }),
       node('input', { checkbox: 'select-all-checkbox' }), node('a', { row: true }), s.document.body, s.document.documentElement]) {
       s.document.activeElement = target;
       assert.equal(s.press('a', { ctrlKey: true, target }).defaultPrevented, true);
@@ -132,7 +144,7 @@ test('selection checkboxes and item links are list controls; Shell and other con
       assert.equal(s.press('Escape').defaultPrevented, false);
       s.document.activeElement = s.document.body;
     }
-    assert.equal(s.calls.length, 5);
+    assert.equal(s.calls.length, 6);
   } finally { s.cleanup(); }
 });
 

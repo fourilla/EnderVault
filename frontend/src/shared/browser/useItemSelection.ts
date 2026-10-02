@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+const selectionCheckbox = 'input[type="checkbox"].row-select-checkbox, input[type="checkbox"].card-check';
+const interactiveTarget = 'input, button, label, select, textarea, summary, .table-actions, .action-icon';
+const isRangeClick = (event: { shiftKey?: boolean; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean }) =>
+  event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey;
+
 export function useItemSelection<T>({
   items,
   enabled,
@@ -16,6 +21,7 @@ export function useItemSelection<T>({
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const selectedRef = useRef(selected);
   const enabledRef = useRef(enabled);
+  const anchorRef = useRef<string | null>(null);
   const longPressRef = useRef<{
     timer: number | null;
     pointerId: number | null;
@@ -45,12 +51,25 @@ export function useItemSelection<T>({
 
   const toggleItemSelection = (item: T) => {
     const key = itemKey(item);
+    anchorRef.current = key;
     setSelected((current) => {
       const next = new Set(current);
       if (next.has(key)) next.delete(key);
       else next.add(key);
       return next;
     });
+  };
+
+  const selectRange = (item: T) => {
+    const keys = items.map(itemKey);
+    const endpoint = keys.indexOf(itemKey(item));
+    if (endpoint < 0) return;
+    let anchor = anchorRef.current == null ? -1 : keys.indexOf(anchorRef.current);
+    if (anchor < 0) {
+      anchor = endpoint;
+      anchorRef.current = keys[endpoint];
+    }
+    setSelected(new Set(keys.slice(Math.min(anchor, endpoint), Math.max(anchor, endpoint) + 1)));
   };
 
   const cancelLongPress = () => {
@@ -61,6 +80,7 @@ export function useItemSelection<T>({
   };
 
   const clearSelection = () => {
+    anchorRef.current = null;
     setSelected((current) => current.size ? new Set() : current);
   };
 
@@ -79,6 +99,7 @@ export function useItemSelection<T>({
 
   useEffect(() => {
     const visibleKeys = new Set(items.map(itemKey));
+    if (anchorRef.current != null && !visibleKeys.has(anchorRef.current)) anchorRef.current = null;
     setSelected((current) => {
       const retained = [...current].filter((key) => visibleKeys.has(key));
       return retained.length === current.size ? current : new Set(retained);
@@ -91,9 +112,18 @@ export function useItemSelection<T>({
   }, [enabled]);
 
   const itemInteractionProps = (item: T) => ({
+    onMouseDownCapture: (event: React.MouseEvent<HTMLElement>) => {
+      if (enabledRef.current && event.button === 0 && isRangeClick(event)
+          && !(event.target as HTMLElement).closest(interactiveTarget)) {
+        event.preventDefault();
+        // Preventing text selection must not leave keyboard focus in a previous editor.
+        event.currentTarget.querySelector<HTMLInputElement>(selectionCheckbox)?.focus({ preventScroll: true });
+      }
+    },
     onPointerDown: (event: React.PointerEvent<HTMLElement>) => {
       if (!enabledRef.current
           || event.button !== 0
+          || event.shiftKey
           || (event.target as HTMLElement).closest('input, button, label, .table-actions, .action-icon')) {
         return;
       }
@@ -124,6 +154,18 @@ export function useItemSelection<T>({
         event.stopPropagation();
       }
     },
+    onChangeCapture: (event: React.FormEvent<HTMLElement>) => {
+      const target = event.target as HTMLElement;
+      if (!enabledRef.current || !target.closest(selectionCheckbox)) return;
+      // Checkbox change is derived from the click. Keep its native checked state,
+      // but replace the range once instead of also invoking the checkbox toggle.
+      if (isRangeClick(event.nativeEvent as MouseEvent)) {
+        event.stopPropagation();
+        selectRange(item);
+      } else {
+        anchorRef.current = itemKey(item);
+      }
+    },
     onClickCapture: (event: React.MouseEvent<HTMLElement>) => {
       if (longPressRef.current.suppressClick) {
         event.preventDefault();
@@ -132,7 +174,13 @@ export function useItemSelection<T>({
         return;
       }
       const target = event.target as HTMLElement;
-      if (target.closest('input, button, label, select, textarea, summary, .table-actions, .action-icon')) {
+      if (target.closest(interactiveTarget)) {
+        return;
+      }
+      if (enabledRef.current && isRangeClick(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+        selectRange(item);
         return;
       }
       const selectionClick = enabledRef.current
@@ -150,7 +198,7 @@ export function useItemSelection<T>({
 
   useEffect(() => {
     const clearSelectionFromBackground = (event: globalThis.MouseEvent) => {
-      if (selectedRef.current.size === 0) return;
+      if (selectedRef.current.size === 0 && anchorRef.current == null) return;
       const target = event.target as HTMLElement;
       // Header controls are outside item rows, but are not background clicks.
       if (target.closest('[data-context-item="true"], .select-all-checkbox, .select-all-label, dialog, .toolbar, .floating-page-actions, .transfer-buffer-panel, .toast-region, .context-menu')) {

@@ -23,7 +23,7 @@ function outsideSelectionScope(target: EventTarget | null, scope: HTMLElement) {
   if (element.closest('.sticky-note-layer, .CodeMirror, .cm-editor, [data-native-context-menu], '
     + '[contenteditable]:not([contenteditable="false"]), [role="textbox"]')) return true;
   const input = element.closest('input, textarea, select');
-  if (input) return !input.matches('input[type="checkbox"].row-select-checkbox, input[type="checkbox"].select-all-checkbox');
+  if (input) return !input.matches('input[type="checkbox"].row-select-checkbox, input[type="checkbox"].card-check, input[type="checkbox"].select-all-checkbox');
   if (element.closest('.table-actions, .action-icon')) return true;
   return Boolean(element.closest('button, a[href], summary, [role="button"]')
     && !element.closest('[data-context-item="true"]'));
@@ -52,7 +52,12 @@ export function useSelectionShortcuts(options: SelectionShortcuts) {
         || document.fullscreenElement || document.querySelector(overlaySelector)
         || outsideSelectionScope(event.target, scope)
         || outsideSelectionScope(document.activeElement, scope)) return;
-      if ((clear || remove) && options.selectedCount === 0) return;
+      if ((clear || remove) && options.selectedCount === 0) {
+        // An unchecked last item can still be the Shift anchor. Reset it without
+        // consuming native Escape when there is no visible selection to clear.
+        if (clear) options.clearSelection();
+        return;
+      }
       if (remove && (!deleteSelection || event.repeat || deleting)) return;
       event.preventDefault();
       if (selectAll) options.selectAll();

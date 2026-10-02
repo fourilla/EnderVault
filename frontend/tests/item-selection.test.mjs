@@ -59,6 +59,26 @@ function setup(itemKey) {
     cleanup: () => slots.forEach((slot) => slot?.cleanup?.()) };
 }
 
+function interaction(s, item, modifiers = {}, checkbox = '') {
+  const event = { button: 0, ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, ...modifiers,
+    currentTarget: { querySelector: () => null },
+    target: { closest: (selector) => checkbox && selector.split(',').some((part) =>
+      ['input', `input[type="checkbox"].${checkbox}`].includes(part.trim())) ? {} : null },
+    prevented: false, stopped: false,
+    preventDefault() { this.prevented = true; }, stopPropagation() { this.stopped = true; } };
+  const handlers = s.render().itemInteractionProps(item);
+  if (checkbox) {
+    event.nativeEvent = event;
+    handlers.onChangeCapture(event);
+    if (!event.stopped) s.render().selectItem(item, !s.render().selected.has(s.props.itemKey(item)));
+  } else {
+    handlers.onMouseDownCapture(event);
+    handlers.onClickCapture(event);
+  }
+  s.render();
+  return event;
+}
+
 for (const [name, key] of [['Files', (item) => item.path], ['Bookmarks', (item) => item.id]]) {
   test(`${name}: select-all input and label clicks survive document bubbling, including partial selection`, () => {
     const s = setup(key);
@@ -168,3 +188,126 @@ for (const change of ['location', 'disabled', 'unmount']) {
     assert.equal(s.listeners.size, 0);
   });
 }
+
+for (const checkbox of ['', 'row-select-checkbox', 'card-check']) {
+  test(`${checkbox || 'row/card'}: Shift replaces selection with a fixed-anchor range and shrinks on repetition`, () => {
+    const s = setup((item) => item.path);
+    try {
+      s.props.items = [...s.items, { path: 'd.txt' }, { path: 'e.txt' }];
+      s.render();
+      const first = interaction(s, s.props.items[0], { ctrlKey: true }, checkbox);
+      assert.deepEqual([...s.render().selected], ['a.txt']);
+      interaction(s, s.props.items[3], { shiftKey: true }, checkbox);
+      assert.deepEqual([...s.render().selected], ['a.txt', 'b.txt', 'c.txt', 'd.txt']);
+      interaction(s, s.props.items[1], { shiftKey: true }, checkbox);
+      assert.deepEqual([...s.render().selected], ['a.txt', 'b.txt']);
+      interaction(s, s.props.items[4], { shiftKey: true }, checkbox);
+      assert.equal(s.render().selected.size, 5);
+      interaction(s, s.props.items[2], { ctrlKey: true }, checkbox);
+      interaction(s, s.props.items[0], { shiftKey: true }, checkbox);
+      assert.deepEqual([...s.render().selected], ['a.txt', 'b.txt', 'c.txt']);
+      if (!checkbox) assert.equal(first.prevented, true);
+    } finally { s.cleanup(); }
+  });
+}
+
+test('Shift without an anchor selects only the endpoint, never opens it or toggles it off', () => {
+  const s = setup((item) => item.path), opened = [];
+  s.props.openItem = (item) => opened.push(item.path);
+  try {
+    const event = interaction(s, s.items[1], { shiftKey: true });
+    assert.equal(event.prevented, true);
+    assert.equal(event.stopped, true);
+    assert.deepEqual([...s.render().selected], ['b.txt']);
+    interaction(s, s.items[1], { shiftKey: true });
+    assert.deepEqual([...s.render().selected], ['b.txt']);
+    assert.deepEqual(opened, []);
+  } finally { s.cleanup(); }
+});
+
+test('Shift row mousedown focuses its selection control without scrolling; action controls keep their focus', () => {
+  const s = setup((item) => item.path), focused = [];
+  try {
+    const handlers = s.render().itemInteractionProps(s.items[0]);
+    const event = { button: 0, shiftKey: true, target: { closest: () => null },
+      currentTarget: { querySelector: () => ({ focus: (options) => focused.push(options) }) },
+      preventDefault() {} };
+    handlers.onMouseDownCapture(event);
+    assert.equal(focused.length, 1);
+    assert.equal(focused[0].preventScroll, true);
+    handlers.onMouseDownCapture({ ...event, target: { closest: () => ({}) } });
+    handlers.onMouseDownCapture({ ...event, button: 2 });
+    assert.equal(focused.length, 1);
+  } finally { s.cleanup(); }
+});
+
+test('range follows supplied display order across directory/file sections and visible hidden entries', () => {
+  const s = setup((item) => item.path);
+  try {
+    s.props.items = [{ path: 'z-dir', type: 'directory' }, { path: 'a-dir', type: 'directory' },
+      { path: 'z.txt' }, { path: '.hidden.txt', hidden: true }, { path: 'a.txt' }];
+    s.render();
+    interaction(s, s.props.items[1], { ctrlKey: true });
+    interaction(s, s.props.items[4], { shiftKey: true });
+    assert.deepEqual([...s.render().selected], ['a-dir', 'z.txt', '.hidden.txt', 'a.txt']);
+  } finally { s.cleanup(); }
+});
+
+for (const reset of ['clear', 'background', 'condition', 'missing-anchor']) {
+  test(`${reset}: clears the anchor; the next Shift starts with only its endpoint`, () => {
+    const s = setup((item) => item.path);
+    try {
+      interaction(s, s.items[0], { ctrlKey: true });
+      if (reset === 'clear') s.render().clearSelection();
+      if (reset === 'background') s.click([]);
+      if (reset === 'condition') s.props.locationKey = 'next';
+      if (reset === 'missing-anchor') s.props.items = s.items.slice(1);
+      s.render();
+      interaction(s, s.items[2], { shiftKey: true });
+      assert.deepEqual([...s.render().selected], ['c.txt']);
+    } finally { s.cleanup(); }
+  });
+}
+
+test('view changes retain stable anchor identity; header/programmatic selection does not change the anchor', () => {
+  const s = setup((item) => item.id);
+  try {
+    interaction(s, s.items[1], {}, 'row-select-checkbox');
+    s.render().selectAll();
+    s.props.items = s.items.map((item) => ({ ...item })); s.render();
+    interaction(s, s.props.items[2], { shiftKey: true }, 'card-check');
+    assert.deepEqual([...s.render().selected], ['b', 'c']);
+  } finally { s.cleanup(); }
+});
+
+test('background resets an unchecked anchor even when the selected set is already empty', () => {
+  const s = setup((item) => item.path);
+  try {
+    interaction(s, s.items[0], {}, 'row-select-checkbox');
+    interaction(s, s.items[0], {}, 'row-select-checkbox');
+    assert.equal(s.render().selected.size, 0);
+    s.click([]);
+    interaction(s, s.items[2], { shiftKey: true });
+    assert.deepEqual([...s.render().selected], ['c.txt']);
+  } finally { s.cleanup(); }
+});
+
+test('Shift does not start long-press selection or intercept controls and disabled lists', () => {
+  const s = setup((item) => item.path);
+  try {
+    const handlers = s.render().itemInteractionProps(s.items[0]);
+    handlers.onPointerDown({ button: 0, shiftKey: true, target: { closest: () => null } });
+    assert.equal(s.timers.size, 0);
+    for (const target of ['input', 'button', 'label', 'select', 'textarea', 'summary', '.table-actions', '.action-icon']) {
+      const event = { shiftKey: true, target: { closest: (selector) => selector.split(',').some((part) => part.trim() === target) ? {} : null },
+        preventDefault() { assert.fail('control default prevented'); }, stopPropagation() { assert.fail('control intercepted'); } };
+      handlers.onMouseDownCapture(event); handlers.onClickCapture(event);
+    }
+    s.props.enabled = false; s.render();
+    interaction(s, s.items[1], { shiftKey: true }, 'row-select-checkbox');
+    s.render().clearSelection();
+    const event = interaction(s, s.items[2], { shiftKey: true });
+    assert.equal(event.prevented, false);
+    assert.equal(s.render().selected.size, 0);
+  } finally { s.cleanup(); }
+});
