@@ -1,6 +1,7 @@
 import { LoadingState } from '../shared/layout/LoadingState';
 import { StableTable } from '../shared/browser/StableTable';
 import { OverflowMarquee } from '../shared/layout/OverflowMarquee';
+import { PathLink } from '../shared/browser/PathLink';
 import { formatBytes } from '../shared/format-bytes';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -205,7 +206,7 @@ export function FileRequestsApp() {
               <tbody>
                 {payload.requests.map((item) => <tr key={item.id}>
                   <td><Link className="table-primary-text" to={`/admin/file-requests/${item.id}`}><OverflowMarquee text={item.title} /></Link><small>{item.createdLabel}</small></td>
-                  <td><span className="table-primary-text"><OverflowMarquee text={item.destinationLabel} /></span></td>
+                  <td><PathLink path={item.destinationPath || ''} directory label={item.destinationLabel} /></td>
                   <td title={item.usageLabel}><div className="table-cell-stack">
                     <span>{item.acceptedFiles} / {item.maxFiles} files</span>
                     <span>{formatBytes(item.acceptedBytes)} / {formatBytes(item.maxTotalBytes)}</span>

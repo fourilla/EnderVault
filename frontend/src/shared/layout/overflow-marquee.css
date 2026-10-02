@@ -14,7 +14,8 @@
   white-space: nowrap;
 }
 
-.overflow-marquee.is-overflowing:hover .overflow-marquee-track {
+.overflow-marquee.is-overflowing:hover .overflow-marquee-track,
+:is(.table-wrap tbody > tr, .browser-card, .settings-spa-nav-item, .settings-control-row):hover .overflow-marquee.is-overflowing .overflow-marquee-track {
   width: max-content;
   max-width: none;
   overflow: visible;
@@ -28,7 +29,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .overflow-marquee.is-overflowing:hover .overflow-marquee-track { animation: none; }
+  .overflow-marquee.is-overflowing .overflow-marquee-track { animation: none !important; }
 }
 
 .table-wrap .item-name:has(> .overflow-marquee) {

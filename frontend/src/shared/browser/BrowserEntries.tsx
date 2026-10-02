@@ -2,6 +2,7 @@ import { MouseEvent, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { OverflowMarquee } from '../layout/OverflowMarquee';
 import { StableTable } from './StableTable';
+import { PathLink } from './PathLink';
 import type { BrowserEntry } from './types';
 
 export const icon = (className: string) => <i className={className} aria-hidden="true" />;
@@ -181,14 +182,8 @@ export function EntryTable({
               </td>
               {showLocation && (
                 <td>
-                  <button
-                    className="muted files-location-link"
-                    type="button"
-                    onClick={() => onBrowse(entry.parentPath)}
-                    title={entry.parentPath || 'Root'}
-                  >
-                    <OverflowMarquee text={entry.parentPath || 'Root'} />
-                  </button>
+                  <PathLink path={entry.parentPath} directory label={entry.parentPath || 'Root'}
+                    onNavigate={() => onBrowse(entry.parentPath)} />
                 </td>
               )}
               <td>{entry.typeLabel}</td>
@@ -281,15 +276,15 @@ export function EntryGrid({
             </Link>}
             <div className="card-body">
               {entry.type === 'directory'
-                ? <a className="card-name" href={href} onClick={handleClick} title={entry.name}>{entry.name}</a>
-                : <Link className="card-name" to={entry.detailUrl} title={entry.name}>{entry.name}</Link>}
+                ? <a className="card-name" href={href} onClick={handleClick} title={entry.name}><OverflowMarquee text={entry.name} /></a>
+                : <Link className="card-name" to={entry.detailUrl} title={entry.name}><OverflowMarquee text={entry.name} /></Link>}
               <p className="card-meta">
                 <span>{entry.typeLabel}</span>
                 <span>{entry.sizeLabel}</span>
               </p>
               {showLocation && (
                 <p className="card-meta files-grid-location" title={entry.parentPath || 'Root'}>
-                  <span>{entry.parentPath || 'Root'}</span>
+                  <OverflowMarquee text={entry.parentPath || 'Root'} />
                 </p>
               )}
               {showAccessed ? (

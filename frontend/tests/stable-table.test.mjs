@@ -4,6 +4,19 @@ import { readFileSync } from 'node:fs';
 
 const source = path => readFileSync(new URL(`../src/${path}`, import.meta.url), 'utf8');
 
+test('share targets and request destinations use encoded SPA links to the represented resource', () => {
+  const shares = source('shares/SharedLinksApp.tsx');
+  assert.match(shares, /<PathLink path=\{share.path\} directory=\{share.type === 'DIRECTORY'\}/);
+  const requests = source('file-requests/FileRequestsApp.tsx');
+  assert.match(requests, /<PathLink path=\{item.destinationPath \|\| ''\} directory label=\{item.destinationLabel\}/);
+  const link = source('shared/browser/PathLink.tsx');
+  assert.match(link, /directory \? '\/files' : '\/files\/detail'/);
+  assert.match(link, /encodeURIComponent\(path\)/);
+  assert.match(link, /event.button !== 0/);
+  for (const modifier of ['ctrlKey', 'metaKey', 'shiftKey', 'altKey']) assert.ok(link.includes(`event.${modifier}`));
+  assert.match(source('shared/browser/BrowserEntries.tsx'), /onNavigate=\{\(\) => onBrowse\(entry.parentPath\)\}/);
+});
+
 test('phase two keeps action capacity, selectable share URLs and request secondary information', () => {
   const bookmarks = source('bookmarks/BookmarkEntries.tsx');
   assert.match(bookmarks, /columns=\{\['select', 'text', 'type', 'date', 'actions'\]\} actionCount=\{4\}/);

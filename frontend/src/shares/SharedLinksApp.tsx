@@ -1,6 +1,6 @@
 import { LoadingState } from '../shared/layout/LoadingState';
 import { StableTable } from '../shared/browser/StableTable';
-import { OverflowMarquee } from '../shared/layout/OverflowMarquee';
+import { PathLink } from '../shared/browser/PathLink';
 import { useEffect, useState } from 'react';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
@@ -79,7 +79,7 @@ export function SharedLinksApp() {
               {shares.map((share) => (
                 <tr key={share.token} data-share-status={share.statusClass}>
                   <td><input readOnly value={share.url} aria-label={`Share URL for ${share.path}`} /></td>
-                  <td><span className="item-name"><OverflowMarquee text={share.path} /></span></td>
+                  <td><PathLink path={share.path} directory={share.type === 'DIRECTORY'} /></td>
                   <td>{share.type}</td>
                   <td><div className="table-cell-stack">
                     <span title="Created" aria-label={`Created: ${share.createdLabel}`}>

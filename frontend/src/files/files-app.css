@@ -7,18 +7,6 @@
   font-size: 3rem;
 }
 
-.files-location-link {
-  display: block;
-  max-width: 260px;
-  overflow: hidden;
-  border: 0;
-  background: transparent;
-  padding: 0;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .files-grid-location {
   display: block;
   min-width: 0;

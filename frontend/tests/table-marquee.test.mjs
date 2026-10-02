@@ -4,6 +4,15 @@ import { readFileSync, existsSync } from 'node:fs';
 
 const source = path => readFileSync(new URL(`../src/${path}`, import.meta.url), 'utf8');
 
+test('marquee activates from the owning row, card or setting and respects reduced motion', () => {
+  const css = source('shared/layout/overflow-marquee.css');
+  assert.match(css, /:is\(\.table-wrap tbody > tr, \.browser-card, \.settings-spa-nav-item, \.settings-control-row\):hover \.overflow-marquee\.is-overflowing/);
+  assert.match(css, /prefers-reduced-motion: reduce[\s\S]*animation: none !important/);
+  const entries = source('shared/browser/BrowserEntries.tsx');
+  assert.match(entries, /className="card-name"[^>]*><OverflowMarquee text=\{entry.name\}/);
+  assert.match(entries, /files-grid-location[\s\S]*<OverflowMarquee text=\{entry.parentPath \|\| 'Root'\}/);
+});
+
 test('settings and browser tables share one overflow marquee implementation', () => {
   for (const path of ['settings/SettingsApp.tsx', 'settings/components/SettingsControls.tsx',
     'shared/browser/BrowserEntries.tsx', 'favorites/FavoritesApp.tsx', 'trash/TrashApp.tsx']) {

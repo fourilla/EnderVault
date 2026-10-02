@@ -60,6 +60,13 @@ td input[readonly] {
     min-width: min(460px, 100%);
 }
 
+.table-wrap a:hover,
+.readonly-table a:hover,
+.browser-card a:hover,
+.readonly-file-card a:hover {
+    text-decoration: none;
+}
+
 .table-wrap {
     --badge-font-size: calc(var(--table-font-size) - 3px);
     --badge-min-height: max(calc(var(--badge-font-size) * 2 + 2px), calc(var(--control-height) - 12px));
@@ -130,12 +137,16 @@ td input[readonly] {
     height: var(--select-all-target-size);
 }
 
+.item-name,
+.table-wrap .path-link {
+    font-weight: 600;
+}
+
 .item-name {
     display: inline-block;
     max-width: 100%;
     min-width: 0;
     overflow: hidden;
-    font-weight: 600;
     text-overflow: ellipsis;
     vertical-align: middle;
     white-space: nowrap;

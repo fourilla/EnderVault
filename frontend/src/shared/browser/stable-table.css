@@ -37,8 +37,7 @@
 }
 
 .table-wrap .stable-table .path-cell,
-.table-wrap .stable-table .table-primary-text,
-.stable-table .files-location-link {
+.table-wrap .stable-table .table-primary-text {
   display: block;
   width: 100%;
   max-width: 100%;
