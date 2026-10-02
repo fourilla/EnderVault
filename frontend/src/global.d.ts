@@ -91,6 +91,7 @@ declare global {
       }) => Promise<void> | void;
     };
     EnderVaultContextMenus?: {
+      pageContextForEvent: (event: MouseEvent) => unknown | null;
       createActionMenu: (options: Record<string, unknown>) => {
         close: () => void;
         dispose: () => void;

@@ -46,7 +46,7 @@ export function CurlImportDialog({ open, close, apply }: {
           cURL command
           <textarea className="remote-request-textarea" rows={10} maxLength={65_536} spellCheck={false}
             value={command} onChange={(event) => setCommand(event.currentTarget.value)}
-            placeholder="curl 'https://example.com/file' -H 'Authorization: Bearer ...'" autoFocus />
+            placeholder="curl 'https://example.com/file' -H 'Authorization: Bearer ...'" data-dialog-initial-focus />
         </label>
         <div className="remote-confirm-actions">
           <button className="ghost" type="button" onClick={cancel}>Cancel</button>

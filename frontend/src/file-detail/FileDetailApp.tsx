@@ -1,16 +1,25 @@
+import { LoadingState } from '../shared/layout/LoadingState';
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { TransferBufferPanel } from '../files/TransferBufferPanel';
 import type { TransferBufferPayload } from '../files/types';
 import { togglePathFavorite } from '../shared/api/favorite-api';
+import { createShareAndCopy } from '../shared/api/share-api';
+import { usePageContextMenu, type PageMenuAction } from '../shared/browser/usePageContextMenu';
 import { notify, postForm, toastError } from '../shared/api/form-api';
 import { canRetainSnapshot } from '../shared/api/snapshot-errors';
 import { icon } from '../shared/browser/BrowserEntries';
 import { PageBreadcrumbs } from '../shared/layout/PageHeader';
+import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import { FileTools } from './FileTools';
 import { detailQueryKey, loadFileDetail } from './file-detail-api';
 import type { FileDetailPayload, SharePayload } from './types';
 import './file-detail-app.css';
+
+function DetailContextMenu({ actions, contentKey }: { actions: PageMenuAction[]; contentKey: unknown }) {
+  usePageContextMenu('file-detail', actions, contentKey);
+  return null;
+}
 
 function ShareSection({ payload, refresh }: { payload: FileDetailPayload; refresh: () => void }) {
   const [token, setToken] = useState('');
@@ -184,13 +193,12 @@ export function FileDetailApp() {
     }}));
   }, [payload]);
 
-  if (!payload) return <main
-    className={'browser-load-state' + (error ? ' browser-load-error' : '')}
-    role={error ? 'alert' : 'status'} aria-live="polite">
-    {error ? <><strong>File details unavailable</strong><span>{error}</span></> : <>
-      {icon('fas fa-spinner fa-spin')}<span>Loading file details...</span>
-    </>}
-  </main>;
+  const failurePanel = error && <PageErrorPanel title="File details unavailable" message={error} stale={payload !== null}
+    actions={<button className="icon-text-button" type="button" disabled={loading} onClick={() => refresh()}>
+      {icon('fas fa-arrows-rotate')}<span>Retry</span>
+    </button>} />;
+  if (!payload && error) return failurePanel;
+  if (!payload) return <LoadingState label="Loading file details..." />;
 
   const mutate = async (endpoint: string, values: Record<string, string>, conflict = false, sameItem = false) => {
     if (mutating) return;
@@ -256,32 +264,62 @@ export function FileDetailApp() {
       toastError(reason, 'Favorite could not be updated.');
     }
   };
+  const renameItem = async (newName: string) => {
+    await mutate('/api/v1/files/detail/rename', {
+      path: payload.detail.path, newName, conflictPolicy: 'ask',
+    }, true, true);
+  };
+  const addToBuffer = async () => {
+    const body = await postForm('/api/v1/files/transfer-buffer/detail', { path: payload.detail.path });
+    notify(body);
+    if (body.transferBuffer) setSnapshot((current) => current?.path === path
+      ? { ...current, payload: { ...current.payload, transferBuffer: body.transferBuffer } } : current);
+  };
+  const moveToTrash = async () => {
+    const confirmed = await window.EnderVault?.askConfirmation({ title: 'Move to trash',
+      message: `Move ${payload.detail.name} to trash?`, confirmLabel: 'Move to trash', danger: true });
+    if (confirmed) await mutate('/api/v1/files/detail/trash', { path: payload.detail.path });
+  };
+  const menuActions: PageMenuAction[] = [
+    { id: 'download', group: 'transfer', label: payload.detail.directory ? 'Download ZIP' : 'Download',
+      icon: 'fas fa-download', run: () => window.location.assign(payload.detail.directory
+        ? payload.urls.downloadZip! : payload.urls.download) },
+    { id: 'favorite', group: 'organize', icon: 'fas fa-star',
+      label: payload.favorite ? 'Remove from favorites' : 'Add to favorites', run: toggleFavorite },
+    { id: 'add-to-buffer', group: 'organize', label: 'Add to transfer buffer',
+      icon: 'fas fa-layer-group', run: addToBuffer },
+    { id: 'share-copy', group: 'organize', label: 'Create share link and copy', icon: 'fas fa-link',
+      run: async () => { await createShareAndCopy(payload.detail.path); refresh(); } },
+    { id: 'rename', group: 'mutate', label: 'Rename', icon: 'fas fa-pen-to-square', run: async () => {
+      const newName = await window.EnderVault?.askTextInput({ title: 'Rename', label: 'New name',
+        initialValue: payload.detail.name, confirmLabel: 'Rename' });
+      if (newName?.trim() && newName.trim() !== payload.detail.name) await renameItem(newName.trim());
+    } },
+    { id: 'move-to-trash', group: 'danger', label: 'Move to trash', icon: 'fas fa-trash-can',
+      danger: true, run: moveToTrash },
+  ];
   return <>
+    <DetailContextMenu actions={mutating ? [] : menuActions} contentKey={payload} />
     <PageBreadcrumbs
       label="Current file location"
       parent={<Link to={payload.urls.parentDirectory}>{payload.detail.parentPath || 'Files'}</Link>}
       current={payload.detail.name}
     />
-    {error && <section className="browser-load-error" role="alert">{error} Showing the last loaded values.
-      <button className="ghost" type="button" disabled={loading} onClick={() => refresh()}>Retry</button>
-    </section>}
+    <div className="page-feedback-layout">
+    {failurePanel}
+    <div>
     <FileTools payload={payload} />
     <section className="detail-layout">
       <DetailMetadata payload={payload} onToggleFavorite={() => void toggleFavorite()} />
       <aside className="detail-panel detail-manage" inert={mutating} aria-busy={mutating}><h2>Manage</h2><div className="manage-stack">
         <form className="stack manage-form" onSubmit={async (event) => {
           event.preventDefault();
-          try { await mutate('/api/v1/files/detail/rename', {
-            path: payload.detail.path, newName: rename, conflictPolicy: 'ask',
-          }, true, true); } catch (reason) { toastError(reason, 'Item could not be renamed.'); }
+          try { await renameItem(rename); } catch (reason) { toastError(reason, 'Item could not be renamed.'); }
         }}><label>Rename<input value={rename} onChange={(event) => setRename(event.target.value)} required /></label>
           <button type="submit">{icon('fas fa-pen-to-square')} Rename</button></form>
         <div className="stack manage-form"><button className="ghost" type="button" onClick={async () => {
           try {
-            const body = await postForm('/api/v1/files/transfer-buffer/detail', { path: payload.detail.path });
-            notify(body);
-            if (body.transferBuffer) setSnapshot((current) => current?.path === path
-              ? { ...current, payload: { ...current.payload, transferBuffer: body.transferBuffer } } : current);
+            await addToBuffer();
           } catch (reason) { toastError(reason, 'Item could not be added to the transfer buffer.'); }
         }}>{icon('fas fa-layer-group')} Add to transfer buffer</button></div>
         <div className="stack manage-form"><button className="ghost" type="button" onClick={async () => {
@@ -291,10 +329,7 @@ export function FileDetailApp() {
         }}>{icon(payload.detail.hidden ? 'fas fa-eye' : 'fas fa-eye-slash')}
           {payload.detail.hidden ? 'Make visible' : 'Hide item'}</button></div>
         <div className="manage-delete"><div className="stack manage-form"><button className="danger" type="button" onClick={async () => {
-          const confirmed = await window.EnderVault?.askConfirmation({ title: 'Move to trash',
-            message: `Move ${payload.detail.name} to trash?`, confirmLabel: 'Move to trash', danger: true });
-          if (!confirmed) return;
-          try { await mutate('/api/v1/files/detail/trash', { path: payload.detail.path }); }
+          try { await moveToTrash(); }
           catch (reason) { toastError(reason, 'Item could not be moved to trash.'); }
         }}>{icon('fas fa-trash-can')} Move to trash</button></div></div>
       </div></aside>
@@ -304,5 +339,7 @@ export function FileDetailApp() {
       path={payload.detail.directory ? payload.detail.path : payload.detail.parentPath}
       actions={bufferActions} />
     <ShareSection key={payload.detail.path} payload={payload} refresh={refresh} />
+    </div>
+    </div>
   </>;
 }

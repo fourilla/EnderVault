@@ -8,14 +8,23 @@
     color: var(--success);
 }
 
+.app-main:has(> .sticky-note-layer) {
+    position: relative;
+    display: flow-root;
+    min-height: var(--sticky-note-page-height, 0px);
+}
+
 .sticky-note-layer {
-    position: fixed;
+    position: absolute;
     inset: 0;
     z-index: 45;
     pointer-events: none;
 }
 
-.sticky-note-layer.is-interacting {
+.sticky-note-layer.is-interacting::before {
+    content: "";
+    position: fixed;
+    inset: 0;
     pointer-events: auto;
 }
 
@@ -23,14 +32,25 @@
     display: none;
 }
 
+.sticky-note-card,
+.sticky-note-theme-preview {
+    --sticky-note-header-height: calc(var(--control-height) + 2px);
+    --sticky-note-header-padding: calc((var(--control-height) - 6px) / 4);
+    --sticky-note-content-padding: calc((var(--control-height) - 14px) / 2);
+    --sticky-note-title-font-size: max(11px, calc(var(--field-font-size) - 2px));
+    --sticky-note-status-font-size: max(11px, calc(var(--field-font-size) - 3px));
+    --sticky-note-resize-size: max(20px, calc(var(--control-height) - 14px));
+    font-size: var(--field-font-size);
+}
+
 .sticky-note-card {
-    position: fixed;
+    position: absolute;
     display: flex;
     flex-direction: column;
-    min-width: 220px;
+    min-width: min(220px, max(0px, calc(100% - 16px)));
     min-height: 140px;
-    max-width: min(600px, calc(100vw - 16px));
-    max-height: min(700px, calc(100vh - 16px));
+    max-width: min(600px, max(0px, calc(100% - 16px)));
+    max-height: 700px;
     overflow: hidden;
     pointer-events: auto;
     border: 1px solid var(--sticky-note-border);
@@ -46,14 +66,16 @@
 
 .sticky-note-card.is-collapsed {
     min-height: 0;
-    height: 42px !important;
+    height: calc(var(--sticky-note-header-height) + 2px) !important;
 }
 
 .sticky-note-header {
     display: flex;
     align-items: center;
-    min-height: 40px;
-    padding: var(--space-xs) var(--space-md);
+    flex: 0 0 auto;
+    height: var(--sticky-note-header-height);
+    min-height: var(--sticky-note-header-height);
+    padding: 0 var(--sticky-note-header-padding);
     border-bottom: 1px solid color-mix(in srgb, var(--sticky-note-border) 70%, transparent);
     cursor: grab;
     user-select: none;
@@ -70,24 +92,30 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: var(--font-size-sm);
+    font-size: var(--sticky-note-title-font-size);
     font-weight: 700;
 }
 
 .sticky-note-actions {
     display: flex;
+    flex: 0 0 auto;
     align-items: center;
-    gap: 2px;
+    gap: max(2px, calc((var(--control-height) - 30px) / 4));
 }
 
 .sticky-note-actions button {
-    width: 28px;
-    height: 28px;
-    min-height: 28px;
+    width: var(--table-action-icon-size);
+    min-width: var(--table-action-icon-size);
+    height: var(--table-action-icon-size);
+    min-height: var(--table-action-icon-size);
     padding: 0;
     border: 0;
     background: transparent;
     color: inherit;
+}
+
+.sticky-note-actions button i {
+    font-size: var(--table-action-icon-font-size);
 }
 
 .sticky-note-actions button:hover {
@@ -99,9 +127,9 @@
     right: 2px;
     bottom: 2px;
     display: grid;
-    width: 24px;
-    height: 24px;
-    min-height: 24px;
+    width: var(--sticky-note-resize-size);
+    height: var(--sticky-note-resize-size);
+    min-height: var(--sticky-note-resize-size);
     place-items: center;
     padding: 0;
     border: 0;
@@ -112,6 +140,7 @@
 }
 
 .sticky-note-resize-handle i {
+    font-size: var(--table-action-icon-font-size);
     transform: rotate(-45deg);
     pointer-events: none;
 }
@@ -142,7 +171,7 @@
     min-width: 0;
     min-height: 0;
     flex: 1;
-    padding: var(--space-xl);
+    padding: var(--sticky-note-content-padding);
     resize: none;
     border: 0;
     outline: 0;
@@ -161,16 +190,10 @@
 }
 
 .sticky-note-status {
-    min-height: 22px;
-    padding: 2px calc(var(--space-xl) + 24px) var(--space-xs) var(--space-xl);
+    flex: 0 0 auto;
+    min-height: calc(var(--sticky-note-status-font-size) + 10px);
+    padding: 2px calc(var(--sticky-note-content-padding) + var(--sticky-note-resize-size)) var(--space-xs) var(--sticky-note-content-padding);
     color: color-mix(in srgb, var(--sticky-note-text) 66%, transparent);
-    font-size: var(--font-size-xs);
+    font-size: var(--sticky-note-status-font-size);
     text-align: right;
-}
-
-@media (max-width: 720px) {
-    .sticky-note-card {
-        max-width: calc(100vw - 12px);
-        max-height: calc(100vh - 12px);
-    }
 }

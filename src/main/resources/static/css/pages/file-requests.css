@@ -6,11 +6,6 @@
     padding: 0;
 }
 
-.file-request-form .form-actions.end {
-    display: flex;
-    justify-content: flex-end;
-}
-
 .file-request-field-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -84,20 +79,7 @@
 }
 
 .file-request-detail-actions {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: var(--space-md);
     margin-top: var(--space-2xl);
-}
-
-.file-request-detail-actions form {
-    margin: 0;
-}
-
-.file-request-delete-panel form {
-    display: flex;
-    justify-content: flex-end;
 }
 
 .field-with-suffix {

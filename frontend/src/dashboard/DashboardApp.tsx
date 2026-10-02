@@ -1,3 +1,4 @@
+import { LoadingState } from '../shared/layout/LoadingState';
 import { useEffect, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useAdminApp } from '../app/AdminAppContext';
@@ -7,7 +8,9 @@ import { useUploadManager } from '../app/uploads/UploadManagerContext';
 import { useRemoteDownloadTasks } from '../app/remote-downloads/RemoteDownloadTasksContext';
 import { usePolledJson } from '../shared/api/usePolledJson';
 import { PageHeader } from '../shared/layout/PageHeader';
-import { formatBytes, mergeOperations, uptimeLabel, usagePercent } from './dashboard-model';
+import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
+import { mergeOperations, uptimeLabel, usagePercent } from './dashboard-model';
+import { formatBytes } from '../shared/format-bytes';
 import type { DashboardPayload, RuntimeResources } from './types';
 import './dashboard-app.css';
 
@@ -77,11 +80,11 @@ export function DashboardApp() {
     void summary.refresh(); void runtime.refresh(); void notifications.refresh();
     void outbound.refresh(); void remote.refresh();
   };
-  if (!payload) return <div className="browser-load-state" role={summary.error ? 'alert' : 'status'}>
-    <i className={`fas ${summary.error ? 'fa-triangle-exclamation' : 'fa-spinner fa-spin'}`} aria-hidden="true" />
-    <span>{summary.error || 'Loading dashboard...'}</span>
-    {summary.error && <button type="button" onClick={refreshAll} disabled={summary.loading}>Retry</button>}
-  </div>;
+  if (!payload && summary.error) return <PageErrorPanel title="Dashboard unavailable" message={summary.error}
+    actions={<button className="icon-text-button" type="button" onClick={refreshAll} disabled={summary.loading}>
+      <i className="fas fa-arrows-rotate" aria-hidden="true" /><span>Retry</span>
+    </button>} />;
+  if (!payload) return <LoadingState label="Loading dashboard..." />;
 
   const operations = mergeOperations(payload.serverTasks, remote.tasks ?? [], activity.items);
   const uploadItems = operations.filter((item) => item.source === 'upload' && item.active).length;

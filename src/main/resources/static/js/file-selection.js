@@ -62,6 +62,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const isNativeControlTarget = (target) =>
         Boolean(target.closest("button, input, label, select, textarea, summary"));
 
+    const isToolbarControlTarget = (target) =>
+        Boolean(target.closest(".toolbar"))
+        && (isNativeControlTarget(target) || Boolean(target.closest("a[href]")));
+
     const isSelectionControlTarget = (target) =>
         Boolean(target.closest(
                 selectableCheckboxSelector + ", "
@@ -228,7 +232,8 @@ document.addEventListener("DOMContentLoaded", () => {
         if (
             selectionState.active
             && !isSelectionControlTarget(event.target)
-            && !event.target.closest(".toolbar, .toast-region")
+            && !isToolbarControlTarget(event.target)
+            && !event.target.closest(".toast-region")
         ) {
             exitSelectionMode();
         }

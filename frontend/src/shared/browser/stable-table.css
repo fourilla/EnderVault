@@ -1,0 +1,61 @@
+.table-wrap > .stable-table {
+  --stable-cell-padding: 12px;
+  --column-select: var(--table-select-col-width);
+  --column-text: 12em;
+  --column-type: calc(9em + 2 * var(--stable-cell-padding));
+  --column-size: calc(6em + 2 * var(--stable-cell-padding));
+  --column-date: calc(12em + 2 * var(--stable-cell-padding));
+  --column-status: calc(8em + 2 * var(--stable-cell-padding));
+  --column-usage: calc(16em + 2 * var(--stable-cell-padding));
+  --column-restrictions: calc(12em + 2 * var(--stable-cell-padding));
+  table-layout: fixed;
+  min-width: var(--stable-table-minimum);
+}
+
+.table-wrap .stable-table th,
+.table-wrap .stable-table td {
+  padding-inline: var(--stable-cell-padding);
+  white-space: nowrap;
+}
+
+.stable-table .table-item-label {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: var(--space-sm);
+}
+
+.table-wrap .stable-table .item-name {
+  min-width: 0;
+  max-width: 100%;
+  flex: 0 1 auto;
+}
+
+.stable-table .table-item-label > .hidden-badge {
+  flex: 0 0 auto;
+  margin-left: 0;
+}
+
+.table-wrap .stable-table .path-cell,
+.table-wrap .stable-table .table-primary-text {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+}
+
+.table-wrap .stable-table td input[readonly] {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.stable-table .bookmark-favicon { flex: 0 0 22px; }
+.stable-table .bookmark-link-name { gap: var(--space-md); }
+
+.stable-table .table-cell-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  gap: var(--space-xs);
+}

@@ -2,6 +2,8 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 're
 import { Link, useNavigate } from 'react-router-dom';
 import { EntryGrid, EntryTable, icon } from '../shared/browser/BrowserEntries';
 import { BrowserPagination } from '../shared/browser/BrowserPagination';
+import { LoadingState } from '../shared/layout/LoadingState';
+import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import { ViewOptionsControl } from '../shared/browser/ViewOptionsControl';
 import type { BrowserEntry } from '../shared/browser/types';
 import { useEntrySelection } from '../shared/browser/useEntrySelection';
@@ -201,8 +203,13 @@ export function RecentApp() {
         </div>
       </FloatingPageActions>
 
-      {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
-      {loading && !payload && <p className="empty browser-grid-empty">Loading recent items...</p>}
+      <div className="page-feedback-layout">
+      {error && <PageErrorPanel title="Recent items unavailable" message={error} stale={payload !== null}
+        actions={<button type="button" className="icon-text-button" disabled={loading} onClick={reload}>
+          {icon('fas fa-arrows-rotate')}<span>Retry</span>
+        </button>} />}
+      <div className="browser-list-content">
+      {loading && !payload && <LoadingState label="Loading recent items..." />}
       {payload && (
         <>
           {payload.directories.length > 0 && (
@@ -240,6 +247,8 @@ export function RecentApp() {
             ariaLabel="Recent file pages" />
         </>
       )}
+      </div>
+      </div>
     </>
   );
 }

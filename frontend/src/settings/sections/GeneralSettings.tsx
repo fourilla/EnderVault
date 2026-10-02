@@ -14,6 +14,7 @@ import {
 } from '../components/SettingsControls';
 import { useSettingsEditor } from '../hooks/useSettingsEditor';
 import { useSettingsSnapshot } from '../hooks/useSettingsSnapshot';
+import { SettingsLoadState } from '../components/SettingsLoadState';
 
 const browserFields: FieldDefinition[] = [
   { name: 'defaultView', label: 'Default view', type: 'select', options: [
@@ -262,9 +263,9 @@ function GeneralSettingsEditor({ snapshot, scope, onDirtyChange }: {
 }
 
 export function GeneralSettings({ scope, onDirtyChange }: { scope: GeneralSettingsScope; onDirtyChange: (dirty: boolean) => void }) {
-  const { snapshot, error } = useSettingsSnapshot<GeneralSettingsSnapshot>('/api/v1/settings/general');
+  const { snapshot, error, refresh } = useSettingsSnapshot<GeneralSettingsSnapshot>('/api/v1/settings/general');
 
-  if (error) return <div className="settings-spa-error">{error}</div>;
-  if (!snapshot) return <div className="settings-spa-loading">Loading general settings...</div>;
-  return <GeneralSettingsEditor snapshot={snapshot} scope={scope} onDirtyChange={onDirtyChange} />;
+  return <SettingsLoadState loaded={snapshot !== null} error={error} refresh={refresh} loadingLabel="Loading general settings...">
+    {snapshot && <GeneralSettingsEditor snapshot={snapshot} scope={scope} onDirtyChange={onDirtyChange} />}
+  </SettingsLoadState>;
 }

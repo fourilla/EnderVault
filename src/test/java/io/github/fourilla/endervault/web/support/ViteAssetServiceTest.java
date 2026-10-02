@@ -4,7 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
 import tools.jackson.databind.ObjectMapper;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ByteArrayResource;
@@ -14,7 +16,7 @@ import org.springframework.core.io.Resource;
 class ViteAssetServiceTest {
 
     @Test
-    void resolvesProductionAdminAppEntryFromGeneratedManifest() {
+    void resolvesProductionAdminAppEntryFromGeneratedManifest() throws IOException {
         ViteAssetService service = new ViteAssetService(
                 new ObjectMapper(),
                 new DefaultResourceLoader(),
@@ -26,20 +28,54 @@ class ViteAssetServiceTest {
         assertThat(entry.development()).isFalse();
         assertThat(entry.entryScript()).startsWith("/react/assets/adminApp-").endsWith(".js");
         assertThat(entry.styles())
-                .anyMatch(url -> url.startsWith("/react/assets/adminApp-") && url.endsWith(".css"))
-                .anyMatch(url -> url.contains("DialogHost-") && url.endsWith(".css"));
+                .anyMatch(url -> url.startsWith("/react/assets/adminApp-") && url.endsWith(".css"));
+        assertProductionAssetsAndDialogStyles(entry);
     }
 
     @Test
-    void resolvesStandaloneDialogsWithoutAdminRuntime() {
+    void resolvesStandaloneDialogsWithoutAdminRuntime() throws IOException {
         ViteAssetService service = new ViteAssetService(
                 new ObjectMapper(), new DefaultResourceLoader(), "");
         ViteAssetService.ViteEntry entry = service.entry("src/dialogs/main.tsx");
 
         assertThat(entry.available()).isTrue();
         assertThat(entry.entryScript()).startsWith("/react/assets/dialogs-").endsWith(".js");
-        assertThat(entry.styles()).anyMatch(url -> url.contains("DialogHost-") && url.endsWith(".css"));
+        assertProductionAssetsAndDialogStyles(entry);
         assertThat(entry.modulePreloads()).noneMatch(url -> url.contains("adminApp-") || url.contains("shell-"));
+    }
+
+    @Test
+    void collectsNestedAndDeduplicatedAssetsWithoutDependingOnChunkNames() {
+        String manifest = """
+                {
+                  "src/app/main.tsx": {
+                    "file": "assets/entry.js", "isEntry": true,
+                    "css": ["assets/entry.css"], "imports": ["controls", "tokens"]
+                  },
+                  "controls": {
+                    "file": "assets/renamed-controls.js",
+                    "css": ["assets/renamed-controls.css", "assets/tokens.css"],
+                    "imports": ["tokens"]
+                  },
+                  "tokens": {
+                    "file": "assets/tokens.js", "css": ["assets/tokens.css"]
+                  }
+                }
+                """;
+        DefaultResourceLoader loader = new DefaultResourceLoader() {
+            @Override
+            public Resource getResource(String location) {
+                return new ByteArrayResource(manifest.getBytes(StandardCharsets.UTF_8));
+            }
+        };
+        var entry = new ViteAssetService(new ObjectMapper(), loader, "").entry("src/app/main.tsx");
+
+        assertThat(entry.available()).isTrue();
+        assertThat(entry.entryScript()).isEqualTo("/react/assets/entry.js");
+        assertThat(entry.styles()).containsExactly(
+                "/react/assets/entry.css", "/react/assets/tokens.css", "/react/assets/renamed-controls.css");
+        assertThat(entry.modulePreloads()).containsExactly(
+                "/react/assets/tokens.js", "/react/assets/renamed-controls.js");
     }
 
     @Test
@@ -177,5 +213,24 @@ class ViteAssetServiceTest {
                 new ObjectMapper(),
                 new DefaultResourceLoader(),
                 "https://assets.example.com"));
+    }
+
+    private static void assertProductionAssetsAndDialogStyles(ViteAssetService.ViteEntry entry) throws IOException {
+        DefaultResourceLoader loader = new DefaultResourceLoader();
+        var assets = new ArrayList<>(entry.styles());
+        assets.add(entry.entryScript());
+        assets.addAll(entry.modulePreloads());
+        for (String asset : assets) {
+            assertThat(loader.getResource("classpath:/static" + asset).isReadable()).as(asset).isTrue();
+        }
+
+        assertThat(entry.styles()).isNotEmpty();
+        StringBuilder styles = new StringBuilder();
+        for (String stylesheet : entry.styles()) {
+            try (var input = loader.getResource("classpath:/static" + stylesheet).getInputStream()) {
+                styles.append(new String(input.readAllBytes(), StandardCharsets.UTF_8)).append('\n');
+            }
+        }
+        assertThat(styles.toString()).contains(".dialog-fields", ".dialog-kind-options", ".dialog-upload-options");
     }
 }

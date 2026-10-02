@@ -24,6 +24,7 @@ export default defineConfig({
         sharedImage: 'src/shared-file/image.tsx',
         sharedComic: 'src/shared-file/comic.tsx',
         markdown: 'src/markdown/main.ts',
+        requestUpload: 'src/public-request/upload.js',
       },
     },
   },

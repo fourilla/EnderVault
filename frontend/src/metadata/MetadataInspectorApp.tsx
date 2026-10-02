@@ -1,7 +1,10 @@
+import { LoadingState } from '../shared/layout/LoadingState';
+import { OptionRow } from '../shared/forms/OptionRow';
 import { useEffect, useState } from 'react';
 import { useHashTarget } from '../shared/browser/useHashTarget';
 import { toastError } from '../shared/api/form-api';
 import { PageHeader } from '../shared/layout/PageHeader';
+import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import { loadMetadataInspector, repairMetadataIssues, startMetadataScan } from './metadata-api';
 import { MetadataIssueTable } from './MetadataIssueTable';
 import type { MetadataPagePayload, MetadataTask } from './types';
@@ -20,6 +23,7 @@ export function MetadataInspectorApp() {
     setError('');
     void loadMetadataInspector(controller.signal)
       .then((next) => {
+        if (controller.signal.aborted) return;
         setPayload(next);
         setSelectedAreas((current) => current ?? new Set(next.areas.map((area) => area.name)));
         setSelectedIssues(new Set());
@@ -94,12 +98,12 @@ export function MetadataInspectorApp() {
     <div className="dashboard-workspace settings-workspace metadata-workspace metadata-selection-enhanced">
       <PageHeader title="Metadata Inspector" />
 
-      {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
+      {error && <PageErrorPanel title="Metadata inspector unavailable" message={error} stale={payload !== null}
+        actions={<button type="button" className="icon-text-button" onClick={() => setRefreshToken((value) => value + 1)}>
+          <i className="fas fa-arrows-rotate" aria-hidden="true" /><span>Retry</span>
+        </button>} />}
       {!payload && !error && (
-        <section className="browser-load-progress" role="status" aria-live="polite">
-          <i className="fas fa-spinner fa-spin" aria-hidden="true" />
-          <span>Loading metadata inspector...</span>
-        </section>
+        <LoadingState label="Loading metadata inspector..." />
       )}
       {payload && (
         <>
@@ -125,12 +129,10 @@ export function MetadataInspectorApp() {
               )}
               <div className="metadata-area-list">
                 {payload.areas.map((area) => (
-                  <label className="metadata-area-row" id={`metadata-scan-area-${area.name}`} key={area.name}>
-                    <input type="checkbox" checked={selectedAreas?.has(area.name) ?? false} disabled={controlsDisabled}
-                      onChange={(event) => toggleArea(area.name, event.currentTarget.checked)} />
-                    <i className={area.iconClass} aria-hidden="true" />
-                    <span><strong>{area.label}</strong><small>{area.description}</small></span>
-                  </label>
+                  <OptionRow control="checkbox" id={`metadata-scan-area-${area.name}`} key={area.name}
+                    label={area.label} description={area.description} icon={area.iconClass}
+                    checked={selectedAreas?.has(area.name) ?? false} disabled={controlsDisabled}
+                    onChange={(checked) => toggleArea(area.name, checked)} />
                 ))}
               </div>
               <div className="settings-actions-top metadata-actions-top">

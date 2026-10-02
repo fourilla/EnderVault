@@ -1,9 +1,11 @@
+import { LoadingState } from '../shared/layout/LoadingState';
 import { type FormEvent, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useRouteSearch } from '../app/RouteSearch';
 import { AppNavigationLink } from '../app/AppNavigationLink';
 import { toastError } from '../shared/api/form-api';
 import { PageHeader } from '../shared/layout/PageHeader';
+import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import { deleteStickyNote, loadStickyNoteCatalog } from './sticky-note-catalog-api';
 import type { StickyNoteCatalogItem } from './types';
 
@@ -14,6 +16,7 @@ export function StickyNoteListApp() {
   const [notes, setNotes] = useState<StickyNoteCatalogItem[] | null>(null);
   const [busyId, setBusyId] = useState('');
   const [error, setError] = useState('');
+  const [refreshToken, setRefreshToken] = useState(0);
 
   useEffect(() => setQuery(activeQuery), [activeQuery]);
 
@@ -29,7 +32,7 @@ export function StickyNoteListApp() {
         }
       });
     return () => controller.abort();
-  }, [activeQuery]);
+  }, [activeQuery, refreshToken]);
 
   useEffect(() => {
     const onDeleted = (event: Event) => {
@@ -77,17 +80,20 @@ export function StickyNoteListApp() {
     <div className="dashboard-workspace">
       <PageHeader title="Sticky Notes" />
 
+      {error && <PageErrorPanel title="Sticky notes unavailable" message={error}
+        actions={<button type="button" className="icon-text-button"
+          onClick={() => setRefreshToken((value) => value + 1)}>
+          <i className="fas fa-arrows-rotate" aria-hidden="true" /><span>Retry</span>
+        </button>} />}
+
       <section className="dashboard-panel" aria-label="Sticky note manager">
         <header className="section-heading">
           <div><h2>All Notes</h2><p>Review notes attached to pages, files, directories, and bookmarks.</p></div>
           <span className="status-badge info">{notes?.length ?? 0} note(s)</span>
         </header>
 
-        {error && <div className="browser-load-error" role="alert">{error}</div>}
         {!notes && !error && (
-          <div className="browser-load-progress" role="status" aria-live="polite">
-            <i className="fas fa-spinner fa-spin" aria-hidden="true" /><span>Loading sticky notes...</span>
-          </div>
+          <LoadingState label="Loading sticky notes..." />
         )}
         {notes && (
           <div className="table-wrap compact-table">

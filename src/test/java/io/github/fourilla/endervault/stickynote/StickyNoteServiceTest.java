@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.stickynote;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -9,6 +10,7 @@ import tools.jackson.databind.json.JsonMapper;
 import io.github.fourilla.endervault.bookmark.BookmarkMetadataFetcher;
 import io.github.fourilla.endervault.bookmark.BookmarkService;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.filerequest.FileRequest;
 import io.github.fourilla.endervault.filerequest.FileRequestService;
 import io.github.fourilla.endervault.filerequest.UploaderNamePolicy;
@@ -35,6 +37,7 @@ class StickyNoteServiceTest {
 
     private StickyNoteService service;
     private FileRequestService fileRequestService;
+    private ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -43,7 +46,7 @@ class StickyNoteServiceTest {
         StorageService storageService = new StorageService(properties);
         storageService.initialize();
 
-        ObjectMapper objectMapper = JsonMapper.builder().findAndAddModules().build();
+        objectMapper = JsonMapper.builder().findAndAddModules().build();
         BookmarkService bookmarkService = new BookmarkService(
                 objectMapper,
                 properties,
@@ -87,6 +90,7 @@ class StickyNoteServiceTest {
                 "Remember this",
                 30,
                 40,
+                null,
                 320,
                 260,
                 true,
@@ -182,5 +186,67 @@ class StickyNoteServiceTest {
         assertThat(service.list(context)).containsExactly(note);
         assertThat(service.contextLabel(context)).isEqualTo("Project uploads");
         assertThat(service.openUrl(context)).isEqualTo("/admin/file-requests/request-1");
+    }
+
+    @Test
+    void readsLegacyMetadataWithoutChangingItsCoordinates() throws Exception {
+        Path metadata = root.resolve(".endervault/sticky-notes.json");
+        String legacy = """
+                [{"id":"legacy", "context":{"targetType":"PAGE","targetKey":"dashboard","surface":"PAGE"},
+                "content":"Original note", "x":900, "y":480, "width":600, "height":700,
+                "collapsed":false, "layer":1, "revision":0,
+                "createdAt":"2026-01-01T00:00:00Z", "updatedAt":"2026-01-01T00:00:00Z"}]
+                """;
+        Files.writeString(metadata, legacy);
+
+        StickyNote note = service.find("legacy");
+        assertThat(note.xRatio()).isNull();
+        assertThat(note.x()).isEqualTo(900);
+        assertThat(note.y()).isEqualTo(480);
+        assertThat(Files.readString(metadata)).isEqualTo(legacy);
+
+        StickyNote updated = service.update(note.id(), new StickyNoteSnapshot(
+                "Content edit", note.x(), note.y(), null, note.width(), note.height(), false, 1
+        ));
+        assertThat(updated.xRatio()).isNull();
+        assertThat(updated.x()).isEqualTo(900);
+        assertThat(updated.y()).isEqualTo(480);
+    }
+
+    @Test
+    void savesPagePlacementAndRetainsItWhenItsTargetMoves() throws Exception {
+        Files.writeString(root.resolve("note.txt"), "hello");
+        StickyNote note = service.create(new StickyNoteContext(
+                StickyNoteTargetType.STORAGE, "note.txt", StickyNoteSurface.DETAIL
+        ), 100, 45_000, 0.75);
+        assertThat(note.xRatio()).isEqualTo(0.75);
+        assertThat(note.y()).isEqualTo(45_000);
+
+        StickyNote updated = service.update(note.id(), new StickyNoteSnapshot(
+                "Page note", 120, 80_000, 0.8, 600, 700, true, 4
+        ));
+        assertThat(service.find(note.id())).isEqualTo(updated);
+        assertThat(objectMapper.readTree(root.resolve(".endervault/sticky-notes.json").toFile())
+                .get(0).path("xRatio").asDouble()).isEqualTo(0.8);
+
+        Files.move(root.resolve("note.txt"), root.resolve("renamed.txt"));
+        service.moveVaultPath("note.txt", "renamed.txt");
+        assertThat(service.find(note.id()).xRatio()).isEqualTo(0.8);
+        assertThat(service.find(note.id()).y()).isEqualTo(80_000);
+    }
+
+    @Test
+    void rejectsInvalidRatiosAndLegacyUpdatesOfPagePlacements() throws Exception {
+        StickyNoteContext context = new StickyNoteContext(StickyNoteTargetType.PAGE, "dashboard", StickyNoteSurface.PAGE);
+        for (double ratio : new double[]{-0.1, 1.1, Double.NaN, Double.POSITIVE_INFINITY}) {
+            assertThatThrownBy(() -> service.create(context, 0, 0, ratio))
+                    .isInstanceOf(StorageAccessException.class);
+        }
+        StickyNote note = service.create(context, 10, 20, 0.5);
+        assertThatThrownBy(() -> service.update(note.id(), new StickyNoteSnapshot(
+                "Old client", 0, 0, null, 280, 220, false, 1
+        ))).isInstanceOf(StorageAccessException.class).hasMessageContaining("Refresh");
+        assertThat(service.find(note.id())).isEqualTo(note);
+        assertThat(service.create(context, 0, Integer.MAX_VALUE, 1.0).y()).isEqualTo(1_000_000);
     }
 }

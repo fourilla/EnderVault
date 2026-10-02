@@ -9,10 +9,10 @@ export function FileTools({ payload }: { payload: FileDetailPayload }) {
   if (detail.directory) return null;
   return <section className="detail-panel">
     <header className="section-heading"><h2>File Tools</h2><span className="status-badge">{tool.label}</span></header>
-    {tool.type === 'video' && <div className="preview-surface">
+    {tool.type === 'video' && <div className="preview-surface" data-native-context-menu>
       <video className="preview-media" controls poster={urls.cardMedia || undefined} src={urls.previewContent || undefined} />
     </div>}
-    {tool.type === 'pdf' && <div className="preview-surface">
+    {tool.type === 'pdf' && <div className="preview-surface" data-native-context-menu>
       <iframe className="preview-frame" src={urls.previewContent || undefined} title="Preview" />
     </div>}
     {tool.type === 'image' && <ImageViewer sourceUrl={urls.previewContent || ''} name={detail.name} />}

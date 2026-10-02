@@ -1,6 +1,7 @@
 import { SettingsField, SettingsSaveBar, SettingsSection, SettingsToggle, type FieldDefinition } from '../components/SettingsControls';
 import { useSettingsEditor } from '../hooks/useSettingsEditor';
 import { useSettingsSnapshot } from '../hooks/useSettingsSnapshot';
+import { SettingsLoadState } from '../components/SettingsLoadState';
 import type { FileRequestSettingsSnapshot, FormValues } from '../types';
 
 const toValues = (snapshot: FileRequestSettingsSnapshot): FormValues => ({
@@ -77,8 +78,8 @@ function Editor({ snapshot, onDirtyChange }: { snapshot: FileRequestSettingsSnap
 }
 
 export function FileRequestSettings({ onDirtyChange }: { onDirtyChange: (dirty: boolean) => void }) {
-  const { snapshot, error } = useSettingsSnapshot<FileRequestSettingsSnapshot>('/api/v1/settings/file-requests');
-  if (error) return <div className="settings-spa-error">{error}</div>;
-  if (!snapshot) return <div className="settings-spa-loading">Loading file request settings...</div>;
-  return <Editor snapshot={snapshot} onDirtyChange={onDirtyChange} />;
+  const { snapshot, error, refresh } = useSettingsSnapshot<FileRequestSettingsSnapshot>('/api/v1/settings/file-requests');
+  return <SettingsLoadState loaded={snapshot !== null} error={error} refresh={refresh} loadingLabel="Loading file request settings...">
+    {snapshot && <Editor snapshot={snapshot} onDirtyChange={onDirtyChange} />}
+  </SettingsLoadState>;
 }

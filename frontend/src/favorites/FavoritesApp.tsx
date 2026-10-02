@@ -1,8 +1,12 @@
+import { LoadingState } from '../shared/layout/LoadingState';
+import { OverflowMarquee } from '../shared/layout/OverflowMarquee';
+import { StableTable } from '../shared/browser/StableTable';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { moveFavorite, removeFavorite } from '../shared/api/favorite-api';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
+import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import { loadFavorites } from './favorite-api';
 import type { FavoriteEntry, FavoritesPayload } from './types';
 import './favorites-app.css';
@@ -68,12 +72,14 @@ export function FavoritesApp() {
         </div>
       </section>
 
-      {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
+      <div className="page-feedback-layout">
+      {error && <PageErrorPanel title="Favorites unavailable" message={error} stale={payload !== null}
+        actions={<button type="button" className="icon-text-button" disabled={loading}
+          onClick={() => setRefreshToken((value) => value + 1)}>
+          {icon('fas fa-arrows-rotate')}<span>Retry</span>
+        </button>} />}
       {loading && !payload && (
-        <section className="browser-load-progress" role="status" aria-live="polite">
-          <i className="fas fa-spinner fa-spin" aria-hidden="true" />
-          <span>Loading favorites...</span>
-        </section>
+        <LoadingState label="Loading favorites..." />
       )}
       {payload && (
         <section className="dashboard-panel favorites-panel" aria-label="Favorite files and directories">
@@ -82,27 +88,29 @@ export function FavoritesApp() {
             <p>{payload.items.length} item(s)</p>
           </header>
           <div className="table-wrap compact-table">
-            <table>
+            <StableTable columns={['text', 'type', 'text', 'date', 'actions']} actionCount={3}>
               <thead>
-                <tr><th>Name</th><th>Type</th><th>Path</th><th>Added</th><th>Actions</th></tr>
+                <tr><th>Name</th><th>Type</th><th>Target</th><th>Added</th><th>Actions</th></tr>
               </thead>
               <tbody>
                 {payload.items.map((entry, index) => (
                   <tr key={entry.path} className={entry.hidden ? 'is-hidden-item' : undefined}>
                     <td>
+                      <div className="table-item-label">
                       <a className="item-name" href={entry.openUrl}
                         target={entry.openInNewTab ? '_blank' : undefined}
                         rel={entry.openInNewTab ? 'noopener noreferrer' : undefined}
                         title={entry.targetLabel}>
-                        <i className={`${entry.iconClass} item-icon`} aria-hidden="true" /><span>{entry.name}</span>
+                        <i className={`${entry.iconClass} item-icon`} aria-hidden="true" /><OverflowMarquee text={entry.name} />
                       </a>
                       {entry.hidden && <span className="status-badge expired hidden-badge">Hidden</span>}
+                      </div>
                     </td>
                     <td>{entry.typeLabel}</td>
-                    <td><span className="path-cell" title={entry.targetLabel}>{entry.targetLabel}</span></td>
+                    <td><span className="path-cell"><OverflowMarquee text={entry.targetLabel} /></span></td>
                     <td>{entry.createdLabel}</td>
                     <td>
-                      <div className="table-actions favorite-row-actions">
+                      <div className="table-actions">
                         <button className="ghost icon-button action-icon" type="button"
                           disabled={index === 0 || busyPath === entry.path}
                           title="Move up" aria-label="Move up" onClick={() => void move(entry, 'up')}>
@@ -126,10 +134,11 @@ export function FavoritesApp() {
                   <tr className="empty-row"><td colSpan={5} className="empty">No favorites yet.</td></tr>
                 )}
               </tbody>
-            </table>
+            </StableTable>
           </div>
         </section>
       )}
+      </div>
     </>
   );
 }

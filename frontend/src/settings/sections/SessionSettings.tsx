@@ -1,7 +1,7 @@
 import { SettingsField, SettingsSaveBar, SettingsSection } from '../components/SettingsControls';
-import { AppNavigationLink } from '../../app/AppNavigationLink';
 import { useSettingsEditor } from '../hooks/useSettingsEditor';
 import { useSettingsSnapshot } from '../hooks/useSettingsSnapshot';
+import { SettingsLoadState } from '../components/SettingsLoadState';
 import type { FormValues, SessionSettingsSnapshot } from '../types';
 
 const toValues = (snapshot: SessionSettingsSnapshot): FormValues => ({
@@ -30,11 +30,6 @@ function Editor({ snapshot, onDirtyChange }: { snapshot: SessionSettingsSnapshot
           <article><span>Concurrent limit</span><strong>{concurrentLabel}</strong></article>
           <article><span>Idle timeout</span><strong>{idleTimeoutLabel}</strong></article>
         </div>
-        <div className="settings-inline-actions">
-          <AppNavigationLink className="ghost icon-text-button" href="/admin/sessions">
-            <i className="fas fa-laptop" aria-hidden="true" /><span>Manage active sessions</span>
-          </AppNavigationLink>
-        </div>
       </SettingsSection>
       <p className="settings-config-path">Stored in <code>{snapshot.configPath}</code></p>
     </form>
@@ -42,8 +37,8 @@ function Editor({ snapshot, onDirtyChange }: { snapshot: SessionSettingsSnapshot
 }
 
 export function SessionSettings({ onDirtyChange }: { onDirtyChange: (dirty: boolean) => void }) {
-  const { snapshot, error } = useSettingsSnapshot<SessionSettingsSnapshot>('/api/v1/settings/sessions');
-  if (error) return <div className="settings-spa-error">{error}</div>;
-  if (!snapshot) return <div className="settings-spa-loading">Loading session settings...</div>;
-  return <Editor snapshot={snapshot} onDirtyChange={onDirtyChange} />;
+  const { snapshot, error, refresh } = useSettingsSnapshot<SessionSettingsSnapshot>('/api/v1/settings/sessions');
+  return <SettingsLoadState loaded={snapshot !== null} error={error} refresh={refresh} loadingLabel="Loading session settings...">
+    {snapshot && <Editor snapshot={snapshot} onDirtyChange={onDirtyChange} />}
+  </SettingsLoadState>;
 }

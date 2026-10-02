@@ -33,15 +33,6 @@ export function mergeOperations(server: DashboardTask[], remote: RemoteDownloadT
   return [...items.values()].sort((a, b) => priority(a) - priority(b));
 }
 
-export function formatBytes(value: number | null | undefined) {
-  if (value == null || !Number.isFinite(value) || value < 0) return 'Unavailable';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let size = value;
-  let unit = 0;
-  while (size >= 1024 && unit < units.length - 1) { size /= 1024; unit++; }
-  return `${size.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
-}
-
 export function usagePercent(used: number | null | undefined, total: number | null | undefined) {
   return used != null && total != null && total > 0 && used >= 0 && used <= total
     ? Math.round(used / total * 100) : null;

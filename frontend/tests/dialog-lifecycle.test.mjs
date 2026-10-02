@@ -10,6 +10,8 @@ function setup() {
     ownerDocument = document;
     open = false;
     shown = 0;
+    initialFocus = null;
+    querySelector() { return this.initialFocus; }
     showModal() { this.open = true; this.shown++; }
     close() { this.open = false; }
     getBoundingClientRect() { return { left: 100, top: 100, right: 300, bottom: 300 }; }
@@ -25,6 +27,29 @@ function setup() {
   };
   return { Dialog, dialog, document, focused, reasons, policy, pointer };
 }
+
+test('initial input is focused only after activation, including queued and nested dialogs', () => {
+  const s = setup();
+  const queued = new s.Dialog(), child = new s.Dialog();
+  const calls = [];
+  for (const [name, dialog] of [['parent', s.dialog], ['queued', queued], ['child', child]]) {
+    dialog.initialFocus = { focus(options) {
+      assert.equal(dialog.open, true);
+      assert.deepEqual(options, { preventScroll: true });
+      calls.push(name);
+    } };
+  }
+  const first = mountDialog(s.dialog, () => s.policy);
+  const second = mountDialog(queued, () => s.policy);
+  const nested = mountDialog(child, () => s.policy, true);
+  try {
+    assert.deepEqual(calls, ['parent', 'child']);
+    nested();
+    assert.deepEqual(calls, ['parent', 'child']);
+    first();
+    assert.deepEqual(calls, ['parent', 'child', 'queued']);
+  } finally { nested(); first(); second(); }
+});
 
 test('open locks scrolling; disposal restores focus/scroll without requesting a business action', () => {
   const s = setup();

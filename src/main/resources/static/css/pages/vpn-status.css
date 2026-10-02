@@ -1,4 +1,5 @@
 .vpn-public-ip {
+    min-width: 0;
     overflow-wrap: anywhere;
 }
 
@@ -35,6 +36,7 @@
 .vpn-detail-list > div {
     display: grid;
     grid-template-columns: minmax(7rem, 0.45fr) minmax(0, 1fr);
+    align-items: center;
     gap: var(--space-xl);
     padding: var(--space-xl) 0;
     border-bottom: 1px solid var(--line);
@@ -62,6 +64,8 @@
 }
 
 .vpn-detail-list dd {
+    display: flex;
+    align-items: center;
     min-width: 0;
     margin: 0;
     overflow-wrap: anywhere;
@@ -75,6 +79,7 @@
 .vpn-control-actions {
     display: grid;
     gap: var(--space-md);
+    margin-top: auto;
 }
 
 .vpn-control-actions form,
@@ -87,7 +92,7 @@
 }
 
 .vpn-control-note {
-    margin: auto 0 0;
+    margin: 0;
     padding-top: var(--space-3xl);
     color: var(--muted);
     font-size: var(--font-size-sm);

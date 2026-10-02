@@ -31,9 +31,9 @@ export function ImageViewer({ sourceUrl, name }: { sourceUrl: string; name: stri
   }, [sourceUrl, name]);
 
   return (
-    <div className="image-viewer" data-image-viewer ref={rootRef}>
-      <div className="image-viewer-toolbar" aria-label="Image viewer controls">
-        <div className="image-viewer-controls">
+    <div className="image-viewer file-tool-viewer" data-image-viewer ref={rootRef}>
+      <div className="image-viewer-toolbar file-tool-toolbar" aria-label="Image viewer controls">
+        <div className="image-viewer-controls file-tool-control-group">
           {action('zoom-out', 'fas fa-magnifying-glass-minus', 'Zoom out')}
           {action('zoom-in', 'fas fa-magnifying-glass-plus', 'Zoom in')}
           {action('one-to-one', '', 'Actual size', 'Show at actual size')}
@@ -46,7 +46,7 @@ export function ImageViewer({ sourceUrl, name }: { sourceUrl: string; name: stri
         </div>
         {action('fullscreen', 'fas fa-expand', 'Open fullscreen viewer')}
       </div>
-      <div className="image-viewer-stage" data-image-viewer-stage>
+      <div className="image-viewer-stage" data-image-viewer-stage data-native-context-menu>
         <img className="image-viewer-source" src={sourceUrl}
           alt={name} draggable="false" data-image-viewer-source />
       </div>

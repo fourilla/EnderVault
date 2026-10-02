@@ -26,7 +26,11 @@ export interface SpaAliasNavigationEntry extends NavigationEntryBase {
   surface: 'spa-alias';
 }
 
-export type NavigationEntry = SpaNavigationEntry | SpaAliasNavigationEntry;
+export interface StandaloneNavigationEntry extends NavigationEntryBase {
+  surface: 'standalone';
+}
+
+export type NavigationEntry = SpaNavigationEntry | SpaAliasNavigationEntry | StandaloneNavigationEntry;
 
 const lazyNamed = <TModule, TName extends keyof TModule>(
   loader: () => Promise<TModule>,
@@ -199,6 +203,15 @@ export const navigationEntries: readonly NavigationEntry[] = [
     group: 'application',
     surface: 'spa',
     component: lazyNamed(() => import('../settings/SettingsApp'), 'SettingsApp'),
+  },
+  {
+    id: 'read-only',
+    path: '/files/read-only',
+    label: 'Read-only browser',
+    icon: 'fas fa-mobile-screen-button',
+    placement: 'apps',
+    group: 'application',
+    surface: 'standalone',
   },
   {
     id: 'account-settings',

@@ -30,7 +30,7 @@ export function browserMenuContext<T>({
 }): BrowserMenuContext<T> | null {
   const target = event.target as Element | null;
   if (!target?.closest || !workspace.contains(target)
-      || target.closest('input, textarea, select, [contenteditable="true"], dialog, .context-menu, .sticky-note-layer')) {
+      || target.closest('input, textarea, select, [contenteditable="true"], dialog, .context-menu, .sticky-note-layer, .CodeMirror, [data-native-context-menu]')) {
     return null;
   }
   const element = target.closest<HTMLElement>('[data-context-item="true"]');

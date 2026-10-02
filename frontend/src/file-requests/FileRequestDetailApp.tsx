@@ -1,3 +1,4 @@
+import { LoadingState } from '../shared/layout/LoadingState';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { AppNavigationLink } from '../app/AppNavigationLink';
@@ -5,6 +6,7 @@ import { toastError } from '../shared/api/form-api';
 import { canRetainSnapshot } from '../shared/api/snapshot-errors';
 import { icon } from '../shared/browser/BrowserEntries';
 import { PageHeader } from '../shared/layout/PageHeader';
+import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import {
   cancelFileRequestUploads,
   deleteFileRequest,
@@ -78,18 +80,18 @@ export function FileRequestDetailApp() {
     if (confirmed) await run(options.key, options.action, options.fallback, options.after);
   };
 
-  if (error && !payload) return <section className="dashboard-panel browser-load-error" role="alert">{error}</section>;
-  if (!payload) return <section className="browser-load-progress" role="status" aria-live="polite">
-    <i className="fas fa-spinner fa-spin" aria-hidden="true" /><span>Loading file request...</span>
-  </section>;
+  const failurePanel = error && <PageErrorPanel title="File request unavailable" message={error} stale={payload !== null}
+    actions={<button className="icon-text-button" type="button" onClick={reload}>
+      {icon('fas fa-arrows-rotate')}<span>Retry</span>
+    </button>} />;
+  if (error && !payload) return failurePanel;
+  if (!payload) return <LoadingState label="Loading file request..." />;
 
   const { item } = payload;
   return (
     <div className="dashboard-workspace file-request-detail-workspace">
       <PageHeader title={item.title} />
-      {error && <section className="browser-load-error" role="alert">{error} Showing the last loaded values.
-        <button className="ghost" type="button" onClick={reload}>Retry</button>
-      </section>}
+      {failurePanel}
 
       <section className="dashboard-panel">
         <header className="section-heading">
@@ -109,7 +111,7 @@ export function FileRequestDetailApp() {
           <Policy label="Expires" value={item.expiresLabel} />
           <Policy label="Usage" value={item.usageLabel} wide />
         </dl>
-        <div className="file-request-detail-actions">
+        <div className="form-actions end file-request-detail-actions">
           <button className="ghost icon-text-button" type="button" onClick={() => void copyLink(item.url)}>
             {icon('fas fa-link')}<span>Copy link</span>
           </button>
@@ -188,7 +190,7 @@ export function FileRequestDetailApp() {
         </table></div>
       </section>
 
-      {!item.active && <section className="dashboard-panel file-request-delete-panel">
+      {!item.active && <section className="dashboard-panel">
         <header className="section-heading"><div><h2>Delete Request</h2><p>Deletion is available only after active uploads and pending files are cleared.</p></div></header>
         <div className="form-actions end"><button className="danger icon-text-button" type="button"
           disabled={!payload.canDelete || Boolean(busy)}

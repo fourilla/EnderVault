@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getSettings, showError } from '../settings-api';
+import { getSettings } from '../settings-api';
 import { canRetainSnapshot } from '../../shared/api/snapshot-errors';
 
 export function useSettingsSnapshot<T>(endpoint: string) {
@@ -17,7 +17,6 @@ export function useSettingsSnapshot<T>(endpoint: string) {
         const message = reason instanceof Error ? reason.message : 'Settings could not be loaded.';
         if (!canRetainSnapshot(reason)) setStored(null);
         setFailure({ endpoint, message });
-        showError(reason);
       });
     return () => { active = false; };
   }, [endpoint, revision]);

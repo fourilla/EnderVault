@@ -1,6 +1,6 @@
 import { useState, type ChangeEvent, type ReactNode } from 'react';
 import type { FormValue, FormValues } from '../types';
-import { OverflowMarquee } from './OverflowMarquee';
+import { OverflowMarquee } from '../../shared/layout/OverflowMarquee';
 
 export type FieldOption = { value: string; label: string };
 

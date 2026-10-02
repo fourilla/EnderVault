@@ -1,10 +1,11 @@
+import { LoadingState } from '../shared/layout/LoadingState';
 import { useEffect, useState } from 'react';
 import { AppDialog } from '../shared/dialogs/AppDialog';
-import { AppNavigationLink } from '../app/AppNavigationLink';
 import { useAdminApp } from '../app/AdminAppContext';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
 import { PageHeader } from '../shared/layout/PageHeader';
+import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import { loadActiveSessions, revokeActiveSession } from './session-api';
 import type { ActiveSession } from './types';
 
@@ -14,19 +15,22 @@ export function ActiveSessionsApp() {
   const [selectedSession, setSelectedSession] = useState<ActiveSession | null>(null);
   const [busyId, setBusyId] = useState('');
   const [error, setError] = useState('');
+  const [refreshToken, setRefreshToken] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
     setError('');
     void loadActiveSessions(controller.signal)
-      .then((payload) => setSessions(payload.sessions))
+      .then((payload) => {
+        if (!controller.signal.aborted) setSessions(payload.sessions);
+      })
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
           setError(reason instanceof Error ? reason.message : 'Active sessions could not be loaded.');
         }
       });
     return () => controller.abort();
-  }, []);
+  }, [refreshToken]);
 
   const closeDetails = () => {
     setSelectedSession(null);
@@ -53,12 +57,13 @@ export function ActiveSessionsApp() {
     <>
       <PageHeader title="Active Sessions" />
 
-      {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
+      <div className="page-feedback-layout">
+      {error && <PageErrorPanel title="Active sessions unavailable" message={error} stale={sessions !== null}
+        actions={<button type="button" className="icon-text-button" onClick={() => setRefreshToken((value) => value + 1)}>
+          {icon('fas fa-arrows-rotate')}<span>Retry</span>
+        </button>} />}
       {!sessions && !error && (
-        <section className="browser-load-progress" role="status" aria-live="polite">
-          <i className="fas fa-spinner fa-spin" aria-hidden="true" />
-          <span>Loading active sessions...</span>
-        </section>
+        <LoadingState label="Loading active sessions..." />
       )}
       {sessions && (
         <section className="dashboard-panel sessions-panel">
@@ -67,9 +72,6 @@ export function ActiveSessionsApp() {
               <h2>Signed-in Devices</h2>
               <p>Revoke a forgotten or unrecognized browser session.</p>
             </div>
-            <AppNavigationLink className="ghost icon-text-button" href="/admin/settings?section=sessions">
-              {icon('fas fa-sliders')}<span>Session settings</span>
-            </AppNavigationLink>
           </header>
 
           <p className="session-security-note">
@@ -128,6 +130,7 @@ export function ActiveSessionsApp() {
         </section>
       )}
 
+      </div>
       <AppDialog open={selectedSession !== null} className="admin-detail-modal" labelledBy="sessionDetailTitle"
         onDismiss={closeDetails} dismissOnBackdrop>
         <article className="admin-detail-modal-card">

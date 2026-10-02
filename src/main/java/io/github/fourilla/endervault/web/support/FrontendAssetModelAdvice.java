@@ -20,6 +20,7 @@ public class FrontendAssetModelAdvice {
     private final ViteAssetService.ViteEntry sharedComicEntry;
     private final ViteAssetService.ViteEntry markdownEntry;
     private final ViteAssetService.ViteEntry dialogsEntry;
+    private final ViteAssetService.ViteEntry requestUploadEntry;
 
     public FrontendAssetModelAdvice(ViteAssetService viteAssetService) {
         this.stylesEntry = viteAssetService.entry(STYLES_ENTRY);
@@ -29,7 +30,11 @@ public class FrontendAssetModelAdvice {
         this.sharedComicEntry = viteAssetService.entry(SHARED_COMIC_ENTRY);
         this.markdownEntry = viteAssetService.entry(MARKDOWN_ENTRY);
         this.dialogsEntry = viteAssetService.entry("src/dialogs/main.tsx");
+        this.requestUploadEntry = viteAssetService.entry("src/public-request/upload.js");
     }
+
+    @ModelAttribute("requestUploadFrontend")
+    public ViteAssetService.ViteEntry requestUploadFrontend() { return requestUploadEntry; }
 
     @ModelAttribute("stylesFrontend")
     public ViteAssetService.ViteEntry stylesFrontend() {

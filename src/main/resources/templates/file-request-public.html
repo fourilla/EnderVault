@@ -8,7 +8,7 @@
     <title th:text="|${fileRequest.title()} - EnderVault File Request|">EnderVault File Request</title>
     <th:block th:replace="~{fragments/assets :: styles(true)}"></th:block>
     <th:block th:replace="~{fragments/assets :: resumableUploadScript}"></th:block>
-    <script defer th:src="@{/js/file-request-upload.js}"></script>
+    <th:block th:replace="~{fragments/assets :: viteEntry(${requestUploadFrontend})}"></th:block>
 </head>
 <body>
 <header class="topbar file-request-public-topbar">
@@ -66,7 +66,7 @@
             <div class="file-request-queue" data-file-request-queue hidden></div>
             <p class="file-request-live-status" data-file-request-status aria-live="polite"></p>
 
-            <div class="form-actions end file-request-upload-actions">
+            <div class="form-actions end">
                 <button class="icon-text-button" type="submit" data-file-request-submit disabled>
                     <i class="fas fa-upload" aria-hidden="true"></i>
                     <span>Upload selected files</span>
@@ -75,5 +75,27 @@
         </form>
     </section>
 </main>
+<dialog class="text-input-dialog request-upload-dialog" data-upload-dialog aria-labelledby="requestUploadTitle">
+    <article class="text-input-card">
+        <header class="text-input-header">
+            <h2 id="requestUploadTitle" data-upload-title>Confirm upload</h2>
+            <button type="button" class="ghost icon-button" data-upload-close title="Close" aria-label="Close">
+                <i class="fas fa-xmark" aria-hidden="true"></i>
+            </button>
+        </header>
+        <p data-upload-summary></p>
+        <div data-upload-progress-area hidden>
+            <progress data-upload-progress max="100" value="0" aria-label="Overall transfer progress"></progress>
+            <p data-upload-totals></p>
+        </div>
+        <div class="file-request-queue" data-upload-list></div>
+        <p data-upload-result role="status" aria-live="polite"></p>
+        <footer class="form-actions end">
+            <button type="button" class="danger" data-upload-cancel hidden>Cancel all</button>
+            <button type="button" data-upload-start>Start upload</button>
+            <button type="button" class="ghost" data-upload-done>Close</button>
+        </footer>
+    </article>
+</dialog>
 </body>
 </html>

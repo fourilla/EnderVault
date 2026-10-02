@@ -29,7 +29,7 @@ export function CreateItemDialog({ close, create }: {
         <button className="ghost icon-text-button" type="button" aria-pressed={directory} disabled={busy} onClick={() => setDirectory(true)}>{icon('fas fa-folder')}<span>Directory</span></button>
       </div>
       <label className="text-input-field">{directory ? 'Directory name' : 'File name'}
-        <input value={name} disabled={busy} autoFocus autoComplete="off" placeholder={directory ? 'New directory' : 'note.txt'}
+        <input value={name} disabled={busy} data-dialog-initial-focus autoComplete="off" placeholder={directory ? 'New directory' : 'note.txt'}
           onChange={(event) => { setName(event.target.value); setError(''); }}
           onKeyDown={(event) => { if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.keyCode === 229)) event.preventDefault(); }} />
       </label>

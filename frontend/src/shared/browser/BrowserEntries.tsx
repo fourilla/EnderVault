@@ -1,5 +1,8 @@
 import { MouseEvent, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { OverflowMarquee } from '../layout/OverflowMarquee';
+import { StableTable } from './StableTable';
+import { PathLink } from './PathLink';
 import type { BrowserEntry } from './types';
 
 export const icon = (className: string) => <i className={className} aria-hidden="true" />;
@@ -19,7 +22,7 @@ function EntryName({
   const href = entry.type === 'directory' ? '/files' : entry.detailUrl;
   if (entry.type === 'file') {
     return <Link className="item-name" to={entry.detailUrl} title={entry.name}>
-      <span>{entry.name}</span>
+      <OverflowMarquee text={entry.name} />
     </Link>;
   }
   return (
@@ -30,7 +33,7 @@ function EntryName({
       onClick={handleClick}
     >
       {entry.type === 'directory' && icon('fas fa-folder item-icon')}
-      <span>{entry.name}</span>
+      <OverflowMarquee text={entry.name} />
     </a>
   );
 }
@@ -126,7 +129,11 @@ export function EntryTable({
 }) {
   return (
     <div className="table-wrap">
-      <table>
+      <StableTable columns={[
+        ...(selectable ? ['select' as const] : []), 'text',
+        ...(showLocation ? ['text' as const] : []), 'type', 'size',
+        ...(showAccessed ? ['date' as const] : []), 'date', 'actions',
+      ]} actionCount={onFavorite ? 4 : 3}>
         <thead>
           <tr>
             {selectable && (
@@ -168,19 +175,15 @@ export function EntryTable({
                 </td>
               )}
               <td>
+                <div className="table-item-label">
                 <EntryName entry={entry} onBrowse={onBrowse} />
                 {entry.hidden && <span className="status-badge expired hidden-badge">Hidden</span>}
+                </div>
               </td>
               {showLocation && (
                 <td>
-                  <button
-                    className="muted files-location-link"
-                    type="button"
-                    onClick={() => onBrowse(entry.parentPath)}
-                    title={entry.parentPath || 'Root'}
-                  >
-                    {entry.parentPath || 'Root'}
-                  </button>
+                  <PathLink path={entry.parentPath} directory label={entry.parentPath || 'Root'}
+                    onNavigate={() => onBrowse(entry.parentPath)} />
                 </td>
               )}
               <td>{entry.typeLabel}</td>
@@ -207,7 +210,7 @@ export function EntryTable({
             </tr>
           ))}
         </tbody>
-      </table>
+      </StableTable>
     </div>
   );
 }
@@ -273,15 +276,15 @@ export function EntryGrid({
             </Link>}
             <div className="card-body">
               {entry.type === 'directory'
-                ? <a className="card-name" href={href} onClick={handleClick} title={entry.name}>{entry.name}</a>
-                : <Link className="card-name" to={entry.detailUrl} title={entry.name}>{entry.name}</Link>}
+                ? <a className="card-name" href={href} onClick={handleClick} title={entry.name}><OverflowMarquee text={entry.name} /></a>
+                : <Link className="card-name" to={entry.detailUrl} title={entry.name}><OverflowMarquee text={entry.name} /></Link>}
               <p className="card-meta">
                 <span>{entry.typeLabel}</span>
                 <span>{entry.sizeLabel}</span>
               </p>
               {showLocation && (
                 <p className="card-meta files-grid-location" title={entry.parentPath || 'Root'}>
-                  <span>{entry.parentPath || 'Root'}</span>
+                  <OverflowMarquee text={entry.parentPath || 'Root'} />
                 </p>
               )}
               {showAccessed ? (

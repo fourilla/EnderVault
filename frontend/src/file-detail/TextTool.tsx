@@ -40,7 +40,7 @@ export function TextTool({ payload }: { payload: FileDetailPayload }) {
   return (
     <form
       ref={rootRef}
-      className="text-editor"
+      className="text-editor file-tool-viewer"
       method="post"
       action="/api/v1/files/text/save"
       data-text-load-url={`/api/v1/files/text/load?path=${encodeURIComponent(detail.path)}`}
@@ -56,15 +56,16 @@ export function TextTool({ payload }: { payload: FileDetailPayload }) {
         message="Your changes have not been saved to the original file. Only successfully saved drafts will remain after leaving." />
       <CsrfInput />
       <input type="hidden" name="path" value={detail.path} />
-      <input type="hidden" name="editorToken" value="" data-text-editor-token readOnly />
-      <input type="hidden" name="draftId" value="" data-text-draft-id readOnly />
-      <input type="hidden" name="forceOverwrite" value="false" data-text-force-overwrite readOnly />
-      <div className="text-editor-toolbar">
+      {/* The imperative editor owns these values; React must not reset them on dirty-state renders. */}
+      <input type="hidden" name="editorToken" data-text-editor-token />
+      <input type="hidden" name="draftId" data-text-draft-id />
+      <input type="hidden" name="forceOverwrite" data-text-force-overwrite />
+      <div className="text-editor-toolbar file-tool-toolbar">
         {tool.markdown && (
-          <div className="text-editor-view-tabs" role="tablist" aria-label="Markdown view">
-            <button className="text-editor-view-tab is-active" type="button" role="tab"
+          <div className="text-editor-view-tabs file-tool-control-group is-nowrap" role="tablist" aria-label="Markdown view">
+            <button className="text-editor-view-tab file-tool-view-tab is-active" type="button" role="tab"
               aria-selected="true" data-markdown-source-tab>Source</button>
-            <button className="text-editor-view-tab" type="button" role="tab"
+            <button className="text-editor-view-tab file-tool-view-tab" type="button" role="tab"
               aria-selected="false" data-markdown-preview-tab>Preview</button>
           </div>
         )}
@@ -74,7 +75,7 @@ export function TextTool({ payload }: { payload: FileDetailPayload }) {
         </button>
       </div>
       {tool.markdown && (
-        <div className="markdown-editor-preview" data-markdown-editor-preview hidden>
+        <div className="markdown-editor-preview" data-markdown-editor-preview data-native-context-menu hidden>
           <p className="markdown-preview-status muted" data-markdown-preview-status aria-live="polite">
             Select Preview to render this Markdown document.
           </p>

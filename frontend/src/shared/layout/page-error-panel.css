@@ -1,0 +1,63 @@
+.page-error-panel {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-xl);
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid var(--danger-line);
+  border-radius: var(--radius-panel);
+  background: var(--panel-elevated);
+  color: var(--text);
+  padding: var(--panel-padding);
+}
+
+.page-error-icon {
+  flex: 0 0 auto;
+  color: var(--danger);
+  line-height: var(--line-height-base);
+}
+
+.page-error-body {
+  display: grid;
+  gap: var(--space-md);
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.page-error-body > h2,
+.page-error-body > p {
+  margin: 0;
+}
+
+.page-error-body > h2 {
+  font-size: var(--font-size-base);
+}
+
+.page-error-message {
+  white-space: pre-wrap;
+}
+
+.page-error-note {
+  color: var(--muted);
+  font-size: var(--font-size-sm);
+}
+
+.page-feedback-layout {
+  display: grid;
+  gap: var(--space-4xl);
+  min-width: 0;
+}
+
+.page-feedback-layout > * {
+  min-width: 0;
+}
+
+.page-error-panel + .browser-list-content > .browser-section:first-child {
+  margin-top: 0;
+}
+
+.page-error-standalone {
+  width: min(var(--workspace-max-width), calc(100% - 2 * var(--space-3xl)));
+  margin: var(--space-3xl) auto;
+}

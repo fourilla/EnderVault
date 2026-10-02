@@ -1,8 +1,9 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import './overflow-marquee.css';
 
 type MarqueeStyle = CSSProperties & {
-  '--settings-marquee-distance'?: string;
-  '--settings-marquee-duration'?: string;
+  '--marquee-distance'?: string;
+  '--marquee-duration'?: string;
 };
 
 export function OverflowMarquee({ text }: { text: string }) {
@@ -15,7 +16,12 @@ export function OverflowMarquee({ text }: { text: string }) {
       const viewport = viewportRef.current;
       const track = trackRef.current;
       if (!viewport || !track) return;
-      setDistance(Math.max(0, Math.ceil(track.scrollWidth - viewport.clientWidth)));
+      // Integer scroll widths can miss text clipped at a fractional pixel boundary.
+      const range = document.createRange();
+      range.selectNodeContents(track);
+      setDistance(Math.max(0, Math.ceil(
+        range.getBoundingClientRect().width - viewport.getBoundingClientRect().width,
+      )));
     };
 
     update();
@@ -30,20 +36,20 @@ export function OverflowMarquee({ text }: { text: string }) {
     return () => observer.disconnect();
   }, [text]);
 
-  const overflowing = distance > 1;
+  const overflowing = distance > 0;
   const style: MarqueeStyle = overflowing ? {
-    '--settings-marquee-distance': `-${distance}px`,
-    '--settings-marquee-duration': `${Math.min(9000, Math.max(2600, 1800 + distance * 22))}ms`,
+    '--marquee-distance': `-${distance}px`,
+    '--marquee-duration': `${Math.min(9000, Math.max(2600, 1800 + distance * 22))}ms`,
   } : {};
 
   return (
     <span
       ref={viewportRef}
-      className={`settings-overflow-marquee${overflowing ? ' is-overflowing' : ''}`}
+      className={`overflow-marquee${overflowing ? ' is-overflowing' : ''}`}
       title={text}
       style={style}
     >
-      <span ref={trackRef} className="settings-overflow-marquee-track">{text}</span>
+      <span ref={trackRef} className="overflow-marquee-track">{text}</span>
     </span>
   );
 }

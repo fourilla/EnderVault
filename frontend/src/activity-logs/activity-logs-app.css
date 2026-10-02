@@ -2,6 +2,6 @@
   min-width: 0;
 }
 
-.log-refresh-progress {
+.loading-state.log-refresh-progress {
   min-height: 40px;
 }

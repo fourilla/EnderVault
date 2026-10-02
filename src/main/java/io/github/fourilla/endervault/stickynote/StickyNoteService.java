@@ -28,6 +28,7 @@ public class StickyNoteService {
     private static final int MAX_CONTENT_LENGTH = 10_000;
     private static final int MAX_NOTES_PER_CONTEXT = 20;
     private static final int MAX_TOTAL_NOTES = 1_000;
+    private static final int MAX_PAGE_Y = 1_000_000;
 
     private final JsonRegistry<List<StickyNote>> registry;
     private final StorageService storageService;
@@ -80,6 +81,11 @@ public class StickyNoteService {
     }
 
     public synchronized StickyNote create(StickyNoteContext context, int x, int y) throws IOException {
+        return create(context, x, y, null);
+    }
+
+    public synchronized StickyNote create(StickyNoteContext context, int x, int y, Double xRatio) throws IOException {
+        Double normalizedRatio = normalizeRatio(xRatio);
         StickyNoteContext normalized = normalizeContext(context, true);
         List<StickyNote> notes = readAllMutable();
         if (notes.size() >= MAX_TOTAL_NOTES) {
@@ -97,7 +103,8 @@ public class StickyNoteService {
                 normalized,
                 "",
                 clamp(x, 0, 10_000),
-                clamp(y, 0, 10_000),
+                clamp(y, 0, normalizedRatio == null ? 10_000 : MAX_PAGE_Y),
+                normalizedRatio,
                 280,
                 220,
                 false,
@@ -118,10 +125,15 @@ public class StickyNoteService {
         List<StickyNote> notes = readAllMutable();
         int index = indexOf(notes, id);
         StickyNote current = notes.get(index);
+        Double normalizedRatio = normalizeRatio(snapshot.xRatio());
+        if (current.xRatio() != null && normalizedRatio == null) {
+            throw new StorageAccessException("Refresh this page before editing the sticky note.");
+        }
         StickyNoteSnapshot normalized = new StickyNoteSnapshot(
                 normalizeContent(snapshot.content()),
                 clamp(snapshot.x(), 0, 10_000),
-                clamp(snapshot.y(), 0, 10_000),
+                clamp(snapshot.y(), 0, normalizedRatio == null ? 10_000 : MAX_PAGE_Y),
+                normalizedRatio,
                 clamp(snapshot.width(), 220, 600),
                 clamp(snapshot.height(), 140, 700),
                 snapshot.collapsed(),
@@ -347,6 +359,13 @@ public class StickyNoteService {
 
     private int clamp(int value, int minimum, int maximum) {
         return Math.max(minimum, Math.min(maximum, value));
+    }
+
+    private Double normalizeRatio(Double value) {
+        if (value != null && (!Double.isFinite(value) || value < 0 || value > 1)) {
+            throw new StorageAccessException("The sticky note horizontal position must be between 0 and 1.");
+        }
+        return value;
     }
 
     private String urlEncode(String value) {

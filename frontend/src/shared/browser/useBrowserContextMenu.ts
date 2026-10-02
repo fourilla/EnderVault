@@ -18,7 +18,7 @@ export function useBrowserContextMenu<T>(options: {
   current.current = options;
   const menuRef = useRef<ReturnType<NonNullable<Window['EnderVaultContextMenus']>['createActionMenu']>>(null);
   useEffect(() => {
-    const workspace = document.querySelector('.workspace');
+    const workspace = document.querySelector('.app-main');
     if (!workspace) return;
     const menu = window.EnderVaultContextMenus?.createActionMenu({
       menuId: options.menuId,

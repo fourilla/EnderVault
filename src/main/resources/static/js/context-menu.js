@@ -2,6 +2,17 @@
     const globalActions = [];
     let pageScope = null;
 
+    const pageContextForEvent = (event) => {
+        const target = event.target;
+        if (!target?.closest || !target.closest('.app-main')
+                || target.closest('a, button, input, textarea, select, label, summary, iframe, object, embed, img, video, audio, canvas, [contenteditable="true"], .CodeMirror, [data-native-context-menu], .context-menu, .sticky-note-layer, dialog')) {
+            return null;
+        }
+        const selection = window.getSelection?.();
+        if (selection && !selection.isCollapsed && selection.toString().trim()) return null;
+        return { mode: 'page-background', item: null, items: [], event };
+    };
+
     const actionValue = (action, context, property) =>
         typeof action[property] === "function" ? action[property](context) : action[property];
 
@@ -204,6 +215,7 @@
 
     window.EnderVaultContextMenus = {
         createActionMenu,
+        pageContextForEvent,
         registerGlobalAction,
         globalActionsFor,
         pageScopeOwner: () => pageScope?.owner || ""

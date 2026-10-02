@@ -1,5 +1,7 @@
+import { LoadingState } from '../shared/layout/LoadingState';
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { icon } from '../shared/browser/BrowserEntries';
+import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import { useRouteSearch } from '../app/RouteSearch';
 import { FloatingPageActions } from '../app/FloatingPageActions';
 import { useItemSelection } from '../shared/browser/useItemSelection';
@@ -179,12 +181,14 @@ export function BookmarksApp() {
       <BookmarkDialogs kind={dialog} close={() => setDialog(null)}
         createLink={actions.createLink} bulkAdd={actions.bulkAdd} />
 
-      {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
+      <div className="page-feedback-layout">
+      {error && <PageErrorPanel title="Bookmarks unavailable" message={error} stale={payload !== null}
+        actions={<button type="button" className="icon-text-button" disabled={loading} onClick={reload}>
+          {icon('fas fa-arrows-rotate')}<span>Retry</span>
+        </button>} />}
+      <div className="browser-list-content">
       {loading && !payload && (
-        <section className="browser-load-progress" role="status" aria-live="polite">
-          <i className="fas fa-spinner fa-spin" aria-hidden="true" />
-          <span>{state.query ? 'Searching bookmarks...' : 'Loading bookmarks...'}</span>
-        </section>
+        <LoadingState label={state.query ? 'Searching bookmarks...' : 'Loading bookmarks...'} />
       )}
       {payload && (
         <>
@@ -209,6 +213,8 @@ export function BookmarksApp() {
           )}
         </>
       )}
+      </div>
+      </div>
     </>
   );
 }

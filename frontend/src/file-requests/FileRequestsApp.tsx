@@ -1,8 +1,14 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { LoadingState } from '../shared/layout/LoadingState';
+import { StableTable } from '../shared/browser/StableTable';
+import { OverflowMarquee } from '../shared/layout/OverflowMarquee';
+import { PathLink } from '../shared/browser/PathLink';
+import { formatBytes } from '../shared/format-bytes';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
 import { PageHeader } from '../shared/layout/PageHeader';
+import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import {
   createFileRequest,
   deleteExpiredFileRequests,
@@ -33,14 +39,19 @@ export function FileRequestsApp() {
   const [error, setError] = useState('');
   const [refreshToken, setRefreshToken] = useState(0);
   const [busy, setBusy] = useState('');
+  const loadedSearch = useRef<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
     setError('');
     void loadFileRequests(location.search, controller.signal)
       .then((next) => {
+        if (controller.signal.aborted) return;
         setPayload(next);
-        setValues(valuesFrom(next));
+        if (loadedSearch.current !== location.search) {
+          setValues(valuesFrom(next));
+          loadedSearch.current = location.search;
+        }
       })
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
@@ -119,11 +130,12 @@ export function FileRequestsApp() {
   return (
     <div className="dashboard-workspace file-requests-workspace">
       <PageHeader title="File Requests" />
-      {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
+      {error && <PageErrorPanel title="File requests unavailable" message={error} stale={payload !== null}
+        actions={<button type="button" className="icon-text-button" onClick={reload}>
+          {icon('fas fa-arrows-rotate')}<span>Retry</span>
+        </button>} />}
       {!payload && !error && (
-        <section className="browser-load-progress" role="status" aria-live="polite">
-          <i className="fas fa-spinner fa-spin" aria-hidden="true" /><span>Loading file requests...</span>
-        </section>
+        <LoadingState label="Loading file requests..." />
       )}
       {payload && values && (
         <>
@@ -188,18 +200,29 @@ export function FileRequestsApp() {
               {payload.requests.length > 0 && <button className="ghost" type="button" disabled={Boolean(busy)}
                 onClick={() => void deleteExpired()}>Delete expired</button>}
             </header>
-            <div className="table-wrap compact-table"><table className="file-requests-table">
-              <thead><tr><th>Request</th><th>Destination</th><th>Usage</th><th>Restrictions</th><th>Expires</th><th>Status</th><th>Actions</th></tr></thead>
+            <div className="table-wrap compact-table"><StableTable className="file-requests-table"
+              columns={['text', 'text', 'usage', 'restrictions', 'date', 'status', 'actions']} actionCount={3}>
+              <thead><tr><th>Request</th><th>Destination</th><th>Usage</th><th>Restrictions</th><th>Created / Expires</th><th>Status</th><th>Actions</th></tr></thead>
               <tbody>
                 {payload.requests.map((item) => <tr key={item.id}>
-                  <td><Link className="table-primary-text" title={item.title} to={`/admin/file-requests/${item.id}`}>{item.title}</Link><small>{item.createdLabel}</small></td>
-                  <td><span className="table-primary-text" title={item.destinationLabel}>{item.destinationLabel}</span></td>
-                  <td title={item.usageLabel}>{item.usageLabel}</td>
-                  <td><span>{item.fileLimitLabel} each</span><small title={item.extensionsLabel}>{item.extensionsLabel}</small></td>
-                  <td>{item.expiresLabel}</td>
+                  <td><Link className="table-primary-text" to={`/admin/file-requests/${item.id}`}><OverflowMarquee text={item.title} /></Link></td>
+                  <td><PathLink path={item.destinationPath || ''} directory label={item.destinationLabel} /></td>
+                  <td title={item.usageLabel}><div className="table-cell-stack">
+                    <span>{item.acceptedFiles} / {item.maxFiles} files</span>
+                    <span>{formatBytes(item.acceptedBytes)} / {formatBytes(item.maxTotalBytes)}</span>
+                  </div></td>
+                  <td><span>{item.fileLimitLabel} each</span><small><OverflowMarquee text={item.extensionsLabel} /></small></td>
+                  <td><div className="table-cell-stack">
+                    <span title="Created" aria-label={`Created: ${item.createdLabel}`}>
+                      <i className="fas fa-calendar-plus" aria-hidden="true" /> {item.createdLabel}
+                    </span>
+                    <span title="Expires" aria-label={`Expires: ${item.expiresLabel}`}>
+                      <i className="fas fa-hourglass-end" aria-hidden="true" /> {item.expiresLabel}
+                    </span>
+                  </div></td>
                   <td><span className={`status-badge ${item.statusClass}`}>{item.statusLabel}</span></td>
                   <td><div className="table-actions">
-                    <Link className="ghost icon-button action-icon" title="Details" aria-label="Details" to={`/admin/file-requests/${item.id}`}>{icon('fas fa-circle-info')}</Link>
+                    <Link className="button-link ghost icon-button action-icon" title="Details" aria-label="Details" to={`/admin/file-requests/${item.id}`}>{icon('fas fa-circle-info')}</Link>
                     <button className="ghost icon-button action-icon" type="button" title="Copy request link" aria-label="Copy request link"
                       onClick={() => void copy(item.url)}>{icon('fas fa-link')}</button>
                     {item.active ? <button className="danger icon-button action-icon" type="button" title="Revoke" aria-label="Revoke"
@@ -210,7 +233,7 @@ export function FileRequestsApp() {
                 </tr>)}
                 {payload.requests.length === 0 && <tr className="empty-row"><td colSpan={7} className="empty">No file requests have been issued.</td></tr>}
               </tbody>
-            </table></div>
+            </StableTable></div>
           </section>
         </>
       )}

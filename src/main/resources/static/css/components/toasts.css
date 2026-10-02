@@ -13,7 +13,7 @@
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
     gap: var(--space-xl);
-    align-items: start;
+    align-items: center;
     border: 1px solid var(--line);
     border-left-width: 4px;
     border-radius: var(--radius-panel);
@@ -40,8 +40,11 @@
 }
 
 .toast-icon {
-    margin-top: 3px;
     color: var(--accent-strong);
+}
+
+.toast:has(.toast-action) {
+    align-items: start;
 }
 
 .toast-success .toast-icon {

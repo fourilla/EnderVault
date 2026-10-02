@@ -77,7 +77,7 @@ public class StickyNoteApiController {
                     payload.targetKey(),
                     payload.surface()
             );
-            StickyNote note = stickyNoteService.create(context, payload.x(), payload.y());
+            StickyNote note = stickyNoteService.create(context, payload.x(), payload.y(), payload.xRatio());
             activityLogService.record(
                     "STICKY_NOTE_CREATE",
                     request,
@@ -157,7 +157,8 @@ public class StickyNoteApiController {
             String targetKey,
             StickyNoteSurface surface,
             int x,
-            int y
+            int y,
+            Double xRatio
     ) {
     }
 
@@ -165,13 +166,14 @@ public class StickyNoteApiController {
             String content,
             int x,
             int y,
+            Double xRatio,
             int width,
             int height,
             boolean collapsed,
             int layer
     ) {
         StickyNoteSnapshot snapshot() {
-            return new StickyNoteSnapshot(content, x, y, width, height, collapsed, layer);
+            return new StickyNoteSnapshot(content, x, y, xRatio, width, height, collapsed, layer);
         }
     }
 
@@ -180,6 +182,7 @@ public class StickyNoteApiController {
             String content,
             int x,
             int y,
+            Double xRatio,
             int width,
             int height,
             boolean collapsed,
@@ -193,6 +196,7 @@ public class StickyNoteApiController {
                     note.content(),
                     note.x(),
                     note.y(),
+                    note.xRatio(),
                     note.width(),
                     note.height(),
                     note.collapsed(),

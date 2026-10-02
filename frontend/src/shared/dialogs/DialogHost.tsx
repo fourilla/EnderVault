@@ -49,7 +49,7 @@ function RequestDialog({ request, settle }: {
         </button>
       </header>
       {text && <label className="text-input-field">{text.label ?? 'Name'}
-        <input value={value} placeholder={text.placeholder} autoComplete="off" autoFocus
+        <input value={value} placeholder={text.placeholder} autoComplete="off" data-dialog-initial-focus
           aria-invalid={invalid || undefined} onChange={(event) => { setValue(event.target.value); setInvalid(false); }}
           onFocus={(event) => event.currentTarget.select()}
           onKeyDown={(event) => {

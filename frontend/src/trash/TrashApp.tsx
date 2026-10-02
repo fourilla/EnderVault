@@ -1,7 +1,11 @@
+import { LoadingState } from '../shared/layout/LoadingState';
+import { OverflowMarquee } from '../shared/layout/OverflowMarquee';
+import { StableTable } from '../shared/browser/StableTable';
 import { useEffect, useState } from 'react';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
 import { PageHeader } from '../shared/layout/PageHeader';
+import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import { FloatingPageActions } from '../app/FloatingPageActions';
 import { deleteTrashItem, emptyTrash, loadTrash, restoreTrashItem } from './trash-api';
 import type { TrashItem, TrashPayload } from './types';
@@ -90,16 +94,17 @@ export function TrashApp() {
       {items.length > 0 && <FloatingPageActions mode="single" label="Empty trash" icon="fas fa-broom"
         danger disabled={Boolean(busyAction)} onAction={() => void empty()} />}
 
-      {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
+      <div className="page-feedback-layout">
+      {error && <PageErrorPanel title="Trash unavailable" message={error} stale={payload !== null}
+        actions={<button type="button" className="icon-text-button" disabled={loading} onClick={reload}>
+          {icon('fas fa-arrows-rotate')}<span>Retry</span>
+        </button>} />}
       {loading && !payload && (
-        <section className="browser-load-progress" role="status" aria-live="polite">
-          <i className="fas fa-spinner fa-spin" aria-hidden="true" />
-          <span>Loading trash...</span>
-        </section>
+        <LoadingState label="Loading trash..." />
       )}
       {payload && items.length > 0 && (
         <section className="table-wrap" aria-label="Trash items">
-            <table>
+            <StableTable columns={['text', 'text', 'type', 'size', 'date', 'date', 'actions']} actionCount={2}>
               <thead>
                 <tr>
                   <th>Name</th><th>Original path</th><th>Type</th><th>Size</th>
@@ -112,16 +117,16 @@ export function TrashApp() {
                     <td>
                       <span className="item-name" title={item.originalName}>
                         {icon(item.directory ? 'fas fa-folder item-icon' : 'fas fa-file item-icon')}
-                        <span>{item.originalName}</span>
+                        <OverflowMarquee text={item.originalName} />
                       </span>
                     </td>
-                    <td><span className="path-cell" title={item.originalPath}>{item.originalPath}</span></td>
+                    <td><span className="path-cell"><OverflowMarquee text={item.originalPath} /></span></td>
                     <td>{item.typeLabel}</td>
                     <td>{item.sizeLabel}</td>
                     <td>{item.deletedLabel}</td>
                     <td>{item.expiresLabel}</td>
                     <td>
-                      <div className="table-actions trash-row-actions">
+                      <div className="table-actions">
                         <button className="icon-button action-icon" type="button"
                           disabled={Boolean(busyAction)} title="Restore" aria-label="Restore"
                           onClick={() => void restore(item)}>
@@ -137,10 +142,11 @@ export function TrashApp() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </StableTable>
         </section>
       )}
       {payload && items.length === 0 && <p className="empty browser-grid-empty">No trash items.</p>}
+      </div>
     </>
   );
 }

@@ -390,9 +390,12 @@ class AdminNotificationFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("Send project files")))
                 .andExpect(content().string(Matchers.containsString("Upload the requested text file.")))
-                .andExpect(content().string(Matchers.containsString("/js/file-request-upload.js")))
+                .andExpect(content().string(Matchers.containsString("requestUpload-")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/file-request-upload.js"))))
+                .andExpect(content().string(Matchers.containsString("data-upload-dialog")))
+                .andExpect(content().string(Matchers.containsString("data-upload-progress")))
                 .andExpect(content().string(Matchers.containsString("data-file-request-upload")))
-                .andExpect(content().string(Matchers.containsString("file-request-upload-actions")))
+                .andExpect(content().string(Matchers.containsString("class=\"form-actions end\"")))
                 .andExpect(content().string(Matchers.containsString("accept=\".txt\"")))
                 .andExpect(content().string(Matchers.containsString(
                         "/r/" + request.token() + "/upload-sessions"

@@ -1,10 +1,12 @@
-import { type FormEvent, useEffect, useState } from 'react';
+import { LoadingState } from '../shared/layout/LoadingState';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { AppDialog } from '../shared/dialogs/AppDialog';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
 import { BrowserPagination } from '../shared/browser/BrowserPagination';
 import { PageHeader } from '../shared/layout/PageHeader';
+import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import { deleteActivityLog, loadActivityLogs } from './activity-log-api';
 import type {
   ActivityLogEntry,
@@ -40,6 +42,7 @@ export function ActivityLogsApp() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<ActivityLogEntry | null>(null);
+  const loadedQuery = useRef<{ search: string; file: string } | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -49,8 +52,11 @@ export function ActivityLogsApp() {
       .then((nextPayload) => {
         if (controller.signal.aborted) return;
         setPayload(nextPayload);
-        setDraft(filterDraft(nextPayload.query));
-        setFileDraft(nextPayload.selectedFile);
+        if (loadedQuery.current?.search !== locationSearch || loadedQuery.current.file !== nextPayload.selectedFile) {
+          setDraft(filterDraft(nextPayload.query));
+          setFileDraft(nextPayload.selectedFile);
+          loadedQuery.current = { search: locationSearch, file: nextPayload.selectedFile };
+        }
       })
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
@@ -154,12 +160,14 @@ export function ActivityLogsApp() {
     <>
       <PageHeader title="Logs" />
 
-      {error && <section className="dashboard-panel browser-load-error" role="alert">{error}</section>}
+      <div className="page-feedback-layout">
+      {error && <PageErrorPanel title="Activity logs unavailable" message={error} stale={payload !== null}
+        actions={<button type="button" className="icon-text-button" disabled={loading}
+          onClick={() => setRefreshToken((value) => value + 1)}>
+          {icon('fas fa-arrows-rotate')}<span>Retry</span>
+        </button>} />}
       {loading && !payload && (
-        <section className="browser-load-progress" role="status" aria-live="polite">
-          <i className="fas fa-spinner fa-spin" aria-hidden="true" />
-          <span>Loading activity logs...</span>
-        </section>
+        <LoadingState label="Loading activity logs..." />
       )}
 
       {payload && draft && (
@@ -258,9 +266,7 @@ export function ActivityLogsApp() {
             </form>
 
             {loading && (
-              <div className="browser-load-progress log-refresh-progress" role="status" aria-live="polite">
-                <i className="fas fa-spinner fa-spin" aria-hidden="true" /><span>Refreshing logs...</span>
-              </div>
+              <LoadingState label="Refreshing logs..." compact className="log-refresh-progress" />
             )}
 
             {entries.length > 0 && (
@@ -315,6 +321,7 @@ export function ActivityLogsApp() {
         </section>
       )}
 
+      </div>
       <AppDialog open={selectedEntry !== null} className="admin-detail-modal" labelledBy="logDetailTitle"
         onDismiss={closeDetails} dismissOnBackdrop>
         <article className="admin-detail-modal-card">

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { SettingsField, SettingsPasswordField, SettingsSaveBar, SettingsSection } from '../components/SettingsControls';
 import { useSettingsEditor } from '../hooks/useSettingsEditor';
 import { useSettingsSnapshot } from '../hooks/useSettingsSnapshot';
+import { SettingsLoadState } from '../components/SettingsLoadState';
 import { saveSettings, showError } from '../settings-api';
 import type { FormValues, TelegramSettingsSnapshot } from '../types';
 
@@ -76,8 +77,8 @@ function Editor({ snapshot, onDirtyChange }: { snapshot: TelegramSettingsSnapsho
 }
 
 export function TelegramSettings({ onDirtyChange }: { onDirtyChange: (dirty: boolean) => void }) {
-  const { snapshot, error } = useSettingsSnapshot<TelegramSettingsSnapshot>('/api/v1/settings/telegram-alerts');
-  if (error) return <div className="settings-spa-error">{error}</div>;
-  if (!snapshot) return <div className="settings-spa-loading">Loading Telegram settings...</div>;
-  return <Editor snapshot={snapshot} onDirtyChange={onDirtyChange} />;
+  const { snapshot, error, refresh } = useSettingsSnapshot<TelegramSettingsSnapshot>('/api/v1/settings/telegram-alerts');
+  return <SettingsLoadState loaded={snapshot !== null} error={error} refresh={refresh} loadingLabel="Loading Telegram settings...">
+    {snapshot && <Editor snapshot={snapshot} onDirtyChange={onDirtyChange} />}
+  </SettingsLoadState>;
 }

@@ -1,4 +1,5 @@
 import { togglePathFavorite } from '../api/favorite-api';
+import { createShareAndCopy } from '../api/share-api';
 import { notify, postForm, toastError } from '../api/form-api';
 import type { BrowserEntry, TransferBufferPayload } from './types';
 
@@ -82,13 +83,7 @@ export function createFileEntryActions<T extends EntryListing>({
     reload();
   };
   const shareAndCopy = async (entry: BrowserEntry) => {
-    const body = await postForm('/api/v1/shares', { path: entry.parentPath, item: entry.name });
-    const url = body.shareLink?.url || body.notification?.actionValue || '';
-    if (url && await window.EnderVault?.copyText(url)) {
-      window.EnderVault?.showToast('success', 'Share link created and copied.');
-      return;
-    }
-    notify(body);
+    await createShareAndCopy(entry.path);
   };
   return { toggleFavorite, addEntriesToBuffer, moveEntriesToTrash, downloadEntries, renameEntry, shareAndCopy };
 }
