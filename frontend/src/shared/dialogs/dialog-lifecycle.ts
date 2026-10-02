@@ -10,7 +10,26 @@ export interface DialogPolicy {
 interface PendingDialog { activate: () => void }
 const waiting: PendingDialog[] = [];
 const active: PendingDialog[] = [];
-let originalOverflow = '';
+let scrollLock: { root: HTMLElement; properties: { name: string; value: string; priority: string }[] } | null = null;
+
+function lockPageScroll(document: Document) {
+  const root = document.documentElement;
+  scrollLock = { root, properties: ['overflow-x', 'overflow-y'].map((name) => ({
+    name, value: root.style.getPropertyValue(name), priority: root.style.getPropertyPriority(name),
+  })) };
+  // A body overflow lock creates a new scroll container and moves sticky shell controls.
+  root.style.setProperty('overflow', 'hidden');
+}
+
+function unlockPageScroll() {
+  if (!scrollLock) return;
+  const { root, properties } = scrollLock;
+  root.style.removeProperty('overflow');
+  properties.forEach(({ name, value, priority }) => {
+    if (value) root.style.setProperty(name, value, priority);
+  });
+  scrollLock = null;
+}
 
 function advance() {
   if (active.length || !waiting.length) return;
@@ -63,8 +82,7 @@ export function mountDialog(dialog: HTMLDialogElement, policy: () => DialogPolic
   const entry: PendingDialog = {
     activate: () => {
       activated = true;
-      if (active.length === 1) originalOverflow = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
+      if (active.length === 1) lockPageScroll(document);
       dialog.addEventListener('cancel', cancel);
       dialog.addEventListener('pointerdown', pointerDown);
       dialog.addEventListener('pointercancel', pointerCancel);
@@ -98,7 +116,7 @@ export function mountDialog(dialog: HTMLDialogElement, policy: () => DialogPolic
       dialog.removeEventListener('click', click);
       dialog.removeEventListener('close', close);
       if (dialog.open) dialog.close();
-      if (!active.length) document.body.style.overflow = originalOverflow;
+      if (!active.length) unlockPageScroll();
       if (wasTop && opener?.isConnected) opener.focus({ preventScroll: true });
     }
     advance();

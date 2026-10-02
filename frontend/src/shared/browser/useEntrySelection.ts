@@ -24,6 +24,8 @@ export function useEntrySelection(
     setSelected: selection.setSelected,
     selectedEntries: selection.selectedItems,
     selectEntry: selection.selectItem,
+    selectAll: selection.selectAll,
+    clearSelection: selection.clearSelection,
     itemInteractionProps: selection.itemInteractionProps,
   };
 }

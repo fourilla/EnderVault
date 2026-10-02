@@ -31,25 +31,31 @@ function setup(t, options = {}) {
   let selected = new Set(entries.map((entry) => entry.path));
   let response = {};
   let reloads = 0;
-  const requests = [], tracked = [], urls = [], events = [], buffers = [];
-  const request = async (url, options) => { requests.push({ url, ...options }); return response; };
+  const requests = [], tracked = [], urls = [], events = [], buffers = [], toasts = [], confirmations = [];
+  const request = async (url, options) => {
+    requests.push({ url, ...options });
+    if (response instanceof Error) throw response;
+    return response;
+  };
   globalThis.document = { dispatchEvent: (event) => events.push(event.type) };
   globalThis.window = {
     location: { assign: (url) => urls.push(url) },
     EnderVault: {
       csrfPair: () => ({ name: '_csrf', value: 'test-csrf' }),
       requestJson: request, requestJsonResolvingConflicts: request,
-      askConfirmation: async () => true, askTextInput: async () => 'renamed.txt',
-      showNotification() {}, showToast() {}, copyText: async () => true,
+      askConfirmation: async (options) => { confirmations.push(options); return true; },
+      askTextInput: async () => 'renamed.txt',
+      showNotification() {}, showToast: (...args) => toasts.push(args), copyText: async () => true,
     },
     EnderVaultServerTasks: { track: (task, options) => tracked.push({ task, options }) },
   };
   const actions = createFileEntryActions({
-    selectedEntries: entries, setSelected: (value) => { selected = value; },
+    selectedEntries: entries, setSelected: (value) => { selected = typeof value === 'function' ? value(selected) : value; },
     setPayload: (update) => { payload = update(payload); }, reload: () => { reloads++; },
     onTransferBuffer: (buffer) => buffers.push(buffer), ...options,
   });
-  return { actions, entries, requests, tracked, urls, events, buffers,
+  return { actions, entries, requests, tracked, urls, events, buffers, toasts, confirmations,
+    select: (paths) => { selected = new Set(paths); },
     respond: (value) => { response = value; }, selected: () => selected,
     payload: () => payload, reloads: () => reloads };
 }
@@ -64,10 +70,93 @@ test('trash from Recent sends full vault paths and CSRF, then requests refresh t
   assert.equal(state.requests[0].body.get('path'), '');
   assert.deepEqual(state.requests[0].body.getAll('paths'), state.entries.map((entry) => entry.path));
   assert.equal(state.requests[0].body.has('items'), false);
+  assert.equal(state.confirmations[0].title, 'Move to trash');
+  assert.equal(state.confirmations[0].danger, true);
   assert.equal(state.tracked[0].options.refreshUrl, '/files?path=');
   assert.equal(state.tracked[0].options.announceStart, true);
   assert.equal(state.selected().size, 0);
   assert.equal(state.reloads(), 0);
+});
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+test('trash snapshots paths and destination before confirmation and preserves unrelated newer selection', async (t) => {
+  let path = 'one';
+  const state = setup(t, { currentPath: () => path }), confirm = deferred();
+  const originalPaths = state.entries.map((entry) => entry.path);
+  window.EnderVault.askConfirmation = () => confirm.promise;
+  const deletion = state.actions.moveEntriesToTrash();
+  path = 'two';
+  state.entries.splice(0, state.entries.length, { path: 'another/file.txt' });
+  state.select([originalPaths[0], 'another/file.txt']);
+  confirm.resolve(true);
+  await deletion;
+  assert.equal(state.requests[0].body.get('path'), 'one');
+  assert.deepEqual(state.requests[0].body.getAll('paths'), originalPaths);
+  assert.deepEqual([...state.selected()], ['another/file.txt']);
+  assert.equal(state.reloads(), 1);
+});
+
+test('trash cannot start or submit after its keyboard context becomes stale', async (t) => {
+  const state = setup(t), confirm = deferred();
+  let current = false;
+  await state.actions.moveEntriesToTrash(state.entries, () => current);
+  assert.deepEqual(state.confirmations, []);
+  current = true;
+  window.EnderVault.askConfirmation = () => confirm.promise;
+  const deletion = state.actions.moveEntriesToTrash(state.entries, () => current);
+  current = false;
+  confirm.resolve(true);
+  await deletion;
+  assert.deepEqual(state.requests, []);
+  assert.equal(state.selected().size, 2);
+  assert.equal(state.reloads(), 0);
+});
+
+test('an already submitted trash task is tracked after navigation without clearing or refreshing the new listing', async (t) => {
+  const state = setup(t), response = deferred();
+  let current = true;
+  state.respond(response.promise);
+  const deletion = state.actions.moveEntriesToTrash(state.entries, () => current);
+  await Promise.resolve();
+  assert.equal(state.requests.length, 1);
+  current = false;
+  response.resolve({ task: { id: 'trash-task' } });
+  await deletion;
+  assert.equal(state.tracked[0].task.id, 'trash-task');
+  assert.equal(state.selected().size, 2);
+  assert.equal(state.reloads(), 0);
+});
+
+test('a completed synchronous trash response cannot refresh a listing that became stale', async (t) => {
+  const state = setup(t), response = deferred();
+  let current = true;
+  state.respond(response.promise);
+  const deletion = state.actions.moveEntriesToTrash(state.entries, () => current);
+  await Promise.resolve();
+  current = false;
+  response.resolve({});
+  await deletion;
+  assert.equal(state.reloads(), 0);
+  assert.equal(state.selected().size, 2);
+});
+
+test('trash request and confirmation failures preserve selection and use the existing error toast', async (t) => {
+  const state = setup(t);
+  window.EnderVault.askConfirmation = async () => { throw new Error('Confirmation unavailable'); };
+  await state.actions.moveEntriesToTrash();
+  assert.deepEqual(state.requests, []);
+  assert.deepEqual(state.toasts, [['error', 'Confirmation unavailable']]);
+  window.EnderVault.askConfirmation = async () => true;
+  state.respond(new Error('Request unavailable'));
+  await state.actions.moveEntriesToTrash();
+  assert.equal(state.selected().size, 2);
+  assert.equal(state.reloads(), 0);
+  assert.deepEqual(state.toasts[1], ['error', 'Request unavailable']);
 });
 
 test('rename uses the clicked item parent, resolves conflicts and refreshes without navigation', async (t) => {

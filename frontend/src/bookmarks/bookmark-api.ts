@@ -1,5 +1,7 @@
 import type { BookmarkDetailPayload, BookmarkHistoryState, BookmarkPayload } from './types';
 
+export const bookmarkRequestKeyFor = (state: BookmarkHistoryState) => [state.directoryId, state.query].join('\u0000');
+
 export const loadBookmarks = async (state: BookmarkHistoryState, signal: AbortSignal) => {
   const query = new URLSearchParams();
   if (state.directoryId) query.set('directory', state.directoryId);

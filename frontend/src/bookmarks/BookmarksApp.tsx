@@ -5,9 +5,10 @@ import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import { useRouteSearch } from '../app/RouteSearch';
 import { FloatingPageActions } from '../app/FloatingPageActions';
 import { useItemSelection } from '../shared/browser/useItemSelection';
+import { useSelectionShortcuts } from '../shared/browser/useSelectionShortcuts';
 import { useNavigationScroll } from '../shared/browser/useNavigationScroll';
 import { useListingRefresh } from '../shared/browser/useListingRefresh';
-import { loadBookmarks } from './bookmark-api';
+import { bookmarkRequestKeyFor, loadBookmarks } from './bookmark-api';
 import { BookmarkDialogs, type DialogKind } from './BookmarkDialogs';
 import { BookmarkBreadcrumbs, BookmarkTable } from './BookmarkEntries';
 import { bookmarkHistory } from './bookmark-history';
@@ -18,7 +19,6 @@ import { useBookmarkContextMenu } from './useBookmarkContextMenu';
 import './bookmarks-app.css';
 
 const itemKey = (entry: BookmarkEntry) => entry.id;
-const requestKey = (state: BookmarkHistoryState) => state.directoryId + '\u0000' + state.query;
 
 export function BookmarksApp() {
   const { state, key: historyKey, remember, navigate: navigateHistory, isCurrent, ready } = useListingHistory(bookmarkHistory);
@@ -53,7 +53,7 @@ export function BookmarksApp() {
   const navigate = useCallback((next: BookmarkHistoryState, replace = false) => {
     if (!isCurrent()) return;
     const normalized = { ...next, surface: 'bookmarks' as const, version: 1 as const };
-    const sameRequest = requestKey(effectiveState()) === requestKey(normalized);
+    const sameRequest = bookmarkRequestKeyFor(effectiveState()) === bookmarkRequestKeyFor(normalized);
     remember(effectiveState());
     navigateHistory(normalized, replace || sameRequest);
     requestGenerationRef.current += 1;
@@ -78,10 +78,11 @@ export function BookmarksApp() {
   }, [browse]);
 
   const entries = payload ? [...payload.directories, ...payload.links] : [];
+  const selectionKey = bookmarkRequestKeyFor(effectiveState());
   const selection = useItemSelection({
     items: entries,
     enabled: true,
-    locationKey: requestKey(state),
+    locationKey: selectionKey,
     itemKey,
     openItem,
   });
@@ -92,6 +93,15 @@ export function BookmarksApp() {
     setPayload,
     effectiveState,
     reload,
+  });
+  useSelectionShortcuts({
+    enabled: Boolean(payload && !loading && !error && entries.length > 0),
+    contextKey: selectionKey,
+    selectedCount: selection.selectedItems.length,
+    selectAll: selection.selectAll,
+    clearSelection: selection.clearSelection,
+    deleteSelection: (guard) => actions.deleteEntries(selection.selectedItems, () => guard() && isCurrent()),
+    scope: () => document.querySelector<HTMLElement>('.app-main'),
   });
 
   const openLinkDialog = useCallback(() => setDialog('link'), []);
