@@ -23,6 +23,7 @@ test('phase two keeps action capacity, selectable share URLs and request seconda
   assert.match(bookmarks, /<OverflowMarquee text=\{entry.title\}/);
   const shares = source('shares/SharedLinksApp.tsx');
   assert.match(shares, /'type', 'date', 'status', 'actions'\]\} actionCount=\{4\}/);
+  assert.match(shares, /<th>Created \/ Expires<\/th>/);
   assert.match(shares, /colSpan=\{6\}/);
   assert.match(shares, /aria-label=\{`Created:/);
   assert.match(shares, /aria-label=\{`Expires:/);

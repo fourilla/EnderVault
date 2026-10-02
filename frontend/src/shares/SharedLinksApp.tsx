@@ -73,7 +73,7 @@ export function SharedLinksApp() {
         <section className="table-wrap" aria-label="Shared links">
           <StableTable columns={['text', 'text', 'type', 'date', 'status', 'actions']} actionCount={4}>
             <thead>
-              <tr><th>Link</th><th>Target</th><th>Type</th><th>Dates</th><th>Status</th><th>Actions</th></tr>
+              <tr><th>Link</th><th>Target</th><th>Type</th><th>Created / Expires</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody>
               {shares.map((share) => (
