@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mountDialog } from '../src/shared/dialogs/dialog-lifecycle.ts';
+import { styleDeclaration } from './helpers/style-declaration.mjs';
 
 function setup() {
   const focused = [];
   const document = { body: { style: { overflow: 'auto' } },
+    documentElement: { style: styleDeclaration({ 'overflow-x': 'auto', 'overflow-y': 'auto' }) },
     activeElement: { isConnected: true, focus: (options) => focused.push(options) } };
   class Dialog extends EventTarget {
     ownerDocument = document;
@@ -55,11 +57,13 @@ test('open locks scrolling; disposal restores focus/scroll without requesting a 
   const s = setup();
   const dispose = mountDialog(s.dialog, () => s.policy);
   assert.equal(s.dialog.open, true);
-  assert.equal(s.document.body.style.overflow, 'hidden');
+  assert.equal(s.document.documentElement.style.getPropertyValue('overflow-y'), 'hidden');
+  assert.equal(s.document.body.style.overflow, 'auto');
   dispose();
   dispose();
   assert.equal(s.dialog.open, false);
   assert.equal(s.document.body.style.overflow, 'auto');
+  assert.equal(s.document.documentElement.style.getPropertyValue('overflow-y'), 'auto');
   assert.deepEqual(s.focused, [{ preventScroll: true }]);
   assert.deepEqual(s.reasons, []);
 });
@@ -132,9 +136,10 @@ test('dialogs are sequenced and a queued unmounted dialog is never displayed', (
     firstDispose();
     assert.equal(second.shown, 0);
     assert.equal(third.open, true);
-    assert.equal(s.document.body.style.overflow, 'hidden');
+    assert.equal(s.document.documentElement.style.getPropertyValue('overflow-y'), 'hidden');
   } finally { firstDispose(); secondDispose(); thirdDispose(); }
   assert.equal(s.document.body.style.overflow, 'auto');
+  assert.equal(s.document.documentElement.style.getPropertyValue('overflow-y'), 'auto');
 });
 
 test('StrictMode remount ignores stale close events and removed openers', () => {
@@ -173,12 +178,13 @@ test('explicit nested dialog opens above its parent and keeps other dialogs queu
     assert.deepEqual(s.reasons, []);
     childDispose();
     assert.equal(s.dialog.open, true);
-    assert.equal(s.document.body.style.overflow, 'hidden');
+    assert.equal(s.document.documentElement.style.getPropertyValue('overflow-y'), 'hidden');
     assert.equal(queued.open, false);
     parentDispose();
     assert.equal(queued.open, true);
   } finally { childDispose(); parentDispose(); queuedDispose(); }
   assert.equal(s.document.body.style.overflow, 'auto');
+  assert.equal(s.document.documentElement.style.getPropertyValue('overflow-y'), 'auto');
 });
 
 test('parent removal before nested child preserves scroll lock until the last dialog closes', () => {
@@ -189,8 +195,38 @@ test('parent removal before nested child preserves scroll lock until the last di
   try {
     parentDispose();
     assert.equal(child.open, true);
-    assert.equal(s.document.body.style.overflow, 'hidden');
+    assert.equal(s.document.documentElement.style.getPropertyValue('overflow-y'), 'hidden');
     assert.equal(s.focused.length, 0);
   } finally { parentDispose(); childDispose(); }
+  assert.equal(s.document.body.style.overflow, 'auto');
+  assert.equal(s.document.documentElement.style.getPropertyValue('overflow-y'), 'auto');
+});
+
+test('root scroll lock restores independent inline axes and their priorities without touching body', () => {
+  const s = setup(), style = s.document.documentElement.style;
+  style.setProperty('overflow-x', 'clip', 'important');
+  style.setProperty('overflow-y', 'scroll');
+  const parent = mountDialog(s.dialog, () => s.policy);
+  const child = mountDialog(new s.Dialog(), () => s.policy, true);
+  try {
+    assert.equal(style.getPropertyValue('overflow-x'), 'hidden');
+    assert.equal(style.getPropertyValue('overflow-y'), 'hidden');
+    parent();
+    assert.equal(style.getPropertyValue('overflow-y'), 'hidden');
+    assert.equal(s.document.body.style.overflow, 'auto');
+  } finally { parent(); child(); }
+  assert.equal(style.getPropertyValue('overflow-x'), 'clip');
+  assert.equal(style.getPropertyPriority('overflow-x'), 'important');
+  assert.equal(style.getPropertyValue('overflow-y'), 'scroll');
+  assert.equal(style.getPropertyPriority('overflow-y'), '');
+});
+
+test('a root with no inline overflow returns to stylesheet defaults after the last dialog', () => {
+  const s = setup(), style = s.document.documentElement.style;
+  style.removeProperty('overflow');
+  const dispose = mountDialog(s.dialog, () => s.policy);
+  dispose();
+  assert.equal(style.getPropertyValue('overflow-x'), '');
+  assert.equal(style.getPropertyValue('overflow-y'), '');
   assert.equal(s.document.body.style.overflow, 'auto');
 });

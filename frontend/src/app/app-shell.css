@@ -6,7 +6,7 @@ html:has(.admin-react-shell) {
   scrollbar-gutter: stable;
 }
 
-/* Root scrolling no longer inherits the body lock once overflow is explicit. */
+/* Keep native modals on the same root lock as the shared dialog lifecycle. */
 html:has(.admin-react-shell):has(dialog:modal) {
   overflow-y: hidden;
 }

@@ -3,6 +3,7 @@ import test from 'node:test';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
+import { styleDeclaration } from './helpers/style-declaration.mjs';
 
 const result = await build({ configFile: false, logLevel: 'silent', build: {
   write: false, minify: false,
@@ -12,7 +13,8 @@ const code = (Array.isArray(result) ? result[0] : result).output.find((item) => 
 function setup() {
   const module = { exports: {} };
   vm.runInNewContext(code, { module, exports: module.exports });
-  const ownerDocument = { body: { style: { overflow: '' } }, activeElement: null };
+  const ownerDocument = { body: { style: { overflow: '' } },
+    documentElement: { style: styleDeclaration() }, activeElement: null };
   class Dialog extends EventTarget {
     ownerDocument = ownerDocument;
     open = false;
@@ -31,6 +33,7 @@ test('legacy dialog Escape uses common cleanup and permits reopening', () => {
   dialog.dispatchEvent(new Event('cancel', { cancelable: true }));
   assert.equal(dialog.open, false);
   assert.equal(ownerDocument.body.style.overflow, '');
+  assert.equal(ownerDocument.documentElement.style.getPropertyValue('overflow-y'), '');
   bridge.open(dialog);
   assert.equal(dialog.open, true);
   bridge.closeAll();
@@ -46,6 +49,7 @@ test('native completion releases the active slot and route cleanup removes queue
   bridge.closeAll();
   assert.equal(second.open, false);
   assert.equal(ownerDocument.body.style.overflow, '');
+  assert.equal(ownerDocument.documentElement.style.getPropertyValue('overflow-y'), '');
 });
 
 test('closing a queued legacy dialog prevents it appearing later', () => {
