@@ -21,6 +21,13 @@ public final class SearchSchema<T> {
 
     public enum Operator { CONTAINS, EQUALS, BEFORE, BEFORE_OR_ON, AFTER, AFTER_OR_ON, RANGE }
 
+    public record QueryLimits(int maxLength, int maxTokens, int maxTerms, int maxDepth) {}
+
+    public static QueryLimits limits() {
+        return new QueryLimits(SearchQueryParser.MAX_LENGTH, SearchQueryParser.MAX_TOKENS,
+                SearchQueryParser.MAX_TERMS, SearchQueryParser.MAX_DEPTH);
+    }
+
     public record FieldInfo(
             String key,
             String label,

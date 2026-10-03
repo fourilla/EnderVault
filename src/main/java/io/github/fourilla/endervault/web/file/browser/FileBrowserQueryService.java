@@ -90,17 +90,15 @@ public class FileBrowserQueryService {
                 pageSize
         );
         String normalizedQuery = query == null ? "" : query.trim();
+        List<FileItem> results = storageService.search(
+                StorageScope.VAULT,
+                path,
+                query,
+                resolved.sort(),
+                resolved.direction(),
+                resolved.showHidden()
+        );
         DirectoryListing context = list(path, resolved);
-        List<FileItem> results = normalizedQuery.isEmpty()
-                ? List.of()
-                : storageService.search(
-                        StorageScope.VAULT,
-                        context.path(),
-                        normalizedQuery,
-                        resolved.sort(),
-                        resolved.direction(),
-                        resolved.showHidden()
-                );
         List<FileItem> directories = results.stream()
                 .filter(FileItem::directory)
                 .toList();
