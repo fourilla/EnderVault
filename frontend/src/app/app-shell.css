@@ -6,6 +6,11 @@ html:has(.admin-react-shell) {
   scrollbar-gutter: stable;
 }
 
+/* The sticky search is already visible; do not scroll its caret below the header. */
+html:has(.admin-react-shell .topbar-search:focus-within) {
+  scroll-padding-top: 0;
+}
+
 /* Keep native modals on the same root lock as the shared dialog lifecycle. */
 html:has(.admin-react-shell):has(dialog:modal) {
   overflow-y: hidden;

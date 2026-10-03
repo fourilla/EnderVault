@@ -147,6 +147,13 @@ test('autocomplete is anchored to the input without including reset and search b
   assert.match(css, /\.search-assistance\s*\{[^}]*position:\s*absolute;[^}]*inset:\s*calc\(100% \+ var\(--space-xs\)\) 0 auto;/);
 });
 
+test('only focused sticky topbar search opts out of document scroll padding', () => {
+  const css = readFileSync(new URL('../src/app/app-shell.css', import.meta.url), 'utf8');
+  assert.match(css, /html:has\(\.admin-react-shell\)\s*\{[^}]*scroll-padding-top:\s*calc\(var\(--topbar-height\) \+ var\(--space-md\)\);/);
+  assert.match(css, /html:has\(\.admin-react-shell \.topbar-search:focus-within\)\s*\{\s*scroll-padding-top:\s*0;\s*\}/);
+  assert.match(css, /\.admin-react-shell \.app-topbar\s*\{[^}]*position:\s*sticky;[^}]*top:\s*0;/);
+});
+
 test('simple SPA searches use the topbar while logs keep their combined filter form', () => {
   for (const file of ['files/BrowserApp', 'recent/RecentApp', 'bookmarks/BookmarksApp',
     'sticky-notes/StickyNoteListApp']) {
