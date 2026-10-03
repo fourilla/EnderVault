@@ -166,7 +166,7 @@ export function BookmarksApp() {
   };
 
   useRouteSearch({ label: 'Search bookmarks', value: searchText,
-    onChange: setSearchText, onSubmit: submitSearch });
+    onChange: setSearchText, onSubmit: submitSearch, schemaScope: 'bookmarks' });
 
   return (
     <>

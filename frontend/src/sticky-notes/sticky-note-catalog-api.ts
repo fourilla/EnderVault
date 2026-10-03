@@ -10,9 +10,9 @@ export async function loadStickyNoteCatalog(query: string, signal: AbortSignal):
     headers: { Accept: 'application/json' },
     signal,
   });
-  const body = await response.json() as StickyNoteCatalogPayload & { message?: string };
+  const body = await response.json() as StickyNoteCatalogPayload & { message?: string; notification?: { message?: string } };
   if (!response.ok || !Array.isArray(body.notes)) {
-    throw new Error(body.message || 'Sticky notes could not be loaded.');
+    throw new Error(body.notification?.message || body.message || 'Sticky notes could not be loaded.');
   }
   return body;
 }

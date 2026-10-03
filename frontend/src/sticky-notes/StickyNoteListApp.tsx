@@ -25,7 +25,9 @@ export function StickyNoteListApp() {
     setError('');
     setNotes(null);
     void loadStickyNoteCatalog(activeQuery, controller.signal)
-      .then((payload) => setNotes(payload.notes))
+      .then((payload) => {
+        if (!controller.signal.aborted) setNotes(payload.notes);
+      })
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
           setError(reason instanceof Error ? reason.message : 'Sticky notes could not be loaded.');
@@ -50,7 +52,7 @@ export function StickyNoteListApp() {
   };
 
   useRouteSearch({ label: 'Search sticky notes', placeholder: 'Search notes or contexts',
-    value: query, onChange: setQuery, onSubmit: search,
+    value: query, onChange: setQuery, onSubmit: search, schemaScope: 'sticky-notes',
     onReset: activeQuery ? () => setSearchParams({}) : undefined });
 
   const remove = async (note: StickyNoteCatalogItem) => {

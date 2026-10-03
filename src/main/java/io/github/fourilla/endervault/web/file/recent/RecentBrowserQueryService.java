@@ -50,7 +50,7 @@ public class RecentBrowserQueryService {
         );
         String normalizedQuery = query == null ? "" : query.trim();
         List<RecentListItem> items = recentService.list(
-                normalizedQuery,
+                query,
                 resolved.sort(),
                 resolved.direction(),
                 resolved.showHidden()

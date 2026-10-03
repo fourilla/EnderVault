@@ -15,6 +15,7 @@ import io.github.fourilla.endervault.outbound.OutboundRouteUnavailableException;
 import io.github.fourilla.endervault.outbound.vpn.VpnProxyHealthService;
 import io.github.fourilla.endervault.outbound.vpn.VpnTunnelHealthProbe;
 import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
+import io.github.fourilla.endervault.search.SearchQueryException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -77,6 +78,39 @@ class BookmarkServiceTest {
         assertThat(bookmarkService.list(directory.id(), "spring"))
                 .extracting(BookmarkItem::title)
                 .containsExactly("Spring Docs");
+    }
+
+    @Test
+    void typedSearchKeepsTheSubtreeAndExistingSortAndBlankSearchKeepsDirectChildren() throws Exception {
+        BookmarkItem directory = bookmarkService.createDirectory(null, "Docs");
+        BookmarkItem nested = bookmarkService.createDirectory(directory.id(), "Nested");
+        bookmarkService.createLink(nested.id(), "Q11", "https://example.com/eleven", "review");
+        bookmarkService.createLink(nested.id(), "Q2", "https://example.com/two", "review");
+        bookmarkService.createLink(null, "Q3", "https://example.com/outside", "review");
+
+        assertThat(bookmarkService.list(directory.id(), "type:link note:review"))
+                .extracting(BookmarkItem::title).containsExactly("Q11", "Q2");
+        assertThat(bookmarkService.list(directory.id(), " \t"))
+                .extracting(BookmarkItem::id).containsExactly(nested.id());
+    }
+
+    @Test
+    void supportsAndAndQuotedPhrasesWithoutChangingDefaultSearchFields() throws Exception {
+        bookmarkService.createLink(null, "summer holiday", "https://example.com/one", "");
+        bookmarkService.createLink(null, "holiday summer", "https://example.com/two", "");
+        bookmarkService.createLink(null, "unrelated", "https://example.com/summer-holiday", "");
+
+        assertThat(bookmarkService.list(null, "summer holiday")).hasSize(3);
+        assertThat(bookmarkService.list(null, "\"summer holiday\""))
+                .extracting(BookmarkItem::title).containsExactly("summer holiday");
+    }
+
+    @Test
+    void validatesTheOriginalQueryBeforeResolvingTheParentOrReadingTheRegistry() {
+        assertThatThrownBy(() -> bookmarkService.list("not-created", "  unknown:value"))
+                .isInstanceOf(SearchQueryException.class).hasMessage("Unknown search field: unknown");
+        assertThatThrownBy(() -> bookmarkService.list(null, " ".repeat(4097)))
+                .isInstanceOf(SearchQueryException.class).hasMessage("Search query is too long.");
     }
 
     @Test

@@ -18,6 +18,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -120,8 +121,8 @@ final class StorageListingService {
             SortDirection direction,
             boolean showHidden
     ) throws IOException {
-        String normalizedQuery = normalizeSearchQuery(query);
-        if (normalizedQuery.isEmpty()) {
+        Predicate<StorageSearchSchema.Candidate> filter = StorageSearchSchema.compile(query);
+        if (query == null || query.isBlank()) {
             return List.of();
         }
 
@@ -134,7 +135,7 @@ final class StorageListingService {
         }
 
         List<FileItem> results = new ArrayList<>();
-        searchRecursively(scope, searchRoot, normalizedQuery, showHidden, results);
+        searchRecursively(scope, searchRoot, filter, showHidden, results);
         Comparator<FileItem> comparator = sort == null || direction == null
                 ? Comparator.comparing(FileItem::path, NaturalNameComparator.INSTANCE)
                 : itemComparator(sort, direction);
@@ -238,7 +239,7 @@ final class StorageListingService {
     private void searchRecursively(
             StorageScope scope,
             Path directory,
-            String normalizedQuery,
+            Predicate<StorageSearchSchema.Candidate> filter,
             boolean showHidden,
             List<FileItem> results
     ) throws IOException {
@@ -249,22 +250,17 @@ final class StorageListingService {
                     .filter(path -> showHidden || !isHidden(path))
                     .sorted(pathNameComparator())
                     .collect(Collectors.toList())) {
-                if (matchesSearchQuery(child, normalizedQuery)) {
+                boolean directoryChild = Files.isDirectory(child, LinkOption.NOFOLLOW_LINKS);
+                StorageSearchSchema.Candidate candidate = new StorageSearchSchema.Candidate(
+                        child, pathResolver.toRelativePath(pathResolver.baseFor(scope), child), directoryChild);
+                if (filter.test(candidate)) {
                     results.add(toFileItem(pathResolver.baseFor(scope), child));
                 }
-                if (Files.isDirectory(child, LinkOption.NOFOLLOW_LINKS)) {
-                    searchRecursively(scope, child, normalizedQuery, showHidden, results);
+                if (directoryChild) {
+                    searchRecursively(scope, child, filter, showHidden, results);
                 }
             }
         }
-    }
-
-    private boolean matchesSearchQuery(Path path, String normalizedQuery) {
-        return path.getFileName().toString().toLowerCase(Locale.ROOT).contains(normalizedQuery);
-    }
-
-    private String normalizeSearchQuery(String query) {
-        return query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
     }
 
     private Optional<String> parentPathOf(String currentPath) {

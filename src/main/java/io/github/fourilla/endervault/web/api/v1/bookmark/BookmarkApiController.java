@@ -63,10 +63,10 @@ public class BookmarkApiController {
     ) throws IOException {
         String currentDirectoryId = BookmarkRoutes.normalizeId(directoryId);
         String normalizedQuery = BookmarkRoutes.normalizeQuery(query);
-        bookmarkService.currentDirectory(currentDirectoryId);
+        List<BookmarkItem> items = bookmarkService.list(currentDirectoryId, query);
         boolean metadataFetchEnabled = bookmarkService.metadataFetchEnabled();
         return BookmarkBrowserPayload.from(
-                bookmarkService.list(currentDirectoryId, normalizedQuery),
+                items,
                 bookmarkService.breadcrumbs(currentDirectoryId),
                 currentDirectoryId,
                 normalizedQuery,

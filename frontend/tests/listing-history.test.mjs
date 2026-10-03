@@ -89,6 +89,39 @@ test('Files search and Bookmarks directories retain their own origin through det
   }
 });
 
+for (const [config, base, query, detail] of [
+  [browserHistory, { ...defaultBrowserState(), mode: 'search', path: 'nested', page: 2 },
+    '(name:"summer holiday" || name:report) modified:>=2026-10-03T09:00:00+09:00', '/files/detail?path=nested/a.txt'],
+  [bookmarkHistory, { ...defaultBookmarkState(), directoryId: 'uuid-directory' },
+    '(name:report || url:docs) type:link updated:2026-10-01..2026-10-03', '/files/bookmarks/uuid-link'],
+  [recentHistory, { ...defaultRecentState(), page: 3, view: 'grid', hidden: 'show' },
+    'path:"books/summer holiday" accessed:>=2026-10-03T09:00:00+09:00', '/files/detail?path=books/a.txt'],
+]) {
+  test(`${base.surface} typed search survives Back, Forward and persisted visit restoration`, async (t) => {
+    const s = setup(t, [config.pathname]);
+    await s.go(config, { ...base, query });
+    const visit = s.enter(config);
+    s.scroll(710);
+    await s.router.navigate(detail);
+    await s.router.navigate(-1);
+    const restored = s.enter(config).state;
+    assert.deepEqual(restored, { ...visit.state, query, scrollTop: 710 });
+    const reloaded = setup(t, [s.router.state.location], s.persisted);
+    assert.deepEqual(reloaded.enter(config).state, restored);
+    await s.router.navigate(1);
+    await s.router.navigate(-1);
+    assert.equal(s.enter(config).state.query, query);
+  });
+}
+
+test('Bookmarks and Recent decode typed URL queries without losing quotes or UTC offsets', (t) => {
+  const query = 'name:"summer holiday" updated:>=2026-10-03T09:00:00+09:00';
+  for (const config of [bookmarkHistory, recentHistory]) {
+    const s = setup(t, [`${config.pathname}?${new URLSearchParams({ q: query })}`]);
+    assert.equal(s.enter(config).state.query, query);
+  }
+});
+
 test('surface discriminators reject another list state even when version and fields overlap', () => {
   assert.equal(parseBrowserState(defaultRecentState()), null);
   assert.equal(parseBrowserState(defaultBookmarkState()), null);

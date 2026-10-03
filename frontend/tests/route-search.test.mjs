@@ -13,7 +13,7 @@ const result = await build({ configFile: false, logLevel: 'silent',
 const code = (Array.isArray(result) ? result[0] : result).output.find((item) => item.type === 'chunk').code;
 
 // Exercise the registration/cleanup and rendered event handlers without a browser server.
-function setup() {
+function setup({ suggestionsVisible = false, composing = false } = {}) {
   let registration = null, contextId = 0, key = 'files', cleanup, previousDeps;
   const publish = (next) => { registration = typeof next === 'function' ? next(registration) : next; };
   const jsx = (type, props) => ({ type, props });
@@ -30,6 +30,14 @@ function setup() {
     },
     'react/jsx-runtime': { jsx, jsxs: jsx },
     'react-router-dom': { useLocation: () => ({ key }) },
+    './TopbarPopoverContext': { useTopbarPopover: () => ({ activeId: null, show() {}, hide() {} }) },
+    '../shared/search/useSearchInput': { useSearchInput: (options) => ({
+      visible: suggestionsVisible, close() {}, isComposing: () => composing, inputProps: {
+        value: options.value,
+        onChange: (event) => { if (!options.disabled) options.onChange(event.currentTarget.value); },
+      },
+    }) },
+    '../shared/search/SearchSuggestions': { SearchSuggestions() {} },
   };
   const module = { exports: {} };
   vm.runInNewContext(code, { module, exports: module.exports, require: (id) => {
@@ -40,7 +48,7 @@ function setup() {
     clear: () => { cleanup?.(); cleanup = undefined; previousDeps = undefined; } };
 }
 
-function input(form) { return form.props.children[0].props.children[1]; }
+function input(form) { return form.props.children[0].props.children[0].props.children[1]; }
 function submit(form) {
   let prevented = false;
   form.props.onSubmit({ preventDefault() { prevented = true; } });
@@ -84,6 +92,14 @@ test('query edits only call the page setter; submit uses the latest handler and 
   assert.deepEqual(submitted, ['new', 'restored']);
 });
 
+test('form submission cannot search an unfinished IME composition', () => {
+  const app = setup({ composing: true });
+  let calls = 0;
+  app.useRouteSearch({ label: 'Search notes', value: '', onChange() {}, onSubmit() { calls++; } });
+  submit(app.TopbarSearch());
+  assert.equal(calls, 0);
+});
+
 test('late cleanup cannot remove a newer registration and temporarily disabled searches cannot submit', () => {
   const app = setup();
   app.useRouteSearch({ label: 'Search files', value: '', onChange() {}, onSubmit() {} });
@@ -110,6 +126,32 @@ test('note reset delegates to the page and registration separates publisher from
   const source = readFileSync(new URL('../src/app/RouteSearch.tsx', import.meta.url), 'utf8');
   assert.match(source, /SearchRegistrationContext.Provider value=\{setSearch\}/);
   assert.match(source, /SearchContext.Provider value=\{search\}/);
+});
+
+test('autocomplete is anchored to the input without including reset and search buttons', () => {
+  const app = setup({ suggestionsVisible: true });
+  app.useRouteSearch({ label: 'Search files', value: 'name:', schemaScope: 'files',
+    onChange() {}, onSubmit() {}, onReset() {} });
+  const form = app.TopbarSearch();
+  const [anchor, reset, search] = form.props.children;
+  assert.equal(form.props.children.length, 3);
+  assert.equal(anchor.type, 'div');
+  assert.equal(anchor.props.className, 'search-input-anchor');
+  assert.equal(anchor.props.children[0].type, 'label');
+  assert.equal(input(form).type, 'input');
+  assert.equal(anchor.props.children[1].type.name, 'SearchSuggestions');
+  assert.equal(reset.props['aria-label'], 'Reset search');
+  assert.equal(search.props.type, 'submit');
+  const css = readFileSync(new URL('../src/shared/search/search-assistance.css', import.meta.url), 'utf8');
+  assert.match(css, /\.search-input-anchor\s*\{[^}]*position:\s*relative;[^}]*flex:\s*1 1 auto;[^}]*min-width:\s*0;/);
+  assert.match(css, /\.search-assistance\s*\{[^}]*position:\s*absolute;[^}]*inset:\s*calc\(100% \+ var\(--space-xs\)\) 0 auto;/);
+});
+
+test('only focused sticky topbar search opts out of document scroll padding', () => {
+  const css = readFileSync(new URL('../src/app/app-shell.css', import.meta.url), 'utf8');
+  assert.match(css, /html:has\(\.admin-react-shell\)\s*\{[^}]*scroll-padding-top:\s*calc\(var\(--topbar-height\) \+ var\(--space-md\)\);/);
+  assert.match(css, /html:has\(\.admin-react-shell \.topbar-search:focus-within\)\s*\{\s*scroll-padding-top:\s*0;\s*\}/);
+  assert.match(css, /\.admin-react-shell \.app-topbar\s*\{[^}]*position:\s*sticky;[^}]*top:\s*0;/);
 });
 
 test('simple SPA searches use the topbar while logs keep their combined filter form', () => {

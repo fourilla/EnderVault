@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.search.SearchQueryException;
 import io.github.fourilla.endervault.task.TaskCanceledException;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -212,6 +213,74 @@ class StorageServiceTest {
         List<FileItem> results = storageService.search(StorageScope.VAULT, "", "report");
 
         assertThat(results).extracting(FileItem::path).containsExactly("report3.txt", "report11.txt");
+    }
+
+    @Test
+    void searchesPlainWordsWithAndAndQuotedWordsAsAContinuousPhrase() throws Exception {
+        Files.writeString(root.resolve("summer holiday report.txt"), "phrase");
+        Files.writeString(root.resolve("holiday summer.txt"), "reversed");
+        Files.writeString(root.resolve("summer.txt"), "one term");
+
+        assertThat(storageService.search(StorageScope.VAULT, "", "SUMMER holiday"))
+                .extracting(FileItem::name).containsExactly("holiday summer.txt", "summer holiday report.txt");
+        assertThat(storageService.search(StorageScope.VAULT, "", "\"summer holiday\""))
+                .extracting(FileItem::name).containsExactly("summer holiday report.txt");
+        assertThat(storageService.search(StorageScope.VAULT, "", "name:\"summer holiday\""))
+                .extracting(FileItem::name).containsExactly("summer holiday report.txt");
+        assertThat(storageService.search(StorageScope.VAULT, "", "report"))
+                .isEqualTo(storageService.search(StorageScope.VAULT, "", "name:REPORT"));
+    }
+
+    @Test
+    void appliesTypedConditionsWithinTheRequestedRootAndThenSorts() throws Exception {
+        Files.createDirectories(root.resolve("docs/nested"));
+        Files.createDirectories(root.resolve("other"));
+        Files.writeString(root.resolve("docs/nested/Q11.txt"), "eleven");
+        Files.writeString(root.resolve("docs/nested/Q3.txt"), "three");
+        Files.writeString(root.resolve("other/Q2.txt"), "outside scope");
+        Files.setLastModifiedTime(root.resolve("docs/nested/Q11.txt"),
+                FileTime.from(Instant.parse("2024-01-02T00:00:00Z")));
+        Files.setLastModifiedTime(root.resolve("docs/nested/Q3.txt"),
+                FileTime.from(Instant.parse("2024-01-03T00:00:00Z")));
+
+        assertThat(storageService.search(StorageScope.VAULT, "docs",
+                "type:file (name:Q || path:other) modified:>=2024-01-02T00:00:00Z",
+                FileSort.NAME, SortDirection.DESC, false))
+                .extracting(FileItem::path).containsExactly("docs/nested/Q11.txt", "docs/nested/Q3.txt");
+        assertThat(storageService.search(StorageScope.VAULT, "docs", "type:directory path:docs"))
+                .extracting(FileItem::path).containsExactly("docs/nested");
+        assertThat(storageService.search(StorageScope.VAULT, "docs", "path:other")).isEmpty();
+    }
+
+    @Test
+    void pathAndTypeConditionsCannotOverrideHiddenAndSystemPathPolicies() throws Exception {
+        Files.writeString(root.resolve("visible.txt"), "visible");
+        Files.writeString(root.resolve("secret.txt"), "hidden");
+        String hiddenPath = storageService.setHiddenVaultPath("secret.txt", true, ConflictPolicy.CANCEL);
+        Files.writeString(root.resolve(".endervault/secret.txt"), "metadata");
+        Files.writeString(root.resolve(".trash/secret.txt"), "trash");
+
+        assertThat(storageService.search(StorageScope.VAULT, "", "type:file (path:secret || name:visible)", false))
+                .extracting(FileItem::path).containsExactly("visible.txt");
+        assertThat(storageService.search(StorageScope.VAULT, "", "type:file path:secret", true))
+                .extracting(FileItem::path).containsExactly(hiddenPath);
+        assertThat(storageService.search(StorageScope.VAULT, "", "path:.endervault || path:.trash", true))
+                .isEmpty();
+    }
+
+    @Test
+    void validatesTheWholeQueryBeforeResolvingOrScanningTheRoot() {
+        assertThatThrownBy(() -> storageService.search(StorageScope.VAULT, "missing-directory", "report || typo:value"))
+                .isInstanceOf(SearchQueryException.class).hasMessage("Unknown search field: typo");
+        assertThatThrownBy(() -> storageService.search(StorageScope.VAULT, "", " ".repeat(4097)))
+                .isInstanceOf(SearchQueryException.class).hasMessage("Search query is too long.");
+    }
+
+    @Test
+    void preservesTheEmptySearchContract() throws Exception {
+        Files.writeString(root.resolve("report.txt"), "hello");
+        assertThat(storageService.search(StorageScope.VAULT, "", "")).isEmpty();
+        assertThat(storageService.search(StorageScope.VAULT, "", " \t ")).isEmpty();
     }
 
     @Test
