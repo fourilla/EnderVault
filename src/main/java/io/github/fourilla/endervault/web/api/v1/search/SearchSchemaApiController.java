@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.web.api.v1.search;
 
 import io.github.fourilla.endervault.bookmark.BookmarkSearchSchema;
+import io.github.fourilla.endervault.pending.PendingDecisionSearchSchema;
 import io.github.fourilla.endervault.recent.RecentSearchSchema;
 import io.github.fourilla.endervault.search.SearchSchema;
 import io.github.fourilla.endervault.stickynote.StickyNoteSearchSchema;
@@ -36,5 +37,11 @@ public class SearchSchemaApiController {
     public SearchSchemaPayload stickyNotes() {
         return new SearchSchemaPayload("sticky-notes", StickyNoteSearchSchema.defaultFields(), "AND",
                 StickyNoteSearchSchema.fields(), SearchSchema.limits());
+    }
+
+    @GetMapping(value = "/pending-decisions", produces = MediaType.APPLICATION_JSON_VALUE)
+    public SearchSchemaPayload pendingDecisions() {
+        return new SearchSchemaPayload("pending-decisions", PendingDecisionSearchSchema.defaultFields(), "AND",
+                PendingDecisionSearchSchema.fields(), SearchSchema.limits());
     }
 }

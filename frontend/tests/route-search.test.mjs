@@ -156,7 +156,7 @@ test('only focused sticky topbar search opts out of document scroll padding', ()
 
 test('simple SPA searches use the topbar while logs keep their combined filter form', () => {
   for (const file of ['files/BrowserApp', 'recent/RecentApp', 'bookmarks/BookmarksApp',
-    'sticky-notes/StickyNoteListApp']) {
+    'sticky-notes/StickyNoteListApp', 'pending-decisions/PendingDecisionsApp']) {
     const source = readFileSync(new URL(`../src/${file}.tsx`, import.meta.url), 'utf8');
     assert.match(source, /useRouteSearch\(/, file);
     assert.doesNotMatch(source, /className="search-form"|className="search-field"/, file);

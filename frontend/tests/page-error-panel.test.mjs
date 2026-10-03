@@ -46,7 +46,7 @@ test('error spacing belongs to the parent and pending polling clears recovered e
   assert.match(css, /overflow-wrap:\s*anywhere/);
   assert.doesNotMatch(css.match(/\.page-error-panel\s*\{([^}]+)\}/)[1], /margin/);
   const pending = readFileSync(new URL('../src/pending-decisions/PendingDecisionsApp.tsx', import.meta.url), 'utf8');
-  assert.match(pending, /setDecisions\(payload.decisions\); setError\(''\)/);
+  assert.match(pending, /setSnapshot\(\{ query: activeQuery, decisions: payload.decisions \}\);\s*setFeedback\(null\)/);
   assert.match(pending, /page-feedback-layout/);
   assert.match(pending, /stale=\{decisions !== null\}/);
 });

@@ -344,12 +344,15 @@ test('pending row preserves the preparation component position when a merge owne
 
 test('the unified pending page has one table and no page-owned review dialog', async () => {
   const jsx = (type, props) => ({ type, props });
+  let stateIndex = 0;
   const react = { useEffect: () => {},
-    useState: (value) => [value === null ? [] : value, () => {}],
+    useState: (value) => [stateIndex++ === 1 ? { query: '', decisions: [] } : value, () => {}],
     createElement: (type, props, ...children) => jsx(type, { ...props, children }) };
   const component = await load('../src/pending-decisions/PendingDecisionsApp.tsx', { React: react }, {
     react, 'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'fragment' },
     useHashTarget: { useHashTarget: () => {} },
+    'react-router-dom': { useSearchParams: () => [new URLSearchParams(), () => {}] },
+    RouteSearch: { useRouteSearch: () => {} },
   });
   const tree = component.PendingDecisionsApp();
   const tables = [];

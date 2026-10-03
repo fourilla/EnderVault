@@ -8,6 +8,8 @@ import io.github.fourilla.endervault.pending.PendingFileDecision;
 import io.github.fourilla.endervault.pending.PendingFileDecisionAction;
 import io.github.fourilla.endervault.pending.PendingFileDecisionService;
 import io.github.fourilla.endervault.pending.PendingFileDecisionService.PendingFileDecisionResult;
+import io.github.fourilla.endervault.pending.PendingDecisionSearchSchema;
+import io.github.fourilla.endervault.pending.PendingDecisionSearchSchema.Candidate;
 import io.github.fourilla.endervault.storage.FileItem;
 import io.github.fourilla.endervault.web.support.FlashNotification;
 import jakarta.servlet.http.HttpServletRequest;
@@ -46,15 +48,18 @@ public class PendingFileDecisionApiController {
     }
 
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
-    public PendingFileDecisionListResponse list() throws IOException {
+    public PendingFileDecisionListResponse list(@RequestParam(value = "q", required = false) String query) throws IOException {
+        var matches = PendingDecisionSearchSchema.compile(query);
         var items = new java.util.ArrayList<PendingFileDecisionItemResponse>();
         // Read independently: do not introduce nested merge-store/Pending service locks.
         var unresolved = merges.unresolved();
         var pendingIds = new java.util.HashSet<String>();
         synchronized (pendingFileDecisionService) {
             for (var decision : pendingFileDecisionService.list()) {
-                String owner = decision.directory() ? pendingFileDecisionService.directoryMergeOwner(decision.id()).orElse(null) : null;
+                // Deduplicate against all Pending IDs, not just the matching rows.
                 pendingIds.add(decision.id());
+                if (!matches.test(Candidate.from(decision))) continue;
+                String owner = decision.directory() ? pendingFileDecisionService.directoryMergeOwner(decision.id()).orElse(null) : null;
                 var review = unresolved.stream().filter(value -> value.id().equals(owner)).findFirst().orElse(null);
                 items.add(PendingFileDecisionItemResponse.from(decision, owner,
                         owner == null ? "Awaiting decision" : review == null ? "Preparing or recovering review" : mergeStatus(review)));
@@ -63,10 +68,18 @@ public class PendingFileDecisionApiController {
         for (var review : unresolved) {
             if (review.operation() == DirectoryTransferPlan.Operation.PENDING && pendingIds.contains(review.sourceReference())) continue;
             String path = review.destinationPath();
+            String name = path.substring(path.lastIndexOf('/') + 1);
+            String source = switch (review.operation()) {
+                case COPY -> "directory_copy";
+                case MOVE -> "directory_move";
+                case PENDING -> "directory_upload";
+            };
+            String destination = PendingDecisionSearchSchema.destinationLabel(path);
+            if (!matches.test(new Candidate(name, destination, source, true, review.createdAt(), null))) continue;
             items.add(new PendingFileDecisionItemResponse("merge-" + review.id(),
-                    path.substring(path.lastIndexOf('/') + 1), null,
+                    name, null,
                     switch (review.operation()) { case COPY -> "Directory copy"; case MOVE -> "Directory move"; case PENDING -> "Directory upload"; },
-                    "/" + path, "-", CREATED_AT_FORMATTER.format(review.createdAt()), review.createdAt().toString(),
+                    destination, "-", CREATED_AT_FORMATTER.format(review.createdAt()), review.createdAt().toString(),
                     true, review.id(), mergeStatus(review)));
         }
         return new PendingFileDecisionListResponse(List.copyOf(items));
@@ -146,9 +159,7 @@ public class PendingFileDecisionApiController {
                     decision.originalFilename(),
                     decision.submittedBy(),
                     decision.source().label(),
-                    decision.destinationPath() == null || decision.destinationPath().isBlank()
-                            ? "/"
-                            : "/" + decision.destinationPath(),
+                    PendingDecisionSearchSchema.destinationLabel(decision.destinationPath()),
                     ByteSizeFormatter.humanSize(decision.size()),
                     CREATED_AT_FORMATTER.format(decision.createdAt()),
                     decision.createdAt().toString(),
