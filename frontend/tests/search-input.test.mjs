@@ -84,19 +84,24 @@ function load(code, modules, globals = {}) {
 }
 const flush = async () => { await new Promise(setImmediate); };
 
-function inputSetup(t, value = '') {
+function inputSetup(t, value = '', entries = []) {
   const h = harness(), doc = { ...events(), visibilityState: 'visible', fullscreenElement: null, querySelector: () => null };
   const win = events(), changes = [], focus = [], ranges = [];
+  const frames = new Map();
+  let frameId = 0;
   const options = { scope: 'files', owner: 'files-1', hidden: 'hide', value, disabled: false, open: true,
     onChange(value) { changes.push(value); options.value = value; },
     onOpen() { options.open = true; }, onClose() { options.open = false; } };
   const app = load(inputCode, { react: h.react, './query-completion': completion,
     './useSearchAssistance': { useSearchAssistance({ query, caret, selectionEnd, enabled }) {
       const context = enabled ? completion.completionContext(query, caret, selectionEnd, schema) : null;
-      return { context, options: completion.suggestionsFor(context, enabled ? schema : null), hint: null, loading: false, unavailable: false };
+      return { context, options: completion.suggestionsFor(context, enabled ? schema : null, entries), hint: null, loading: false, unavailable: false };
     } },
-  }, { document: doc, window: win });
-  const input = { selectionStart: value.length, selectionEnd: value.length,
+  }, { document: doc, window: win,
+    requestAnimationFrame: (callback) => { frames.set(++frameId, callback); return frameId; },
+    cancelAnimationFrame: (id) => frames.delete(id),
+  });
+  const input = { value, selectionStart: value.length, selectionEnd: value.length,
     focus(options) { focus.push(options); }, setSelectionRange(start, end) { ranges.push([start, end]); } };
   const render = () => h.render(() => app.useSearchInput(options));
   let result = render();
@@ -111,7 +116,8 @@ function inputSetup(t, value = '') {
     return { prevented, stopped };
   };
   t.after(() => h.dispose());
-  return { render, options, input, changes, focus, ranges, key, doc, win, h };
+  const runFrames = () => { const jobs = [...frames.values()]; frames.clear(); jobs.forEach((run) => run()); };
+  return { render, options, input, changes, focus, ranges, key, doc, win, h, frames, runFrames };
 }
 
 test('Arrow selects a tag, Enter completes without submission, and focus/caret stay in the input', (t) => {
@@ -157,6 +163,204 @@ test('IME, modifier keys and text selection retain native input behavior', (t) =
   app.render().inputProps.onSelect({ currentTarget: app.input });
   assert.equal(app.key('ArrowDown').prevented, false);
   assert.equal(app.key('a', { ctrlKey: true }).prevented, false);
+});
+
+test('Korean composition preserves the input while the page registration still holds the previous query', (t) => {
+  const app = inputSetup(t);
+  app.options.onChange = (value) => app.changes.push(value);
+  app.render().inputProps.onCompositionStart({ currentTarget: app.input });
+  for (const value of ['\u3142', '\ube0c', '\ube14', '\ube14\u3139', '\ube14\ub8e8']) {
+    app.input.value = value;
+    app.input.selectionStart = app.input.selectionEnd = value.length;
+    app.render().inputProps.onChange({ currentTarget: app.input });
+    app.render().inputProps.onSelect({ currentTarget: app.input });
+    const result = app.render();
+    assert.equal(result.inputProps.value, value, 'Controlled input must not restore the old page query');
+    assert.equal(result.visible, true, 'Composition must not disable assistance');
+    assert.equal(result.isComposing(), true);
+    result.choose(0);
+  }
+  assert.deepEqual(app.changes, [], 'Do not publish incomplete composition to the page');
+  assert.equal(app.key('Enter').prevented, true, 'IME confirmation must not submit search');
+  assert.deepEqual(app.ranges, []);
+  app.render().inputProps.onCompositionEnd({ currentTarget: app.input });
+  assert.deepEqual(app.changes, ['\ube14\ub8e8']);
+  assert.equal(app.render().inputProps.value, '\ube14\ub8e8');
+  app.options.value = '\ube14\ub8e8';
+  assert.equal(app.render().isComposing(), false);
+  assert.equal(app.key('Enter').prevented, false, 'A later Enter retains normal search submission');
+});
+
+test('composing Korean path text updates suggestions without replacing the IME selection or input', (t) => {
+  const app = inputSetup(t, 'path:', [
+    { name: '\ube14\ub8e8', path: '\ube14\ub8e8', type: 'directory' },
+    { name: '\ube14\ub799', path: '\ube14\ub799', type: 'directory' },
+  ]);
+  app.render().inputProps.onCompositionStart();
+  app.input.value = 'path:\ube14';
+  app.input.selectionStart = 5; app.input.selectionEnd = 6;
+  app.render().inputProps.onChange({ currentTarget: app.input });
+  assert.equal(app.render().assistance.options.length, 2);
+  app.input.value = 'path:\ube14\ub8e8';
+  app.input.selectionStart = 6; app.input.selectionEnd = 7;
+  app.render().inputProps.onChange({ currentTarget: app.input });
+  const result = app.render();
+  assert.equal(result.assistance.options.length, 1);
+  assert.equal(result.assistance.options[0].label, '\ube14\ub8e8');
+  assert.equal(result.inputProps.value, 'path:\ube14\ub8e8');
+  assert.equal(result.visible, true);
+  assert.equal(app.key('ArrowDown').prevented, false, 'IME still owns its navigation keys');
+  assert.deepEqual(app.ranges, []);
+  assert.equal(app.input.selectionStart, 6);
+});
+
+test('clicking a composing path suggestion waits for composition end before replacing its token', (t) => {
+  const app = inputSetup(t, 'path:', [{ name: '\ube14\ub8e8', path: '\ube14\ub8e8', type: 'directory' }]);
+  let blurs = 0;
+  app.input.blur = () => { blurs++; };
+  app.render().inputProps.onCompositionStart();
+  app.input.value = 'path:\ube14';
+  app.input.selectionStart = app.input.selectionEnd = 6;
+  app.render().inputProps.onChange({ currentTarget: app.input });
+  app.render().choose(0);
+  assert.equal(blurs, 1);
+  assert.deepEqual(app.changes, []);
+  assert.equal(app.render().inputProps.value, 'path:\ube14');
+  assert.deepEqual(app.ranges, []);
+  app.render().inputProps.onCompositionEnd({ currentTarget: app.input });
+  assert.deepEqual(app.changes, ['path:\ube14']);
+  assert.equal(app.frames.size, 1, 'Wait for the native composition/input events to finish');
+  app.runFrames();
+  assert.deepEqual(app.changes, ['path:\ube14', 'path:\ube14\ub8e8/']);
+  assert.equal(app.render().inputProps.value, 'path:\ube14\ub8e8/');
+  assert.deepEqual(app.ranges.at(-1), [8, 8]);
+  assert.equal(app.options.open, true);
+});
+
+test('a synchronous blur composition end applies the clicked suggestion exactly once', (t) => {
+  const app = inputSetup(t, 'path:', [{ name: '\ube14\ub8e8', path: '\ube14\ub8e8', type: 'directory' }]);
+  app.input.blur = () => app.render().inputProps.onCompositionEnd({ currentTarget: app.input });
+  app.render().inputProps.onCompositionStart();
+  app.input.value = 'path:\ube14';
+  app.input.selectionStart = app.input.selectionEnd = 6;
+  app.render().inputProps.onChange({ currentTarget: app.input });
+  app.render().choose(0);
+  assert.deepEqual(app.changes, ['path:\ube14']);
+  assert.equal(app.frames.size, 1);
+  app.runFrames();
+  assert.deepEqual(app.changes, ['path:\ube14', 'path:\ube14\ub8e8/']);
+  assert.equal(app.render().isComposing(), false);
+});
+
+test('a composing suggestion is discarded on route change or when another dialog takes priority', (t) => {
+  const app = inputSetup(t, 'path:', [{ name: '\ube14\ub8e8', path: '\ube14\ub8e8', type: 'directory' }]);
+  app.input.blur = () => {};
+  app.render().inputProps.onCompositionStart();
+  app.input.value = 'path:\ube14';
+  app.input.selectionStart = app.input.selectionEnd = 6;
+  app.render().inputProps.onChange({ currentTarget: app.input });
+  app.render().choose(0);
+  app.render().inputProps.onCompositionEnd({ currentTarget: app.input });
+  app.doc.querySelector = () => ({});
+  app.runFrames();
+  assert.deepEqual(app.changes, ['path:\ube14']);
+  app.changes.length = 0;
+  app.doc.querySelector = () => null;
+  app.render().inputProps.onCompositionStart();
+  app.render().inputProps.onChange({ currentTarget: app.input });
+  app.render().choose(0);
+  app.options.owner = 'notes-2'; app.options.scope = 'sticky-notes'; app.options.value = 'restored';
+  app.render().inputProps.onCompositionEnd({ currentTarget: app.input });
+  app.runFrames();
+  assert.deepEqual(app.changes, []);
+  assert.equal(app.render().inputProps.value, 'restored');
+});
+
+test('trailing native input completes before the explicit suggestion, and leaving the window cancels it', (t) => {
+  const app = inputSetup(t, 'path:', [{ name: '\ube14\ub8e8', path: '\ube14\ub8e8', type: 'directory' }]);
+  app.input.blur = () => {};
+  app.render().inputProps.onCompositionStart();
+  app.input.value = 'path:\ube14';
+  app.input.selectionStart = app.input.selectionEnd = 6;
+  app.render().inputProps.onChange({ currentTarget: app.input });
+  app.render().choose(0);
+  app.render().inputProps.onCompositionEnd({ currentTarget: app.input });
+  app.render().inputProps.onChange({ currentTarget: app.input });
+  app.runFrames();
+  assert.equal(app.changes.at(-1), 'path:\ube14\ub8e8/');
+  assert.equal(app.render().inputProps.value, 'path:\ube14\ub8e8/');
+  app.render().inputProps.onCompositionStart();
+  app.input.value = 'path:\ube14';
+  app.input.selectionStart = app.input.selectionEnd = 6;
+  app.render().inputProps.onChange({ currentTarget: app.input });
+  app.render().choose(0);
+  app.render().inputProps.onCompositionEnd({ currentTarget: app.input });
+  app.win.emit('blur');
+  assert.equal(app.frames.size, 0);
+  app.runFrames();
+  assert.equal(app.changes.at(-1), 'path:\ube14');
+});
+
+test('a queued composing completion cannot outlive the input or its route', (t) => {
+  const app = inputSetup(t, 'path:', [{ name: '\ube14\ub8e8', path: '\ube14\ub8e8', type: 'directory' }]);
+  app.input.blur = () => {};
+  const queue = () => {
+    app.render().inputProps.onCompositionStart();
+    app.input.value = 'path:\ube14';
+    app.input.selectionStart = app.input.selectionEnd = 6;
+    app.render().inputProps.onChange({ currentTarget: app.input });
+    app.render().choose(0);
+    app.render().inputProps.onCompositionEnd({ currentTarget: app.input });
+    assert.equal(app.frames.size, 1);
+  };
+  queue();
+  app.options.owner = 'files-2'; app.render();
+  assert.equal(app.frames.size, 0);
+  queue();
+  app.render().close();
+  assert.equal(app.frames.size, 0);
+  app.options.open = true;
+  queue();
+  app.h.dispose();
+  assert.equal(app.frames.size, 0);
+  app.runFrames();
+  assert.ok(app.changes.every((value) => value === 'path:\ube14'));
+});
+
+test('plain typing survives delayed page publication and external reset still updates the input', (t) => {
+  const app = inputSetup(t, 'old');
+  app.options.onChange = (value) => app.changes.push(value);
+  app.input.value = 'new';
+  app.input.selectionStart = app.input.selectionEnd = 3;
+  app.render().inputProps.onChange({ currentTarget: app.input });
+  assert.equal(app.render().inputProps.value, 'new');
+  assert.deepEqual(app.changes, ['new']);
+  app.options.value = 'new'; app.render();
+  app.options.value = '';
+  assert.equal(app.render().inputProps.value, '');
+  assert.deepEqual(app.ranges, []);
+});
+
+test('route changes discard composition without publishing its trailing event to the new page', (t) => {
+  const app = inputSetup(t);
+  app.render().inputProps.onCompositionStart({ currentTarget: app.input });
+  app.input.value = '\ube14';
+  app.render().inputProps.onChange({ currentTarget: app.input });
+  app.options.owner = 'notes-2'; app.options.scope = 'sticky-notes'; app.options.value = 'restored';
+  assert.equal(app.render().inputProps.value, 'restored');
+  assert.equal(app.render().isComposing(), false);
+  app.render().inputProps.onCompositionEnd({ currentTarget: app.input });
+  assert.deepEqual(app.changes, []);
+});
+
+test('starting composition cancels delayed completion caret restoration', (t) => {
+  const app = inputSetup(t);
+  app.options.onChange = (value) => app.changes.push(value);
+  app.render().choose(0);
+  app.render().inputProps.onCompositionStart({ currentTarget: app.input });
+  app.options.value = 'name:';
+  app.render();
+  assert.deepEqual(app.ranges, [], 'No selection/focus rewrite during composition');
 });
 
 test('blur, outside pointer and hidden tabs close suggestions; listeners are removed on unmount', (t) => {

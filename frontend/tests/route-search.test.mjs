@@ -13,7 +13,7 @@ const result = await build({ configFile: false, logLevel: 'silent',
 const code = (Array.isArray(result) ? result[0] : result).output.find((item) => item.type === 'chunk').code;
 
 // Exercise the registration/cleanup and rendered event handlers without a browser server.
-function setup({ suggestionsVisible = false } = {}) {
+function setup({ suggestionsVisible = false, composing = false } = {}) {
   let registration = null, contextId = 0, key = 'files', cleanup, previousDeps;
   const publish = (next) => { registration = typeof next === 'function' ? next(registration) : next; };
   const jsx = (type, props) => ({ type, props });
@@ -32,7 +32,8 @@ function setup({ suggestionsVisible = false } = {}) {
     'react-router-dom': { useLocation: () => ({ key }) },
     './TopbarPopoverContext': { useTopbarPopover: () => ({ activeId: null, show() {}, hide() {} }) },
     '../shared/search/useSearchInput': { useSearchInput: (options) => ({
-      visible: suggestionsVisible, close() {}, inputProps: {
+      visible: suggestionsVisible, close() {}, isComposing: () => composing, inputProps: {
+        value: options.value,
         onChange: (event) => { if (!options.disabled) options.onChange(event.currentTarget.value); },
       },
     }) },
@@ -89,6 +90,14 @@ test('query edits only call the page setter; submit uses the latest handler and 
   assert.equal(input(app.TopbarSearch()).props.value, 'restored');
   submit(app.TopbarSearch());
   assert.deepEqual(submitted, ['new', 'restored']);
+});
+
+test('form submission cannot search an unfinished IME composition', () => {
+  const app = setup({ composing: true });
+  let calls = 0;
+  app.useRouteSearch({ label: 'Search notes', value: '', onChange() {}, onSubmit() { calls++; } });
+  submit(app.TopbarSearch());
+  assert.equal(calls, 0);
 });
 
 test('late cleanup cannot remove a newer registration and temporarily disabled searches cannot submit', () => {

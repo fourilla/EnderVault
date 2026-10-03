@@ -59,13 +59,14 @@ export function TopbarSearch() {
     {...input.rootProps}
     title={disabled ? label : undefined} onSubmit={(event) => {
       event.preventDefault();
+      if (input.isComposing()) return;
       input.close();
       if (!disabled) search?.onSubmit(event);
     }}>
     <div className="search-input-anchor">
       <label className="search-field">
         <span className="visually-hidden">{label}</span>
-        <input type="search" value={search?.value ?? ''} disabled={disabled}
+        <input type="search" disabled={disabled}
           {...input.inputProps}
           placeholder={search?.placeholder ?? label} autoComplete="off" />
       </label>
