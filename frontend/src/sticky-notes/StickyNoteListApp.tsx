@@ -52,8 +52,14 @@ export function StickyNoteListApp() {
   };
 
   useRouteSearch({ label: 'Search sticky notes', placeholder: 'Search notes or contexts',
+    appliedQuery: activeQuery,
     value: query, onChange: setQuery, onSubmit: search, schemaScope: 'sticky-notes',
-    onReset: activeQuery ? () => setSearchParams({}) : undefined });
+    onReset: () => {
+      if (!activeQuery) return;
+      const next = new URLSearchParams(searchParams);
+      next.delete('q');
+      setSearchParams(next);
+    } });
 
   const remove = async (note: StickyNoteCatalogItem) => {
     const confirmed = await window.EnderVault?.askConfirmation({

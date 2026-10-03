@@ -67,7 +67,12 @@ export function BrowserApp() {
   });
 
   useRouteSearch({ label: 'Search current directory', value: searchText,
+    appliedQuery: currentState.mode === 'search' ? currentState.query : '',
     onChange: setSearchText, onSubmit: submitSearch, schemaScope: 'files',
+    onReset: () => {
+      const current = effectiveState();
+      if (current.mode === 'search') browse(current.path);
+    },
     suggestionHidden: currentState.hidden ?? payload?.preferences.hidden ?? 'hide' });
 
   useAdminUploadDropzone(uploadManager, currentState.path);

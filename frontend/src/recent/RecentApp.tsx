@@ -171,7 +171,12 @@ export function RecentApp() {
   };
   const preferences = payload?.preferences;
   useRouteSearch({ label: 'Search in recent', value: searchText,
+    appliedQuery: state.query,
     onChange: setSearchText, onSubmit: submitSearch, schemaScope: 'recent',
+    onReset: () => {
+      const current = effectiveState();
+      if (current.query) navigate({ ...current, query: '', page: 1, scrollTop: 0 });
+    },
     suggestionHidden: current.hidden ?? payload?.preferences.hidden ?? 'hide' });
   return (
     <>

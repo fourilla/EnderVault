@@ -29,8 +29,14 @@ export function PendingDecisionsApp() {
   };
 
   useRouteSearch({ label: 'Search pending decisions', placeholder: 'Search items or destinations',
+    appliedQuery: activeQuery,
     value: query, onChange: setQuery, onSubmit: search, schemaScope: 'pending-decisions', suggestionHidden: 'show',
-    onReset: activeQuery ? () => setSearchParams({}) : undefined });
+    onReset: () => {
+      if (!activeQuery) return;
+      const next = new URLSearchParams(searchParams);
+      next.delete('q');
+      setSearchParams(next);
+    } });
 
   useEffect(() => {
     const update = () => reload((value) => value + 1);

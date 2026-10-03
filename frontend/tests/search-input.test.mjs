@@ -341,6 +341,66 @@ test('plain typing survives delayed page publication and external reset still up
   assert.deepEqual(app.ranges, []);
 });
 
+test('explicit reset clears composition and draft even before the page echoes the input value', (t) => {
+  const app = inputSetup(t, '');
+  app.options.onChange = (value) => app.changes.push(value);
+  app.render().inputProps.onCompositionStart();
+  app.input.value = '\ube14';
+  app.render().inputProps.onChange({ currentTarget: app.input });
+  assert.equal(app.render().inputProps.value, '\ube14');
+  assert.equal(app.render().reset(), true);
+  const result = app.render();
+  assert.equal(result.inputProps.value, '');
+  assert.equal(result.isComposing(), false);
+  assert.equal(result.activeIndex, -1);
+  assert.equal(result.visible, false);
+  result.inputProps.onCompositionEnd({ currentTarget: app.input });
+  assert.deepEqual(app.changes, [''], 'The trailing composition event must not restore the draft');
+  assert.deepEqual(app.ranges, []);
+});
+
+test('explicit reset cancels scheduled suggestions and delayed focus/caret restoration', (t) => {
+  const app = inputSetup(t, 'path:', [{ name: '\ube14\ub8e8', path: '\ube14\ub8e8', type: 'directory' }]);
+  app.input.blur = () => {};
+  app.render().inputProps.onCompositionStart();
+  app.input.value = 'path:\ube14';
+  app.input.selectionStart = app.input.selectionEnd = 6;
+  app.render().inputProps.onChange({ currentTarget: app.input });
+  app.render().choose(0);
+  app.render().inputProps.onCompositionEnd({ currentTarget: app.input });
+  assert.equal(app.frames.size, 1);
+  app.render().reset();
+  assert.equal(app.frames.size, 0);
+  app.runFrames();
+  assert.equal(app.render().inputProps.value, '');
+  assert.equal(app.changes.at(-1), '');
+  assert.deepEqual(app.ranges, []);
+
+  app.options.open = true;
+  app.options.onChange = (value) => app.changes.push(value);
+  app.options.value = 'na';
+  app.render().choose(0);
+  app.render().reset();
+  app.options.value = '';
+  app.render();
+  assert.deepEqual(app.ranges, [], 'Canceled completion must not refocus the search input');
+});
+
+test('reset respects disabled, dialog, fullscreen and hidden-document priority', (t) => {
+  const app = inputSetup(t, 'name:old');
+  for (const [target, key, value] of [
+    [app.options, 'disabled', true], [app.doc, 'querySelector', () => ({})],
+    [app.doc, 'fullscreenElement', {}], [app.doc, 'visibilityState', 'hidden'],
+  ]) {
+    const previous = target[key];
+    target[key] = value;
+    assert.equal(app.render().reset(), false);
+    target[key] = previous;
+  }
+  assert.equal(app.render().inputProps.value, 'name:old');
+  assert.deepEqual(app.changes, []);
+});
+
 test('route changes discard composition without publishing its trailing event to the new page', (t) => {
   const app = inputSetup(t);
   app.render().inputProps.onCompositionStart({ currentTarget: app.input });

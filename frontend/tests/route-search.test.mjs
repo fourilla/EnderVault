@@ -13,8 +13,9 @@ const result = await build({ configFile: false, logLevel: 'silent',
 const code = (Array.isArray(result) ? result[0] : result).output.find((item) => item.type === 'chunk').code;
 
 // Exercise the registration/cleanup and rendered event handlers without a browser server.
-function setup({ suggestionsVisible = false, composing = false } = {}) {
+function setup({ suggestionsVisible = false, composing = false, localValue } = {}) {
   let registration = null, contextId = 0, key = 'files', cleanup, previousDeps;
+  let closes = 0;
   const publish = (next) => { registration = typeof next === 'function' ? next(registration) : next; };
   const jsx = (type, props) => ({ type, props });
   const modules = {
@@ -30,10 +31,17 @@ function setup({ suggestionsVisible = false, composing = false } = {}) {
     },
     'react/jsx-runtime': { jsx, jsxs: jsx },
     'react-router-dom': { useLocation: () => ({ key }) },
-    './TopbarPopoverContext': { useTopbarPopover: () => ({ activeId: null, show() {}, hide() {} }) },
+    './TopbarPopoverContext': { useTopbarPopover: () => ({ activeId: null, show() {}, hide() { closes++; } }) },
     '../shared/search/useSearchInput': { useSearchInput: (options) => ({
-      visible: suggestionsVisible, close() {}, isComposing: () => composing, inputProps: {
-        value: options.value,
+      visible: suggestionsVisible, close() {}, isComposing: () => composing,
+      reset() {
+        if (options.disabled) return false;
+        localValue = '';
+        options.onChange('');
+        options.onClose();
+        return true;
+      }, inputProps: {
+        value: localValue ?? options.value,
         onChange: (event) => { if (!options.disabled) options.onChange(event.currentTarget.value); },
       },
     }) },
@@ -44,7 +52,10 @@ function setup({ suggestionsVisible = false, composing = false } = {}) {
     assert.ok(id in modules, `Unexpected import ${id}`);
     return modules[id];
   } });
-  return { ...module.exports, navigate: (next) => { key = next; }, cleanup: () => cleanup,
+  return { ...module.exports,
+    useRouteSearch: (control) => module.exports.useRouteSearch({ appliedQuery: '', onReset() {}, ...control }),
+    get closes() { return closes; },
+    navigate: (next) => { key = next; }, cleanup: () => cleanup,
     clear: () => { cleanup?.(); cleanup = undefined; previousDeps = undefined; } };
 }
 
@@ -117,15 +128,54 @@ test('late cleanup cannot remove a newer registration and temporarily disabled s
   assert.equal(calls, 0);
 });
 
-test('note reset delegates to the page and registration separates publisher from reader', () => {
+test('reset clears the local input and delegates applied-query removal to the page', () => {
   const app = setup();
   let resets = 0;
-  app.useRouteSearch({ label: 'Search notes', value: 'note', onChange() {}, onSubmit() {}, onReset() { resets++; } });
+  const changes = [];
+  app.useRouteSearch({ label: 'Search notes', value: 'note', appliedQuery: 'content:old',
+    onChange(value) { changes.push(value); }, onSubmit() {}, onReset() { resets++; } });
   app.TopbarSearch().props.children[1].props.onClick();
   assert.equal(resets, 1);
+  assert.deepEqual(changes, ['']);
+  assert.equal(input(app.TopbarSearch()).props.value, '');
+  assert.equal(app.closes, 1);
   const source = readFileSync(new URL('../src/app/RouteSearch.tsx', import.meta.url), 'utf8');
   assert.match(source, /SearchRegistrationContext.Provider value=\{setSearch\}/);
   assert.match(source, /SearchContext.Provider value=\{search\}/);
+});
+
+test('reset visibility includes drafts, composing local text and applied queries with empty input', () => {
+  for (const config of [
+    { value: '', appliedQuery: '', visible: false },
+    { value: 'draft', appliedQuery: '', visible: true },
+    { value: '', appliedQuery: 'name:old', visible: true },
+    { value: '', appliedQuery: '', localValue: '\ube14', visible: true },
+  ]) {
+    const app = setup(config);
+    app.useRouteSearch({ label: 'Search files', ...config, onChange() {}, onSubmit() {} });
+    assert.equal(Boolean(app.TopbarSearch().props.children[1]), config.visible);
+  }
+});
+
+test('disabled and unsupported routes cannot reset the previous page query', () => {
+  const app = setup();
+  let calls = 0;
+  app.useRouteSearch({ label: 'Search files', value: 'old', appliedQuery: 'old', disabled: true,
+    onChange() { calls++; }, onSubmit() {}, onReset() { calls++; } });
+  const reset = app.TopbarSearch().props.children[1];
+  assert.equal(reset.props.disabled, true);
+  reset.props.onClick();
+  assert.equal(calls, 0);
+  app.navigate('dashboard');
+  assert.equal(Boolean(app.TopbarSearch().props.children[1]), false);
+});
+
+test('native search clear is hidden only in the shared topbar, retaining search input semantics', () => {
+  const app = setup();
+  app.useRouteSearch({ label: 'Search files', value: '', onChange() {}, onSubmit() {} });
+  assert.equal(input(app.TopbarSearch()).props.type, 'search');
+  const css = readFileSync(new URL('../src/app/app-shell.css', import.meta.url), 'utf8');
+  assert.match(css, /\.topbar-search input\[type="search"\]::-webkit-search-cancel-button\s*\{\s*display:\s*none;\s*\}/);
 });
 
 test('autocomplete is anchored to the input without including reset and search buttons', () => {
@@ -159,6 +209,9 @@ test('simple SPA searches use the topbar while logs keep their combined filter f
     'sticky-notes/StickyNoteListApp', 'pending-decisions/PendingDecisionsApp']) {
     const source = readFileSync(new URL(`../src/${file}.tsx`, import.meta.url), 'utf8');
     assert.match(source, /useRouteSearch\(/, file);
+    assert.match(source, /appliedQuery:/, file);
+    assert.match(source, /onReset:/, file);
+    assert.doesNotMatch(source, /onReset: activeQuery \?/, 'Visibility belongs to the shared Topbar');
     assert.doesNotMatch(source, /className="search-form"|className="search-field"/, file);
   }
   const toolbar = readFileSync(new URL('../src/files/BrowserToolbar.tsx', import.meta.url), 'utf8');
@@ -168,4 +221,7 @@ test('simple SPA searches use the topbar while logs keep their combined filter f
   assert.match(logs, /className="log-filter-form" onSubmit=\{applyFilters\}/);
   assert.match(logs, /className="log-filter-search"/);
   assert.match(logs, /value=\{draft.text\}/);
+  const control = readFileSync(new URL('../src/app/RouteSearch.tsx', import.meta.url), 'utf8');
+  assert.match(control, /appliedQuery: string;/);
+  assert.match(control, /onReset: \(\) => void;/);
 });

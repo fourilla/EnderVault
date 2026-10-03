@@ -11,9 +11,10 @@ interface SearchControl {
   label: string;
   placeholder?: string;
   value: string;
+  appliedQuery: string;
   onChange: (value: string) => void;
   onSubmit: FormEventHandler<HTMLFormElement>;
-  onReset?: () => void;
+  onReset: () => void;
   disabled?: boolean;
   schemaScope?: string;
   suggestionHidden?: string;
@@ -32,14 +33,14 @@ export function RouteSearchProvider({ children }: PropsWithChildren) {
 }
 
 // Pages own their query and navigation; the shell only presents their current control.
-export function useRouteSearch({ label, placeholder, value, onChange, onSubmit, onReset, disabled, schemaScope, suggestionHidden }: SearchControl) {
+export function useRouteSearch({ label, placeholder, value, appliedQuery, onChange, onSubmit, onReset, disabled, schemaScope, suggestionHidden }: SearchControl) {
   const register = useContext(SearchRegistrationContext);
   const { key: routeKey } = useLocation();
   useLayoutEffect(() => {
-    const registration = { routeKey, label, placeholder, value, onChange, onSubmit, onReset, disabled, schemaScope, suggestionHidden };
+    const registration = { routeKey, label, placeholder, value, appliedQuery, onChange, onSubmit, onReset, disabled, schemaScope, suggestionHidden };
     register?.(registration);
     return () => register?.((current) => current === registration ? null : current);
-  }, [register, routeKey, label, placeholder, value, onChange, onSubmit, onReset, disabled, schemaScope, suggestionHidden]);
+  }, [register, routeKey, label, placeholder, value, appliedQuery, onChange, onSubmit, onReset, disabled, schemaScope, suggestionHidden]);
 }
 
 export function TopbarSearch() {
@@ -73,8 +74,10 @@ export function TopbarSearch() {
       {input.visible && <SearchSuggestions listId={input.listId} activeIndex={input.activeIndex}
         choose={input.choose} {...input.assistance} />}
     </div>
-    {search?.onReset && <button className="ghost icon-button" type="button" disabled={disabled}
-      title="Reset search" aria-label="Reset search" onClick={search.onReset}>
+    {search && (input.inputProps.value || search.appliedQuery) && <button className="ghost icon-button" type="button" disabled={disabled}
+      title="Reset search" aria-label="Reset search" onClick={() => {
+        if (input.reset()) search.onReset();
+      }}>
       <i className="fas fa-xmark" aria-hidden="true" />
     </button>}
     <button className="icon-button" type="submit" disabled={disabled} title={label} aria-label={label}>
