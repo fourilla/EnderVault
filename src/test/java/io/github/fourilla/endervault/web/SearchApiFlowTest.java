@@ -7,6 +7,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.github.fourilla.endervault.bookmark.BookmarkSearchSchema;
+import io.github.fourilla.endervault.bookmark.BookmarkService;
+import io.github.fourilla.endervault.recent.RecentSearchSchema;
+import io.github.fourilla.endervault.recent.RecentService;
+import io.github.fourilla.endervault.stickynote.StickyNoteContext;
+import io.github.fourilla.endervault.stickynote.StickyNoteSearchSchema;
+import io.github.fourilla.endervault.stickynote.StickyNoteService;
+import io.github.fourilla.endervault.stickynote.StickyNoteSnapshot;
+import io.github.fourilla.endervault.stickynote.StickyNoteSurface;
+import io.github.fourilla.endervault.stickynote.StickyNoteTargetType;
+import io.github.fourilla.endervault.storage.ConflictPolicy;
+import io.github.fourilla.endervault.storage.StorageService;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -39,6 +51,18 @@ class SearchApiFlowTest {
 
     @Autowired
     ObjectMapper objectMapper;
+
+    @Autowired
+    BookmarkService bookmarks;
+
+    @Autowired
+    RecentService recent;
+
+    @Autowired
+    StickyNoteService notes;
+
+    @Autowired
+    StorageService storage;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -174,7 +198,9 @@ class SearchApiFlowTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"/api/v1/search/schemas/files", "/api/v1/fs/search"})
+    @ValueSource(strings = {"/api/v1/search/schemas/files", "/api/v1/fs/search",
+            "/api/v1/search/schemas/bookmarks", "/api/v1/search/schemas/recent", "/api/v1/search/schemas/sticky-notes",
+            "/api/v1/bookmarks", "/api/v1/recent", "/api/v1/sticky-notes/catalog"})
     @WithMockUser(roles = "USER")
     void searchAndSchemaRequireAdminRole(String endpoint) throws Exception {
         mockMvc.perform(get(endpoint).param("q", "name:report"))
@@ -192,6 +218,115 @@ class SearchApiFlowTest {
     void unregisteredSearchSchemasAreNotAdvertised() throws Exception {
         mockMvc.perform(get("/api/v1/search/schemas/pending"))
                 .andExpect(status().isNotFound());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"bookmarks", "recent", "sticky-notes"})
+    void connectedDomainsExposeOnlyTheirDeclaredMetadata(String scope) throws Exception {
+        var expectedFields = switch (scope) {
+            case "bookmarks" -> BookmarkSearchSchema.fields();
+            case "recent" -> RecentSearchSchema.fields();
+            default -> StickyNoteSearchSchema.fields();
+        };
+        var expectedDefaults = switch (scope) {
+            case "bookmarks" -> BookmarkSearchSchema.defaultFields();
+            case "recent" -> RecentSearchSchema.defaultFields();
+            default -> StickyNoteSearchSchema.defaultFields();
+        };
+        var response = mockMvc.perform(get("/api/v1/search/schemas/{scope}", scope))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.scope").value(scope))
+                .andExpect(jsonPath("$.defaultOperator").value("AND"))
+                .andExpect(jsonPath("$.limits.maxLength").value(4096))
+                .andReturn().getResponse().getContentAsString();
+        var schema = objectMapper.readTree(response);
+        assertThat(schema.get("fields")).isEqualTo(objectMapper.valueToTree(expectedFields));
+        assertThat(schema.get("defaultFields")).isEqualTo(objectMapper.valueToTree(expectedDefaults));
+        assertThat(response).doesNotContain(ROOT.toString(), "extractor", "compiler");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/v1/bookmarks", "/api/v1/recent", "/api/v1/sticky-notes/catalog"})
+    void domainApisPreserveOriginalErrorPositionsAndWhitespaceLimits(String endpoint) throws Exception {
+        mockMvc.perform(get(endpoint).param("q", "  unknown:value").param("directory", "not-created"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.ok").value(false))
+                .andExpect(jsonPath("$.position").value(2))
+                .andExpect(jsonPath("$.notification.message").value("Unknown search field: unknown"));
+        mockMvc.perform(get(endpoint).param("q", " ".repeat(4097)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.notification.message").value("Search query is too long."));
+    }
+
+    @Test
+    void bookmarkApiKeepsDescendantsAndNameIsNotTheEntireDefaultSearch() throws Exception {
+        var parent = bookmarks.createDirectory(null, "search-" + UUID.randomUUID());
+        var nested = bookmarks.createDirectory(parent.id(), "Nested");
+        bookmarks.createLink(nested.id(), "Q11 manual", "https://example.com/docs", "review");
+        bookmarks.createLink(nested.id(), "Q2 manual", "https://example.com/docs", "review");
+        bookmarks.createLink(null, "Q3 manual", "https://example.com/docs", "review");
+
+        mockMvc.perform(get("/api/v1/bookmarks").param("directory", parent.id())
+                        .param("q", "manual example type:link note:review"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalItems").value(2))
+                .andExpect(jsonPath("$.links[0].title").value("Q11 manual"))
+                .andExpect(jsonPath("$.links[1].title").value("Q2 manual"));
+        mockMvc.perform(get("/api/v1/bookmarks").param("directory", parent.id()).param("q", "name:example"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalItems").value(0));
+        mockMvc.perform(get("/api/v1/bookmarks").param("directory", parent.id()).param("q", ""))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.directories[0].id").value(nested.id()))
+                .andExpect(jsonPath("$.links.length()").value(0));
+    }
+
+    @Test
+    void recentApiFiltersBeforePagingAndDoesNotExposeHiddenRecords() throws Exception {
+        Path directory = directory();
+        String path = directory.getFileName().toString();
+        for (String name : new String[] {"Q11.txt", "Q2.txt", "Q3.txt"}) {
+            Path file = directory.resolve(name);
+            Files.writeString(file, "hello");
+            Files.setLastModifiedTime(file, FileTime.from(Instant.parse("2024-01-02T00:00:00Z")));
+            String vaultPath = path + "/" + name;
+            if (name.equals("Q3.txt")) {
+                vaultPath = storage.setHiddenVaultPath(vaultPath, true, ConflictPolicy.CANCEL);
+            }
+            recent.recordVaultPath(vaultPath);
+        }
+        recent.recordVaultPath(path);
+        String query = "path:" + path + " type:file modified:2024-01-02T00:00:00Z";
+        mockMvc.perform(get("/api/v1/recent").param("q", query).param("sort", "name").param("dir", "asc")
+                        .param("hidden", "hide").param("page", "2").param("size", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.search.query").value(query))
+                .andExpect(jsonPath("$.page.totalItems").value(2))
+                .andExpect(jsonPath("$.directories.length()").value(0))
+                .andExpect(jsonPath("$.entries[0].name").value("Q11.txt"));
+        mockMvc.perform(get("/api/v1/recent").param("q", query).param("hidden", "show"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.page.totalItems").value(3));
+    }
+
+    @Test
+    void noteCatalogCanSearchFullContentExplicitlyAndRetainsOrphanMetadata() throws Exception {
+        Path file = Files.writeString(directory().resolve("target.txt"), "hello");
+        String targetKey = ROOT.relativize(file).toString().replace('\\', '/');
+        var note = notes.create(new StickyNoteContext(StickyNoteTargetType.STORAGE, targetKey, StickyNoteSurface.DETAIL), 0, 0);
+        String marker = "word" + UUID.randomUUID();
+        notes.update(note.id(), new StickyNoteSnapshot("x".repeat(120) + " " + marker, 0, 0, null, 280, 220, false, 1));
+        Files.delete(file);
+
+        mockMvc.perform(get("/api/v1/sticky-notes/catalog").param("q", marker))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.notes.length()").value(0));
+        mockMvc.perform(get("/api/v1/sticky-notes/catalog")
+                        .param("q", "content:" + marker + " type:storage surface:detail updated:>2020-01-01T00:00:00Z"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.notes.length()").value(1))
+                .andExpect(jsonPath("$.notes[0].id").value(note.id()))
+                .andExpect(jsonPath("$.notes[0].targetExists").value(false))
+                .andExpect(jsonPath("$.notes[0].contextLabel").value(targetKey))
+                .andExpect(jsonPath("$.notes[0].openUrl").isEmpty());
     }
 
     private Path directory() throws IOException {

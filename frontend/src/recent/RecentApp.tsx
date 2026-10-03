@@ -171,7 +171,8 @@ export function RecentApp() {
   };
   const preferences = payload?.preferences;
   useRouteSearch({ label: 'Search in recent', value: searchText,
-    onChange: setSearchText, onSubmit: submitSearch });
+    onChange: setSearchText, onSubmit: submitSearch, schemaScope: 'recent',
+    suggestionHidden: current.hidden ?? payload?.preferences.hidden ?? 'hide' });
   return (
     <>
       <section className="breadcrumb-panel" aria-label="Current path">

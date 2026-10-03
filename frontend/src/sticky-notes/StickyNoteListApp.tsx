@@ -50,7 +50,7 @@ export function StickyNoteListApp() {
   };
 
   useRouteSearch({ label: 'Search sticky notes', placeholder: 'Search notes or contexts',
-    value: query, onChange: setQuery, onSubmit: search,
+    value: query, onChange: setQuery, onSubmit: search, schemaScope: 'sticky-notes',
     onReset: activeQuery ? () => setSearchParams({}) : undefined });
 
   const remove = async (note: StickyNoteCatalogItem) => {

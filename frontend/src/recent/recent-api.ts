@@ -18,8 +18,8 @@ export const loadRecentPayload = async (state: RecentHistoryState, signal: Abort
     headers: { Accept: 'application/json' },
     signal,
   });
-  const body = await response.json() as RecentPayload & { message?: string };
-  if (!response.ok) throw new Error(body.message || 'Recent items could not be loaded.');
+  const body = await response.json() as RecentPayload & { message?: string; notification?: { message?: string } };
+  if (!response.ok) throw new Error(body.notification?.message || body.message || 'Recent items could not be loaded.');
   return body;
 };
 

@@ -11,8 +11,8 @@ export const loadBookmarks = async (state: BookmarkHistoryState, signal: AbortSi
     headers: { Accept: 'application/json' },
     signal,
   });
-  const body = await response.json() as BookmarkPayload & { message?: string };
-  if (!response.ok) throw new Error(body.message || 'Bookmarks could not be loaded.');
+  const body = await response.json() as BookmarkPayload & { message?: string; notification?: { message?: string } };
+  if (!response.ok) throw new Error(body.notification?.message || body.message || 'Bookmarks could not be loaded.');
   return body;
 };
 

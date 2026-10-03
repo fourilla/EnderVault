@@ -14,11 +14,11 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.function.BooleanSupplier;
+import java.util.function.Predicate;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -79,10 +79,10 @@ public class BookmarkService {
     }
 
     public synchronized List<BookmarkItem> list(String parentId, String query) throws IOException {
+        Predicate<BookmarkItem> matches = BookmarkSearchSchema.compile(query);
         List<BookmarkItem> bookmarks = readAllMutable();
         String normalizedParentId = tree.normalizeParentId(parentId, bookmarks);
-        String normalizedQuery = normalizeQuery(query);
-        if (normalizedQuery.isBlank()) {
+        if (query == null || query.isBlank()) {
             return bookmarks.stream()
                     .filter(bookmark -> tree.sameParent(bookmark.parentId(), normalizedParentId))
                     .sorted(tree.comparator())
@@ -92,7 +92,7 @@ public class BookmarkService {
         Set<String> visibleDirectoryIds = tree.descendantDirectoryIds(bookmarks, normalizedParentId);
         return bookmarks.stream()
                 .filter(bookmark -> visibleDirectoryIds.contains(tree.normalizeId(bookmark.parentId())))
-                .filter(bookmark -> matches(bookmark, normalizedQuery))
+                .filter(matches)
                 .sorted(tree.comparator())
                 .toList();
     }
@@ -392,19 +392,6 @@ public class BookmarkService {
 
     public synchronized List<BookmarkBreadcrumb> breadcrumbs(String parentId) throws IOException {
         return tree.breadcrumbs(parentId, readAllMutable());
-    }
-
-    private String normalizeQuery(String query) {
-        return query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
-    }
-
-    private boolean matches(BookmarkItem bookmark, String query) {
-        return contains(bookmark.title(), query)
-                || contains(bookmark.url(), query);
-    }
-
-    private boolean contains(String value, String query) {
-        return value != null && value.toLowerCase(Locale.ROOT).contains(query);
     }
 
     private List<BookmarkItem> readAllMutable() throws IOException {

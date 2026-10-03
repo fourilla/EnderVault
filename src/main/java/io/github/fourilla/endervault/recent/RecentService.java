@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Predicate;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -72,6 +73,7 @@ public class RecentService {
             SortDirection direction,
             boolean showHidden
     ) throws IOException {
+        Predicate<RecentListItem> matches = RecentSearchSchema.compile(query);
         List<RecentItem> records = readAllMutable();
         List<RecentItem> existingRecords = new ArrayList<>();
         List<RecentListItem> items = new ArrayList<>();
@@ -92,14 +94,13 @@ public class RecentService {
             writeAll(existingRecords);
         }
 
-        String normalizedQuery = normalizeQuery(query);
         Comparator<RecentListItem> comparator = comparator(sort);
         if (direction == SortDirection.DESC) {
             comparator = comparator.reversed();
         }
 
         return items.stream()
-                .filter(item -> matches(item, normalizedQuery))
+                .filter(matches)
                 .sorted(comparator)
                 .toList();
     }
@@ -198,18 +199,6 @@ public class RecentService {
                     .thenComparing(nameComparator);
             case RECENT -> Comparator.comparing(RecentListItem::lastAccessedAt).thenComparing(nameComparator);
         };
-    }
-
-    private String normalizeQuery(String query) {
-        return query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
-    }
-
-    private boolean matches(RecentListItem item, String query) {
-        if (query.isEmpty()) {
-            return true;
-        }
-        return item.name().toLowerCase(Locale.ROOT).contains(query)
-                || item.path().toLowerCase(Locale.ROOT).contains(query);
     }
 
     private boolean matchesPathOrDescendant(String candidatePath, String basePath) {
