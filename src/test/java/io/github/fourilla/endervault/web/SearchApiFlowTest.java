@@ -9,6 +9,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import io.github.fourilla.endervault.bookmark.BookmarkSearchSchema;
 import io.github.fourilla.endervault.bookmark.BookmarkService;
+import io.github.fourilla.endervault.pending.PendingDecisionSearchSchema;
+import io.github.fourilla.endervault.pending.PendingFileDecisionService;
+import io.github.fourilla.endervault.pending.PendingFileDecisionSource;
 import io.github.fourilla.endervault.recent.RecentSearchSchema;
 import io.github.fourilla.endervault.recent.RecentService;
 import io.github.fourilla.endervault.stickynote.StickyNoteContext;
@@ -63,6 +66,9 @@ class SearchApiFlowTest {
 
     @Autowired
     StorageService storage;
+
+    @Autowired
+    PendingFileDecisionService pending;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -200,17 +206,19 @@ class SearchApiFlowTest {
     @ParameterizedTest
     @ValueSource(strings = {"/api/v1/search/schemas/files", "/api/v1/fs/search",
             "/api/v1/search/schemas/bookmarks", "/api/v1/search/schemas/recent", "/api/v1/search/schemas/sticky-notes",
-            "/api/v1/bookmarks", "/api/v1/recent", "/api/v1/sticky-notes/catalog"})
+            "/api/v1/bookmarks", "/api/v1/recent", "/api/v1/sticky-notes/catalog",
+            "/api/v1/pending-decisions", "/api/v1/search/schemas/pending-decisions"})
     @WithMockUser(roles = "USER")
     void searchAndSchemaRequireAdminRole(String endpoint) throws Exception {
         mockMvc.perform(get(endpoint).param("q", "name:report"))
                 .andExpect(status().isForbidden());
     }
 
-    @Test
+    @ParameterizedTest
+    @ValueSource(strings = {"files", "pending-decisions"})
     @WithAnonymousUser
-    void unauthenticatedRequestsCannotReadSchema() throws Exception {
-        mockMvc.perform(get("/api/v1/search/schemas/files"))
+    void unauthenticatedRequestsCannotReadSchema(String scope) throws Exception {
+        mockMvc.perform(get("/api/v1/search/schemas/{scope}", scope))
                 .andExpect(status().is3xxRedirection());
     }
 
@@ -221,16 +229,18 @@ class SearchApiFlowTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"bookmarks", "recent", "sticky-notes"})
+    @ValueSource(strings = {"bookmarks", "recent", "sticky-notes", "pending-decisions"})
     void connectedDomainsExposeOnlyTheirDeclaredMetadata(String scope) throws Exception {
         var expectedFields = switch (scope) {
             case "bookmarks" -> BookmarkSearchSchema.fields();
             case "recent" -> RecentSearchSchema.fields();
+            case "pending-decisions" -> PendingDecisionSearchSchema.fields();
             default -> StickyNoteSearchSchema.fields();
         };
         var expectedDefaults = switch (scope) {
             case "bookmarks" -> BookmarkSearchSchema.defaultFields();
             case "recent" -> RecentSearchSchema.defaultFields();
+            case "pending-decisions" -> PendingDecisionSearchSchema.defaultFields();
             default -> StickyNoteSearchSchema.defaultFields();
         };
         var response = mockMvc.perform(get("/api/v1/search/schemas/{scope}", scope))
@@ -246,7 +256,7 @@ class SearchApiFlowTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"/api/v1/bookmarks", "/api/v1/recent", "/api/v1/sticky-notes/catalog"})
+    @ValueSource(strings = {"/api/v1/bookmarks", "/api/v1/recent", "/api/v1/sticky-notes/catalog", "/api/v1/pending-decisions"})
     void domainApisPreserveOriginalErrorPositionsAndWhitespaceLimits(String endpoint) throws Exception {
         mockMvc.perform(get(endpoint).param("q", "  unknown:value").param("directory", "not-created"))
                 .andExpect(status().isBadRequest())
@@ -327,6 +337,38 @@ class SearchApiFlowTest {
                 .andExpect(jsonPath("$.notes[0].targetExists").value(false))
                 .andExpect(jsonPath("$.notes[0].contextLabel").value(targetKey))
                 .andExpect(jsonPath("$.notes[0].openUrl").isEmpty());
+    }
+
+    @Test
+    void pendingApiFiltersRealRecordsWithoutReleasingStagingOrChangingDecisions() throws Exception {
+        String destination = directory().getFileName().toString();
+        Path staged = storage.createFileStagingTemporaryFile("search-", ".tmp");
+        Files.writeString(staged, "pending");
+        var decision = pending.create(staged, PendingFileDecisionSource.FILE_REQUEST, destination,
+                "summer holiday.jpg", Files.size(staged), null, "Alice");
+        var before = pending.list();
+        int notificationCount = objectMapper.readTree(mockMvc.perform(get("/api/v1/notifications"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray())
+                .get("actionableCount").asInt();
+
+        mockMvc.perform(get("/api/v1/pending-decisions").param("q", "destination:" + destination
+                        + " name:\"summer holiday\" type:file source:file_request submitter:ali"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.decisions.length()").value(1))
+                .andExpect(jsonPath("$.decisions[0].id").value(decision.id()))
+                .andExpect(jsonPath("$.decisions[0].destinationLabel").value("/" + destination))
+                .andExpect(jsonPath("$.decisions[0].createdAt").value(decision.createdAt().toString()));
+        mockMvc.perform(get("/api/v1/pending-decisions").param("q", "destination:" + destination + " name:missing"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.decisions.length()").value(0));
+        mockMvc.perform(get("/api/v1/pending-decisions").param("q", "name:summer || source:unknown"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.notification.message").value("Invalid value for search field: source"));
+
+        assertThat(pending.list()).isEqualTo(before);
+        mockMvc.perform(get("/api/v1/notifications").param("q", "name:missing"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.actionableCount").value(notificationCount));
+        assertThat(staged).exists();
+        assertThat(Files.readString(staged)).isEqualTo("pending");
     }
 
     private Path directory() throws IOException {

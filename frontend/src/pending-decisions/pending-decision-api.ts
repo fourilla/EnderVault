@@ -5,15 +5,26 @@ import type {
   PendingFileDecisionListPayload,
 } from './types';
 
-export async function loadPendingDecisions(signal: AbortSignal): Promise<PendingFileDecisionListPayload> {
-  const response = await fetch('/api/v1/pending-decisions', {
+export class PendingDecisionLoadError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+  }
+}
+
+export async function loadPendingDecisions(signal: AbortSignal, query = ''): Promise<PendingFileDecisionListPayload> {
+  const params = new URLSearchParams();
+  if (query) params.set('q', query);
+  const response = await fetch(`/api/v1/pending-decisions${params.size ? `?${params}` : ''}`, {
     credentials: 'same-origin',
     headers: { Accept: 'application/json' },
     signal,
   });
-  const body = await response.json() as PendingFileDecisionListPayload & { message?: string };
+  const body = await response.json() as PendingFileDecisionListPayload & {
+    message?: string; notification?: { message?: string };
+  };
   if (!response.ok || !Array.isArray(body.decisions)) {
-    throw new Error(body.message || 'Pending decisions could not be loaded.');
+    throw new PendingDecisionLoadError(
+      body.notification?.message || body.message || 'Pending decisions could not be loaded.', response.status);
   }
   return body;
 }
