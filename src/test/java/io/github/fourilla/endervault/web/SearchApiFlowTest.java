@@ -3,6 +3,8 @@ package io.github.fourilla.endervault.web;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -27,6 +29,10 @@ import io.github.fourilla.endervault.stickynote.StickyNoteSurface;
 import io.github.fourilla.endervault.stickynote.StickyNoteTargetType;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
 import io.github.fourilla.endervault.storage.StorageService;
+import io.github.fourilla.endervault.trash.TrashRecord;
+import io.github.fourilla.endervault.trash.TrashRepository;
+import io.github.fourilla.endervault.trash.TrashSearchSchema;
+import io.github.fourilla.endervault.trash.TrashService;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -81,6 +87,12 @@ class SearchApiFlowTest {
 
     @Autowired
     FileRequestService fileRequests;
+
+    @Autowired
+    TrashService trash;
+
+    @Autowired
+    TrashRepository trashRecords;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -227,7 +239,8 @@ class SearchApiFlowTest {
             "/api/v1/search/schemas/bookmarks", "/api/v1/search/schemas/recent", "/api/v1/search/schemas/sticky-notes",
             "/api/v1/bookmarks", "/api/v1/recent", "/api/v1/sticky-notes/catalog",
             "/api/v1/pending-decisions", "/api/v1/search/schemas/pending-decisions",
-            "/api/v1/shares", "/api/v1/file-requests", "/api/v1/search/schemas/shares", "/api/v1/search/schemas/file-requests"})
+            "/api/v1/shares", "/api/v1/file-requests", "/api/v1/search/schemas/shares", "/api/v1/search/schemas/file-requests",
+            "/api/v1/trash", "/api/v1/search/schemas/trash"})
     @WithMockUser(roles = "USER")
     void searchAndSchemaRequireAdminRole(String endpoint) throws Exception {
         mockMvc.perform(get(endpoint).param("q", "name:report"))
@@ -235,7 +248,7 @@ class SearchApiFlowTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"files", "pending-decisions", "shares", "file-requests"})
+    @ValueSource(strings = {"files", "pending-decisions", "shares", "file-requests", "trash"})
     @WithAnonymousUser
     void unauthenticatedRequestsCannotReadSchema(String scope) throws Exception {
         mockMvc.perform(get("/api/v1/search/schemas/{scope}", scope))
@@ -249,7 +262,7 @@ class SearchApiFlowTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"bookmarks", "recent", "sticky-notes", "pending-decisions", "shares", "file-requests"})
+    @ValueSource(strings = {"bookmarks", "recent", "sticky-notes", "pending-decisions", "shares", "file-requests", "trash"})
     void connectedDomainsExposeOnlyTheirDeclaredMetadata(String scope) throws Exception {
         var expectedFields = switch (scope) {
             case "bookmarks" -> BookmarkSearchSchema.fields();
@@ -257,6 +270,7 @@ class SearchApiFlowTest {
             case "pending-decisions" -> PendingDecisionSearchSchema.fields();
             case "shares" -> ShareLinkSearchSchema.fields();
             case "file-requests" -> FileRequestSearchSchema.fields();
+            case "trash" -> TrashSearchSchema.fields();
             default -> StickyNoteSearchSchema.fields();
         };
         var expectedDefaults = switch (scope) {
@@ -265,6 +279,7 @@ class SearchApiFlowTest {
             case "pending-decisions" -> PendingDecisionSearchSchema.defaultFields();
             case "shares" -> ShareLinkSearchSchema.defaultFields();
             case "file-requests" -> FileRequestSearchSchema.defaultFields();
+            case "trash" -> TrashSearchSchema.defaultFields();
             default -> StickyNoteSearchSchema.defaultFields();
         };
         var response = mockMvc.perform(get("/api/v1/search/schemas/{scope}", scope))
@@ -281,7 +296,7 @@ class SearchApiFlowTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"/api/v1/bookmarks", "/api/v1/recent", "/api/v1/sticky-notes/catalog", "/api/v1/pending-decisions",
-            "/api/v1/shares", "/api/v1/file-requests"})
+            "/api/v1/shares", "/api/v1/file-requests", "/api/v1/trash"})
     void domainApisPreserveOriginalErrorPositionsAndWhitespaceLimits(String endpoint) throws Exception {
         mockMvc.perform(get(endpoint).param("q", "  unknown:value").param("directory", "not-created"))
                 .andExpect(status().isBadRequest())
@@ -526,6 +541,56 @@ class SearchApiFlowTest {
                         .param("copyFrom", "not-created").param("q", "name:any || status:invalid"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.notification.message").value("Invalid value for search field: status"));
+    }
+
+    @Test
+    void trashSearchUsesOriginalMetadataAndKeepsOrderPayloadAndRestoreSemantics() throws Exception {
+        Path directory = directory();
+        String parent = directory.getFileName().toString();
+        Files.writeString(directory.resolve("summer holiday.PDF"), "first");
+        Files.writeString(directory.resolve("other.txt"), "second");
+        Files.createDirectory(directory.resolve("folder.pdf"));
+        var records = trash.moveToTrash(parent, List.of("summer holiday.PDF", "other.txt", "folder.pdf"));
+        var before = trashRecords.list();
+        assertThat(directory.resolve("summer holiday.PDF")).doesNotExist();
+        var full = objectMapper.readTree(mockMvc.perform(get("/api/v1/trash").param("q", "path:" + parent))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(3))
+                .andReturn().getResponse().getContentAsByteArray()).get("items");
+        assertThat(full).extracting(row -> row.get("id").asText()).containsExactlyElementsOf(
+                before.stream().filter(record -> record.originalParentPath().equals(parent)).map(TrashRecord::id).toList());
+        var filtered = objectMapper.readTree(mockMvc.perform(get("/api/v1/trash").param("q", "path:" + parent
+                        + " name:\"summer holiday\" type:file extension:pdf deleted:>=2020-01-01 expires:>2020-01-01"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].id").value(records.get(0).id()))
+                .andExpect(jsonPath("$.items[0].originalName").value("summer holiday.PDF"))
+                .andExpect(jsonPath("$.items[0].originalPath").value(parent + "/summer holiday.PDF"))
+                .andExpect(jsonPath("$.items[0].trashName").doesNotExist())
+                .andReturn().getResponse().getContentAsByteArray()).get("items").get(0);
+        assertThat(full).contains(filtered);
+        mockMvc.perform(get("/api/v1/trash").param("q", parent + " type:directory"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].id").value(records.get(2).id()));
+        mockMvc.perform(get("/api/v1/trash").param("q", "name:missing-" + parent))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(0));
+        assertThat(trashRecords.list()).isEqualTo(before);
+        mockMvc.perform(post("/api/v1/trash/restore").with(csrf()).param("id", records.get(1).id()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.ok").value(true));
+        assertThat(directory.resolve("other.txt")).hasContent("second");
+        assertThat(trashRecords.find(records.get(0).id())).isPresent();
+    }
+
+    @Test
+    void invalidTrashQueryLeavesStaleMetadataUntouchedButValidListingKeepsExistingCleanup() throws Exception {
+        String id = UUID.randomUUID().toString();
+        var stale = new TrashRecord(id, "removed/original.txt", "removed", "original.txt", id,
+                false, 1, "1 B", "File", Instant.now(), Instant.now().minusSeconds(60));
+        trashRecords.add(stale);
+        mockMvc.perform(get("/api/v1/trash").param("q", "name:any || type:invalid"))
+                .andExpect(status().isBadRequest());
+        assertThat(trashRecords.find(id)).contains(stale);
+        mockMvc.perform(get("/api/v1/trash").param("q", "name:missing"))
+                .andExpect(status().isOk());
+        assertThat(trashRecords.find(id)).isEmpty();
     }
 
     private Path directory() throws IOException {

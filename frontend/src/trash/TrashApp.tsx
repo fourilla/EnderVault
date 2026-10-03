@@ -2,6 +2,8 @@ import { LoadingState } from '../shared/layout/LoadingState';
 import { OverflowMarquee } from '../shared/layout/OverflowMarquee';
 import { StableTable } from '../shared/browser/StableTable';
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { useRouteSearch } from '../app/RouteSearch';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
 import { PageHeader } from '../shared/layout/PageHeader';
@@ -12,28 +14,54 @@ import type { TrashItem, TrashPayload } from './types';
 import './trash-app.css';
 
 export function TrashApp() {
-  const [payload, setPayload] = useState<TrashPayload | null>(null);
+  const [params, setParams] = useSearchParams();
+  const activeQuery = params.get('q') ?? '';
+  const [snapshot, setSnapshot] = useState<{ query: string; payload: TrashPayload } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [feedback, setFeedback] = useState<{ query: string; message: string } | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
   const [busyAction, setBusyAction] = useState('');
+  const [query, setQuery] = useState(activeQuery);
+  const payload = snapshot?.query === activeQuery ? snapshot.payload : null;
+  const error = feedback?.query === activeQuery ? feedback.message : '';
+
+  useEffect(() => setQuery(activeQuery), [activeQuery]);
+
+  useRouteSearch({ label: 'Search trash', placeholder: 'Search trash...', value: query,
+    appliedQuery: activeQuery, onChange: setQuery, schemaScope: 'trash',
+    onSubmit: event => {
+      event.preventDefault();
+      const next = new URLSearchParams(params);
+      if (query.trim()) next.set('q', query.trim()); else next.delete('q');
+      setParams(next);
+    },
+    onReset: () => {
+      if (!activeQuery) return;
+      const next = new URLSearchParams(params);
+      next.delete('q');
+      setParams(next);
+    },
+  });
 
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
-    setError('');
-    void loadTrash(controller.signal)
-      .then(setPayload)
+    setFeedback(null);
+    void loadTrash(controller.signal, activeQuery)
+      .then(data => {
+        if (!controller.signal.aborted) setSnapshot({ query: activeQuery, payload: data });
+      })
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
-          setError(reason instanceof Error ? reason.message : 'Trash items could not be loaded.');
+          setFeedback({ query: activeQuery,
+            message: reason instanceof Error ? reason.message : 'Trash items could not be loaded.' });
         }
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [refreshToken]);
+  }, [activeQuery, refreshToken]);
 
   const reload = () => setRefreshToken((value) => value + 1);
 
@@ -91,7 +119,7 @@ export function TrashApp() {
   return (
     <>
       <PageHeader title="Trash" />
-      {items.length > 0 && <FloatingPageActions mode="single" label="Empty trash" icon="fas fa-broom"
+      {payload && (items.length > 0 || activeQuery) && <FloatingPageActions mode="single" label="Empty trash" icon="fas fa-broom"
         danger disabled={Boolean(busyAction)} onAction={() => void empty()} />}
 
       <div className="page-feedback-layout">
@@ -99,7 +127,7 @@ export function TrashApp() {
         actions={<button type="button" className="icon-text-button" disabled={loading} onClick={reload}>
           {icon('fas fa-arrows-rotate')}<span>Retry</span>
         </button>} />}
-      {loading && !payload && (
+      {!payload && !error && (
         <LoadingState label="Loading trash..." />
       )}
       {payload && items.length > 0 && (
@@ -145,7 +173,9 @@ export function TrashApp() {
             </StableTable>
         </section>
       )}
-      {payload && items.length === 0 && <p className="empty browser-grid-empty">No trash items.</p>}
+      {payload && items.length === 0 && <p className="empty browser-grid-empty">
+        {activeQuery ? 'No trash items match this search.' : 'No trash items.'}
+      </p>}
       </div>
     </>
   );

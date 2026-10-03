@@ -8,6 +8,7 @@ import io.github.fourilla.endervault.search.SearchSchema;
 import io.github.fourilla.endervault.share.ShareLinkSearchSchema;
 import io.github.fourilla.endervault.stickynote.StickyNoteSearchSchema;
 import io.github.fourilla.endervault.storage.StorageSearchSchema;
+import io.github.fourilla.endervault.trash.TrashSearchSchema;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -57,5 +58,11 @@ public class SearchSchemaApiController {
     public SearchSchemaPayload fileRequests() {
         return new SearchSchemaPayload("file-requests", FileRequestSearchSchema.defaultFields(), "AND",
                 FileRequestSearchSchema.fields(), SearchSchema.limits());
+    }
+
+    @GetMapping(value = "/trash", produces = MediaType.APPLICATION_JSON_VALUE)
+    public SearchSchemaPayload trash() {
+        return new SearchSchemaPayload("trash", TrashSearchSchema.defaultFields(), "AND",
+                TrashSearchSchema.fields(), SearchSchema.limits());
     }
 }

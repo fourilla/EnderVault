@@ -281,6 +281,10 @@ for (const page of pages) {
         states[0] = snapshot === null ? null : { query: '', shares: snapshot };
         states[page.errorSlot] = { query: '', message: 'Network unavailable' };
       }
+      if (page.name === 'TrashApp') {
+        states[0] = snapshot === null ? null : { query: '', payload: snapshot };
+        states[page.errorSlot] = { query: '', message: 'Network unavailable' };
+      }
       states[page.tokenSlot] = 0;
       let index = 0;
       const { [page.name]: App } = evaluate(code, id => {
@@ -321,7 +325,8 @@ for (const page of pages) {
       assert.match(html, /class="icon-text-button"/);
       panel.props.actions.props.onClick();
       assert.equal(states[page.tokenSlot], 1);
-      assert.equal(page.name === 'SharedLinksApp' ? states[0]?.shares ?? null : states[0], snapshot);
+      assert.equal(page.name === 'SharedLinksApp' ? states[0]?.shares ?? null
+        : page.name === 'TrashApp' ? states[0]?.payload ?? null : states[0], snapshot);
     }
   });
 }
