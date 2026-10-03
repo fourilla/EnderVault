@@ -5,6 +5,7 @@ import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 
 public final class StickyNoteSearchSchema {
@@ -24,7 +25,9 @@ public final class StickyNoteSearchSchema {
                             Arrays.stream(StickyNoteSurface.values()).map(value -> value.name().toLowerCase(Locale.ROOT)).toList(),
                             item -> item.note().context().surface().name()),
                     SearchSchema.dateTime("created", "Created", ZoneId.systemDefault(), item -> item.note().createdAt()),
-                    SearchSchema.dateTime("updated", "Updated", ZoneId.systemDefault(), item -> item.note().updatedAt())
+                    SearchSchema.dateTime("updated", "Updated", ZoneId.systemDefault(), item -> item.note().updatedAt()),
+                    SearchSchema.enumeration("status", "Target status", List.of("available", "orphan"),
+                            item -> item.targetExists() ? "available" : "orphan")
             ));
 
     private StickyNoteSearchSchema() {}
@@ -45,5 +48,7 @@ public final class StickyNoteSearchSchema {
         return value != null && value.toLowerCase(Locale.ROOT).contains(term);
     }
 
-    public record Candidate(StickyNote note, String summary, String targetLabel) {}
+    public record Candidate(StickyNote note, String summary, String targetLabel, BooleanSupplier targetLookup) {
+        public boolean targetExists() { return targetLookup.getAsBoolean(); }
+    }
 }

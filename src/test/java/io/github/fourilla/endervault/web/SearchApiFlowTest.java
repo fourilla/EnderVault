@@ -325,18 +325,27 @@ class SearchApiFlowTest {
         var note = notes.create(new StickyNoteContext(StickyNoteTargetType.STORAGE, targetKey, StickyNoteSurface.DETAIL), 0, 0);
         String marker = "word" + UUID.randomUUID();
         notes.update(note.id(), new StickyNoteSnapshot("x".repeat(120) + " " + marker, 0, 0, null, 280, 220, false, 1));
+        mockMvc.perform(get("/api/v1/sticky-notes/catalog").param("q", "content:" + marker + " status:available"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.notes[0].id").value(note.id()))
+                .andExpect(jsonPath("$.notes[0].targetExists").value(true));
         Files.delete(file);
 
         mockMvc.perform(get("/api/v1/sticky-notes/catalog").param("q", marker))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.notes.length()").value(0));
         mockMvc.perform(get("/api/v1/sticky-notes/catalog")
-                        .param("q", "content:" + marker + " type:storage surface:detail updated:>2020-01-01T00:00:00Z"))
+                        .param("q", "content:" + marker + " type:storage surface:detail updated:>2020-01-01T00:00:00Z status:orphan"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.notes.length()").value(1))
                 .andExpect(jsonPath("$.notes[0].id").value(note.id()))
                 .andExpect(jsonPath("$.notes[0].targetExists").value(false))
                 .andExpect(jsonPath("$.notes[0].contextLabel").value(targetKey))
                 .andExpect(jsonPath("$.notes[0].openUrl").isEmpty());
+        mockMvc.perform(get("/api/v1/sticky-notes/catalog").param("q", "content:" + marker + " status:available"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.notes.length()").value(0));
+        mockMvc.perform(get("/api/v1/sticky-notes/catalog").param("q", "content:" + marker + " || status:unsaved"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.notification.message").value("Invalid value for search field: status"));
     }
 
     @Test
@@ -352,12 +361,14 @@ class SearchApiFlowTest {
                 .get("actionableCount").asInt();
 
         mockMvc.perform(get("/api/v1/pending-decisions").param("q", "destination:" + destination
-                        + " name:\"summer holiday\" type:file source:file_request submitter:ali"))
+                        + " name:\"summer holiday\" type:file source:file_request submitter:ali status:awaiting_decision"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.decisions.length()").value(1))
                 .andExpect(jsonPath("$.decisions[0].id").value(decision.id()))
                 .andExpect(jsonPath("$.decisions[0].destinationLabel").value("/" + destination))
                 .andExpect(jsonPath("$.decisions[0].createdAt").value(decision.createdAt().toString()));
+        mockMvc.perform(get("/api/v1/pending-decisions").param("q", "destination:" + destination + " status:paused"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.decisions.length()").value(0));
         mockMvc.perform(get("/api/v1/pending-decisions").param("q", "destination:" + destination + " name:missing"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.decisions.length()").value(0));
         mockMvc.perform(get("/api/v1/pending-decisions").param("q", "name:summer || source:unknown"))

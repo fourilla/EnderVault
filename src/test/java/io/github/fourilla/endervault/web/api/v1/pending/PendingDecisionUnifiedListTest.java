@@ -10,6 +10,7 @@ import io.github.fourilla.endervault.directorytransfer.DirectoryTransferQuerySer
 import io.github.fourilla.endervault.pending.*;
 import io.github.fourilla.endervault.search.SearchQueryException;
 import java.time.Instant;
+import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -96,6 +97,49 @@ class PendingDecisionUnifiedListTest {
         assertThatThrownBy(() -> controller.list("name:photos || source:unknown"))
                 .isInstanceOf(SearchQueryException.class);
         verifyNoInteractions(pending, merges);
+    }
+
+    @Test
+    void statusFindsOrdinaryOwnedPreparingAndStandaloneRowsWithoutChangingIdentity() throws Exception {
+        var waiting = new PendingFileDecision("waiting", PendingFileDecisionSource.ADMIN_UPLOAD,
+                "one", "target", "one.txt", 1, Instant.EPOCH, null, null, null);
+        var owned = new PendingFileDecision("owned", PendingFileDecisionSource.DIRECTORY_UPLOAD,
+                "two", "target", "album", 10, Instant.EPOCH, null, null, null, true);
+        var preparing = new PendingFileDecision("preparing", PendingFileDecisionSource.DIRECTORY_UPLOAD,
+                "three", "target", "preparing", 10, Instant.EPOCH, null, null, null, true);
+        when(pending.list()).thenReturn(List.of(waiting, owned, preparing));
+        when(pending.directoryMergeOwner("owned")).thenReturn(Optional.of("owned-review"));
+        when(pending.directoryMergeOwner("preparing")).thenReturn(Optional.of("not-yet-visible"));
+        when(merges.unresolved()).thenReturn(List.of(review("owned-review", Operation.PENDING, "owned"),
+                review("copy", Operation.COPY, "source")));
+
+        assertThat(controller.list("status:awaiting_decision").decisions())
+                .extracting(row -> row.id()).containsExactly("waiting");
+        assertThat(controller.list("status:preparing_review").decisions())
+                .extracting(row -> row.id()).containsExactly("preparing");
+        assertThat(controller.list("status:awaiting_review").decisions())
+                .extracting(row -> row.id()).containsExactly("owned", "merge-copy");
+        assertThat(controller.list("source:directory_copy status:awaiting_review").decisions())
+                .extracting(row -> row.id()).containsExactly("merge-copy");
+        assertThat(controller.list("source:directory_upload status:awaiting_review").decisions())
+                .singleElement().satisfies(row -> assertThat(row.mergeId()).isEqualTo("owned-review"));
+    }
+
+    @Test
+    void statusOwnerLookupIsLazySharedWithPayloadAndPreservesIoFailures() throws Exception {
+        var upload = new PendingFileDecision("upload", PendingFileDecisionSource.DIRECTORY_UPLOAD,
+                "staging", "target", "photos", 10, Instant.EPOCH, null, null, null, true);
+        when(pending.list()).thenReturn(List.of(upload));
+        when(merges.unresolved()).thenReturn(List.of());
+        when(pending.directoryMergeOwner("upload")).thenReturn(Optional.empty());
+
+        assertThat(controller.list("name:missing status:awaiting_decision").decisions()).isEmpty();
+        verify(pending, never()).directoryMergeOwner(anyString());
+        assertThat(controller.list("status:awaiting_decision status:awaiting_decision").decisions()).hasSize(1);
+        verify(pending, times(1)).directoryMergeOwner("upload");
+        var failure = new IOException("Owner unavailable");
+        when(pending.directoryMergeOwner("upload")).thenThrow(failure);
+        assertThatThrownBy(() -> controller.list("status:awaiting_decision")).isSameAs(failure);
     }
 
     private DirectoryTransferQueryService.Summary review(String id, Operation operation, String source) {
