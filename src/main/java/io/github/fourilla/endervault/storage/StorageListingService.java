@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.storage;
 
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
+import io.github.fourilla.endervault.common.FileNameExtensions;
 import io.github.fourilla.endervault.common.NaturalNameComparator;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.filetool.FileActionRegistry;
@@ -328,12 +329,7 @@ final class StorageListingService {
         if (directory) {
             return "";
         }
-        String name = path.getFileName().toString();
-        int index = name.lastIndexOf('.');
-        if (index <= 0 || index == name.length() - 1) {
-            return "";
-        }
-        return name.substring(index + 1).toLowerCase(Locale.ROOT);
+        return FileNameExtensions.extension(path.getFileName().toString());
     }
 
     private Comparator<FileItem> itemComparator(FileSort sort, SortDirection direction) {

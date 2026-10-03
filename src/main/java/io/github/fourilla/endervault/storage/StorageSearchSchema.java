@@ -1,11 +1,13 @@
 package io.github.fourilla.endervault.storage;
 
+import io.github.fourilla.endervault.common.FileNameExtensions;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.search.SearchSchema;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
@@ -21,7 +23,9 @@ public final class StorageSearchSchema {
                     SearchSchema.path("path", "Path", Candidate::relativePath),
                     SearchSchema.enumeration("type", "Entry type", List.of("file", "directory"),
                             candidate -> candidate.directory ? "directory" : "file"),
-                    SearchSchema.dateTime("modified", "Modified", ZoneId.systemDefault(), Candidate::modifiedAt)
+                    SearchSchema.dateTime("modified", "Modified", ZoneId.systemDefault(), Candidate::modifiedAt),
+                    SearchSchema.byteSize("size", "File size", Candidate::size),
+                    SearchSchema.exactText("extension", "File extension", Candidate::extension)
             ));
 
     private StorageSearchSchema() {}
@@ -42,7 +46,7 @@ public final class StorageSearchSchema {
         private final Path file;
         private final String relativePath;
         private final boolean directory;
-        private Instant modifiedAt;
+        private BasicFileAttributes attributes;
 
         Candidate(Path file, String relativePath, boolean directory) {
             this.file = file;
@@ -58,16 +62,30 @@ public final class StorageSearchSchema {
             return relativePath;
         }
 
-        // A name/path search must not read full metadata for every visited entry.
+        private String extension() {
+            return directory ? null : FileNameExtensions.extension(name());
+        }
+
+        private Long size() {
+            if (directory) return null;
+            BasicFileAttributes value = attributes();
+            return value.isRegularFile() ? value.size() : null;
+        }
+
         private Instant modifiedAt() {
-            if (modifiedAt == null) {
+            return attributes().lastModifiedTime().toInstant();
+        }
+
+        // Read once only when a size/modified condition reaches this candidate.
+        private BasicFileAttributes attributes() {
+            if (attributes == null) {
                 try {
-                    modifiedAt = Files.getLastModifiedTime(file, LinkOption.NOFOLLOW_LINKS).toInstant();
+                    attributes = Files.readAttributes(file, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
                 } catch (IOException ex) {
                     throw new StorageAccessException("Failed to read file search metadata.", ex);
                 }
             }
-            return modifiedAt;
+            return attributes;
         }
     }
 }

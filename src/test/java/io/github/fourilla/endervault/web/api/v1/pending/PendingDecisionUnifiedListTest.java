@@ -142,6 +142,23 @@ class PendingDecisionUnifiedListTest {
         assertThatThrownBy(() -> controller.list("status:awaiting_decision")).isSameAs(failure);
     }
 
+    @Test
+    void receivedSizeKeepsParentDeduplicationAndDoesNotInferStandaloneDirectorySize() throws Exception {
+        var upload = new PendingFileDecision("upload", PendingFileDecisionSource.DIRECTORY_UPLOAD,
+                "stage", "target", "photos", 2048, Instant.EPOCH, null, null, null, true);
+        when(pending.list()).thenReturn(List.of(upload));
+        when(pending.directoryMergeOwner("upload")).thenReturn(Optional.of("review"));
+        when(merges.unresolved()).thenReturn(List.of(review("review", Operation.PENDING, "upload"),
+                review("copy", Operation.COPY, "source")));
+        assertThat(controller.list("size:2KiB").decisions()).extracting(row -> row.id()).containsExactly("upload");
+        assertThat(controller.list("size:0").decisions()).isEmpty();
+        assertThat(controller.list("size:>2KiB").decisions()).isEmpty();
+        assertThat(controller.list("source:directory_copy || size:2KiB").decisions())
+                .extracting(row -> row.id()).containsExactly("upload", "merge-copy");
+        assertThatThrownBy(() -> controller.list("name:photos || size:bad")).isInstanceOf(SearchQueryException.class);
+        verify(pending, never()).releaseDirectoryMergeClaim(anyString(), anyString());
+    }
+
     private DirectoryTransferQueryService.Summary review(String id, Operation operation, String source) {
         return new DirectoryTransferQueryService.Summary(id, operation, source, "target/photos", Instant.EPOCH,
                 0, 3, 1, false, true, null, null, true, false);

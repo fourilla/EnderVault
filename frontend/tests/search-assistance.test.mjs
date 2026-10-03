@@ -60,6 +60,26 @@ test('text and date values give hints without fabricated values or file requests
   assert.equal(context('modified:2026-10-03T09:00:00+09:00').field.key, 'modified');
 });
 
+test('numeric and exact text hints use server metadata without unit conversion or fabricated values', () => {
+  const numeric = { ...schema, fields: [
+    { key: 'size', label: 'File size', type: 'NUMBER', operators: ['EQUALS', 'RANGE'], values: [], units: ['B', 'KB', 'KiB'], timeZone: null },
+    { key: 'count', label: 'Count', type: 'NUMBER', operators: ['EQUALS'], values: [], units: [], timeZone: null },
+    { key: 'extension', label: 'File extension', type: 'TEXT', operators: ['EQUALS'], values: [], units: [], timeZone: null },
+  ] };
+  const token = (query) => completionContext(query, query.length, query.length, numeric);
+  assert.deepEqual(suggestionsFor(token(''), numeric).map((item) => item.label), ['size:', 'count:', 'extension:']);
+  for (const query of ['size:>=1.5KiB', 'size:1KB..2KiB', 'size:"1KB"']) {
+    assert.equal(token(query).field.key, 'size');
+    assert.match(completionHint(token(query)), /whole bytes or B, KB, KiB.*>=.*\.\./);
+    assert.deepEqual(suggestionsFor(token(query), numeric), []);
+  }
+  assert.match(completionHint(token('count:')), /integer/);
+  assert.equal(completionHint(token('extension:pdf')), 'File extension: exact text');
+  assert.deepEqual(suggestionsFor(token('extension:'), numeric), []);
+  const custom = { ...numeric, fields: [{ ...numeric.fields[0], units: ['custom-server-unit'] }] };
+  assert.match(completionHint(completionContext('size:', 5, 5, custom)), /custom-server-unit/);
+});
+
 test('path assistance locates one parent and filters its immediate directory response', () => {
   const token = context('path:photos/su');
   assert.equal(token.parent, 'photos');

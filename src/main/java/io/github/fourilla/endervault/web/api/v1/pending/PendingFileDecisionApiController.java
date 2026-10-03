@@ -86,7 +86,7 @@ public class PendingFileDecisionApiController {
             };
             String destination = PendingDecisionSearchSchema.destinationLabel(path);
             if (!matches.test(new Candidate(name, destination, source, true, review.createdAt(), null,
-                    () -> PendingDecisionStatus.from(review)))) continue;
+                    () -> PendingDecisionStatus.from(review), null))) continue;
             items.add(new PendingFileDecisionItemResponse("merge-" + review.id(),
                     name, null,
                     switch (review.operation()) { case COPY -> "Directory copy"; case MOVE -> "Directory move"; case PENDING -> "Directory upload"; },

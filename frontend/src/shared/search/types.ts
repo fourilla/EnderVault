@@ -1,10 +1,11 @@
 export interface SearchField {
   key: string;
   label: string;
-  type: 'TEXT' | 'PATH' | 'ENUM' | 'DATE_TIME';
+  type: 'TEXT' | 'PATH' | 'ENUM' | 'DATE_TIME' | 'NUMBER';
   operators: string[];
   values: string[];
   timeZone: string | null;
+  units?: string[];
 }
 
 export interface SearchSchema {

@@ -14,7 +14,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 class PendingDecisionSearchSchemaTest {
 
     private final Candidate file = new Candidate("summer holiday.jpg", "/photos/2026", "FILE_REQUEST",
-            false, Instant.parse("2026-10-03T09:00:00Z"), "Alice", () -> PendingDecisionStatus.AWAITING_DECISION);
+            false, Instant.parse("2026-10-03T09:00:00Z"), "Alice", () -> PendingDecisionStatus.AWAITING_DECISION, 1024L);
 
     @Test
     void defaultMatchesNameOrDestinationButNotUploaderOrSource() {
@@ -56,13 +56,13 @@ class PendingDecisionSearchSchemaTest {
         for (var source : PendingFileDecisionSource.values()) {
             assertThat(sourceField.values()).contains(source.name().toLowerCase(java.util.Locale.ROOT));
             assertThat(matches("source:" + source.name(), new Candidate("file", "/", source.name(), false, Instant.EPOCH, null,
-                    () -> PendingDecisionStatus.AWAITING_DECISION)))
+                    () -> PendingDecisionStatus.AWAITING_DECISION, 1L)))
                     .isTrue();
         }
         assertThat(sourceField.values()).contains("directory_copy", "directory_move");
         assertThat(PendingDecisionSearchSchema.defaultFields()).containsExactly("name", "destination");
         assertThat(PendingDecisionSearchSchema.fields()).extracting(SearchSchema.FieldInfo::key)
-                .containsExactly("name", "destination", "source", "type", "created", "submitter", "status");
+                .containsExactly("name", "destination", "source", "type", "created", "submitter", "status", "size");
         assertThatThrownBy(() -> sourceField.values().add("new"))
                 .isInstanceOf(UnsupportedOperationException.class);
     }
@@ -71,7 +71,7 @@ class PendingDecisionSearchSchemaTest {
     void statusIsEvaluatedOnlyWhenReachedAndDoesNotMatchDisplayTextByDefault() {
         var reads = new java.util.concurrent.atomic.AtomicInteger();
         var candidate = new Candidate("photo", "/target", "DIRECTORY_UPLOAD", true, Instant.EPOCH, null,
-                () -> { reads.incrementAndGet(); return PendingDecisionStatus.PAUSED; });
+                () -> { reads.incrementAndGet(); return PendingDecisionStatus.PAUSED; }, 1024L);
         assertThat(matches("name:missing status:paused", candidate)).isFalse();
         assertThat(matches("paused", candidate)).isFalse();
         assertThat(reads).hasValue(0);
@@ -85,7 +85,7 @@ class PendingDecisionSearchSchemaTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"source:upload", "type:zip", "created:yesterday", "created:2026-10-03T09:00:00",
-            "name:summer || status:merging", "name:summer || source:invalid", "size:>=1MB"})
+            "name:summer || status:merging", "name:summer || source:invalid", "name:summer || size:-1", "size:1XB"})
     void invalidTermsAreRejectedEvenWhenAnotherOrBranchWouldMatch(String query) {
         assertThatThrownBy(() -> PendingDecisionSearchSchema.compile(query)).isInstanceOf(SearchQueryException.class);
     }
@@ -96,6 +96,21 @@ class PendingDecisionSearchSchemaTest {
         assertThat(matches("  ", file)).isTrue();
         assertThatThrownBy(() -> PendingDecisionSearchSchema.compile("  invalid:value"))
                 .isInstanceOfSatisfying(SearchQueryException.class, error -> assertThat(error.position()).isEqualTo(2));
+    }
+
+    @Test
+    void receivedSizeIncludesUploadedDirectoryTotalsButNotUnknownStandaloneTransferSizes() {
+        assertThat(matches("size:1KB..1KiB", file)).isTrue();
+        assertThat(matches("size:>1KiB", file)).isFalse();
+        var upload = new PendingFileDecision("upload", PendingFileDecisionSource.DIRECTORY_UPLOAD, "stage", "target",
+                "photos", 2048, Instant.EPOCH, null, null, null, true);
+        assertThat(matches("type:directory size:2KiB", Candidate.from(upload, () -> PendingDecisionStatus.AWAITING_DECISION)))
+                .isTrue();
+        var copy = new Candidate("photos", "/target", "directory_copy", true, Instant.EPOCH, null,
+                () -> PendingDecisionStatus.AWAITING_REVIEW, null);
+        assertThat(matches("size:0", copy)).isFalse();
+        assertThat(matches("size:>=0", copy)).isFalse();
+        assertThat(matches("source:directory_copy || size:>=0", copy)).isTrue();
     }
 
     private boolean matches(String query, Candidate item) {

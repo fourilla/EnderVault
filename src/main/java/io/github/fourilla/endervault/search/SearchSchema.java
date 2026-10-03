@@ -17,9 +17,10 @@ import java.util.function.Predicate;
 /** Compiles a bounded query against explicitly registered fields, without fetching data. */
 public final class SearchSchema<T> {
 
-    public enum ValueType { TEXT, PATH, ENUM, DATE_TIME }
+    public enum ValueType { TEXT, PATH, ENUM, DATE_TIME, NUMBER }
 
-    public enum Operator { CONTAINS, EQUALS, BEFORE, BEFORE_OR_ON, AFTER, AFTER_OR_ON, RANGE }
+    public enum Operator { CONTAINS, EQUALS, BEFORE, BEFORE_OR_ON, AFTER, AFTER_OR_ON, RANGE,
+        LESS_THAN, LESS_THAN_OR_EQUAL, GREATER_THAN, GREATER_THAN_OR_EQUAL }
 
     public record QueryLimits(int maxLength, int maxTokens, int maxTerms, int maxDepth) {}
 
@@ -34,11 +35,13 @@ public final class SearchSchema<T> {
             ValueType type,
             List<Operator> operators,
             List<String> values,
-            String timeZone
+            String timeZone,
+            List<String> units
     ) {
         public FieldInfo {
             operators = List.copyOf(operators);
             values = List.copyOf(values);
+            units = List.copyOf(units);
         }
     }
 
@@ -128,6 +131,42 @@ public final class SearchSchema<T> {
         return containing(key, label, ValueType.PATH, extractor);
     }
 
+    public static <T> Field<T> exactText(String key, String label, Function<T, String> extractor) {
+        Objects.requireNonNull(extractor);
+        return new Field<>(info(key, label, ValueType.TEXT, List.of(Operator.EQUALS), List.of(), null), term -> {
+            requireLiteralOperator(term);
+            String expected = term.value().toLowerCase(Locale.ROOT);
+            return item -> {
+                String actual = extractor.apply(item);
+                return actual != null && actual.toLowerCase(Locale.ROOT).equals(expected);
+            };
+        });
+    }
+
+    public static <T> Field<T> number(String key, String label, Function<T, Long> extractor) {
+        return numeric(key, label, extractor, false);
+    }
+
+    public static <T> Field<T> byteSize(String key, String label, Function<T, Long> extractor) {
+        return numeric(key, label, extractor, true);
+    }
+
+    private static <T> Field<T> numeric(String key, String label, Function<T, Long> extractor, boolean bytes) {
+        Objects.requireNonNull(extractor);
+        FieldInfo base = info(key, label, ValueType.NUMBER, List.of(Operator.EQUALS, Operator.LESS_THAN,
+                Operator.LESS_THAN_OR_EQUAL, Operator.GREATER_THAN, Operator.GREATER_THAN_OR_EQUAL, Operator.RANGE),
+                List.of(), null);
+        FieldInfo metadata = new FieldInfo(base.key(), base.label(), base.type(), base.operators(), base.values(),
+                base.timeZone(), bytes ? SearchNumberFilter.byteUnits() : List.of());
+        return new Field<>(metadata, term -> {
+            var filter = SearchNumberFilter.compile(term, bytes);
+            return item -> {
+                Long actual = extractor.apply(item);
+                return actual != null && (!bytes || actual >= 0) && filter.test(actual);
+            };
+        });
+    }
+
     private static <T> Field<T> containing(
             String key, String label, ValueType type, Function<T, String> extractor
     ) {
@@ -194,13 +233,13 @@ public final class SearchSchema<T> {
         if (key == null || !SearchQueryParser.isFieldName(key) || label == null || label.isBlank()) {
             throw new IllegalArgumentException("Search fields need a valid key and label.");
         }
-        return new FieldInfo(key.toLowerCase(Locale.ROOT), label, type, operators, values, timeZone);
+        return new FieldInfo(key.toLowerCase(Locale.ROOT), label, type, operators, values, timeZone, List.of());
     }
 
     private static void requireLiteralOperator(SearchQueryParser.Term term) {
         if (!term.quoted() && (term.value().startsWith(">") || term.value().startsWith("<")
                 || term.value().startsWith("="))) {
-            throw invalid(term, "Comparison operators require a date/time search field.");
+            throw invalid(term, "Comparison operators require a date/time or numeric search field.");
         }
     }
 

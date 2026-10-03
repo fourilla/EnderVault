@@ -1,5 +1,6 @@
 package io.github.fourilla.endervault.recent;
 
+import io.github.fourilla.endervault.common.FileNameExtensions;
 import io.github.fourilla.endervault.search.SearchSchema;
 import java.time.ZoneId;
 import java.util.List;
@@ -17,7 +18,10 @@ public final class RecentSearchSchema {
                     SearchSchema.enumeration("type", "Entry type", List.of("file", "directory"),
                             item -> item.directory() ? "directory" : "file"),
                     SearchSchema.dateTime("modified", "Modified", ZoneId.systemDefault(), RecentListItem::modifiedAt),
-                    SearchSchema.dateTime("accessed", "Last accessed", ZoneId.systemDefault(), RecentListItem::lastAccessedAt)
+                    SearchSchema.dateTime("accessed", "Last accessed", ZoneId.systemDefault(), RecentListItem::lastAccessedAt),
+                    SearchSchema.byteSize("size", "File size", item -> item.directory() ? null : item.size()),
+                    SearchSchema.exactText("extension", "File extension",
+                            item -> item.directory() ? null : FileNameExtensions.extension(item.name()))
             ));
 
     private RecentSearchSchema() {}

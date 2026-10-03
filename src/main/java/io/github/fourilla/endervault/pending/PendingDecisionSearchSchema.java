@@ -28,7 +28,8 @@ public final class PendingDecisionSearchSchema {
                     SearchSchema.text("submitter", "Uploader name", Candidate::submittedBy),
                     SearchSchema.enumeration("status", "Decision status",
                             Arrays.stream(PendingDecisionStatus.values()).map(value -> value.name().toLowerCase(Locale.ROOT)).toList(),
-                            Candidate::status)
+                            Candidate::status),
+                    SearchSchema.byteSize("size", "Received size", Candidate::size)
             ));
 
     private PendingDecisionSearchSchema() {}
@@ -50,11 +51,11 @@ public final class PendingDecisionSearchSchema {
     }
 
     public record Candidate(String name, String destination, String source,
-            boolean directory, Instant createdAt, String submittedBy, Supplier<PendingDecisionStatus> statusLookup) {
+            boolean directory, Instant createdAt, String submittedBy, Supplier<PendingDecisionStatus> statusLookup, Long size) {
 
         public static Candidate from(PendingFileDecision decision, Supplier<PendingDecisionStatus> statusLookup) {
             return new Candidate(decision.originalFilename(), destinationLabel(decision.destinationPath()),
-                    decision.source().name(), decision.directory(), decision.createdAt(), decision.submittedBy(), statusLookup);
+                    decision.source().name(), decision.directory(), decision.createdAt(), decision.submittedBy(), statusLookup, decision.size());
         }
 
         public String status() {

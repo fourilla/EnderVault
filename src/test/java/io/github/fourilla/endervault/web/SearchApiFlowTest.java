@@ -84,7 +84,7 @@ class SearchApiFlowTest {
                 .andExpect(jsonPath("$.scope").value("files"))
                 .andExpect(jsonPath("$.defaultFields[0]").value("name"))
                 .andExpect(jsonPath("$.defaultOperator").value("AND"))
-                .andExpect(jsonPath("$.fields.length()").value(4))
+                .andExpect(jsonPath("$.fields.length()").value(6))
                 .andExpect(jsonPath("$.fields[0].key").value("name"))
                 .andExpect(jsonPath("$.fields[0].type").value("TEXT"))
                 .andExpect(jsonPath("$.fields[1].key").value("path"))
@@ -96,6 +96,12 @@ class SearchApiFlowTest {
                 .andExpect(jsonPath("$.fields[3].key").value("modified"))
                 .andExpect(jsonPath("$.fields[3].type").value("DATE_TIME"))
                 .andExpect(jsonPath("$.fields[3].timeZone").isNotEmpty())
+                .andExpect(jsonPath("$.fields[4].key").value("size"))
+                .andExpect(jsonPath("$.fields[4].type").value("NUMBER"))
+                .andExpect(jsonPath("$.fields[4].units[0]").value("B"))
+                .andExpect(jsonPath("$.fields[4].units[6]").value("MiB"))
+                .andExpect(jsonPath("$.fields[5].key").value("extension"))
+                .andExpect(jsonPath("$.fields[5].operators[0]").value("EQUALS"))
                 .andExpect(jsonPath("$.limits.maxLength").value(4096))
                 .andExpect(jsonPath("$.limits.maxTokens").value(256))
                 .andExpect(jsonPath("$.limits.maxTerms").value(128))
@@ -167,7 +173,8 @@ class SearchApiFlowTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"name:", "typo:report", "type:unknown", "modified:2026-02-30", "report || typo:value"})
+    @ValueSource(strings = {"name:", "typo:report", "type:unknown", "modified:2026-02-30", "report || typo:value",
+            "report || size:-1", "size:1MiB..1MB", "size:9223372036854775808", "extension:>pdf"})
     void invalidQueriesReturnStructuredBadRequestBeforeListingANonexistentRoot(String query) throws Exception {
         mockMvc.perform(get("/api/v1/fs/search").param("path", "not-created").param("q", query))
                 .andExpect(status().isBadRequest())
@@ -306,7 +313,7 @@ class SearchApiFlowTest {
             recent.recordVaultPath(vaultPath);
         }
         recent.recordVaultPath(path);
-        String query = "path:" + path + " type:file modified:2024-01-02T00:00:00Z";
+        String query = "path:" + path + " type:file modified:2024-01-02T00:00:00Z extension:TXT size:5";
         mockMvc.perform(get("/api/v1/recent").param("q", query).param("sort", "name").param("dir", "asc")
                         .param("hidden", "hide").param("page", "2").param("size", "1"))
                 .andExpect(status().isOk())
@@ -361,7 +368,7 @@ class SearchApiFlowTest {
                 .get("actionableCount").asInt();
 
         mockMvc.perform(get("/api/v1/pending-decisions").param("q", "destination:" + destination
-                        + " name:\"summer holiday\" type:file source:file_request submitter:ali status:awaiting_decision"))
+                        + " name:\"summer holiday\" type:file source:file_request submitter:ali status:awaiting_decision size:7B"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.decisions.length()").value(1))
                 .andExpect(jsonPath("$.decisions[0].id").value(decision.id()))
@@ -370,6 +377,8 @@ class SearchApiFlowTest {
         mockMvc.perform(get("/api/v1/pending-decisions").param("q", "destination:" + destination + " status:paused"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.decisions.length()").value(0));
         mockMvc.perform(get("/api/v1/pending-decisions").param("q", "destination:" + destination + " name:missing"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.decisions.length()").value(0));
+        mockMvc.perform(get("/api/v1/pending-decisions").param("q", "destination:" + destination + " size:>7"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.decisions.length()").value(0));
         mockMvc.perform(get("/api/v1/pending-decisions").param("q", "name:summer || source:unknown"))
                 .andExpect(status().isBadRequest())
@@ -380,6 +389,43 @@ class SearchApiFlowTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.actionableCount").value(notificationCount));
         assertThat(staged).exists();
         assertThat(Files.readString(staged)).isEqualTo("pending");
+    }
+
+    @Test
+    void fileSizeAndExactExtensionFilterBeforePaginationAndRespectHiddenPolicy() throws Exception {
+        Path directory = directory();
+        String path = directory.getFileName().toString();
+        Files.write(directory.resolve("Q2.PDF"), new byte[1024]);
+        Files.write(directory.resolve("Q11.pdf"), new byte[2048]);
+        Files.write(directory.resolve("excluded.pdfx"), new byte[1024]);
+        Files.write(directory.resolve("small.pdf"), new byte[1]);
+        Files.createDirectory(directory.resolve("folder.pdf"));
+        Files.write(directory.resolve("hidden.pdf"), new byte[1024]);
+        storage.setHiddenVaultPath(path + "/hidden.pdf", true, ConflictPolicy.CANCEL);
+        String query = "extension:PDF size:1KB..2KiB";
+        mockMvc.perform(get("/api/v1/fs/search").param("path", path).param("q", query)
+                        .param("hidden", "hide").param("sort", "name").param("dir", "asc").param("page", "2").param("size", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page.totalItems").value(2))
+                .andExpect(jsonPath("$.directories.length()").value(0))
+                .andExpect(jsonPath("$.entries[0].name").value("Q11.pdf"));
+        mockMvc.perform(get("/api/v1/fs/search").param("path", path).param("q", query).param("hidden", "show"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.page.totalItems").value(3));
+        mockMvc.perform(get("/api/v1/fs/search").param("path", path).param("q", "type:directory size:0"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.directories.length()").value(0));
+        Files.write(directory.resolve("Q2.PDF"), new byte[4]);
+        mockMvc.perform(get("/api/v1/fs/search").param("path", path).param("q", "name:Q2 size:4"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.page.totalItems").value(1));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/v1/fs/search", "/api/v1/recent", "/api/v1/pending-decisions"})
+    void invalidSizeIsValidatedInEveryConnectedApiBeforeDataReads(String endpoint) throws Exception {
+        mockMvc.perform(get(endpoint).param("path", "not-created").param("q", "  name:file || size:1XB"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.ok").value(false))
+                .andExpect(jsonPath("$.position").value(15))
+                .andExpect(jsonPath("$.notification.message").isNotEmpty());
     }
 
     private Path directory() throws IOException {

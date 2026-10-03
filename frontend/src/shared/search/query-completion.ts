@@ -117,8 +117,12 @@ export function applySuggestion(query: string, context: CompletionContext, sugge
 export function completionHint(context: CompletionContext | null): string | null {
   const field = context?.field;
   if (!field) return null;
-  if (field.type === 'TEXT') return `${field.label}: partial text or "continuous phrase"`;
+  if (field.type === 'TEXT') return field.operators.includes('CONTAINS')
+    ? `${field.label}: partial text or "continuous phrase"` : `${field.label}: exact text`;
   if (field.type === 'PATH') return `${field.label}: Vault-relative path`;
   if (field.type === 'DATE_TIME') return `${field.label}: YYYY-MM-DD or ISO time with offset; >=, <=, .. (${field.timeZone})`;
+  if (field.type === 'NUMBER') return field.units?.length
+    ? `${field.label}: whole bytes or ${field.units.join(', ')}; =, <, <=, >, >=, ..`
+    : `${field.label}: integer; =, <, <=, >, >=, ..`;
   return null;
 }
