@@ -46,25 +46,38 @@ public record FileRequest(
     }
 
     public String statusLabel() {
+        return statusLabel(Instant.now());
+    }
+
+    public String statusLabel(Instant now) {
+        return switch (statusKey(now)) {
+            case "revoked" -> "Revoked";
+            case "expired" -> "Expired";
+            case "full" -> "Full";
+            default -> "Active";
+        };
+    }
+
+    public String statusKey(Instant now) {
         if (!enabled) {
-            return "Revoked";
+            return "revoked";
         }
-        if (expired(Instant.now())) {
-            return "Expired";
+        if (expired(now)) {
+            return "expired";
         }
         if (full()) {
-            return "Full";
+            return "full";
         }
-        return "Active";
+        return "active";
     }
 
     public String statusClass() {
-        return switch (statusLabel()) {
-            case "Active" -> "active";
-            case "Full" -> "warning";
-            case "Expired" -> "expired";
-            default -> "revoked";
-        };
+        return statusClass(Instant.now());
+    }
+
+    public String statusClass(Instant now) {
+        String status = statusKey(now);
+        return status.equals("full") ? "warning" : status;
     }
 
     public String createdLabel() {

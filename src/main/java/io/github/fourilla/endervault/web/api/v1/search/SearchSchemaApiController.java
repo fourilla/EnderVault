@@ -1,9 +1,11 @@
 package io.github.fourilla.endervault.web.api.v1.search;
 
 import io.github.fourilla.endervault.bookmark.BookmarkSearchSchema;
+import io.github.fourilla.endervault.filerequest.FileRequestSearchSchema;
 import io.github.fourilla.endervault.pending.PendingDecisionSearchSchema;
 import io.github.fourilla.endervault.recent.RecentSearchSchema;
 import io.github.fourilla.endervault.search.SearchSchema;
+import io.github.fourilla.endervault.share.ShareLinkSearchSchema;
 import io.github.fourilla.endervault.stickynote.StickyNoteSearchSchema;
 import io.github.fourilla.endervault.storage.StorageSearchSchema;
 import org.springframework.http.MediaType;
@@ -43,5 +45,17 @@ public class SearchSchemaApiController {
     public SearchSchemaPayload pendingDecisions() {
         return new SearchSchemaPayload("pending-decisions", PendingDecisionSearchSchema.defaultFields(), "AND",
                 PendingDecisionSearchSchema.fields(), SearchSchema.limits());
+    }
+
+    @GetMapping(value = "/shares", produces = MediaType.APPLICATION_JSON_VALUE)
+    public SearchSchemaPayload shares() {
+        return new SearchSchemaPayload("shares", ShareLinkSearchSchema.defaultFields(), "AND",
+                ShareLinkSearchSchema.fields(), SearchSchema.limits());
+    }
+
+    @GetMapping(value = "/file-requests", produces = MediaType.APPLICATION_JSON_VALUE)
+    public SearchSchemaPayload fileRequests() {
+        return new SearchSchemaPayload("file-requests", FileRequestSearchSchema.defaultFields(), "AND",
+                FileRequestSearchSchema.fields(), SearchSchema.limits());
     }
 }

@@ -33,20 +33,26 @@ public record ShareLink(
     }
 
     public String statusLabel() {
-        if (!enabled) {
-            return "Revoked";
-        }
-        if (expired(Instant.now())) {
-            return "Expired";
-        }
-        return "Active";
+        return statusLabel(Instant.now());
+    }
+
+    public String statusLabel(Instant now) {
+        return switch (statusClass(now)) {
+            case "revoked" -> "Revoked";
+            case "expired" -> "Expired";
+            default -> "Active";
+        };
     }
 
     public String statusClass() {
+        return statusClass(Instant.now());
+    }
+
+    public String statusClass(Instant now) {
         if (!enabled) {
             return "revoked";
         }
-        if (expired(Instant.now())) {
+        if (expired(now)) {
             return "expired";
         }
         return "active";

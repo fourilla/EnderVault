@@ -4,7 +4,8 @@ import { OverflowMarquee } from '../shared/layout/OverflowMarquee';
 import { PathLink } from '../shared/browser/PathLink';
 import { formatBytes } from '../shared/format-bytes';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useRouteSearch } from '../app/RouteSearch';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
 import { PageHeader } from '../shared/layout/PageHeader';
@@ -34,32 +35,58 @@ const valuesFrom = (payload: FileRequestListPayload): FileRequestCreateValues =>
 export function FileRequestsApp() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [payload, setPayload] = useState<FileRequestListPayload | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeQuery = searchParams.get('q') ?? '';
+  const createContext = JSON.stringify([searchParams.get('destinationPath') ?? '', searchParams.get('copyFrom') ?? '']);
+  const [snapshot, setSnapshot] = useState<{ search: string; context: string; payload: FileRequestListPayload } | null>(null);
   const [values, setValues] = useState<FileRequestCreateValues | null>(null);
-  const [error, setError] = useState('');
+  const [feedback, setFeedback] = useState<{ search: string; message: string } | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
   const [busy, setBusy] = useState('');
-  const loadedSearch = useRef<string | null>(null);
+  const [query, setQuery] = useState(activeQuery);
+  const loadedContext = useRef<string | null>(null);
+  const payload = snapshot?.context === createContext ? snapshot.payload : null;
+  const requests = snapshot?.search === location.search ? snapshot.payload.requests : null;
+  const error = feedback?.search === location.search ? feedback.message : '';
 
   useEffect(() => {
     const controller = new AbortController();
-    setError('');
+    setFeedback(null);
     void loadFileRequests(location.search, controller.signal)
       .then((next) => {
         if (controller.signal.aborted) return;
-        setPayload(next);
-        if (loadedSearch.current !== location.search) {
+        setSnapshot({ search: location.search, context: createContext, payload: next });
+        if (loadedContext.current !== createContext) {
           setValues(valuesFrom(next));
-          loadedSearch.current = location.search;
+          loadedContext.current = createContext;
         }
       })
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
-          setError(reason instanceof Error ? reason.message : 'File requests could not be loaded.');
+          setFeedback({ search: location.search,
+            message: reason instanceof Error ? reason.message : 'File requests could not be loaded.' });
         }
       });
     return () => controller.abort();
-  }, [location.search, refreshToken]);
+  }, [location.search, createContext, refreshToken]);
+
+  useEffect(() => setQuery(activeQuery), [activeQuery]);
+  const search = (event: FormEvent) => {
+    event.preventDefault();
+    const next = new URLSearchParams(searchParams);
+    const trimmed = query.trim();
+    if (trimmed) next.set('q', trimmed);
+    else next.delete('q');
+    setSearchParams(next);
+  };
+  useRouteSearch({ label: 'Search file requests', placeholder: 'Search titles or destinations',
+    appliedQuery: activeQuery, value: query, onChange: setQuery, onSubmit: search, schemaScope: 'file-requests',
+    onReset: () => {
+      if (!activeQuery) return;
+      const next = new URLSearchParams(searchParams);
+      next.delete('q');
+      setSearchParams(next);
+    } });
 
   const reload = () => setRefreshToken((value) => value + 1);
   const change = (name: keyof FileRequestCreateValues, value: string) => {
@@ -130,7 +157,7 @@ export function FileRequestsApp() {
   return (
     <div className="dashboard-workspace file-requests-workspace">
       <PageHeader title="File Requests" />
-      {error && <PageErrorPanel title="File requests unavailable" message={error} stale={payload !== null}
+      {error && <PageErrorPanel title="File requests unavailable" message={error} stale={requests !== null}
         actions={<button type="button" className="icon-text-button" onClick={reload}>
           {icon('fas fa-arrows-rotate')}<span>Retry</span>
         </button>} />}
@@ -197,14 +224,16 @@ export function FileRequestsApp() {
           <section className="dashboard-panel">
             <header className="section-heading">
               <div><h2>Issued Requests</h2><p>Revoke active links before deleting their records.</p></div>
-              {payload.requests.length > 0 && <button className="ghost" type="button" disabled={Boolean(busy)}
+              {requests && (requests.length > 0 || activeQuery) && <button className="ghost" type="button" disabled={Boolean(busy)}
                 onClick={() => void deleteExpired()}>Delete expired</button>}
             </header>
+            {!requests && !error && <LoadingState label={activeQuery ? 'Searching file requests...' : 'Loading file requests...'} />}
+            {requests && (
             <div className="table-wrap compact-table"><StableTable className="file-requests-table"
               columns={['text', 'text', 'usage', 'restrictions', 'date', 'status', 'actions']} actionCount={3}>
               <thead><tr><th>Request</th><th>Destination</th><th>Usage</th><th>Restrictions</th><th>Created / Expires</th><th>Status</th><th>Actions</th></tr></thead>
               <tbody>
-                {payload.requests.map((item) => <tr key={item.id}>
+                {requests.map((item) => <tr key={item.id}>
                   <td><Link className="table-primary-text" to={`/admin/file-requests/${item.id}`}><OverflowMarquee text={item.title} /></Link></td>
                   <td><PathLink path={item.destinationPath || ''} directory label={item.destinationLabel} /></td>
                   <td title={item.usageLabel}><div className="table-cell-stack">
@@ -231,9 +260,11 @@ export function FileRequestsApp() {
                         disabled={Boolean(busy)} onClick={() => void remove(item)}>{icon('fas fa-trash-can')}</button>}
                   </div></td>
                 </tr>)}
-                {payload.requests.length === 0 && <tr className="empty-row"><td colSpan={7} className="empty">No file requests have been issued.</td></tr>}
+                {requests.length === 0 && <tr className="empty-row"><td colSpan={7} className="empty">
+                  {activeQuery ? 'No file requests match this search.' : 'No file requests have been issued.'}
+                </td></tr>}
               </tbody>
-            </StableTable></div>
+            </StableTable></div>)}
           </section>
         </>
       )}

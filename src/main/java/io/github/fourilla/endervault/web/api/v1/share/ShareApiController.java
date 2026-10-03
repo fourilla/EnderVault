@@ -6,6 +6,7 @@ import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.publiclink.PublicLinkTokenService;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
+import io.github.fourilla.endervault.share.ShareLinkSearchSchema;
 import io.github.fourilla.endervault.web.support.ActionResponse;
 import io.github.fourilla.endervault.web.support.FlashNotification;
 import io.github.fourilla.endervault.web.support.ShareLinkPayload;
@@ -49,12 +50,15 @@ public class ShareApiController {
     }
 
     @GetMapping
-    public List<ShareLinkPayload> list() throws IOException {
+    public List<ShareLinkPayload> list(@RequestParam(value = "q", required = false) String query) throws IOException {
+        Instant now = Instant.now();
+        var filter = ShareLinkSearchSchema.compile(query, now);
         String shareBaseUrl = shareUrlBuilder.shareBaseUrl();
         boolean directDownloadEnabled = shareUrlBuilder.directDownloadLinkEnabled();
         return shareLinkService.list().stream()
+                .filter(filter)
                 .map(shareLink -> ShareLinkView.from(shareLink, shareBaseUrl, directDownloadEnabled))
-                .map(ShareLinkPayload::from)
+                .map(link -> ShareLinkPayload.from(link, now))
                 .toList();
     }
 

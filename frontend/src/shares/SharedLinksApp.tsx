@@ -1,7 +1,9 @@
 import { LoadingState } from '../shared/layout/LoadingState';
 import { StableTable } from '../shared/browser/StableTable';
 import { PathLink } from '../shared/browser/PathLink';
-import { useEffect, useState } from 'react';
+import { type FormEvent, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { useRouteSearch } from '../app/RouteSearch';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
 import { PageHeader } from '../shared/layout/PageHeader';
@@ -11,23 +13,49 @@ import { deleteExpiredShares, deleteShare, loadShares, revokeShare } from './sha
 import type { ShareLink } from './types';
 
 export function SharedLinksApp() {
-  const [shares, setShares] = useState<ShareLink[] | null>(null);
-  const [error, setError] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeQuery = searchParams.get('q') ?? '';
+  const [snapshot, setSnapshot] = useState<{ query: string; shares: ShareLink[] } | null>(null);
+  const [feedback, setFeedback] = useState<{ query: string; message: string } | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
   const [busy, setBusy] = useState('');
+  const [query, setQuery] = useState(activeQuery);
+  const shares = snapshot?.query === activeQuery ? snapshot.shares : null;
+  const error = feedback?.query === activeQuery ? feedback.message : '';
 
   useEffect(() => {
     const controller = new AbortController();
-    setError('');
-    void loadShares(controller.signal)
-      .then(setShares)
+    setFeedback(null);
+    void loadShares(controller.signal, activeQuery)
+      .then((shares) => {
+        if (!controller.signal.aborted) setSnapshot({ query: activeQuery, shares });
+      })
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
-          setError(reason instanceof Error ? reason.message : 'Shared links could not be loaded.');
+          setFeedback({ query: activeQuery,
+            message: reason instanceof Error ? reason.message : 'Shared links could not be loaded.' });
         }
       });
     return () => controller.abort();
-  }, [refreshToken]);
+  }, [activeQuery, refreshToken]);
+
+  useEffect(() => setQuery(activeQuery), [activeQuery]);
+  const search = (event: FormEvent) => {
+    event.preventDefault();
+    const next = new URLSearchParams(searchParams);
+    const trimmed = query.trim();
+    if (trimmed) next.set('q', trimmed);
+    else next.delete('q');
+    setSearchParams(next);
+  };
+  useRouteSearch({ label: 'Search shared links', placeholder: 'Search target paths',
+    appliedQuery: activeQuery, value: query, onChange: setQuery, onSubmit: search, schemaScope: 'shares',
+    onReset: () => {
+      if (!activeQuery) return;
+      const next = new URLSearchParams(searchParams);
+      next.delete('q');
+      setSearchParams(next);
+    } });
 
   const reload = () => setRefreshToken((value) => value + 1);
 
@@ -57,7 +85,7 @@ export function SharedLinksApp() {
   return (
     <>
       <PageHeader title="Shared Links" />
-      {shares && shares.length > 0 && <FloatingPageActions mode="single" label="Delete expired links"
+      {shares && (shares.length > 0 || activeQuery) && <FloatingPageActions mode="single" label="Delete expired links"
         icon="fas fa-broom" disabled={Boolean(busy)}
         onAction={() => void run('expired', deleteExpiredShares, 'Expired links could not be deleted.')} />}
 
@@ -67,7 +95,7 @@ export function SharedLinksApp() {
           {icon('fas fa-arrows-rotate')}<span>Retry</span>
         </button>} />}
       {!shares && !error && (
-        <LoadingState label="Loading shared links..." />
+        <LoadingState label={activeQuery ? 'Searching shared links...' : 'Loading shared links...'} />
       )}
       {shares && (
         <section className="table-wrap" aria-label="Shared links">
@@ -122,7 +150,9 @@ export function SharedLinksApp() {
                   </td>
                 </tr>
               ))}
-              {shares.length === 0 && <tr className="empty-row"><td colSpan={6} className="empty">No shared links yet.</td></tr>}
+              {shares.length === 0 && <tr className="empty-row"><td colSpan={6} className="empty">
+                {activeQuery ? 'No shared links match this search.' : 'No shared links yet.'}
+              </td></tr>}
             </tbody>
           </StableTable>
         </section>

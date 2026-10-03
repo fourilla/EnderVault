@@ -1,15 +1,18 @@
 import { notify, postForm } from '../shared/api/form-api';
 import type { ShareLink } from './types';
 
-export async function loadShares(signal: AbortSignal): Promise<ShareLink[]> {
-  const response = await fetch('/api/v1/shares', {
+export async function loadShares(signal: AbortSignal, query = ''): Promise<ShareLink[]> {
+  const search = query ? `?${new URLSearchParams({ q: query })}` : '';
+  const response = await fetch(`/api/v1/shares${search}`, {
     credentials: 'same-origin',
     headers: { Accept: 'application/json' },
     signal,
   });
-  const body = await response.json() as ShareLink[] | { message?: string };
+  const body = await response.json() as ShareLink[] | { message?: string; notification?: { message?: string } };
   if (!response.ok || !Array.isArray(body)) {
-    throw new Error(!Array.isArray(body) && body.message ? body.message : 'Shared links could not be loaded.');
+    throw new Error(!Array.isArray(body)
+      ? body.notification?.message ?? body.message ?? 'Shared links could not be loaded.'
+      : 'Shared links could not be loaded.');
   }
   return body;
 }

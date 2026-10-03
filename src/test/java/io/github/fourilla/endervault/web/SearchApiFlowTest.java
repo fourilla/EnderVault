@@ -9,11 +9,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import io.github.fourilla.endervault.bookmark.BookmarkSearchSchema;
 import io.github.fourilla.endervault.bookmark.BookmarkService;
+import io.github.fourilla.endervault.filerequest.FileRequestService;
+import io.github.fourilla.endervault.filerequest.FileRequestSearchSchema;
+import io.github.fourilla.endervault.filerequest.UploaderNamePolicy;
 import io.github.fourilla.endervault.pending.PendingDecisionSearchSchema;
 import io.github.fourilla.endervault.pending.PendingFileDecisionService;
 import io.github.fourilla.endervault.pending.PendingFileDecisionSource;
 import io.github.fourilla.endervault.recent.RecentSearchSchema;
 import io.github.fourilla.endervault.recent.RecentService;
+import io.github.fourilla.endervault.share.ShareLinkService;
+import io.github.fourilla.endervault.share.ShareLinkSearchSchema;
 import io.github.fourilla.endervault.stickynote.StickyNoteContext;
 import io.github.fourilla.endervault.stickynote.StickyNoteSearchSchema;
 import io.github.fourilla.endervault.stickynote.StickyNoteService;
@@ -27,6 +32,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -69,6 +75,12 @@ class SearchApiFlowTest {
 
     @Autowired
     PendingFileDecisionService pending;
+
+    @Autowired
+    ShareLinkService shares;
+
+    @Autowired
+    FileRequestService fileRequests;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -214,7 +226,8 @@ class SearchApiFlowTest {
     @ValueSource(strings = {"/api/v1/search/schemas/files", "/api/v1/fs/search",
             "/api/v1/search/schemas/bookmarks", "/api/v1/search/schemas/recent", "/api/v1/search/schemas/sticky-notes",
             "/api/v1/bookmarks", "/api/v1/recent", "/api/v1/sticky-notes/catalog",
-            "/api/v1/pending-decisions", "/api/v1/search/schemas/pending-decisions"})
+            "/api/v1/pending-decisions", "/api/v1/search/schemas/pending-decisions",
+            "/api/v1/shares", "/api/v1/file-requests", "/api/v1/search/schemas/shares", "/api/v1/search/schemas/file-requests"})
     @WithMockUser(roles = "USER")
     void searchAndSchemaRequireAdminRole(String endpoint) throws Exception {
         mockMvc.perform(get(endpoint).param("q", "name:report"))
@@ -222,7 +235,7 @@ class SearchApiFlowTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"files", "pending-decisions"})
+    @ValueSource(strings = {"files", "pending-decisions", "shares", "file-requests"})
     @WithAnonymousUser
     void unauthenticatedRequestsCannotReadSchema(String scope) throws Exception {
         mockMvc.perform(get("/api/v1/search/schemas/{scope}", scope))
@@ -236,18 +249,22 @@ class SearchApiFlowTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"bookmarks", "recent", "sticky-notes", "pending-decisions"})
+    @ValueSource(strings = {"bookmarks", "recent", "sticky-notes", "pending-decisions", "shares", "file-requests"})
     void connectedDomainsExposeOnlyTheirDeclaredMetadata(String scope) throws Exception {
         var expectedFields = switch (scope) {
             case "bookmarks" -> BookmarkSearchSchema.fields();
             case "recent" -> RecentSearchSchema.fields();
             case "pending-decisions" -> PendingDecisionSearchSchema.fields();
+            case "shares" -> ShareLinkSearchSchema.fields();
+            case "file-requests" -> FileRequestSearchSchema.fields();
             default -> StickyNoteSearchSchema.fields();
         };
         var expectedDefaults = switch (scope) {
             case "bookmarks" -> BookmarkSearchSchema.defaultFields();
             case "recent" -> RecentSearchSchema.defaultFields();
             case "pending-decisions" -> PendingDecisionSearchSchema.defaultFields();
+            case "shares" -> ShareLinkSearchSchema.defaultFields();
+            case "file-requests" -> FileRequestSearchSchema.defaultFields();
             default -> StickyNoteSearchSchema.defaultFields();
         };
         var response = mockMvc.perform(get("/api/v1/search/schemas/{scope}", scope))
@@ -263,7 +280,8 @@ class SearchApiFlowTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"/api/v1/bookmarks", "/api/v1/recent", "/api/v1/sticky-notes/catalog", "/api/v1/pending-decisions"})
+    @ValueSource(strings = {"/api/v1/bookmarks", "/api/v1/recent", "/api/v1/sticky-notes/catalog", "/api/v1/pending-decisions",
+            "/api/v1/shares", "/api/v1/file-requests"})
     void domainApisPreserveOriginalErrorPositionsAndWhitespaceLimits(String endpoint) throws Exception {
         mockMvc.perform(get(endpoint).param("q", "  unknown:value").param("directory", "not-created"))
                 .andExpect(status().isBadRequest())
@@ -426,6 +444,88 @@ class SearchApiFlowTest {
                 .andExpect(jsonPath("$.ok").value(false))
                 .andExpect(jsonPath("$.position").value(15))
                 .andExpect(jsonPath("$.notification.message").isNotEmpty());
+    }
+
+    @Test
+    void shareQueriesPreserveOrderingAndPayloadAndUseStoredMetadataWithoutReadingTargets() throws Exception {
+        Path directory = directory();
+        String path = directory.getFileName().toString();
+        Files.writeString(directory.resolve("summer holiday.jpg"), "image");
+        var active = shares.create(path, "summer holiday.jpg", null, null, true);
+        var expired = shares.create(path, "summer holiday.jpg", Instant.EPOCH, null, false);
+        var revoked = shares.create(path, "summer holiday.jpg", Instant.EPOCH, null, true);
+        shares.revoke(revoked.token());
+        var before = shares.list();
+        Files.delete(directory.resolve("summer holiday.jpg"));
+
+        var response = mockMvc.perform(get("/api/v1/shares").param("q", "path:" + path))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray();
+        var rows = objectMapper.readTree(response);
+        assertThat(rows.isArray()).isTrue();
+        assertThat(rows).extracting(row -> row.get("token").asText())
+                .containsExactlyElementsOf(before.stream().filter(link -> link.path().startsWith(path + "/"))
+                        .map(link -> link.token()).toList());
+        mockMvc.perform(get("/api/v1/shares").param("q", "path:" + path
+                        + " name:\"summer holiday\" type:file preview:on status:active created:>2020-01-01T00:00:00Z"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].token").value(active.token()))
+                .andExpect(jsonPath("$[0].statusLabel").value("Active"))
+                .andExpect(jsonPath("$[0].active").value(true));
+        mockMvc.perform(get("/api/v1/shares").param("q", "path:" + path + " status:expired expires:<=1970-01-01T00:00:00Z"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].token").value(expired.token()));
+        mockMvc.perform(get("/api/v1/shares").param("q", "path:" + path + " status:revoked"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].token").value(revoked.token()));
+        mockMvc.perform(get("/api/v1/shares").param("q", "path:" + path + " name:missing"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
+        assertThat(shares.list()).isEqualTo(before);
+    }
+
+    @Test
+    void requestQueriesFilterOnlyIssuedRequestsAndPreserveDuplicateCreationDefaultsAndQuota() throws Exception {
+        String destination = directory().getFileName().toString();
+        var original = fileRequests.create("Summer holiday", "Please send originals", destination,
+                UploaderNamePolicy.REQUIRED, 100, 200, 2, List.of("jpg"), 0, null);
+        var revoked = fileRequests.create("Other title", destination, UploaderNamePolicy.NONE,
+                100, 200, 2, List.of(), 0, null);
+        fileRequests.revoke(revoked.id());
+        fileRequests.recordAcceptedUpload(original.id(), UUID.randomUUID().toString(), 100);
+        fileRequests.recordAcceptedUpload(original.id(), UUID.randomUUID().toString(), 100);
+        var before = fileRequests.list();
+        var unfiltered = objectMapper.readTree(mockMvc.perform(get("/api/v1/file-requests")
+                        .param("copyFrom", original.id()).param("destinationPath", destination))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray());
+        var filtered = objectMapper.readTree(mockMvc.perform(get("/api/v1/file-requests")
+                        .param("copyFrom", original.id()).param("destinationPath", destination)
+                        .param("q", "name:missing"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.requests.length()").value(0))
+                .andReturn().getResponse().getContentAsByteArray());
+        assertThat(filtered.get("defaults")).isEqualTo(unfiltered.get("defaults"));
+        assertThat(filtered.get("defaults").get("duplicating").asBoolean()).isTrue();
+        mockMvc.perform(get("/api/v1/file-requests").param("q", "destination:" + destination
+                        + " name:summer description:originals status:FULL uploader-policy:required created:>2020-01-01T00:00:00Z"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.requests.length()").value(1))
+                .andExpect(jsonPath("$.requests[0].id").value(original.id()))
+                .andExpect(jsonPath("$.requests[0].statusLabel").value("Full"))
+                .andExpect(jsonPath("$.requests[0].statusClass").value("warning"))
+                .andExpect(jsonPath("$.requests[0].active").value(false));
+        mockMvc.perform(get("/api/v1/file-requests").param("q", "destination:" + destination + " status:revoked"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.requests[0].id").value(revoked.id()));
+        var ordered = objectMapper.readTree(mockMvc.perform(get("/api/v1/file-requests")
+                        .param("q", "destination:" + destination))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray()).get("requests");
+        assertThat(ordered).extracting(row -> row.get("id").asText())
+                .containsExactlyElementsOf(before.stream().filter(item -> destination.equals(item.destinationPath()))
+                        .map(item -> item.id()).toList());
+        assertThat(fileRequests.list()).isEqualTo(before);
+    }
+
+    @Test
+    void requestQueryErrorsTakePrecedenceOverInvalidCreationContext() throws Exception {
+        mockMvc.perform(get("/api/v1/file-requests").param("destinationPath", "not-created")
+                        .param("copyFrom", "not-created").param("q", "name:any || status:invalid"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.notification.message").value("Invalid value for search field: status"));
     }
 
     private Path directory() throws IOException {
