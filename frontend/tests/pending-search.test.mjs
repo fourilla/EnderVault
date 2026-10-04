@@ -17,6 +17,8 @@ async function compile(file) {
 }
 const apiCode = await compile('pending-decisions/pending-decision-api.ts');
 const pageCode = await compile('pending-decisions/PendingDecisionsApp.tsx');
+const selectionCode = await compile('shared/browser/useItemSelection.ts');
+const shortcutsCode = await compile('shared/browser/useSelectionShortcuts.ts');
 
 function api(fetch) {
   const module = { exports: {} };
@@ -74,12 +76,18 @@ function harness(t, query = '') {
   const react = {
     useState(initial) {
       const index = cursor++;
-      if (!slots[index]) slots[index] = { value: initial };
+      if (!slots[index]) slots[index] = { value: typeof initial === 'function' ? initial() : initial };
       return [slots[index].value, next => {
         const value = typeof next === 'function' ? next(slots[index].value) : next;
         if (!Object.is(value, slots[index].value)) { slots[index].value = value; dirty = true; }
       }];
     },
+    useRef(initial) {
+      const index = cursor++;
+      if (!slots[index]) slots[index] = { value: { current: initial } };
+      return slots[index].value;
+    },
+    useMemo: (factory) => factory(),
     useEffect(run, deps) {
       const index = cursor++, previous = slots[index];
       if (previous && deps.length === previous.deps.length && deps.every((dep, i) => Object.is(dep, previous.deps[i]))) return;
@@ -92,6 +100,18 @@ function harness(t, query = '') {
     addEventListener: (name, fn) => listeners.set(name, fn),
     removeEventListener: (name) => listeners.delete(name),
   };
+  const body = { closest: () => null }, root = { closest: () => null };
+  const scope = { contains: element => element.inside !== false };
+  const document = { ...eventTarget, body, documentElement: root, activeElement: body,
+    visibilityState: 'visible', fullscreenElement: null,
+    querySelector: selector => selector === '.app-main' ? scope : null };
+  const window = { ...eventTarget, setTimeout: () => assert.fail('No long press started'), clearTimeout() {} };
+  const hook = (code) => {
+    const module = { exports: {} };
+    vm.runInNewContext(code, { module, exports: module.exports, document, window,
+      require: id => id === 'react' ? react : { toastError: () => assert.fail('No delete action registered') } });
+    return module.exports;
+  };
   const client = api(() => assert.fail('Page requests use the deferred fixture'));
   const modules = {
     react, 'react/jsx-runtime': jsx,
@@ -100,6 +120,11 @@ function harness(t, query = '') {
     '../app/RouteSearch': { useRouteSearch: control => { registration = control; } },
     '../shared/browser/useHashTarget': { useHashTarget() {} },
     '../shared/browser/BrowserEntries': { icon: () => null },
+    '../shared/browser/StableTable': { StableTable() {} },
+    '../shared/browser/SelectionHeader': { SelectionHeader() {} },
+    '../shared/browser/useItemSelection': hook(selectionCode),
+    '../shared/browser/useSelectionShortcuts': hook(shortcutsCode),
+    '../shared/layout/OverflowMarquee': { OverflowMarquee() {} },
     '../shared/layout/PageHeader': { PageHeader() {} },
     '../shared/layout/PageErrorPanel': { PageErrorPanel() {} },
     '../shared/layout/LoadingState': { LoadingState() {} },
@@ -111,7 +136,7 @@ function harness(t, query = '') {
   };
   const module = { exports: {} };
   vm.runInNewContext(pageCode, { module, exports: module.exports, AbortController, Error, URLSearchParams,
-    document: eventTarget, window: eventTarget,
+    document, window,
     setTimeout: (run, delay) => { assert.equal(delay, 5000); timers.set(++timerId, run); return timerId; },
     clearTimeout: id => timers.delete(id),
     require: id => { assert.ok(id in modules, `unexpected import ${id}`); return modules[id]; },
@@ -121,6 +146,13 @@ function harness(t, query = '') {
   return {
     router, requests, timers, listeners, client, dispose,
     get search() { return registration; },
+    press(key, extra = {}) {
+      const event = { key, target: body, defaultPrevented: false, ctrlKey: false, metaKey: false,
+        altKey: false, shiftKey: false, isComposing: false, repeat: false,
+        preventDefault() { this.defaultPrevented = true; }, ...extra };
+      listeners.get('keydown')?.(event);
+      return event;
+    },
     render() {
       let tree, count = 0;
       do {
@@ -150,6 +182,11 @@ function nodes(tree) {
 const row = id => ({ id, originalFilename: id, directory: false, destinationLabel: '/photos' });
 const rowIds = tree => nodes(tree).filter(node => node.type === 'tr' && node.props.id).map(node => node.props.id);
 const errors = tree => nodes(tree).filter(node => node.type?.name === 'PageErrorPanel');
+const selectedIds = tree => nodes(tree).filter(node => node.type === 'tr' && node.props.className === 'is-selected')
+  .map(node => node.props['data-decision-id']);
+const header = tree => nodes(tree).find(node => node.type?.name === 'SelectionHeader');
+const checkbox = (tree, id) => nodes(tree).find(node => node.type === 'tr' && node.props['data-decision-id'] === id)
+  .props.children[0].props.children;
 
 test('Pending drafts do not fetch until submit; URL history, reload and empty search restore the query', async t => {
   const h = harness(t, 'source:admin_upload');
@@ -259,4 +296,95 @@ test('transient Pending polling errors retain same-query rows, and unmount cance
   assert.equal(h.timers.size, 0);
   assert.equal(h.listeners.size, 0);
   assert.deepEqual(rowIds(h.render()), ['decision-file']);
+});
+
+test('Pending uses stable columns, shared select-all and marquee without adding a bulk toolbar', async t => {
+  const h = harness(t);
+  h.render(); await h.finish(0, [{ ...row('directory'), directory: true, mergeId: 'review' }]);
+  const tree = h.render();
+  const table = nodes(tree).find(node => node.type?.name === 'StableTable');
+  assert.deepEqual([...table.props.columns], ['select', 'text', 'type', 'text', 'size', 'date', 'status', 'actions']);
+  assert.equal(table.props.actionCount, 4);
+  assert.equal(header(tree).props.total, 1);
+  assert.equal(header(tree).props.selected, 0);
+  assert.equal(header(tree).props.disabled, false);
+  assert.equal(nodes(tree).filter(node => node.type?.name === 'OverflowMarquee').length, 4);
+  const element = nodes(tree).find(node => node.type === 'tr' && node.props.id);
+  assert.equal(element.props['data-context-item'], 'true');
+  assert.equal(element.props['data-decision-id'], 'directory');
+  assert.equal(nodes(tree).filter(node => node.type?.name === 'PendingDecisionActions').length, 1);
+  assert.equal(nodes(tree).some(node => node.type?.name === 'FloatingPageActions'), false);
+  await h.poll(); await h.finish(1, []);
+  assert.equal(nodes(h.render()).find(node => node.props?.className === 'empty').props.colSpan, 8);
+});
+
+test('Pending Ctrl/Command+A selects only current results, Escape clears and Delete is never handled', async t => {
+  const h = harness(t, 'name:visible');
+  h.render();
+  assert.equal(h.press('a', { ctrlKey: true }).defaultPrevented, false, 'No snapshot yet');
+  await h.finish(0, [row('file'), { ...row('merge-review'), directory: true, mergeId: 'review' }]);
+  let tree = h.render();
+  checkbox(tree, 'file').props.onChange({ currentTarget: { checked: true } });
+  tree = h.render();
+  assert.equal(header(tree).props.selected, 1);
+  assert.equal(h.press('A', { metaKey: true }).defaultPrevented, true);
+  tree = h.render();
+  assert.deepEqual(selectedIds(tree), ['file', 'merge-review']);
+  assert.equal(h.press('Delete').defaultPrevented, false);
+  assert.equal(h.press('Escape').defaultPrevented, true);
+  assert.deepEqual(selectedIds(h.render()), []);
+  header(h.render()).props.onChange(true);
+  assert.deepEqual(selectedIds(h.render()), ['file', 'merge-review']);
+  header(h.render()).props.onChange(false);
+  assert.deepEqual(selectedIds(h.render()), []);
+});
+
+test('Pending Shift checkbox ranges use shared anchor behavior and do not invoke Actions', async t => {
+  const h = harness(t);
+  h.render(); await h.finish(0, [row('a'), row('b'), row('c')]);
+  let tree = h.render();
+  const node = { closest: selector => selector.includes('input') ? {} : null };
+  const rowEvent = (shiftKey) => ({ target: node, nativeEvent: { shiftKey },
+    stopPropagation() { this.stopped = true; }, stopped: false });
+  const rows = value => nodes(value).filter(node => node.type === 'tr' && node.props.id);
+  rows(tree)[0].props.onChangeCapture(rowEvent(false));
+  checkbox(tree, 'a').props.onChange({ currentTarget: { checked: true } });
+  tree = h.render();
+  const event = rowEvent(true);
+  rows(tree)[2].props.onChangeCapture(event);
+  assert.equal(event.stopped, true);
+  assert.deepEqual(selectedIds(h.render()), ['a', 'b', 'c']);
+  rows(h.render())[1].props.onChangeCapture(rowEvent(true));
+  assert.deepEqual(selectedIds(h.render()), ['a', 'b']);
+  assert.equal(h.requests.length, 1, 'Selecting does not send mutation or list requests');
+});
+
+test('Pending polling retains surviving IDs, never selects additions, and query changes reset selection', async t => {
+  const h = harness(t, 'name:old');
+  h.render(); await h.finish(0, [row('a'), row('b')]); h.render();
+  h.press('a', { ctrlKey: true }); h.render();
+  h.search.onChange('name:new');
+  assert.deepEqual(selectedIds(h.render()), ['a', 'b'], 'Draft input is not a query change');
+  await h.poll(); await h.finish(1, [row('b'), row('c')]);
+  assert.deepEqual(selectedIds(h.render()), ['b']);
+  h.search.onSubmit({ preventDefault() {} }); await flush();
+  assert.deepEqual(selectedIds(h.render()), []);
+  await h.finish(2, [row('b')]);
+  assert.deepEqual(selectedIds(h.render()), [], 'A repeated ID in a new search is not selected');
+});
+
+test('Pending stale errors keep selection but disable shortcuts; resolved IDs are pruned', async t => {
+  const h = harness(t);
+  h.render(); await h.finish(0, [row('a'), row('b')]); h.render();
+  h.press('a', { ctrlKey: true }); h.render();
+  await h.poll(); h.requests[1].reject(new Error('Offline')); await flush();
+  let tree = h.render();
+  assert.deepEqual(selectedIds(tree), ['a', 'b']);
+  assert.equal(header(tree).props.disabled, true);
+  assert.equal(checkbox(tree, 'a').props.disabled, true);
+  assert.equal(h.press('a', { ctrlKey: true }).defaultPrevented, false);
+  await h.poll(); await h.finish(2, [row('a'), row('b')]); tree = h.render();
+  const actions = nodes(tree).find(node => node.type?.name === 'PendingDecisionActions');
+  actions.props.resolved('a');
+  assert.deepEqual(selectedIds(h.render()), ['b']);
 });

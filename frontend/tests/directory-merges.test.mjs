@@ -353,6 +353,10 @@ test('the unified pending page has one table and no page-owned review dialog', a
     useHashTarget: { useHashTarget: () => {} },
     'react-router-dom': { useSearchParams: () => [new URLSearchParams(), () => {}] },
     RouteSearch: { useRouteSearch: () => {} },
+    StableTable: { StableTable: 'table' },
+    useItemSelection: { useItemSelection: () => ({ selected: new Set(), selectedItems: [],
+      selectAll() {}, clearSelection() {} }) },
+    useSelectionShortcuts: { useSelectionShortcuts() {} },
   });
   const tree = component.PendingDecisionsApp();
   const tables = [];

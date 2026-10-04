@@ -4,11 +4,20 @@ import { useSearchParams } from 'react-router-dom';
 import { useRouteSearch } from '../app/RouteSearch';
 import { useHashTarget } from '../shared/browser/useHashTarget';
 import { icon } from '../shared/browser/BrowserEntries';
+import { StableTable } from '../shared/browser/StableTable';
+import { SelectionHeader } from '../shared/browser/SelectionHeader';
+import { useItemSelection } from '../shared/browser/useItemSelection';
+import { useSelectionShortcuts } from '../shared/browser/useSelectionShortcuts';
+import { OverflowMarquee } from '../shared/layout/OverflowMarquee';
 import { PageHeader } from '../shared/layout/PageHeader';
 import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import { loadPendingDecisions, PendingDecisionLoadError } from './pending-decision-api';
 import type { PendingFileDecision } from './types';
 import { PendingDecisionActions } from './PendingDecisionActions';
+
+const emptyDecisions: PendingFileDecision[] = [];
+const itemKey = (decision: PendingFileDecision) => decision.id;
+const keepRowClick = () => {};
 
 export function PendingDecisionsApp() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -19,6 +28,18 @@ export function PendingDecisionsApp() {
   const [refresh, reload] = useState(0);
   const decisions = snapshot?.query === activeQuery ? snapshot.decisions : null;
   const error = feedback?.query === activeQuery ? feedback.message : '';
+  const items = decisions ?? emptyDecisions;
+  const selectable = decisions !== null && !error;
+  const selection = useItemSelection({ items, enabled: selectable, locationKey: activeQuery, itemKey,
+    openItem: keepRowClick });
+  useSelectionShortcuts({
+    enabled: selectable && items.length > 0,
+    contextKey: activeQuery,
+    selectedCount: selection.selectedItems.length,
+    selectAll: selection.selectAll,
+    clearSelection: selection.clearSelection,
+    scope: () => document.querySelector<HTMLElement>('.app-main'),
+  });
 
   useEffect(() => setQuery(activeQuery), [activeQuery]);
 
@@ -101,24 +122,40 @@ export function PendingDecisionsApp() {
             Replace is rejected if the existing target changed after this decision was created.
           </p>
           <div className="table-wrap compact-table">
-            <table className="pending-decisions-table">
+            <StableTable columns={['select', 'text', 'type', 'text', 'size', 'date', 'status', 'actions']}
+              actionCount={4} className="pending-decisions-table">
               <thead>
-                <tr><th>Item</th><th>Source</th><th>Destination</th><th>Size</th><th>Created</th><th>Status</th><th>Actions</th></tr>
+                <tr>
+                  <SelectionHeader total={items.length} selected={selection.selectedItems.length} disabled={!selectable}
+                    onChange={(checked) => checked ? selection.selectAll() : selection.clearSelection()}
+                    label="Select all pending decisions in this result" />
+                  <th>Item</th><th>Source</th><th>Destination</th><th>Size</th><th>Created</th><th>Status</th><th>Actions</th>
+                </tr>
               </thead>
               <tbody>
                 {decisions.map((decision) => (
-                  <tr id={`decision-${decision.id}`} key={decision.id} tabIndex={-1}>
-                    <td><span className="table-primary-text" title={decision.originalFilename}>
-                      {decision.directory && icon('fas fa-folder item-icon')}{decision.originalFilename}
-                    </span></td>
-                    <td>
-                      <span>{decision.sourceLabel}</span>
-                      {decision.submittedBy && <small title={decision.submittedBy}>From {decision.submittedBy}</small>}
+                  <tr id={`decision-${decision.id}`} key={decision.id} tabIndex={-1}
+                    className={selection.selected.has(decision.id) ? 'is-selected' : undefined}
+                    data-context-item="true" data-decision-id={decision.id} {...selection.itemInteractionProps(decision)}>
+                    <td className="select-cell">
+                      <input type="checkbox" className="row-select-checkbox" checked={selection.selected.has(decision.id)}
+                        disabled={!selectable} aria-label={`Select ${decision.originalFilename}`}
+                        onChange={(event) => selection.selectItem(decision, event.currentTarget.checked)} />
                     </td>
-                    <td><span className="table-primary-text" title={decision.destinationLabel}>{decision.destinationLabel}</span></td>
+                    <td><div className="table-item-label">
+                      {decision.directory && icon('fas fa-folder item-icon')}
+                      <span className="item-name"><OverflowMarquee text={decision.originalFilename} /></span>
+                    </div></td>
+                    <td>
+                      <div className="table-cell-stack">
+                        <OverflowMarquee text={decision.sourceLabel} />
+                        {decision.submittedBy && <small><OverflowMarquee text={`From ${decision.submittedBy}`} /></small>}
+                      </div>
+                    </td>
+                    <td><span className="table-primary-text"><OverflowMarquee text={decision.destinationLabel} /></span></td>
                     <td>{decision.sizeLabel}</td>
                     <td title={decision.createdAt}>{decision.createdLabel}</td>
-                    <td>{decision.statusLabel}</td>
+                    <td><span className="table-primary-text"><OverflowMarquee text={decision.statusLabel} /></span></td>
                     <td>
                       <PendingDecisionActions decision={decision}
                         resolved={(id) => setSnapshot((current) => current ? {
@@ -128,12 +165,12 @@ export function PendingDecisionsApp() {
                   </tr>
                 ))}
                 {decisions.length === 0 && (
-                  <tr className="empty-row"><td colSpan={7} className="empty">
+                  <tr className="empty-row"><td colSpan={8} className="empty">
                     {activeQuery ? 'No pending decisions match this search.' : 'No items are awaiting review.'}
                   </td></tr>
                 )}
               </tbody>
-            </table>
+            </StableTable>
           </div>
         </section>
       )}

@@ -1,8 +1,9 @@
-import { MouseEvent, useEffect, useRef } from 'react';
+import { MouseEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { OverflowMarquee } from '../layout/OverflowMarquee';
 import { StableTable } from './StableTable';
 import { PathLink } from './PathLink';
+import { SelectionHeader } from './SelectionHeader';
 import type { BrowserEntry } from './types';
 
 export const icon = (className: string) => <i className={className} aria-hidden="true" />;
@@ -75,37 +76,6 @@ function EntryActions({ entry }: { entry: BrowserEntry }) {
   );
 }
 
-function SelectAllCheckbox({
-  entries,
-  selected,
-  onSelect,
-}: {
-  entries: BrowserEntry[];
-  selected: Set<string>;
-  onSelect: (entry: BrowserEntry, checked: boolean) => void;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const selectedCount = entries.filter((entry) => selected.has(entry.path)).length;
-  const allSelected = entries.length > 0 && selectedCount === entries.length;
-
-  useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.indeterminate = selectedCount > 0 && !allSelected;
-    }
-  }, [allSelected, selectedCount]);
-
-  return (
-    <input
-      ref={inputRef}
-      className="select-all-checkbox"
-      type="checkbox"
-      checked={allSelected}
-      onChange={(event) => entries.forEach((entry) => onSelect(entry, event.target.checked))}
-      aria-label="Select all items in this table"
-    />
-  );
-}
-
 export function EntryTable({
   entries,
   showLocation = false,
@@ -137,11 +107,9 @@ export function EntryTable({
         <thead>
           <tr>
             {selectable && (
-              <th className="select-col">
-                <label className="select-all-label" title="Select all items in this table">
-                  <SelectAllCheckbox entries={entries} selected={selected} onSelect={onSelect} />
-                </label>
-              </th>
+              <SelectionHeader total={entries.length} selected={entries.filter((entry) => selected.has(entry.path)).length}
+                onChange={(checked) => entries.forEach((entry) => onSelect(entry, checked))}
+                label="Select all items in this table" />
             )}
             <th>Name</th>
             {showLocation && <th>Location</th>}
