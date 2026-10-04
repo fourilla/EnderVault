@@ -63,9 +63,10 @@ public class FileRequestApiController {
     @GetMapping
     public FileRequestAdminPayloads.ListPayload list(
             @RequestParam(value = "destinationPath", required = false) String destinationPath,
-            @RequestParam(value = "copyFrom", required = false) String copyFrom
+            @RequestParam(value = "copyFrom", required = false) String copyFrom,
+            @RequestParam(value = "q", required = false) String query
     ) throws IOException {
-        return adminQueryService.list(destinationPath, copyFrom);
+        return adminQueryService.list(destinationPath, copyFrom, query);
     }
 
     @GetMapping("/{id}")

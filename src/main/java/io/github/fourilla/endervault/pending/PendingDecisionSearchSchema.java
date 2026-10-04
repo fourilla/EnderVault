@@ -7,6 +7,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public final class PendingDecisionSearchSchema {
@@ -24,7 +25,11 @@ public final class PendingDecisionSearchSchema {
                     SearchSchema.enumeration("type", "Entry type", List.of("file", "directory"),
                             item -> item.directory() ? "directory" : "file"),
                     SearchSchema.dateTime("created", "Created", ZoneId.systemDefault(), Candidate::createdAt),
-                    SearchSchema.text("submitter", "Uploader name", Candidate::submittedBy)
+                    SearchSchema.text("submitter", "Uploader name", Candidate::submittedBy),
+                    SearchSchema.enumeration("status", "Decision status",
+                            Arrays.stream(PendingDecisionStatus.values()).map(value -> value.name().toLowerCase(Locale.ROOT)).toList(),
+                            Candidate::status),
+                    SearchSchema.byteSize("size", "Received size", Candidate::size)
             ));
 
     private PendingDecisionSearchSchema() {}
@@ -46,11 +51,16 @@ public final class PendingDecisionSearchSchema {
     }
 
     public record Candidate(String name, String destination, String source,
-            boolean directory, Instant createdAt, String submittedBy) {
+            boolean directory, Instant createdAt, String submittedBy, Supplier<PendingDecisionStatus> statusLookup, Long size) {
 
-        public static Candidate from(PendingFileDecision decision) {
+        public static Candidate from(PendingFileDecision decision, Supplier<PendingDecisionStatus> statusLookup) {
             return new Candidate(decision.originalFilename(), destinationLabel(decision.destinationPath()),
-                    decision.source().name(), decision.directory(), decision.createdAt(), decision.submittedBy());
+                    decision.source().name(), decision.directory(), decision.createdAt(), decision.submittedBy(), statusLookup, decision.size());
+        }
+
+        public String status() {
+            var status = statusLookup.get();
+            return status == null ? null : status.name();
         }
     }
 

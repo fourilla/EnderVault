@@ -149,6 +149,10 @@ body:has(.admin-react-shell) .toast-region {
   padding: var(--field-padding);
 }
 
+.topbar-search input[type="search"]::-webkit-search-cancel-button {
+  display: none;
+}
+
 .topbar-search input:disabled {
   color: var(--muted);
   background: var(--panel-muted);

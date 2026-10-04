@@ -56,6 +56,20 @@ export function useSearchInput(options: SearchInputOptions) {
     completionFrame.current = null;
   };
   const close = () => { cancelCompletion(); onClose(); };
+  const reset = () => {
+    const latest = current.current;
+    if (latest.disabled || blocked()) return false;
+    cancelCompletion();
+    pendingCaret.current = null;
+    composition.current = false;
+    setComposing(false);
+    setInputValue('');
+    setSelection({ start: 0, end: 0 });
+    setActive({ key: '', index: -1 });
+    latest.onChange('');
+    latest.onClose();
+    return true;
+  };
   useLayoutEffect(() => {
     cancelCompletion();
     pendingCaret.current = null;
@@ -169,6 +183,7 @@ export function useSearchInput(options: SearchInputOptions) {
     assistance,
     visible: enabled,
     close,
+    reset,
     isComposing: () => composition.current,
     rootProps: {
       onBlur: (event: React.FocusEvent<HTMLFormElement>) => {

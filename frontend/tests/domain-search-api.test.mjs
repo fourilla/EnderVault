@@ -109,9 +109,9 @@ const catalogPageCode = (Array.isArray(catalogPage) ? catalogPage[0] : catalogPa
 
 function catalogHarness() {
   const states = [], effects = [], requests = [];
-  let cursor = 0, query = '';
+  let cursor = 0, query = '', search, params = new URLSearchParams();
   const module = { exports: {} };
-  vm.runInNewContext(catalogPageCode, { module, exports: module.exports, AbortController,
+  vm.runInNewContext(catalogPageCode, { module, exports: module.exports, AbortController, URLSearchParams,
     document: { addEventListener() {}, removeEventListener() {} },
     require(id) {
       if (id === 'react/jsx-runtime') return jsx;
@@ -126,9 +126,12 @@ function catalogHarness() {
         useEffect: (run) => effects.push(run),
       };
       if (id === 'react-router-dom') return {
-        useSearchParams: () => [new URLSearchParams({ q: query }), () => {}],
+        useSearchParams: () => [params, next => {
+          params = new URLSearchParams(next);
+          query = params.get('q') ?? '';
+        }],
       };
-      if (id.endsWith('/RouteSearch')) return { useRouteSearch() {} };
+      if (id.endsWith('/RouteSearch')) return { useRouteSearch(control) { search = control; } };
       if (id === './sticky-note-catalog-api') return {
         loadStickyNoteCatalog: (query, signal) => new Promise((resolve, reject) => {
           requests.push({ query, signal, resolve, reject });
@@ -138,8 +141,16 @@ function catalogHarness() {
     },
   });
   return { states, requests,
-    load(next) {
+    get params() { return params; },
+    controls() {
+      cursor = 0;
+      effects.length = 0;
+      module.exports.StickyNoteListApp();
+      return search;
+    },
+    load(next, otherParams = {}) {
       query = next;
+      params = new URLSearchParams({ ...otherParams, q: query });
       cursor = 0;
       effects.length = 0;
       module.exports.StickyNoteListApp();
@@ -147,6 +158,30 @@ function catalogHarness() {
     },
   };
 }
+
+test('sticky-note reset supports unsubmitted drafts without a list fetch and preserves non-query URL parameters', () => {
+  const draft = catalogHarness();
+  const disposeDraft = draft.load('');
+  draft.controls().onChange('content:draft');
+  assert.equal(draft.controls().value, 'content:draft');
+  draft.controls().onChange('');
+  draft.controls().onReset();
+  assert.equal(draft.controls().value, '');
+  assert.equal(draft.controls().appliedQuery, '');
+  assert.equal(draft.requests.length, 1);
+  disposeDraft();
+
+  const applied = catalogHarness();
+  const disposeApplied = applied.load('name:old', { keep: 'unchanged' });
+  applied.controls().onChange('');
+  assert.equal(applied.controls().appliedQuery, 'name:old');
+  applied.controls().onReset();
+  assert.equal(applied.params.has('q'), false);
+  assert.equal(applied.params.get('keep'), 'unchanged');
+  assert.equal(applied.controls().value, '');
+  assert.equal(applied.controls().appliedQuery, '');
+  disposeApplied();
+});
 
 for (const outcome of ['resolve', 'reject']) {
   test(`sticky-note search ignores an old ${outcome} after a different query finishes`, async () => {

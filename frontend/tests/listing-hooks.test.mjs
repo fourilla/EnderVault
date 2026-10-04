@@ -364,6 +364,7 @@ function setupSelectablePage(t, kind) {
   };
   t.after(() => { h.dispose(); unsubscribe(); history.dispose(); router.dispose(); });
   return { router, window, scrolls, pending, posts, confirmations, render, find, tables, items, identity, rowClick, key,
+    get searchControl() { return search; },
     selected: () => [...tables()[0].selected], refresh: () => { refresh(); render(); },
     async finish(index = pending.length - 1, transform = (value) => value) {
       const state = pending[index].state;
@@ -484,6 +485,64 @@ for (const kind of ['bookmarks', 'recent']) {
 
 function historyNavigate(s, state) {
   s.router.navigate(s.router.state.location.pathname, { state: { listing: state } });
+}
+
+for (const kind of ['files', 'bookmarks', 'recent']) {
+  test(`${kind} draft reset preserves the visit, selection, scroll and avoids a listing request`, async (t) => {
+    const s = setupSelectablePage(t, kind);
+    s.render(); await s.finish();
+    s.window.scrollY = 430;
+    s.rowClick(s.items()[1], { ctrlKey: true });
+    const selected = s.selected(), visit = s.router.state.location.key;
+    const requests = s.pending.length;
+    s.searchControl.onChange('unsubmitted draft'); s.render();
+    assert.equal(s.searchControl.appliedQuery, '');
+    s.searchControl.onChange(''); s.searchControl.onReset(); s.render();
+    assert.equal(s.searchControl.value, '');
+    assert.equal(s.pending.length, requests);
+    assert.equal(s.router.state.location.key, visit);
+    assert.equal(s.window.scrollY, 430);
+    assert.deepEqual(s.selected(), selected);
+  });
+
+  test(`${kind} applied reset returns to the same scope and retains view/filter preferences and history`, async (t) => {
+    const s = setupSelectablePage(t, kind);
+    s.render(); await s.finish();
+    const base = s.pending[0].state;
+    historyNavigate(s, kind === 'bookmarks'
+      ? { ...base, directoryId: 'chosen-directory', query: 'name:old' }
+      : { ...base, mode: 'search', path: 'chosen/path', query: 'name:old',
+        page: 2, view: 'grid', sort: 'name', direction: 'desc', hidden: 'show', pageSize: 100 });
+    s.render(); await s.finish();
+    assert.equal(s.searchControl.appliedQuery, 'name:old');
+    s.key('a', { ctrlKey: true });
+    s.searchControl.onChange(''); s.render();
+    assert.equal(s.searchControl.appliedQuery, 'name:old', 'Empty draft must not hide the applied query');
+    s.searchControl.onReset(); s.render();
+    const next = s.pending.at(-1).state;
+    assert.equal(next.query, '');
+    assert.equal(next.scrollTop, 0);
+    if (kind === 'bookmarks') assert.equal(next.directoryId, 'chosen-directory');
+    else {
+      if (kind === 'files') {
+        assert.equal(next.mode, 'browse');
+        assert.equal(next.path, 'chosen/path');
+      }
+      assert.equal(next.page, 1);
+      assert.equal(next.view, 'grid');
+      assert.equal(next.sort, 'name');
+      assert.equal(next.direction, 'desc');
+      assert.equal(next.hidden, 'show');
+      assert.equal(next.pageSize, 100);
+    }
+    await s.finish();
+    assert.equal(s.searchControl.value, '');
+    assert.equal(s.searchControl.appliedQuery, '');
+    assert.deepEqual(s.selected(), []);
+    await s.router.navigate(-1); s.render();
+    assert.equal(s.searchControl.value, 'name:old');
+    assert.equal(s.searchControl.appliedQuery, 'name:old');
+  });
 }
 
 test('Recent view-only changes preserve visit, page, scroll, selection and anchor through preference persistence', async (t) => {

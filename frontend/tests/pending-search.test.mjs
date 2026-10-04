@@ -110,7 +110,7 @@ function harness(t, query = '') {
     },
   };
   const module = { exports: {} };
-  vm.runInNewContext(pageCode, { module, exports: module.exports, AbortController, Error,
+  vm.runInNewContext(pageCode, { module, exports: module.exports, AbortController, Error, URLSearchParams,
     document: eventTarget, window: eventTarget,
     setTimeout: (run, delay) => { assert.equal(delay, 5000); timers.set(++timerId, run); return timerId; },
     clearTimeout: id => timers.delete(id),
@@ -220,6 +220,27 @@ test('invalid Pending expressions show the shared error panel without automatic 
   assert.equal(h.requests[1].query, '');
   await h.finish(1); h.render();
   assert.equal(h.timers.size, 1);
+});
+
+test('Pending reset clears applied q but preserves other URL parameters and draft-only reset does not refetch', async t => {
+  const h = harness(t);
+  h.render(); await h.finish(); h.render();
+  h.search.onChange('draft'); h.render();
+  h.search.onChange(''); h.search.onReset(); await flush(); h.render();
+  assert.equal(h.search.value, '');
+  assert.equal(h.search.appliedQuery, '');
+  assert.equal(h.requests.length, 1);
+  await h.router.navigate('/admin/pending-decisions?q=name:old&keep=unchanged');
+  h.render(); await h.finish(); h.render();
+  h.search.onChange(''); h.search.onReset(); await flush(); h.render();
+  assert.equal(h.search.value, '');
+  assert.equal(h.search.appliedQuery, '');
+  assert.equal(new URLSearchParams(h.router.state.location.search).has('q'), false);
+  assert.equal(new URLSearchParams(h.router.state.location.search).get('keep'), 'unchanged');
+  assert.equal(h.requests.at(-1).query, '');
+  await h.router.navigate(-1); h.render();
+  assert.equal(h.search.value, 'name:old');
+  assert.equal(h.search.appliedQuery, 'name:old');
 });
 
 test('transient Pending polling errors retain same-query rows, and unmount cancels reads and timers', async t => {

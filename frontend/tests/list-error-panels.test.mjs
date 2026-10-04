@@ -25,7 +25,7 @@ async function compile(file) {
 
 function evaluate(code, dependencies) {
   const module = { exports: {} };
-  vm.runInNewContext(code, { module, exports: module.exports, AbortController, require(id) {
+  vm.runInNewContext(code, { module, exports: module.exports, AbortController, URLSearchParams, require(id) {
     if (id === 'react/jsx-runtime') return jsx;
     if (id.endsWith('.css')) return {};
     if (id.endsWith('/LoadingState')) return loadingModule;
@@ -277,6 +277,14 @@ for (const page of pages) {
     for (const snapshot of [null, page.snapshot]) {
       const states = [snapshot, false, '', 0, ''];
       states[page.errorSlot] = 'Network unavailable';
+      if (page.name === 'SharedLinksApp') {
+        states[0] = snapshot === null ? null : { query: '', shares: snapshot };
+        states[page.errorSlot] = { query: '', message: 'Network unavailable' };
+      }
+      if (page.name === 'TrashApp') {
+        states[0] = snapshot === null ? null : { query: '', payload: snapshot };
+        states[page.errorSlot] = { query: '', message: 'Network unavailable' };
+      }
       states[page.tokenSlot] = 0;
       let index = 0;
       const { [page.name]: App } = evaluate(code, id => {
@@ -288,7 +296,9 @@ for (const page of pages) {
             return [states[slot], value => { states[slot] = typeof value === 'function' ? value(states[slot]) : value; }];
           },
         };
-        if (id === 'react-router-dom') return { Link: ({ children }) => React.createElement('a', null, children) };
+        if (id === 'react-router-dom') return { Link: ({ children }) => React.createElement('a', null, children),
+          useSearchParams: () => [new URLSearchParams(), () => assert.fail('no navigation')] };
+        if (id.endsWith('/RouteSearch')) return { useRouteSearch() {} };
         if (id.endsWith('/PageErrorPanel')) return { PageErrorPanel };
         if (id.endsWith('/PageHeader')) return { PageHeader: () => null };
         if (id.endsWith('/FloatingPageActions')) return { FloatingPageActions: () => null };
@@ -315,7 +325,8 @@ for (const page of pages) {
       assert.match(html, /class="icon-text-button"/);
       panel.props.actions.props.onClick();
       assert.equal(states[page.tokenSlot], 1);
-      assert.equal(states[0], snapshot);
+      assert.equal(page.name === 'SharedLinksApp' ? states[0]?.shares ?? null
+        : page.name === 'TrashApp' ? states[0]?.payload ?? null : states[0], snapshot);
     }
   });
 }

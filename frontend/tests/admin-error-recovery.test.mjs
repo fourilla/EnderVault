@@ -45,7 +45,9 @@ for (const page of pages) {
       require(id) {
         if (id === 'react') return react;
         if (id === 'react/jsx-runtime') return jsx;
-        if (id === 'react-router-dom') return { useLocation: () => location, useNavigate: () => () => assert.fail('no navigation'), Link: () => null };
+        if (id === 'react-router-dom') return { useLocation: () => location, useNavigate: () => () => assert.fail('no navigation'), Link: () => null,
+          useSearchParams: () => [new URLSearchParams(location.search), () => assert.fail('no navigation')] };
+        if (id.endsWith('/RouteSearch')) return { useRouteSearch() {} };
         if (id.endsWith('/PageErrorPanel')) return { PageErrorPanel: Panel };
         if (id.endsWith('/AdminAppContext')) return { useAdminApp: () => ({ refreshBootstrap: () => assert.fail('no mutation') }) };
         if (id.endsWith('/useHashTarget')) return { useHashTarget() {} };
@@ -78,7 +80,6 @@ for (const page of pages) {
     requests[1].resolve(page.payload);
     await settle();
     assert.ok(states[0]);
-    const saved = states[0];
     const draft = page.draft === undefined ? undefined : { edited: true };
     if (page.draft !== undefined) states[page.draft] = draft;
     // Re-run the same read effect to model a refresh of the current query.
@@ -86,6 +87,7 @@ for (const page of pages) {
     requests[2].resolve(page.payload);
     await settle();
     if (page.draft !== undefined) assert.equal(states[page.draft], draft);
+    const saved = states[0];
     cleanup();
     const canceled = effects[0].run();
     canceled();

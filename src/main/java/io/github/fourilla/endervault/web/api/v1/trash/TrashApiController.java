@@ -2,6 +2,7 @@ package io.github.fourilla.endervault.web.api.v1.trash;
 
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.trash.TrashRecord;
+import io.github.fourilla.endervault.trash.TrashSearchSchema;
 import io.github.fourilla.endervault.trash.TrashService;
 import io.github.fourilla.endervault.trash.TrashService.TrashRestoreResult;
 import io.github.fourilla.endervault.web.support.ActionResponse;
@@ -27,8 +28,9 @@ public class TrashApiController {
     }
 
     @GetMapping
-    public TrashBrowserPayload list() throws IOException {
-        return TrashBrowserPayload.from(trashService.list());
+    public TrashBrowserPayload list(@RequestParam(value = "q", required = false) String query) throws IOException {
+        var filter = TrashSearchSchema.compile(query);
+        return TrashBrowserPayload.from(trashService.list().stream().filter(filter).toList());
     }
 
     @PostMapping("/restore")

@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.times;
 
 import io.github.fourilla.endervault.search.SearchQueryException;
 import io.github.fourilla.endervault.stickynote.StickyNote;
@@ -70,6 +71,48 @@ class StickyNoteCatalogServiceTest {
         when(notes.listAll()).thenReturn(List.of(note));
         when(notes.contextLabel(note.context())).thenReturn("Dashboard");
         assertThat(catalog.load("name:excluded").notes()).isEmpty();
+        verify(notes, never()).targetExists(any());
+        verify(notes, never()).openUrl(any());
+    }
+
+    @Test
+    void statusReusesTargetChecksAcrossConditionsPayloadAndNotesOnlyWithinOneRequest() throws Exception {
+        StickyNote first = note("summer holiday");
+        StickyNote second = new StickyNote("second", first.context(), "another note", 0, 0, null,
+                280, 220, false, 1, 0, first.createdAt(), first.updatedAt());
+        var missingContext = new StickyNoteContext(StickyNoteTargetType.STORAGE, "missing.txt", StickyNoteSurface.DETAIL);
+        StickyNote orphan = new StickyNote("orphan", missingContext, "summer missing", 0, 0, null,
+                280, 220, false, 1, 0, first.createdAt(), first.updatedAt());
+        when(notes.listAll()).thenReturn(List.of(first, second, orphan));
+        when(notes.contextLabel(first.context())).thenReturn("Dashboard");
+        when(notes.contextLabel(missingContext)).thenReturn("Missing target");
+        when(notes.targetExists(first.context())).thenReturn(true);
+        when(notes.openUrl(first.context())).thenReturn("/admin");
+        when(notes.targetExists(missingContext)).thenReturn(false);
+
+        assertThat(catalog.load("status:AVAILABLE status:available").notes())
+                .extracting(StickyNoteCatalogPayload.StickyNoteCatalogItemPayload::id).containsExactly("first", "second");
+        verify(notes, times(1)).targetExists(first.context());
+        verify(notes, times(1)).targetExists(missingContext);
+        assertThat(catalog.load("status:orphan").notes()).singleElement().satisfies(item -> {
+            assertThat(item.id()).isEqualTo("orphan");
+            assertThat(item.targetExists()).isFalse();
+            assertThat(item.openUrl()).isNull();
+        });
+        verify(notes, times(2)).targetExists(first.context());
+        verify(notes, times(2)).targetExists(missingContext);
+        verify(notes, never()).openUrl(missingContext);
+    }
+
+    @Test
+    void excludedNotesAndInvalidStatusNeverCauseTargetReadsOrFallback() throws Exception {
+        assertThatThrownBy(() -> catalog.load("name:summer || status:invalid"))
+                .isInstanceOf(SearchQueryException.class).hasMessage("Invalid value for search field: status");
+        verifyNoInteractions(notes);
+        StickyNote note = note("summer");
+        when(notes.listAll()).thenReturn(List.of(note));
+        when(notes.contextLabel(note.context())).thenReturn("Dashboard");
+        assertThat(catalog.load("name:missing status:orphan").notes()).isEmpty();
         verify(notes, never()).targetExists(any());
         verify(notes, never()).openUrl(any());
     }

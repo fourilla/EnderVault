@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.storage;
 
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
+import io.github.fourilla.endervault.common.FileNameExtensions;
 import io.github.fourilla.endervault.common.NaturalNameComparator;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.filetool.FileActionRegistry;
@@ -19,7 +20,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 final class StorageListingService {
@@ -200,25 +200,42 @@ final class StorageListingService {
             boolean directory = Files.isDirectory(path);
             String mediaType = directory ? "directory" : mediaType(path);
             long size = directory ? 0L : Files.size(path);
-            String relativePath = pathResolver.toRelativePath(relativeBase, path);
             Instant modified = Files.getLastModifiedTime(path).toInstant();
-            String extension = extensionOf(path, directory);
-            return new FileItem(
-                    path.getFileName().toString(),
-                    relativePath,
-                    directory,
-                    size,
-                    directory ? "-" : ByteSizeFormatter.humanSize(size),
-                    MODIFIED_FORMATTER.format(modified),
-                    modified,
-                    mediaType,
-                    fileActionRegistry.previewPageAvailable(path.getFileName().toString(), directory, mediaType, extension),
-                    mediaType.startsWith("video/"),
-                    isHidden(path)
-            );
+            return fileItem(relativeBase, path, directory, mediaType, size, modified);
         } catch (IOException ex) {
             throw new StorageAccessException("Failed to read file metadata.", ex);
         }
+    }
+
+    private FileItem toSearchFileItem(Path relativeBase, Path path) {
+        try {
+            boolean directory = Files.isDirectory(path);
+            String mediaType = directory ? "directory" : mediaType(path);
+            // Refresh after predicate evaluation; its lazy snapshot may already be stale.
+            BasicFileAttributes attributes = Files.readAttributes(path, BasicFileAttributes.class);
+            return fileItem(relativeBase, path, directory, mediaType,
+                    directory ? 0L : attributes.size(), attributes.lastModifiedTime().toInstant());
+        } catch (IOException ex) {
+            throw new StorageAccessException("Failed to read file metadata.", ex);
+        }
+    }
+
+    private FileItem fileItem(Path relativeBase, Path path, boolean directory,
+            String mediaType, long size, Instant modified) {
+        String extension = extensionOf(path, directory);
+        return new FileItem(
+                path.getFileName().toString(),
+                pathResolver.toRelativePath(relativeBase, path),
+                directory,
+                size,
+                directory ? "-" : ByteSizeFormatter.humanSize(size),
+                MODIFIED_FORMATTER.format(modified),
+                modified,
+                mediaType,
+                fileActionRegistry.previewPageAvailable(path.getFileName().toString(), directory, mediaType, extension),
+                mediaType.startsWith("video/"),
+                isHidden(path)
+        );
     }
 
     private DirectoryListing directoryListing(
@@ -244,17 +261,21 @@ final class StorageListingService {
             List<FileItem> results
     ) throws IOException {
         try (Stream<Path> stream = Files.list(directory)) {
-            for (Path child : stream
+            for (SearchChild entry : stream
                     .filter(path -> !Files.isSymbolicLink(path))
                     .filter(path -> !pathResolver.isHiddenSystemPath(scope, path))
                     .filter(path -> showHidden || !isHidden(path))
-                    .sorted(pathNameComparator())
-                    .collect(Collectors.toList())) {
+                    .map(child -> new SearchChild(child, Files.isDirectory(child)))
+                    .sorted(Comparator.comparing((SearchChild item) -> !item.directory())
+                            .thenComparing(item -> item.path().getFileName().toString(), NaturalNameComparator.INSTANCE))
+                    .toList()) {
+                Path child = entry.path();
+                // Sorting keys are snapshots, not authority to recurse after concurrent changes.
                 boolean directoryChild = Files.isDirectory(child, LinkOption.NOFOLLOW_LINKS);
                 StorageSearchSchema.Candidate candidate = new StorageSearchSchema.Candidate(
                         child, pathResolver.toRelativePath(pathResolver.baseFor(scope), child), directoryChild);
                 if (filter.test(candidate)) {
-                    results.add(toFileItem(pathResolver.baseFor(scope), child));
+                    results.add(toSearchFileItem(pathResolver.baseFor(scope), child));
                 }
                 if (directoryChild) {
                     searchRecursively(scope, child, filter, showHidden, results);
@@ -262,6 +283,8 @@ final class StorageListingService {
             }
         }
     }
+
+    private record SearchChild(Path path, boolean directory) {}
 
     private Optional<String> parentPathOf(String currentPath) {
         if (currentPath == null || currentPath.isBlank()) {
@@ -328,12 +351,7 @@ final class StorageListingService {
         if (directory) {
             return "";
         }
-        String name = path.getFileName().toString();
-        int index = name.lastIndexOf('.');
-        if (index <= 0 || index == name.length() - 1) {
-            return "";
-        }
-        return name.substring(index + 1).toLowerCase(Locale.ROOT);
+        return FileNameExtensions.extension(path.getFileName().toString());
     }
 
     private Comparator<FileItem> itemComparator(FileSort sort, SortDirection direction) {
@@ -350,12 +368,6 @@ final class StorageListingService {
             primary = primary.reversed();
         }
         return primary.thenComparing(nameComparator);
-    }
-
-    private Comparator<Path> pathNameComparator() {
-        return Comparator
-                .comparing((Path path) -> !Files.isDirectory(path))
-                .thenComparing(path -> path.getFileName().toString(), NaturalNameComparator.INSTANCE);
     }
 
     private boolean isHidden(Path path) {

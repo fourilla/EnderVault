@@ -6,6 +6,7 @@ import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.filerequest.FileRequest;
 import io.github.fourilla.endervault.filerequest.FileRequestOperationsService;
 import io.github.fourilla.endervault.filerequest.FileRequestService;
+import io.github.fourilla.endervault.filerequest.FileRequestSearchSchema;
 import io.github.fourilla.endervault.filerequest.UploaderNamePolicy;
 import io.github.fourilla.endervault.pending.PendingFileDecision;
 import io.github.fourilla.endervault.upload.ResumableUploadSession;
@@ -52,7 +53,9 @@ public class FileRequestAdminQueryService {
         this.properties = nasProperties.getFileRequest();
     }
 
-    public ListPayload list(String destinationPath, String copyFrom) throws IOException {
+    public ListPayload list(String destinationPath, String copyFrom, String query) throws IOException {
+        Instant now = Instant.now();
+        var filter = FileRequestSearchSchema.compile(query, now);
         FileRequest duplicate = copyFrom == null || copyFrom.isBlank() ? null : fileRequestService.require(copyFrom);
         String requestedDestination = destinationPath;
         if ((requestedDestination == null || requestedDestination.isBlank()) && duplicate != null) {
@@ -73,7 +76,7 @@ public class FileRequestAdminQueryService {
                 duplicate != null
         );
         return new ListPayload(
-                fileRequestService.list().stream().map(this::item).toList(),
+                fileRequestService.list().stream().filter(filter).map(request -> item(request, now)).toList(),
                 properties.isEnabled(),
                 properties.isCustomTokenEnabled(),
                 properties.getCustomTokenMinLength(),
@@ -97,6 +100,10 @@ public class FileRequestAdminQueryService {
     }
 
     private RequestItem item(FileRequest request) {
+        return item(request, Instant.now());
+    }
+
+    private RequestItem item(FileRequest request, Instant now) {
         String extensionsLabel = request.allowedExtensions().isEmpty()
                 ? "All extensions" : String.join(", ", request.allowedExtensions());
         return new RequestItem(
@@ -114,8 +121,8 @@ public class FileRequestAdminQueryService {
                         ByteSizeFormatter.humanSize(request.acceptedBytes()),
                         ByteSizeFormatter.humanSize(request.maxTotalBytes())
                 ),
-                request.createdLabel(), request.expiresLabel(), request.statusLabel(), request.statusClass(),
-                request.usable(Instant.now())
+                request.createdLabel(), request.expiresLabel(), request.statusLabel(now), request.statusClass(now),
+                request.usable(now)
         );
     }
 
