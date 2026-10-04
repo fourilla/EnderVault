@@ -86,6 +86,8 @@
             button.className = "context-menu-item";
             button.dataset.contextAction = action.id;
             button.setAttribute("role", "menuitem");
+            button.disabled = Boolean(actionValue(action, context, "disabled"));
+            button.title = actionValue(action, context, "title") || "";
             if (action.danger) {
                 button.classList.add("danger");
             }
@@ -97,7 +99,7 @@
             label.textContent = actionValue(action, context, "label");
             button.append(iconElement, label);
             button.addEventListener("click", async () => {
-                if (disposed) return;
+                if (disposed || actionValue(action, context, "disabled")) return;
                 closeMenu();
                 try {
                     await action.run(context);
@@ -180,7 +182,7 @@
             }
             if (event.key === "ArrowDown" || event.key === "ArrowUp") {
                 event.preventDefault();
-                const buttons = Array.from(activeMenu.querySelectorAll(".context-menu-item"));
+                const buttons = Array.from(activeMenu.querySelectorAll(".context-menu-item:not(:disabled)"));
                 const currentIndex = buttons.indexOf(document.activeElement);
                 const direction = event.key === "ArrowDown" ? 1 : -1;
                 const nextIndex = currentIndex < 0

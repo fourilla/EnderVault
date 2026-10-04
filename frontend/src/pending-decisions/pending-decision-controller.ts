@@ -1,8 +1,8 @@
 import { postForm, toastError } from '../shared/api/form-api';
 import { mergeBase } from '../directory-merges/merge-api';
-import { resolvePendingDecision } from './pending-decision-api';
-import { pendingDecisionActionDefinitions, type PendingDecisionActionId } from './pending-decision-actions';
-import type { PendingFileDecision } from './types';
+import { resolvePendingDecision, resolvePendingSelection } from './pending-decision-api';
+import { MAX_PENDING_BULK_ITEMS, pendingDecisionActionDefinitions, type PendingDecisionActionId } from './pending-decision-actions';
+import type { PendingBulkAction, PendingBulkResult, PendingFileDecision } from './types';
 
 export interface PendingDecisionControllerOptions {
   decision: (id: string) => PendingFileDecision | undefined;
@@ -13,6 +13,9 @@ export interface PendingDecisionControllerOptions {
   openMerge: (id: string) => void;
   mergeStarted?: () => void;
   busyChanged?: (busy: boolean) => void;
+  isCurrent?: () => boolean;
+  selectedIds?: () => readonly string[];
+  bulkResolved?: (result: PendingBulkResult) => void;
 }
 
 interface Execution {
@@ -28,16 +31,16 @@ export function createPendingDecisionController(read: () => PendingDecisionContr
   const canRun = (id: string, action: PendingDecisionActionId) => {
     const options = read();
     const decision = options.decision(id);
-    return active && options.enabled && !executions.has(id) && Boolean(decision
+    return active && options.enabled && (options.isCurrent?.() ?? true) && !executions.has(id) && Boolean(decision
       && pendingDecisionActionDefinitions.find((candidate) => candidate.id === action)?.supports(decision));
   };
 
-  const finish = (id: string, execution: Execution) => {
+  const finish = (id: string, execution: Execution, redraw = true) => {
     if (executions.get(id) !== execution) return;
     clearTimeout(execution.timer);
     execution.controller.abort();
     executions.delete(id);
-    if (active) changed();
+    if (active && redraw) changed();
   };
 
   const pollPreparation = (id: string, taskId: string, execution: Execution) => {
@@ -65,13 +68,13 @@ export function createPendingDecisionController(read: () => PendingDecisionContr
     const options = read();
     const decision = options.decision(id);
     const definition = pendingDecisionActionDefinitions.find((candidate) => candidate.id === action);
-    if (!active || !options.enabled || executions.has(id) || !decision || !definition?.supports(decision)) return;
+    if (!canRun(id, action) || !decision || !definition) return;
     if (action === 'REVIEW') { options.openMerge(decision.mergeId!); return; }
 
     const execution: Execution = { action, controller: new AbortController() };
     const startedGeneration = generation;
     const contextKey = options.contextKey;
-    const currentContext = () => active && generation === startedGeneration
+    const currentContext = () => active && generation === startedGeneration && (options.isCurrent?.() ?? true)
       && read().contextKey === contextKey;
     const canSubmit = () => {
       const latest = read();
@@ -126,8 +129,74 @@ export function createPendingDecisionController(read: () => PendingDecisionContr
     }
   };
 
+  const unavailableReason = (ids: readonly string[], action: PendingDecisionActionId) => {
+    const options = read();
+    const definition = pendingDecisionActionDefinitions.find((candidate) => candidate.id === action);
+    if (!ids.length) return 'Select pending items first.';
+    if (ids.length > MAX_PENDING_BULK_ITEMS) return `Select no more than ${MAX_PENDING_BULK_ITEMS} items per action.`;
+    if (!active || !options.enabled || !(options.isCurrent?.() ?? true)) return 'Wait for the current list to load successfully.';
+    if (new Set(ids).size !== ids.length || !definition || (ids.length > 1 && !definition.multiple)) {
+      return 'This action is not available for these items.';
+    }
+    if (ids.some((id) => executions.has(id))) return 'An action is already in progress for these items.';
+    if (ids.some((id) => { const item = options.decision(id); return !item || !definition.supports(item); })) {
+      return 'These items changed. Refresh pending decisions before continuing.';
+    }
+    return '';
+  };
+
+  const runSelected = async (selected: readonly string[], action: PendingDecisionActionId) => {
+    const ids = [...selected];
+    if (unavailableReason(ids, action)) return;
+    if (ids.length === 1) { await run(ids[0], action); return; }
+    const options = read();
+    const selectedMatches = () => {
+      const latest = read().selectedIds?.();
+      return !latest || (latest.length === ids.length && ids.every((id) => latest.includes(id)));
+    };
+    if (!selectedMatches()) return;
+    const definition = pendingDecisionActionDefinitions.find((candidate) => candidate.id === action)!;
+    const originals = ids.map((id) => options.decision(id)!);
+    const contextKey = options.contextKey;
+    const startedGeneration = generation;
+    const currentContext = () => active && generation === startedGeneration && (options.isCurrent?.() ?? true)
+      && read().contextKey === contextKey;
+    const execution: Execution = { action, controller: new AbortController() };
+    ids.forEach((id) => executions.set(id, execution));
+    changed();
+    options.busyChanged?.(true);
+    try {
+      const confirmed = await window.EnderVault!.askConfirmation({ nested: options.nested,
+        title: `${definition.label}: ${ids.length} items`,
+        message: action === 'DISCARD' ? `Permanently discard these ${ids.length} staged items and their contents? Existing destination items are kept.`
+          : action === 'REPLACE' ? `Replace the existing destination files with these ${ids.length} staged files?`
+            : `Save these ${ids.length} staged items with available numbered names, keeping existing destination items?`,
+        confirmLabel: definition.label, danger: definition.danger,
+      });
+      if (!confirmed || !currentContext() || !read().enabled || !selectedMatches()) return;
+      if (!originals.every((original) => {
+        const latest = read().decision(original.id);
+        return latest && definition.supports(latest) && latest.directory === original.directory
+          && (latest.mergeId || null) === (original.mergeId || null);
+      })) {
+        toastError(new Error('Selected items changed. Refresh pending decisions and review the selection again.'), 'Selection changed.');
+        return;
+      }
+      const result = await resolvePendingSelection(ids, action as PendingBulkAction, window.location.href);
+      if (currentContext()) read().bulkResolved?.(result);
+    } catch (reason) {
+      toastError(reason, 'Pending items could not be processed. Refresh pending decisions before retrying.');
+    } finally {
+      ids.forEach((id) => finish(id, execution, false));
+      if (active) changed();
+      if (currentContext()) read().busyChanged?.(false);
+    }
+  };
+
   return {
     run,
+    runSelected,
+    unavailableReason,
     canRun,
     busy: (id: string) => executions.has(id),
     preparing: (id: string) => executions.get(id)?.action === 'MERGE',

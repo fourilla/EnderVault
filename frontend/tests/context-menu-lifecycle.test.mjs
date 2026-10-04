@@ -136,3 +136,30 @@ test('unclaimed pages regain global sticky note actions after a scoped page unmo
   assert.equal(document.body.children.length, 1);
   assert.equal(document.body.children[0].children[0].dataset.contextAction, 'sticky');
 });
+
+test('optional disabled/title are real controls and revalidated on execution; keyboard navigation skips them', async () => {
+  const { menus, document } = setup();
+  let blocked = true, ran = 0;
+  const target = new Element();
+  const menu = menus.createActionMenu({ actions: [
+    { id: 'disabled', label: 'Wait', icon: '', disabled: () => blocked, title: 'An action is in progress', run: () => ran++ },
+    { id: 'enabled', label: 'Run', icon: '', run: () => ran++ },
+  ], contextForEvent: () => ({ item: { element: target } }) });
+  const event = { target, preventDefault() {}, clientX: 20, clientY: 30 };
+  await document.emit('contextmenu', event);
+  const element = document.body.children[0];
+  const [disabled, enabled] = element.children;
+  assert.equal(disabled.disabled, true); assert.equal(disabled.title, 'An action is in progress');
+  assert.equal(enabled.disabled, false);
+  await disabled.emit('click'); assert.equal(ran, 0);
+  let focused = false;
+  enabled.focus = () => { focused = true; };
+  element.querySelectorAll = selector => { assert.equal(selector, '.context-menu-item:not(:disabled)'); return [enabled]; };
+  await document.emit('keydown', { key: 'ArrowDown', preventDefault() {} }); assert.equal(focused, true);
+  blocked = false; await disabled.emit('click'); assert.equal(ran, 1);
+  await document.emit('contextmenu', event);
+  const oldEnabled = document.body.children[0].children[0];
+  assert.equal(oldEnabled.disabled, false);
+  blocked = true; await oldEnabled.emit('click'); assert.equal(ran, 1, 'Latest state blocks even a stale enabled button');
+  menu.dispose();
+});

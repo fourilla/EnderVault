@@ -36,17 +36,18 @@
     text-align: left;
 }
 
-.context-menu-item:hover,
+.context-menu-item:not(:disabled):hover,
 .context-menu-item:focus-visible {
     background: var(--panel-muted);
     outline: none;
 }
 
 .context-menu-item.danger {
+    background: transparent;
     color: var(--danger);
 }
 
-.context-menu-item.danger:hover,
+.context-menu-item.danger:not(:disabled):hover,
 .context-menu-item.danger:focus-visible {
     background: var(--danger-bg);
 }
@@ -65,4 +66,9 @@
     height: 1px;
     background: var(--line);
     margin: var(--space-xs) 0;
+}
+
+.context-menu-item:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }

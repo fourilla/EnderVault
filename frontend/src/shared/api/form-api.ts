@@ -34,6 +34,11 @@ export const postForm = async (
   return request(url, { method: 'POST', body: formData(values) });
 };
 
+export const postEncodedForm = (url: string, values: Record<string, FormValue>) => {
+  const body = new URLSearchParams(Array.from(formData(values), ([name, value]) => [name, String(value)]));
+  return enderVault().requestJson(url, { method: 'POST', body });
+};
+
 export const notify = (body: any) => {
   if (body?.notification) window.EnderVault?.showNotification(body.notification);
 };

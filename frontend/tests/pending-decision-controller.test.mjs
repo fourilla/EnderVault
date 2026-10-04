@@ -26,12 +26,13 @@ const deferred = () => {
 const item = (id = 'pending', directory = false, extra = {}) => ({ id, directory, originalFilename: 'photos.v1', ...extra });
 
 function harness(overrides = {}) {
-  const confirmations = [], inputs = [], resolves = [], posts = [], polls = [], tracked = [], errors = [], events = [],
+  const confirmations = [], inputs = [], resolves = [], bulkResolves = [], bulkResults = [], posts = [], polls = [], tracked = [], errors = [], events = [],
     removed = [], opened = [], busyChanges = [], timers = new Map();
   let decisions = [item()], redraws = 0, started = 0, timerId = 0;
   const options = { enabled: true, contextKey: 'query', nested: false,
     decision: id => decisions.find(entry => entry.id === id),
     resolved: id => removed.push(id), openMerge: id => opened.push(id),
+    bulkResolved: result => bulkResults.push(result),
     mergeStarted: () => started++, busyChanged: value => busyChanges.push(value) };
   const window = { location: { href: '/files?path=photos' },
     dispatchEvent: event => events.push(event.type),
@@ -52,6 +53,9 @@ function harness(overrides = {}) {
     './pending-decision-api': { resolvePendingDecision: async (...args) => {
       resolves.push(args);
       return overrides.resolve ? overrides.resolve(...args) : { removedId: args[0] };
+    }, resolvePendingSelection: async (...args) => {
+      bulkResolves.push(args);
+      return overrides.bulkResolve ? overrides.bulkResolve(...args) : { results: args[0].map(id => ({ id, status: 'RESOLVED', removedId: id })) };
     } },
     './pending-decision-actions': policyModule.exports,
   };
@@ -63,7 +67,7 @@ function harness(overrides = {}) {
     require: id => { assert.ok(id in modules, `Unexpected controller dependency: ${id}`); return modules[id]; },
   });
   const controller = module.exports.createPendingDecisionController(() => options, () => redraws++);
-  return { controller, options, confirmations, inputs, resolves, posts, polls, tracked, errors, events,
+  return { controller, options, confirmations, inputs, resolves, bulkResolves, bulkResults, posts, polls, tracked, errors, events,
     removed, opened, busyChanges, timers,
     get started() { return started; }, get redraws() { return redraws; },
     items(next) { decisions = next; },
@@ -255,4 +259,132 @@ test('the shared hook keeps one controller across polling and gives query revisi
   render('b', []); render('a', [item()]);
   assert.notEqual(read().contextKey, initialContext);
   assert.equal(redraws, 1); cleanup(); assert.equal(disposed, 1);
+});
+
+test('selected execution delegates one item to the original single path, including review and save as', async () => {
+  const h = harness();
+  await h.controller.runSelected(['pending'], 'SAVE_AS');
+  assert.equal(h.inputs.length, 1); assert.equal(h.resolves.length, 1); assert.equal(h.bulkResolves.length, 0);
+  h.items([item('pending', true, { mergeId: 'review' })]);
+  await h.controller.runSelected(['pending'], 'REVIEW');
+  assert.deepEqual(h.opened, ['review']); assert.equal(h.bulkResolves.length, 0);
+});
+
+test('bulk actions confirm once and send only fixed IDs once, with one result callback', async () => {
+  for (const action of ['KEEP_BOTH', 'REPLACE', 'DISCARD']) {
+    const h = harness(); h.items([item('a'), item('b')]);
+    await h.controller.runSelected(['a', 'b'], action);
+    assert.equal(h.confirmations.length, 1);
+    assert.match(h.confirmations[0].message, /2 staged/);
+    assert.equal(Boolean(h.confirmations[0].danger), action !== 'KEEP_BOTH');
+    assert.equal(h.bulkResolves.length, 1); assert.equal(h.resolves.length, 0);
+    assert.deepEqual(Array.from(h.bulkResolves[0][0]), ['a', 'b']);
+    assert.equal(h.bulkResolves[0][1], action); assert.equal(h.bulkResolves[0][2], '/files?path=photos');
+    assert.equal(h.bulkResults.length, 1); assert.deepEqual(h.removed, []);
+    assert.deepEqual(h.busyChanges, [true, false]);
+    assert.equal(h.controller.busy('a') || h.controller.busy('b'), false);
+    assert.equal(h.redraws, 2, 'A batch redraws once on lock and once on release, not once per ID');
+  }
+});
+
+test('bulk locks all IDs before confirmation, blocking overlapping single/bulk actions but not unrelated items', async () => {
+  const answer = deferred(); const h = harness({ confirm: () => answer.promise });
+  h.items([item('a'), item('b'), item('c')]);
+  const running = h.controller.runSelected(['a', 'b'], 'DISCARD');
+  assert.equal(h.controller.busy('a'), true); assert.equal(h.controller.busy('b'), true);
+  await h.controller.run('b', 'KEEP_BOTH');
+  await h.controller.runSelected(['b', 'c'], 'KEEP_BOTH');
+  await h.controller.run('c', 'KEEP_BOTH');
+  assert.deepEqual(h.resolves.map(call => call[0]), ['c']); assert.equal(h.confirmations.length, 1);
+  answer.resolve(true); await running; assert.equal(h.bulkResolves.length, 1);
+});
+
+test('bulk rejects empty, duplicate, unsupported, mixed-owner and over-limit selections without requests', async () => {
+  const h = harness(); h.items([item('a'), item('b', true), item('owned', true, { mergeId: 'review' })]);
+  for (const [ids, action] of [[[], 'DISCARD'], [['a', 'a'], 'DISCARD'], [['a', 'missing'], 'DISCARD'],
+    [['a', 'b'], 'REPLACE'], [['a', 'b'], 'SAVE_AS'], [['a', 'b'], 'MERGE'], [['a', 'b'], 'REVIEW'],
+    [['a', 'owned'], 'DISCARD'], [['a', 'b'], 'UNKNOWN']]) {
+    assert.ok(h.controller.unavailableReason(ids, action)); await h.controller.runSelected(ids, action);
+  }
+  h.items(Array.from({ length: 201 }, (_, index) => item(String(index))));
+  const ids = Array.from({ length: 201 }, (_, index) => String(index));
+  assert.match(h.controller.unavailableReason(ids, 'DISCARD'), /200/);
+  await h.controller.runSelected(ids, 'DISCARD');
+  assert.equal(h.confirmations.length + h.bulkResolves.length, 0);
+  await h.controller.runSelected(ids.slice(0, 200), 'KEEP_BOTH');
+  assert.equal(h.bulkResolves.length, 1); assert.equal(h.bulkResolves[0][0].length, 200);
+});
+
+test('bulk confirmation cancellation releases every lock and never mutates', async () => {
+  const h = harness({ confirm: () => false }); h.items([item('a'), item('b', true)]);
+  await h.controller.runSelected(['a', 'b'], 'DISCARD');
+  assert.equal(h.bulkResolves.length, 0); assert.equal(h.bulkResults.length, 0);
+  assert.equal(h.controller.busy('a') || h.controller.busy('b'), false);
+});
+
+test('bulk confirms latest context, selection membership, owner, type and router ownership before submitting', async () => {
+  for (const change of [h => { h.options.contextKey = 'other'; }, h => h.items([item('a')]),
+    h => h.items([item('a'), item('b', true, { mergeId: 'review' })]),
+    h => h.items([item('a'), item('b', true)]), h => { h.options.enabled = false; },
+    h => { h.options.selectedIds = () => ['a']; }, h => { h.options.selectedIds = () => ['a', 'b', 'new']; },
+    h => { h.options.isCurrent = () => false; }, h => h.controller.dispose()]) {
+    const answer = deferred(); const h = harness({ confirm: () => answer.promise });
+    h.items([item('a'), item('b')]); h.options.selectedIds = () => ['a', 'b'];
+    let current = true; h.options.isCurrent = () => current;
+    const running = h.controller.runSelected(['a', 'b'], 'DISCARD');
+    change(h); answer.resolve(true); await running;
+    assert.equal(h.bulkResolves.length, 0); assert.equal(h.bulkResults.length, 0);
+    assert.equal(h.controller.busy('a') || h.controller.busy('b'), false);
+  }
+});
+
+test('bulk snapshot never adds new rows, and a harmless selection reorder does not cancel it', async () => {
+  const answer = deferred(); const h = harness({ confirm: () => answer.promise });
+  h.items([item('a'), item('b')]); h.options.selectedIds = () => ['a', 'b'];
+  const running = h.controller.runSelected(['a', 'b'], 'KEEP_BOTH');
+  h.items([item('b'), item('new'), item('a')]); h.options.selectedIds = () => ['b', 'a'];
+  answer.resolve(true); await running;
+  assert.deepEqual(Array.from(h.bulkResolves[0][0]), ['a', 'b']);
+});
+
+test('bulk partial and all-failure envelopes remain per-item results, not single successes or retries', async () => {
+  for (const succeededCount of [0, 1]) {
+    const result = { ok: true, succeededCount, failedCount: 2 - succeededCount,
+      results: [{ id: 'a', status: succeededCount ? 'RESOLVED' : 'FAILED', removedId: succeededCount ? 'a' : null },
+        { id: 'b', status: 'NOT_FOUND', removedId: null }] };
+    const h = harness({ bulkResolve: () => result }); h.items([item('a'), item('b')]);
+    await h.controller.runSelected(['a', 'b'], 'DISCARD');
+    assert.equal(h.bulkResults[0], result); assert.deepEqual(h.removed, []);
+    assert.equal(h.bulkResolves.length, 1); assert.equal(h.resolves.length, 0); assert.equal(h.errors.length, 0);
+  }
+});
+
+test('bulk late responses cannot update a different or disposed/reactivated view, including before unmount', async () => {
+  for (const change of [h => { h.options.contextKey = 'other'; }, h => h.controller.dispose(),
+    h => { h.controller.dispose(); h.controller.activate(); }, h => { h.options.isCurrent = () => false; }]) {
+    const answer = deferred(); const h = harness({ bulkResolve: () => answer.promise });
+    h.items([item('a'), item('b')]);
+    const running = h.controller.runSelected(['a', 'b'], 'KEEP_BOTH');
+    await flush(); assert.equal(h.bulkResolves.length, 1);
+    change(h); answer.resolve({ ok: true, results: [] }); await running;
+    assert.equal(h.bulkResults.length, 0);
+  }
+});
+
+test('bulk transport failures report once, retain items and unlock without replaying any single request', async () => {
+  const failure = new Error('Offline'); const h = harness({ bulkResolve: () => { throw failure; } });
+  h.items([item('a'), item('b')]);
+  await h.controller.runSelected(['a', 'b'], 'REPLACE');
+  assert.equal(h.errors.length, 1); assert.equal(h.errors[0].reason, failure);
+  assert.equal(h.bulkResults.length, 0); assert.equal(h.bulkResolves.length, 1); assert.equal(h.resolves.length, 0);
+  assert.equal(h.controller.busy('a') || h.controller.busy('b'), false);
+});
+
+test('single actions also honor immediate router departure before the controller unmounts', async () => {
+  const answer = deferred(); const h = harness({ confirm: () => answer.promise });
+  let current = true; h.options.isCurrent = () => current;
+  const running = h.controller.run('pending', 'DISCARD');
+  current = false; answer.resolve(true); await running;
+  assert.equal(h.resolves.length, 0);
+  await h.controller.run('pending', 'KEEP_BOTH'); assert.equal(h.resolves.length, 0);
 });

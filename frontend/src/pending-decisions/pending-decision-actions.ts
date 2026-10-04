@@ -2,6 +2,9 @@ import type { PendingFileDecision, PendingFileDecisionAction } from './types';
 
 export type PendingDecisionActionId = PendingFileDecisionAction | 'MERGE' | 'REVIEW';
 
+export const MAX_PENDING_BULK_ITEMS = 200;
+export const NO_COMMON_PENDING_ACTION = 'These items have no common action. Select staged items separately from transfer reviews.';
+
 export interface PendingDecisionActionDefinition {
   id: PendingDecisionActionId;
   label: string;

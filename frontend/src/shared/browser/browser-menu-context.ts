@@ -13,6 +13,8 @@ export interface BrowserMenuAction<T> {
   label: string | ((context: BrowserMenuContext<T>) => string);
   icon: string | ((context: BrowserMenuContext<T>) => string);
   danger?: boolean;
+  disabled?: boolean | ((context: BrowserMenuContext<T>) => boolean);
+  title?: string | ((context: BrowserMenuContext<T>) => string);
   visible?: (context: BrowserMenuContext<T>) => boolean;
   run: (context: BrowserMenuContext<T>) => unknown;
 }

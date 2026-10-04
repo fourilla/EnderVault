@@ -289,7 +289,7 @@ test('pending row renders the same preparation action while its controller await
 test('the unified pending page has one table and no page-owned review dialog', async () => {
   const jsx = (type, props) => ({ type, props });
   let stateIndex = 0;
-  const react = { useEffect: () => {},
+  const react = { useEffect: () => {}, useMemo: (factory) => factory(),
     useState: (value) => [stateIndex++ === 1 ? { query: '', decisions: [] } : value, () => {}],
     createElement: (type, props, ...children) => jsx(type, { ...props, children }) };
   const component = await load('../src/pending-decisions/PendingDecisionsApp.tsx', { React: react }, {
@@ -301,6 +301,9 @@ test('the unified pending page has one table and no page-owned review dialog', a
     useItemSelection: { useItemSelection: () => ({ selected: new Set(), selectedItems: [],
       selectAll() {}, clearSelection() {} }) },
     useSelectionShortcuts: { useSelectionShortcuts() {} },
+    useBrowserContextMenu: { useBrowserContextMenu() {} },
+    ListingHistoryContext: { useLocationGuard: () => () => true },
+    'pending-decision-menu-actions': { pendingDecisionMenuActions: () => [] },
     usePendingDecisionActions: { usePendingDecisionActions: () => ({}) },
   });
   const tree = component.PendingDecisionsApp();

@@ -72,7 +72,7 @@ function harness(t, query = '') {
     initialEntries: [`/admin/pending-decisions${query ? `?${new URLSearchParams({ q: query })}` : ''}`],
   });
   const slots = [], effects = [], requests = [], timers = new Map(), listeners = new Map();
-  let cursor = 0, dirty, registration, actionOptions, timerId = 0;
+  let cursor = 0, dirty, registration, actionOptions, menuOptions, timerId = 0;
   const react = {
     useState(initial) {
       const index = cursor++;
@@ -124,11 +124,20 @@ function harness(t, query = '') {
     '../shared/browser/SelectionHeader': { SelectionHeader() {} },
     '../shared/browser/useItemSelection': hook(selectionCode),
     '../shared/browser/useSelectionShortcuts': hook(shortcutsCode),
+    '../shared/browser/useBrowserContextMenu': { useBrowserContextMenu: options => { menuOptions = options; } },
+    '../shared/browser/ListingHistoryContext': { useLocationGuard: () => {
+      const location = router.state.location;
+      return () => router.state.location === location;
+    } },
     '../shared/layout/OverflowMarquee': { OverflowMarquee() {} },
     '../shared/layout/PageHeader': { PageHeader() {} },
     '../shared/layout/PageErrorPanel': { PageErrorPanel() {} },
     '../shared/layout/LoadingState': { LoadingState() {} },
     './PendingDecisionActions': { PendingDecisionActions() {} },
+    './PendingDecisionSelectionActions': { PendingDecisionSelectionActions() {} },
+    './pending-decision-menu-actions': {
+      pendingDecisionMenuActions: () => [], keepPendingMenuContext: () => true,
+    },
     './usePendingDecisionActions': { usePendingDecisionActions: options => { actionOptions = options; return {}; } },
     './pending-decision-api': {
       PendingDecisionLoadError: client.PendingDecisionLoadError,
@@ -147,7 +156,9 @@ function harness(t, query = '') {
   return {
     router, requests, timers, listeners, client, dispose,
     get search() { return registration; },
+    get menu() { return menuOptions; },
     resolve(id) { actionOptions.resolved(id); },
+    resolveSelected(results) { actionOptions.bulkResolved({ results }); },
     press(key, extra = {}) {
       const event = { key, target: body, defaultPrevented: false, ctrlKey: false, metaKey: false,
         altKey: false, shiftKey: false, isComposing: false, repeat: false,
@@ -315,6 +326,10 @@ test('Pending uses stable columns, shared select-all and marquee without adding 
   assert.equal(element.props['data-decision-id'], 'directory');
   assert.equal(nodes(tree).filter(node => node.type?.name === 'PendingDecisionActions').length, 1);
   assert.equal(nodes(tree).some(node => node.type?.name === 'FloatingPageActions'), false);
+  assert.equal(nodes(tree).filter(node => node.type?.name === 'PendingDecisionSelectionActions').length, 1);
+  assert.equal(h.menu.menuId, 'pendingContextMenu');
+  assert.equal(h.menu.keyAttribute, 'data-decision-id');
+  assert.equal(h.menu.entries()[0].id, 'directory');
   await h.poll(); await h.finish(1, []);
   assert.equal(nodes(h.render()).find(node => node.props?.className === 'empty').props.colSpan, 8);
 });
@@ -387,4 +402,26 @@ test('Pending stale errors keep selection but disable shortcuts; resolved IDs ar
   await h.poll(); await h.finish(2, [row('a'), row('b')]); tree = h.render();
   h.resolve('a');
   assert.deepEqual(selectedIds(h.render()), ['b']);
+});
+
+test('partial bulk results prune only successes, keep failed selections and show per-item feedback across polling', async t => {
+  const h = harness(t, 'source:admin_upload');
+  h.render(); await h.finish(0, [row('a'), row('b'), row('c')]); h.render();
+  h.press('a', { ctrlKey: true }); h.render();
+  h.resolveSelected([
+    { id: 'a', status: 'RESOLVED', removedId: 'a' },
+    { id: 'b', status: 'NOT_FOUND', removedId: null, message: 'Required entry is missing.' },
+    { id: 'c', status: 'FAILED', removedId: null, message: 'Recovery may be required.' },
+  ]);
+  let tree = h.render();
+  assert.deepEqual(rowIds(tree), ['decision-b', 'decision-c']);
+  assert.deepEqual(selectedIds(tree), ['b', 'c']);
+  assert.ok(nodes(tree).some(node => node.props?.text === 'Required entry is missing.'));
+  await h.poll(); await h.finish(1, [row('c'), row('new')]);
+  tree = h.render();
+  assert.deepEqual(selectedIds(tree), ['c']);
+  assert.ok(nodes(tree).some(node => node.props?.text === 'Recovery may be required.'));
+  await h.router.navigate('/admin/pending-decisions?q=name:new');
+  h.render(); await h.finish(2, [row('c')]);
+  assert.ok(!nodes(h.render()).some(node => node.props?.text === 'Recovery may be required.'));
 });

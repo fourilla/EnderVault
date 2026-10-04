@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { browserMenuContext } from './browser-menu-context';
-import type { BrowserMenuAction } from './browser-menu-context';
+import type { BrowserMenuAction, BrowserMenuContext } from './browser-menu-context';
 
 export function useBrowserContextMenu<T>(options: {
   menuId: string;
@@ -12,6 +12,8 @@ export function useBrowserContextMenu<T>(options: {
   setSelected: React.Dispatch<React.SetStateAction<Set<string>>>;
   actions: () => BrowserMenuAction<T>[];
   contentKey: unknown;
+  contextKey?: unknown;
+  keepOnRefresh?: (context: BrowserMenuContext<T>) => boolean;
   errorMessage: string;
 }) {
   const current = useRef(options);
@@ -45,7 +47,13 @@ export function useBrowserContextMenu<T>(options: {
     };
   }, [options.menuId, options.pageScope, options.errorMessage]);
 
-  // Never leave a menu targeting entries from a previous snapshot or directory.
-  useEffect(() => { menuRef.current?.close(); }, [options.contentKey]);
+  useEffect(() => { menuRef.current?.close(); }, [options.contextKey]);
+  // Polling pages can retain unchanged targets; default callers still close on every new snapshot.
+  useEffect(() => {
+    const menu = menuRef.current;
+    const context = menu?.activeContext() as BrowserMenuContext<T> | null;
+    if (context && current.current.keepOnRefresh?.(context)) return;
+    menu?.close();
+  }, [options.contentKey]);
   return menuRef;
 }

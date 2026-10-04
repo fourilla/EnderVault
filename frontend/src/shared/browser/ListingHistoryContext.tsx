@@ -5,6 +5,13 @@ import type { ListingHistory, ListingHistoryConfig, ListingState } from './listi
 
 const Context = createContext<ListingHistory | null>(null);
 
+export function useLocationGuard() {
+  const history = useContext(Context);
+  const location = useLocation();
+  if (!history) throw new Error('ListingHistoryProvider is required.');
+  return () => history.isCurrent(location);
+}
+
 export function ListingHistoryProvider({ history, children }: { history: ListingHistory; children: ReactNode }) {
   useEffect(() => {
     window.addEventListener('pagehide', history.capture);
