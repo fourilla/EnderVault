@@ -16,7 +16,8 @@ import { useSelectionShortcuts } from '../shared/browser/useSelectionShortcuts';
 import { useBrowserContextMenu } from '../shared/browser/useBrowserContextMenu';
 import { useLocationGuard } from '../shared/browser/ListingHistoryContext';
 import { ListItemActions, useListItemActions } from '../shared/browser/ListItemActions';
-import { listItemMenuActions } from '../shared/browser/list-item-actions';
+import { ListItemSelectionActions } from '../shared/browser/ListItemSelectionActions';
+import { listItemMenuActions, type ListItemBulkResult } from '../shared/browser/list-item-actions';
 import { fileRequestItemIdentity, fileRequestItemKey, fileRequestListActions } from './file-request-list-actions';
 import {
   createFileRequest,
@@ -50,6 +51,7 @@ export function FileRequestsApp() {
   const [snapshot, setSnapshot] = useState<{ search: string; context: string; payload: FileRequestListPayload } | null>(null);
   const [values, setValues] = useState<FileRequestCreateValues | null>(null);
   const [feedback, setFeedback] = useState<{ search: string; message: string } | null>(null);
+  const [bulkFeedback, setBulkFeedback] = useState<{ context: string; failures: ListItemBulkResult['results'] } | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
   const [busy, setBusy] = useState('');
   const [query, setQuery] = useState(activeQuery);
@@ -67,7 +69,15 @@ export function FileRequestsApp() {
     itemKey: fileRequestItemKey, openItem: keepRowClick });
   const actions = useListItemActions({ items, definitions: fileRequestListActions(navigate), enabled: selectable,
     blocked: () => pageBusy.current, contextKey: location.key, isCurrent,
-    itemKey: fileRequestItemKey, itemIdentity: fileRequestItemIdentity, reload });
+    itemKey: fileRequestItemKey, itemIdentity: fileRequestItemIdentity, reload,
+    selectedIds: () => [...selection.selectedRef.current],
+    bulkResolved: (result, actionId) => {
+      const succeeded = new Set(result.results.filter((item) => item.status === 'APPLIED').map((item) => item.id));
+      selection.setSelected((current) => new Set([...current].filter((id) => !succeeded.has(id))));
+      if (actionId === 'request-delete') setSnapshot((current) => current ? { ...current,
+        payload: { ...current.payload, requests: current.payload.requests.filter((item) => !succeeded.has(item.id)) } } : current);
+      setBulkFeedback({ context: location.key, failures: result.results.filter((item) => item.status !== 'APPLIED') });
+    } });
   const menuContent = useMemo(() => ({ items, error, selected: selection.selected }), [items, error, selection.selected]);
   useBrowserContextMenu({ menuId: 'fileRequestsContextMenu', pageScope: 'file-requests-react', entries: () => items,
     itemKey: fileRequestItemKey, keyAttribute: 'data-request-id',
@@ -164,6 +174,9 @@ export function FileRequestsApp() {
     });
     if (confirmed) await mutate('expired', deleteExpiredFileRequests, 'Expired file requests could not be deleted.');
   };
+
+  const failures = new Map(bulkFeedback && bulkFeedback.context === location.key
+    ? bulkFeedback.failures.map((item) => [item.id, item.message]) : []);
 
   return (
     <div className="dashboard-workspace file-requests-workspace">
@@ -267,7 +280,9 @@ export function FileRequestsApp() {
                       <i className="fas fa-hourglass-end" aria-hidden="true" /> {item.expiresLabel}
                     </span>
                   </div></td>
-                  <td><span className={`status-badge ${item.statusClass}`}>{item.statusLabel}</span></td>
+                  <td><div className="table-cell-stack"><span className={`status-badge ${item.statusClass}`}>{item.statusLabel}</span>
+                    {failures.has(item.id) && <small title={failures.get(item.id)}><OverflowMarquee text={failures.get(item.id)!} /></small>}
+                  </div></td>
                   <td><ListItemActions item={item} itemKey={fileRequestItemKey} actions={actions} /></td>
                 </tr>)}
                 {requests.length === 0 && <tr className="empty-row"><td colSpan={8} className="empty">
@@ -278,6 +293,8 @@ export function FileRequestsApp() {
           </section>
         </>
       )}
+      {requests && <ListItemSelectionActions items={selection.selectedItems} itemKey={fileRequestItemKey}
+        actions={actions} label="Selected file request actions" />}
     </div>
   );
 }

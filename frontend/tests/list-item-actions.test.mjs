@@ -130,3 +130,121 @@ test('share and request definitions retain their original single transports and 
   assert.equal(posts[1].values.token, item.token);
   assert.equal(notified.length, 4);
 });
+
+function bulkSetup() {
+  const h = setup(), submitted = [], resolved = [];
+  h.options.items.push({ id: 'second', path: 'photos', active: true });
+  h.options.selectedIds = () => h.options.items.map(item => item.id);
+  h.options.bulkResolved = (result, action) => resolved.push({ result, action });
+  h.options.definitions[0].bulk = {
+    confirmation: count => ({ title: 'Selected revoke', message: String(count), confirmLabel: 'Revoke', danger: true }),
+    execute: async ids => { submitted.push(Array.from(ids)); return bulkResult(ids); },
+  };
+  return { ...h, h, submitted, resolved };
+}
+const bulkResult = ids => ({ ok: true, succeededCount: ids.length, failedCount: 0,
+  results: Array.from(ids, id => ({ id, status: 'APPLIED', message: 'Done' })) });
+
+test('selected actions use one confirmation, one bulk transport, one reload and the same lock as row actions', async () => {
+  const b = bulkSetup(), ids = b.options.selectedIds(), running = b.controller.runSelected(ids, 'revoke');
+  await b.controller.runSelected(ids, 'revoke');
+  await b.controller.run(ids[0], 'revoke');
+  assert.equal(b.confirmations.length, 1);
+  assert.equal(b.confirmations[0].message, '2');
+  assert.equal(b.controller.isBusy(), true);
+  b.confirm.resolve(true); await running;
+  assert.deepEqual(b.submitted, [ids]);
+  assert.deepEqual(b.executed, [], 'No repeated single POSTs');
+  assert.equal(b.h.reloads, 1);
+  assert.equal(b.resolved.length, 1);
+  assert.equal(b.resolved[0].action, 'revoke');
+  assert.equal(b.controller.isBusy(), false);
+});
+
+for (const change of ['selection', 'removed', 'renamed', 'inactive', 'disabled', 'blocked', 'query', 'left-before-render', 'disposed', 'cancel']) {
+  test(`selected ${change}: confirmation cannot execute a stale or canceled selection`, async () => {
+    const b = bulkSetup(), running = b.controller.runSelected(b.options.selectedIds(), 'revoke');
+    if (change === 'selection') b.options.selectedIds = () => ['second'];
+    if (change === 'removed') b.options.items.pop();
+    if (change === 'renamed') b.options.items[1].path = 'other';
+    if (change === 'inactive') b.options.items[1].active = false;
+    if (change === 'disabled') b.options.enabled = false;
+    if (change === 'blocked') b.h.block();
+    if (change === 'query') b.options.contextKey = {};
+    if (change === 'left-before-render') b.h.leave();
+    if (change === 'disposed') b.controller.dispose();
+    b.confirm.resolve(change !== 'cancel'); await running;
+    assert.deepEqual(b.submitted, []);
+    assert.equal(b.h.reloads, 0);
+    assert.equal(b.resolved.length, 0);
+    assert.equal(b.controller.isBusy(), false);
+  });
+}
+
+test('bulk capabilities, shared eligibility, unique IDs and 200 item limit are checked before confirmation', async () => {
+  const b = bulkSetup();
+  assert.equal(b.controller.selectionDefinitions(b.options.items).length, 1);
+  b.options.items[1].active = false;
+  assert.equal(b.controller.selectionDefinitions(b.options.items).length, 0);
+  await b.controller.runSelected(b.options.selectedIds(), 'revoke');
+  await b.controller.runSelected(['custom_token-1', 'custom_token-1'], 'revoke');
+  await b.controller.runSelected([], 'revoke');
+  await b.controller.runSelected(Array.from({ length: 201 }, (_, i) => String(i)), 'revoke');
+  b.options.definitions[0].bulk = undefined;
+  await b.controller.runSelected(['custom_token-1'], 'revoke');
+  assert.equal(b.confirmations.length, 0);
+  assert.deepEqual(b.submitted, []);
+});
+
+test('lost bulk response reloads once without automatic replay or removing uncertain IDs', async () => {
+  const b = bulkSetup();
+  b.options.definitions[0].bulk.execute = async ids => { b.submitted.push(Array.from(ids)); throw new Error('Network lost'); };
+  const running = b.controller.runSelected(b.options.selectedIds(), 'revoke');
+  b.confirm.resolve(true); await running;
+  assert.equal(b.h.reloads, 1);
+  assert.equal(b.submitted.length, 1);
+  assert.equal(b.resolved.length, 0);
+  assert.deepEqual(b.errors, ['Network lost']);
+});
+
+test('submitted bulk work survives outgoing view disposal without applying results or reloading another page', async () => {
+  const b = bulkSetup(), response = deferred(), ids = b.options.selectedIds();
+  b.options.definitions[0].bulk.execute = async ids => { b.submitted.push(Array.from(ids)); return response.promise; };
+  const running = b.controller.runSelected(ids, 'revoke');
+  b.confirm.resolve(true); await new Promise(setImmediate);
+  assert.equal(b.submitted.length, 1);
+  b.controller.dispose(); response.resolve(bulkResult(ids)); await running;
+  assert.equal(b.resolved.length, 0);
+  assert.equal(b.h.reloads, 0);
+});
+
+test('bulk envelope validation refuses missing, duplicate, reordered and inconsistent successes', () => {
+  const { validateListBulkResult } = evaluate(code, () => ({ toastError() {} }));
+  const ids = ['first', 'second'], good = bulkResult(ids);
+  assert.equal(validateListBulkResult(good, ids), good);
+  const partial = { ...good, succeededCount: 1, failedCount: 1,
+    results: [good.results[0], { id: 'second', status: 'REJECTED', message: 'Pending files remain' }] };
+  assert.equal(validateListBulkResult(partial, ids), partial);
+  for (const bad of [null, { ...good, ok: false }, { ...good, results: [] }, { ...good, succeededCount: 1 },
+    { ...good, failedCount: 1 }, { ...good, results: [...good.results].reverse() },
+    { ...good, results: [good.results[0], good.results[0]] }, { ...good, results: [good.results[0], null] },
+    { ...good, results: [good.results[0], { id: 'second', status: 'UNKNOWN', message: 'Bad' }] }]) {
+    assert.throws(() => validateListBulkResult(bad, ids), /could not be verified/);
+  }
+});
+
+test('request selected transport submits encoded IDs and a single summary, never calls the single mutation loop', async () => {
+  const controller = evaluate(code, () => ({ toastError() {} })), posts = [], notified = [];
+  const forms = { postEncodedForm: async (url, values) => { posts.push({ url, values }); return bulkResult(values.ids); },
+    postForm: () => assert.fail('Bulk must not use single multipart transport'), notify: body => notified.push(body) };
+  const api = evaluate(await compile('file-requests/file-request-api.ts'), id => id.endsWith('/list-item-actions') ? controller : forms);
+  const ids = ['one', 'two'];
+  const result = await api.resolveFileRequestSelection(ids, 'DELETE');
+  assert.equal(result.succeededCount, 2);
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].url, '/api/v1/file-requests/selected/resolve');
+  assert.deepEqual(Array.from(posts[0].values.ids), ids);
+  assert.equal(posts[0].values.confirmed, true);
+  assert.equal(posts[0].values.action, 'DELETE');
+  assert.equal(notified.length, 1);
+});

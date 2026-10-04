@@ -8,7 +8,7 @@ import * as jsx from 'react/jsx-runtime';
 import { linkListStub } from './helpers/link-list-stubs.mjs';
 
 const pages = [
-  { file: 'file-requests/FileRequestsApp', name: 'FileRequestsApp', load: 'loadFileRequests', token: 3,
+  { file: 'file-requests/FileRequestsApp', name: 'FileRequestsApp', load: 'loadFileRequests', token: 4,
     payload: { defaults: { title: 'Default', maxFiles: 10 } }, draft: 1 },
   { file: 'activity-logs/ActivityLogsApp', name: 'ActivityLogsApp', load: 'loadActivityLogs', token: 3,
     payload: { query: { text: 'Applied', size: 50 }, selectedFile: 'today' }, draft: 1 },
@@ -30,7 +30,7 @@ for (const page of pages) {
   test(`${page.name} retries only its read request and ignores aborted responses`, async () => {
     const states = [], refs = [], effects = [], requests = [];
     let stateIndex = 0, refIndex = 0;
-    const location = { search: '?q=applied' };
+    const location = { search: '?q=applied', key: 'test-visit' };
     const Panel = () => null;
     const module = { exports: {} };
     const react = {

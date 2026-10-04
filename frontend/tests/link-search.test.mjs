@@ -29,12 +29,13 @@ const selectionCode = await compile('shared/browser/useItemSelection.ts');
 const shortcutsCode = await compile('shared/browser/useSelectionShortcuts.ts');
 const controllerCode = await compile('shared/browser/list-item-actions.ts');
 const actionViewCode = await compile('shared/browser/ListItemActions.tsx');
+const selectionActionViewCode = await compile('shared/browser/ListItemSelectionActions.tsx');
 const menuContextCode = await compile('shared/browser/browser-menu-context.ts');
 const flush = () => new Promise(setImmediate);
 function nodes(tree) {
   if (Array.isArray(tree)) return tree.flatMap(nodes);
   if (!tree || typeof tree !== 'object') return [];
-  if (tree.type?.name === 'ListItemActions') return nodes(tree.type(tree.props));
+  if (['ListItemActions', 'ListItemSelectionActions'].includes(tree.type?.name)) return nodes(tree.type(tree.props));
   return [tree, ...nodes(tree.props?.children)];
 }
 const share = id => ({ token: id, path: id, url: `/s/${id}`, type: 'FILE', active: true, directDownloadUrl: null });
@@ -54,6 +55,7 @@ function harness(t, domain, search = '') {
   const slots = [], effects = [], requests = [], mutations = [], confirmations = [], errors = [], copies = [], listeners = new Map();
   let cursor = 0, dirty, registration, menuOptions;
   let confirm = async () => true;
+  let bulkOutcome;
   const react = {
     useState(initial) {
       const index = cursor++;
@@ -86,7 +88,14 @@ function harness(t, domain, search = '') {
       const [signal, query] = domain.scope === 'shares' ? args : [args[1], new URLSearchParams(args[0]).get('q') ?? ''];
       requests.push({ signal, query, args, resolve, reject });
     });
-    return async (...args) => { mutations.push({ name, args }); };
+    return async (...args) => {
+      mutations.push({ name, args });
+      if (name === 'resolveFileRequestSelection') {
+        if (bulkOutcome instanceof Error) throw bulkOutcome;
+        return bulkOutcome ?? { ok: true, succeededCount: args[0].length, failedCount: 0,
+          results: Array.from(args[0], id => ({ id, status: 'APPLIED', message: 'Done' })) };
+      }
+    };
   } });
   const routeHooks = { Link() {}, useLocation: () => router.state.location,
     useNavigate: () => router.navigate,
@@ -103,6 +112,8 @@ function harness(t, domain, search = '') {
     : id === 'react-router-dom' ? routeHooks : id.endsWith('/list-item-actions') || id === './list-item-actions' ? controller
     : { icon: () => null });
   const actionDefinitions = evaluate(domain.actionsCode, id => id.endsWith('/list-item-actions') ? controller : api);
+  const selectionActionView = evaluate(selectionActionViewCode, id => id === 'react/jsx-runtime' ? jsx
+    : { FloatingPageActions() {} });
   const selection = evaluate(selectionCode, () => react);
   const shortcuts = evaluate(shortcutsCode, id => id === 'react' ? react : formApi);
   const { browserMenuContext } = evaluate(menuContextCode, () => ({}));
@@ -124,6 +135,7 @@ function harness(t, domain, search = '') {
         return () => router.state.location === visit;
       } };
       if (id.endsWith('/ListItemActions')) return actionView;
+      if (id.endsWith('/ListItemSelectionActions')) return selectionActionView;
       if (id.endsWith('/list-item-actions')) return controller;
       if (id.endsWith('-list-actions')) return actionDefinitions;
       if (id.endsWith('/format-bytes')) return { formatBytes: String };
@@ -136,6 +148,7 @@ function harness(t, domain, search = '') {
   return { router, requests, mutations, confirmations, errors, copies, document,
     get menu() { return menuOptions; },
     setConfirmation(fn) { confirm = fn; },
+    setBulkOutcome(result) { bulkOutcome = result; },
     key(event) { listeners.get('keydown')?.(event); },
     context(id, native = false) {
       const entries = menuOptions.entries();
@@ -246,8 +259,10 @@ for (const domain of domains) {
     for (const row of listRows(h.render())) rowCheckbox(row).props.onChange({ currentTarget: { checked: true } });
     h.render(); context = h.context('one');
     assert.equal(context.mode, 'selection');
-    assert.equal(h.menu.actions().filter(action => action.visible(context)).length, 0);
-    for (const action of h.menu.actions()) await action.run(context);
+    const selectedActions = h.menu.actions().filter(action => action.visible(context));
+    if (domain.scope === 'shares') assert.ok(selectedActions.every(action => action.disabled(context)));
+    else assert.deepEqual(Array.from(selectedActions, action => action.label), ['Delete']);
+    for (const action of h.menu.actions().filter(action => !action.visible(context))) await action.run(context);
     assert.equal(h.mutations.length, 0);
     assert.equal(h.menu.actions().filter(action => action.visible(h.context(null))).length, 0);
     context = h.context('unselected');
@@ -303,6 +318,102 @@ test('request creation fields retain native Ctrl+A and do not enter the list sho
   h.key({ key: 'a', ctrlKey: true, target: input, preventDefault() { prevented = true; } });
   assert.equal(prevented, false);
   assert.deepEqual(selectedKeys(h.render()), []);
+});
+
+test('request bulk delete preserves failed rows and selection, removes successful rows and keeps creation draft', async t => {
+  const h = harness(t, domains[1], '?q=status:revoked&destinationPath=photos');
+  h.render(); await h.finish(0, ['one', 'two', 'three']);
+  let tree = h.render();
+  nodes(tree).find(node => node.type === 'input' && node.props.maxLength === 120)
+    .props.onChange({ target: { value: 'Draft title' } });
+  for (const row of listRows(tree)) rowCheckbox(row).props.onChange({ currentTarget: { checked: true } });
+  h.render();
+  h.setBulkOutcome({ ok: true, succeededCount: 1, failedCount: 2, results: [
+    { id: 'one', status: 'APPLIED', message: 'Deleted' },
+    { id: 'two', status: 'REJECTED', message: 'Resolve pending files first.' },
+    { id: 'three', status: 'FAILED', message: 'Refresh before retrying.' },
+  ] });
+  const context = h.context('one'), command = h.menu.actions().find(action => action.visible(context) && action.label === 'Delete');
+  await command.run(context); await flush(); tree = h.render();
+  assert.deepEqual(rowKeys(tree), ['two', 'three']);
+  assert.deepEqual(selectedKeys(tree), ['two', 'three']);
+  assert.equal(h.mutations.length, 1);
+  assert.equal(h.mutations[0].name, 'resolveFileRequestSelection');
+  assert.deepEqual(Array.from(h.mutations[0].args[0]), ['one', 'two', 'three']);
+  assert.equal(h.mutations[0].args[1], 'DELETE');
+  assert.equal(h.requests.length, 2, 'Exactly one canonical reload');
+  assert.equal(h.requests[1].query, 'status:revoked');
+  assert.ok(nodes(tree).some(node => node.props?.title === 'Resolve pending files first.'));
+  assert.equal(nodes(tree).find(node => node.type === 'input' && node.props.maxLength === 120).props.value, 'Draft title');
+  await h.finish(1, ['two', 'three']);
+  assert.deepEqual(selectedKeys(h.render()), ['two', 'three']);
+});
+
+test('request bulk revoke clears successful selection without removing records and reloads applied query', async t => {
+  const h = harness(t, domains[1], '?q=status:active');
+  h.render();
+  const data = payload(domains[1], ['one', 'two']);
+  data.requests.forEach(item => { item.active = true; });
+  h.requests[0].resolve(data); await flush();
+  let tree = h.render();
+  for (const row of listRows(tree)) rowCheckbox(row).props.onChange({ currentTarget: { checked: true } });
+  tree = h.render();
+  const floating = nodes(tree).find(node => node.type?.name === 'FloatingPageActions');
+  assert.equal(floating.props.selectedCount, 2);
+  const button = nodes(floating).find(node => node.type === 'button' && node.props['aria-label'] === 'Revoke');
+  assert.equal(button.props.disabled, false);
+  await button.props.onClick(); await flush(); tree = h.render();
+  assert.deepEqual(rowKeys(tree), ['one', 'two']);
+  assert.deepEqual(selectedKeys(tree), []);
+  assert.equal(h.mutations[0].name, 'resolveFileRequestSelection');
+  assert.equal(h.mutations[0].args[1], 'REVOKE');
+  assert.equal(h.requests.length, 2);
+  assert.equal(h.requests[1].query, 'status:active');
+});
+
+test('request mixed selection exposes no subset operation in context menu or floating actions', async t => {
+  const h = harness(t, domains[1]);
+  h.render(); const data = payload(domains[1], ['one', 'two']); data.requests[0].active = true;
+  h.requests[0].resolve(data); await flush();
+  for (const row of listRows(h.render())) rowCheckbox(row).props.onChange({ currentTarget: { checked: true } });
+  const tree = h.render(), context = h.context('one');
+  const commands = h.menu.actions().filter(action => action.visible(context));
+  assert.equal(commands.length, 1);
+  assert.equal(commands[0].id, 'no-common-link-action');
+  assert.equal(commands[0].disabled(context), true);
+  assert.ok(nodes(tree).find(node => node.type === 'button' && node.props['aria-label'] === 'No common action for these links')?.props.disabled);
+  for (const command of h.menu.actions()) await command.run(context);
+  assert.equal(h.mutations.length, 0);
+  assert.equal(h.confirmations.length, 0);
+});
+
+test('request lost bulk response preserves uncertain selection and performs one reload without replay', async t => {
+  const h = harness(t, domains[1]);
+  h.render(); await h.finish(0, ['one', 'two']);
+  for (const row of listRows(h.render())) rowCheckbox(row).props.onChange({ currentTarget: { checked: true } });
+  h.render(); h.setBulkOutcome(new Error('Lost response'));
+  const context = h.context('one');
+  await h.menu.actions().find(action => action.visible(context) && action.label === 'Delete').run(context);
+  await flush(); const tree = h.render();
+  assert.deepEqual(rowKeys(tree), ['one', 'two']);
+  assert.deepEqual(selectedKeys(tree), ['one', 'two']);
+  assert.equal(h.requests.length, 2);
+  assert.equal(h.mutations.length, 1);
+  assert.deepEqual(h.errors, ['Lost response']);
+});
+
+test('request bulk confirmation cannot submit after an outgoing Router visit before React unmount', async t => {
+  const h = harness(t, domains[1]);
+  h.render(); await h.finish(0, ['one', 'two']);
+  for (const row of listRows(h.render())) rowCheckbox(row).props.onChange({ currentTarget: { checked: true } });
+  h.render();
+  let resolve; h.setConfirmation(() => new Promise(done => { resolve = done; }));
+  const context = h.context('one');
+  const running = h.menu.actions().find(action => action.visible(context) && action.label === 'Delete').run(context);
+  await h.router.navigate('/admin/dashboard');
+  resolve(true); await running;
+  assert.equal(h.mutations.length, 0);
+  assert.equal(h.requests.length, 1);
 });
 const errorPanels = tree => nodes(tree).filter(node => node.type?.name === 'PageErrorPanel');
 const rowKeys = tree => nodes(tree).filter(node => node.type === 'tr' && node.key).map(node => node.key);

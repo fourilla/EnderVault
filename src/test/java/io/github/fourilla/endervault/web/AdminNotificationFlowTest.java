@@ -432,6 +432,60 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void selectedRequestActionsUseEncodedCsrfAndExistingOperationsWithoutRedirects() throws Exception {
+        var first = fileRequestService.create("Bulk first", "", "", UploaderNamePolicy.OPTIONAL,
+                1024, 4096, 3, List.of(), 7, null);
+        var second = fileRequestService.create("Bulk second", "", "", UploaderNamePolicy.OPTIONAL,
+                1024, 4096, 3, List.of(), 7, null);
+        mockMvc.perform(post("/api/v1/file-requests/selected/resolve").with(csrf())
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED).param("ids", first.id(), second.id())
+                        .param("action", "REVOKE").param("confirmed", "true"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.succeededCount").value(2))
+                .andExpect(jsonPath("$.redirectUrl").doesNotExist());
+        assertThat(fileRequestService.require(first.id()).enabled()).isFalse();
+        assertThat(fileRequestService.require(second.id()).enabled()).isFalse();
+        mockMvc.perform(post("/api/v1/file-requests/selected/resolve").with(csrf().asHeader())
+                        .param("ids", first.id(), second.id()).param("action", "DELETE").param("confirmed", "true"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.succeededCount").value(2));
+        assertThat(fileRequestService.list()).noneMatch(item -> item.id().equals(first.id()) || item.id().equals(second.id()));
+        assertThat(activityLogService.recentByMetadata("requestId", first.id(), 10))
+                .extracting(entry -> entry.type()).contains("FILE_REQUEST_REVOKE", "FILE_REQUEST_DELETE");
+    }
+
+    @Test
+    void selectedRequestDeleteRejectsActiveRecordsButStillDeletesEligibleRecords() throws Exception {
+        var inactive = fileRequestService.create("Bulk inactive", "", "", UploaderNamePolicy.OPTIONAL,
+                1024, 4096, 3, List.of(), 7, null);
+        var active = fileRequestService.create("Bulk active", "", "", UploaderNamePolicy.OPTIONAL,
+                1024, 4096, 3, List.of(), 7, null);
+        fileRequestService.revoke(inactive.id());
+        mockMvc.perform(post("/api/v1/file-requests/selected/resolve").with(csrf())
+                        .param("ids", inactive.id(), active.id()).param("action", "DELETE").param("confirmed", "true"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.succeededCount").value(1))
+                .andExpect(jsonPath("$.failedCount").value(1)).andExpect(jsonPath("$.results[0].status").value("APPLIED"))
+                .andExpect(jsonPath("$.results[1].status").value("REJECTED"));
+        assertThat(fileRequestService.require(active.id()).enabled()).isTrue();
+        assertThat(fileRequestService.list()).noneMatch(item -> item.id().equals(inactive.id()));
+    }
+
+    @Test
+    void selectedRequestActionsRequireCsrf() throws Exception {
+        var item = fileRequestService.create("Bulk CSRF", "", "", UploaderNamePolicy.OPTIONAL,
+                1024, 4096, 3, List.of(), 7, null);
+        mockMvc.perform(post("/api/v1/file-requests/selected/resolve").param("ids", item.id())
+                        .param("action", "REVOKE").param("confirmed", "true")).andExpect(status().isForbidden());
+        assertThat(fileRequestService.require(item.id()).enabled()).isTrue();
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    void selectedRequestActionsRequireAdministratorRoleEvenWithCsrf() throws Exception {
+        mockMvc.perform(post("/api/v1/file-requests/selected/resolve").with(csrf())
+                        .param("ids", java.util.UUID.randomUUID().toString()).param("action", "DELETE")
+                        .param("confirmed", "true")).andExpect(status().isForbidden());
+    }
+
+    @Test
     @WithAnonymousUser
     void publicFileRequestAdmitsAndReceivesResumableUpload() throws Exception {
         String suffix = java.util.UUID.randomUUID().toString();
