@@ -1,36 +1,9 @@
-import { Fragment, useEffect, useRef } from 'react';
+import { Fragment } from 'react';
 import { icon } from '../shared/browser/BrowserEntries';
 import { StableTable } from '../shared/browser/StableTable';
+import { SelectionHeader } from '../shared/browser/SelectionHeader';
 import { OverflowMarquee } from '../shared/layout/OverflowMarquee';
 import type { BookmarkEntry } from './types';
-
-function SelectionHeader({
-  entries,
-  selected,
-  select,
-  label,
-}: {
-  entries: BookmarkEntry[];
-  selected: Set<string>;
-  select: (entry: BookmarkEntry, checked: boolean) => void;
-  label: string;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const selectedCount = entries.filter((entry) => selected.has(entry.id)).length;
-  const allSelected = entries.length > 0 && selectedCount === entries.length;
-  useEffect(() => {
-    if (inputRef.current) inputRef.current.indeterminate = selectedCount > 0 && !allSelected;
-  }, [allSelected, selectedCount]);
-  return (
-    <th className="select-col">
-      <label className="select-all-label" title={label}>
-        <input ref={inputRef} className="select-all-checkbox" type="checkbox" checked={allSelected}
-          onChange={(event) => entries.forEach((entry) => select(entry, event.target.checked))}
-          aria-label={label} />
-      </label>
-    </th>
-  );
-}
 
 function BookmarkName({ entry, browse }: { entry: BookmarkEntry; browse: (id: string) => void }) {
   const directory = entry.type === 'directory';
@@ -106,7 +79,8 @@ export function BookmarkTable({
       <div className="table-wrap">
         <StableTable columns={['select', 'text', 'type', 'date', 'actions']} actionCount={4}>
           <thead><tr>
-            <SelectionHeader entries={entries} selected={selected} select={select}
+            <SelectionHeader total={entries.length} selected={entries.filter((entry) => selected.has(entry.id)).length}
+              onChange={(checked) => entries.forEach((entry) => select(entry, checked))}
               label={'Select all bookmark ' + heading.toLowerCase() + ' in this table'} />
             <th>Name</th><th>Type</th><th>Updated</th><th>Actions</th>
           </tr></thead>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { AppDialog } from '../shared/dialogs/AppDialog';
 import { loadPendingDecisions } from './pending-decision-api';
 import { PendingDecisionActions } from './PendingDecisionActions';
+import { usePendingDecisionActions } from './usePendingDecisionActions';
 import type { PendingFileDecision } from './types';
 import './pending-decision-dialog.css';
 
@@ -12,6 +13,8 @@ export function PendingDecisionDialog({ id, close, openMerge }: {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [revision, reload] = useState(0);
+  const actions = usePendingDecisionActions({ items: decision ? [decision] : [], enabled: Boolean(decision && !error),
+    contextKey: id, nested: true, resolved: close, mergeStarted: close, busyChanged: setBusy });
   useEffect(() => {
     const controller = new AbortController();
     setError('');
@@ -43,7 +46,7 @@ export function PendingDecisionDialog({ id, close, openMerge }: {
             </dl>
           </div>
           <div className="pending-decision-controls">
-            <PendingDecisionActions decision={decision} nested labelled resolved={close} mergeStarted={close} busyChanged={setBusy} />
+            <PendingDecisionActions decision={decision} actions={actions} labelled />
           </div>
         </>}
       <p className="pending-decision-hint">You can close this window or leave the page and resolve this later in Pending Decisions.</p>

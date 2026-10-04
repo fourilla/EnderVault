@@ -95,6 +95,7 @@ declare global {
       createActionMenu: (options: Record<string, unknown>) => {
         close: () => void;
         dispose: () => void;
+        activeContext: () => unknown | null;
       } | null;
     };
     EnderVaultContextMenu?: {

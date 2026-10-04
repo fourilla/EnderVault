@@ -4,6 +4,7 @@ import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.directorytransfer.DirectoryTransferQueryService;
 import io.github.fourilla.endervault.directorytransfer.DirectoryTransferPlan;
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
+import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.pending.PendingFileDecision;
 import io.github.fourilla.endervault.pending.PendingFileDecisionAction;
 import io.github.fourilla.endervault.pending.PendingFileDecisionService;
@@ -13,14 +14,21 @@ import io.github.fourilla.endervault.pending.PendingDecisionSearchSchema.Candida
 import io.github.fourilla.endervault.pending.PendingDecisionStatus;
 import io.github.fourilla.endervault.storage.FileItem;
 import io.github.fourilla.endervault.web.support.FlashNotification;
+import io.github.fourilla.endervault.web.support.ActionResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.NoSuchFileException;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -31,6 +39,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/pending-decisions")
 public class PendingFileDecisionApiController {
+
+    private static final Logger logger = LoggerFactory.getLogger(PendingFileDecisionApiController.class);
+    static final int MAX_BULK_ITEMS = 200;
 
     private static final DateTimeFormatter CREATED_AT_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
@@ -169,6 +180,94 @@ public class PendingFileDecisionApiController {
                 committedFile == null ? null : committedFile.path()
         );
     }
+
+    @PostMapping(value = "/resolve-selected", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> resolveSelected(
+            @RequestParam(value = "ids", required = false) List<String> ids,
+            @RequestParam(value = "action", required = false) PendingFileDecisionAction action,
+            @RequestParam(value = "replaceConfirmed", defaultValue = "false") boolean replaceConfirmed,
+            HttpServletRequest request
+    ) {
+        List<String> selected;
+        try {
+            selected = validateSelection(ids, action, replaceConfirmed);
+        } catch (StorageAccessException ex) {
+            return ResponseEntity.badRequest().body(ActionResponse.error(ex.getMessage()));
+        }
+
+        var results = new java.util.ArrayList<PendingFileDecisionBulkItemResponse>();
+        for (String id : selected) {
+            // Each call retains the single-item lock, commit guards, observers and activity log.
+            try {
+                var result = resolve(id, action, null, replaceConfirmed, request);
+                results.add(new PendingFileDecisionBulkItemResponse(id, BulkStatus.RESOLVED,
+                        result.notification().message(), result.removedId(), result.committedPath()));
+            } catch (NoSuchFileException ex) {
+                results.add(new PendingFileDecisionBulkItemResponse(id, BulkStatus.NOT_FOUND,
+                        "Pending item or a required filesystem entry is no longer available. Refresh pending decisions.", null, null));
+            } catch (StorageAccessException ex) {
+                results.add(new PendingFileDecisionBulkItemResponse(id, BulkStatus.REJECTED, ex.getMessage(), null, null));
+            } catch (IOException | RuntimeException ex) {
+                logger.warn("Bulk pending resolution failed for {} using {}.", id, action, ex);
+                results.add(new PendingFileDecisionBulkItemResponse(id, BulkStatus.FAILED,
+                        "Could not complete this item. Refresh pending decisions before retrying; recovery may be required.",
+                        null, null));
+            }
+        }
+        int succeeded = (int) results.stream().filter(item -> item.status() == BulkStatus.RESOLVED).count();
+        int failed = results.size() - succeeded;
+        String message = "Pending items processed: " + succeeded + " succeeded, " + failed + " unsuccessful.";
+        FlashNotification notification = failed == 0 ? FlashNotification.success(message)
+                : succeeded == 0 ? FlashNotification.error(message) : FlashNotification.warning(message);
+        return ResponseEntity.ok(new PendingFileDecisionBulkResponse(true, notification,
+                succeeded, failed, List.copyOf(results)));
+    }
+
+    private static List<String> validateSelection(List<String> ids, PendingFileDecisionAction action, boolean replaceConfirmed) {
+        if (action != PendingFileDecisionAction.KEEP_BOTH && action != PendingFileDecisionAction.REPLACE
+                && action != PendingFileDecisionAction.DISCARD) {
+            throw new StorageAccessException("This action is not supported for multiple pending items.");
+        }
+        if (action == PendingFileDecisionAction.REPLACE && !replaceConfirmed) {
+            throw new StorageAccessException("Replacing existing files requires confirmation.");
+        }
+        if (ids == null || ids.isEmpty() || ids.size() > MAX_BULK_ITEMS) {
+            throw new StorageAccessException("Select between 1 and " + MAX_BULK_ITEMS + " pending items.");
+        }
+        var selected = new java.util.ArrayList<String>();
+        var unique = new HashSet<String>();
+        for (String id : ids) {
+            String clean = id == null ? "" : id.trim();
+            if (clean.length() != 36) {
+                throw new StorageAccessException("Selected pending item IDs must be canonical UUIDs.");
+            }
+            String canonical;
+            try {
+                canonical = UUID.fromString(clean).toString();
+            } catch (IllegalArgumentException ex) {
+                throw new StorageAccessException("Selected pending item IDs must be UUIDs.");
+            }
+            if (!canonical.equalsIgnoreCase(clean)) {
+                throw new StorageAccessException("Selected pending item IDs must be canonical UUIDs.");
+            }
+            if (!unique.add(canonical)) {
+                throw new StorageAccessException("Selected pending item IDs must not contain duplicates.");
+            }
+            selected.add(canonical);
+        }
+        return List.copyOf(selected);
+    }
+
+    public enum BulkStatus { RESOLVED, NOT_FOUND, REJECTED, FAILED }
+
+    public record PendingFileDecisionBulkItemResponse(
+            String id, BulkStatus status, String message, String removedId, String committedPath
+    ) { }
+
+    public record PendingFileDecisionBulkResponse(
+            boolean ok, FlashNotification notification, int succeededCount, int failedCount,
+            List<PendingFileDecisionBulkItemResponse> results
+    ) { }
 
     public record PendingFileDecisionActionResponse(
             boolean ok,
