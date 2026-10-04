@@ -14,6 +14,7 @@ import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import { loadPendingDecisions, PendingDecisionLoadError } from './pending-decision-api';
 import type { PendingFileDecision } from './types';
 import { PendingDecisionActions } from './PendingDecisionActions';
+import { usePendingDecisionActions } from './usePendingDecisionActions';
 
 const emptyDecisions: PendingFileDecision[] = [];
 const itemKey = (decision: PendingFileDecision) => decision.id;
@@ -30,6 +31,10 @@ export function PendingDecisionsApp() {
   const error = feedback?.query === activeQuery ? feedback.message : '';
   const items = decisions ?? emptyDecisions;
   const selectable = decisions !== null && !error;
+  const actions = usePendingDecisionActions({ items, enabled: selectable, contextKey: activeQuery,
+    resolved: (id) => setSnapshot((current) => current ? {
+      ...current, decisions: current.decisions.filter((item) => item.id !== id),
+    } : current) });
   const selection = useItemSelection({ items, enabled: selectable, locationKey: activeQuery, itemKey,
     openItem: keepRowClick });
   useSelectionShortcuts({
@@ -157,10 +162,7 @@ export function PendingDecisionsApp() {
                     <td title={decision.createdAt}>{decision.createdLabel}</td>
                     <td><span className="table-primary-text"><OverflowMarquee text={decision.statusLabel} /></span></td>
                     <td>
-                      <PendingDecisionActions decision={decision}
-                        resolved={(id) => setSnapshot((current) => current ? {
-                          ...current, decisions: current.decisions.filter((item) => item.id !== id),
-                        } : current)} />
+                      <PendingDecisionActions decision={decision} actions={actions} />
                     </td>
                   </tr>
                 ))}

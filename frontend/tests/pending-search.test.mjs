@@ -72,7 +72,7 @@ function harness(t, query = '') {
     initialEntries: [`/admin/pending-decisions${query ? `?${new URLSearchParams({ q: query })}` : ''}`],
   });
   const slots = [], effects = [], requests = [], timers = new Map(), listeners = new Map();
-  let cursor = 0, dirty, registration, timerId = 0;
+  let cursor = 0, dirty, registration, actionOptions, timerId = 0;
   const react = {
     useState(initial) {
       const index = cursor++;
@@ -129,6 +129,7 @@ function harness(t, query = '') {
     '../shared/layout/PageErrorPanel': { PageErrorPanel() {} },
     '../shared/layout/LoadingState': { LoadingState() {} },
     './PendingDecisionActions': { PendingDecisionActions() {} },
+    './usePendingDecisionActions': { usePendingDecisionActions: options => { actionOptions = options; return {}; } },
     './pending-decision-api': {
       PendingDecisionLoadError: client.PendingDecisionLoadError,
       loadPendingDecisions: (signal, query) => new Promise((resolve, reject) => requests.push({ signal, query, resolve, reject })),
@@ -146,6 +147,7 @@ function harness(t, query = '') {
   return {
     router, requests, timers, listeners, client, dispose,
     get search() { return registration; },
+    resolve(id) { actionOptions.resolved(id); },
     press(key, extra = {}) {
       const event = { key, target: body, defaultPrevented: false, ctrlKey: false, metaKey: false,
         altKey: false, shiftKey: false, isComposing: false, repeat: false,
@@ -241,8 +243,7 @@ test('Pending polling and task notifications keep the submitted query, not the e
   await h.finish(2, [row('second')]);
   const tree = h.render();
   assert.deepEqual(rowIds(tree), ['decision-second']);
-  const actions = nodes(tree).find(node => node.type?.name === 'PendingDecisionActions');
-  actions.props.resolved('second');
+  h.resolve('second');
   assert.deepEqual(rowIds(h.render()), []);
 });
 
@@ -384,7 +385,6 @@ test('Pending stale errors keep selection but disable shortcuts; resolved IDs ar
   assert.equal(checkbox(tree, 'a').props.disabled, true);
   assert.equal(h.press('a', { ctrlKey: true }).defaultPrevented, false);
   await h.poll(); await h.finish(2, [row('a'), row('b')]); tree = h.render();
-  const actions = nodes(tree).find(node => node.type?.name === 'PendingDecisionActions');
-  actions.props.resolved('a');
+  h.resolve('a');
   assert.deepEqual(selectedIds(h.render()), ['b']);
 });

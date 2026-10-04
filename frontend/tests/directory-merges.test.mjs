@@ -154,53 +154,6 @@ test('abandonment needs explicit nested confirmation and is unavailable for star
   }
 });
 
-test('preparation registers a listing refresh even when the upload merge completes without review', async () => {
-  const tracked = [], submitted = [];
-  let closed = 0;
-  const jsx = (type, props) => ({ type, props });
-  const react = { useEffect: () => {}, useState: (initial) => [initial, () => {}],
-    createElement: (type, props, ...children) => jsx(type, { ...props, children }) };
-  const component = await load('../src/directory-merges/PrepareDirectoryMergeButton.tsx', {
-    React: react, window: { location: { href: '/files?path=photos' },
-      EnderVaultServerTasks: { track: (...args) => tracked.push(args) } },
-  }, { react, 'react/jsx-runtime': { jsx, jsxs: jsx },
-    DecisionDialogContext: { useDecisionDialog: () => ({ openMerge: () => assert.fail('unexpected direct open') }) },
-    'merge-api': { mergeBase: '/api/v1/files/directory-merges' },
-    'form-api': { postForm: async (url) => { submitted.push(url); return { id: 'task', status: 'COMPLETE' }; },
-      toastError: () => assert.fail('unexpected error') } });
-  const button = component.PrepareDirectoryMergeButton({ pendingId: 'pending', disabled: false, started: () => closed++ });
-  button.props.onClick();
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.deepEqual(submitted, ['/api/v1/files/directory-merges/pending/pending']);
-  assert.equal(tracked[0][1].refreshUrl, '/files?path=photos');
-  assert.equal(tracked[0][1].announceStart, true);
-  assert.equal(closed, 1);
-});
-
-test('preparing a pending merge refreshes the row without navigating or opening a dialog', async () => {
-  for (const status of ['PENDING', 'COMPLETE']) {
-  const effects = [];
-  let refreshed = 0;
-  let state = 0;
-  const react = { useEffect: (effect) => effects.push(effect),
-    useState: () => [state++ === 0 ? true : 'task', () => {}],
-    createElement: (type, props) => ({ type, props }) };
-  const component = await load('../src/directory-merges/PrepareDirectoryMergeButton.tsx', {
-    React: react, AbortController, clearTimeout, CustomEvent: class {},
-    window: { dispatchEvent: () => refreshed++, EnderVault: {
-      requestJson: async () => [{ status, resultReference: 'review', active: false }],
-    } },
-  }, { react, 'react/jsx-runtime': { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) },
-    DecisionDialogContext: { useDecisionDialog: () => ({ openMerge: () => assert.fail('unexpected dialog') }) },
-    'form-api': { toastError: () => assert.fail('unexpected error') } });
-  component.PrepareDirectoryMergeButton({ pendingId: 'pending', disabled: false });
-  const cleanup = effects[0]();
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(refreshed, 1);
-  cleanup();
-  }
-});
-
 test('remaining transfer abandonment confirms preservation and never offers resume during cleanup', async () => {
   for (const operation of ['COPY', 'MOVE', 'PENDING']) for (const phase of ['PUBLISHING', 'ABANDONING']) {
     let stopped = 0, confirmed = 0, closed = 0;
@@ -314,32 +267,23 @@ test('late review response cannot repopulate a dismissed or replaced dialog', as
   assert.deepEqual(writes, []);
 });
 
-test('pending row preserves the preparation component position when a merge owner arrives', async () => {
-  let decisions;
+test('pending row renders the same preparation action while its controller awaits an owner task', async () => {
   const jsx = (type, props) => ({ type, props });
-  const react = { useEffect: () => {}, useState: (value) => [value === null ? decisions : value, () => {}],
-    createElement: (type, props, ...children) => jsx(type, { ...props, children }) };
+  const policy = await load('../src/pending-decisions/pending-decision-actions.ts', {});
+  const react = { createElement: (type, props, ...children) => jsx(type, { ...props, children }) };
   const component = await load('../src/pending-decisions/PendingDecisionActions.tsx', { React: react }, {
     react, 'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'fragment' },
-    useHashTarget: { useHashTarget: () => {} }, BrowserEntries: { icon: () => null },
-    PrepareDirectoryMergeButton: { PrepareDirectoryMergeButton: 'prepare' },
-    'react-router-dom': { useLocation: () => ({ hash: '', key: 'page' }), useNavigate: () => () => {} },
+    'pending-decision-actions': policy,
   });
-  const paths = (node, path = '', found = []) => {
-    if (Array.isArray(node)) node.forEach((child, index) => paths(child, path + '/' + index, found));
-    else if (node && typeof node === 'object') {
-      if (node.type === 'prepare') found.push(path);
-      paths(node.props?.children, path + '/children', found);
-    }
-    return found;
-  };
   const decision = { id: 'pending', directory: true, originalFilename: 'photos', destinationPath: '' };
-  decisions = [decision];
-  const before = paths(component.PendingDecisionActions({ decision, resolved: () => {} }));
-  decisions = [{ ...decision, mergeId: 'review' }];
-  const after = paths(component.PendingDecisionActions({ decision: decisions[0], resolved: () => {} }));
-  assert.equal(before.length, 1);
-  assert.deepEqual(after, before);
+  const actions = { preparing: () => true, canRun: () => false };
+  for (const current of [decision, { ...decision, mergeId: 'review' }]) {
+    const tree = component.PendingDecisionActions({ decision: current, actions });
+    const button = tree.props.children[0];
+    assert.equal(button.props['aria-label'], 'Merge directory');
+    assert.equal(button.props.disabled, true);
+    assert.equal(button.props.children[0].props.className, 'fas fa-spinner fa-spin');
+  }
 });
 
 test('the unified pending page has one table and no page-owned review dialog', async () => {
@@ -357,6 +301,7 @@ test('the unified pending page has one table and no page-owned review dialog', a
     useItemSelection: { useItemSelection: () => ({ selected: new Set(), selectedItems: [],
       selectAll() {}, clearSelection() {} }) },
     useSelectionShortcuts: { useSelectionShortcuts() {} },
+    usePendingDecisionActions: { usePendingDecisionActions: () => ({}) },
   });
   const tree = component.PendingDecisionsApp();
   const tables = [];
