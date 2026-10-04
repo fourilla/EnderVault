@@ -265,6 +265,70 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void pendingBulkResolutionUsesFormEncodingAndReturnsPerIdResultsWithoutAReplay() throws Exception {
+        var first = pendingBulkFixture();
+        var second = pendingBulkFixture();
+        String body = "ids=" + first.id() + "&ids=" + second.id() + "&action=DISCARD";
+        mockMvc.perform(post("/api/v1/pending-decisions/resolve-selected").with(csrf().asHeader())
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED).content(body))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.succeededCount").value(2)).andExpect(jsonPath("$.failedCount").value(0))
+                .andExpect(jsonPath("$.results[0].removedId").value(first.id()))
+                .andExpect(jsonPath("$.results[1].status").value("RESOLVED"));
+        assertThat(storageService.resolveFileStagingFile(first.stagingFilename())).doesNotExist();
+        assertThat(storageService.resolveFileStagingFile(second.stagingFilename())).doesNotExist();
+        mockMvc.perform(post("/api/v1/pending-decisions/resolve-selected").with(csrf())
+                        .param("ids", first.id(), second.id()).param("action", "DISCARD"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.succeededCount").value(0))
+                .andExpect(jsonPath("$.failedCount").value(2)).andExpect(jsonPath("$.results[0].status").value("NOT_FOUND"));
+    }
+
+    @Test
+    void pendingBulkResolutionRequiresCsrfAndPrevalidatesEveryId() throws Exception {
+        var decision = pendingBulkFixture();
+        mockMvc.perform(post("/api/v1/pending-decisions/resolve-selected")
+                        .param("ids", decision.id()).param("action", "DISCARD"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/pending-decisions/resolve-selected").with(csrf())
+                        .param("ids", decision.id(), "invalid").param("action", "DISCARD"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.ok").value(false));
+        assertThat(pendingDecisionService.require(decision.id())).isEqualTo(decision);
+        assertThat(storageService.resolveFileStagingFile(decision.stagingFilename())).hasContent("bulk upload");
+        pendingDecisionService.resolve(decision.id(), io.github.fourilla.endervault.pending.PendingFileDecisionAction.DISCARD, null, false);
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    void pendingBulkResolutionRequiresAdminEvenWithValidCsrf() throws Exception {
+        var decision = pendingBulkFixture();
+        mockMvc.perform(post("/api/v1/pending-decisions/resolve-selected").with(csrf())
+                        .param("ids", decision.id()).param("action", "DISCARD"))
+                .andExpect(status().isForbidden());
+        assertThat(pendingDecisionService.require(decision.id())).isEqualTo(decision);
+        assertThat(storageService.resolveFileStagingFile(decision.stagingFilename())).hasContent("bulk upload");
+        pendingDecisionService.resolve(decision.id(), io.github.fourilla.endervault.pending.PendingFileDecisionAction.DISCARD, null, false);
+    }
+
+    @Test
+    @WithAnonymousUser
+    void publicUploadersCannotUsePendingBulkResolution() throws Exception {
+        var decision = pendingBulkFixture();
+        mockMvc.perform(post("/api/v1/pending-decisions/resolve-selected").with(csrf())
+                        .param("ids", decision.id()).param("action", "DISCARD"))
+                .andExpect(status().is3xxRedirection());
+        assertThat(pendingDecisionService.require(decision.id())).isEqualTo(decision);
+        assertThat(storageService.resolveFileStagingFile(decision.stagingFilename())).hasContent("bulk upload");
+        pendingDecisionService.resolve(decision.id(), io.github.fourilla.endervault.pending.PendingFileDecisionAction.DISCARD, null, false);
+    }
+
+    private io.github.fourilla.endervault.pending.PendingFileDecision pendingBulkFixture() throws Exception {
+        Path staged = storageService.createFileStagingTemporaryFile("bulk-flow-", ".tmp");
+        Files.writeString(staged, "bulk upload");
+        return pendingDecisionService.create(staged, io.github.fourilla.endervault.pending.PendingFileDecisionSource.ADMIN_UPLOAD,
+                "", "bulk-" + java.util.UUID.randomUUID() + ".txt", Files.size(staged));
+    }
+
+    @Test
     void taskPollingUsesVersionedApiAndLegacyEndpointsAreRemoved() throws Exception {
         mockMvc.perform(get("/api/v1/tasks"))
                 .andExpect(status().isOk())
