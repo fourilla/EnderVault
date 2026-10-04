@@ -23,15 +23,22 @@ const domains = [
 for (const domain of domains) {
   domain.code = await compile(domain.page);
   domain.apiCode = await compile(domain.api);
+  domain.actionsCode = await compile(domain.scope === 'shares' ? 'shares/share-list-actions.ts' : 'file-requests/file-request-list-actions.ts');
 }
+const selectionCode = await compile('shared/browser/useItemSelection.ts');
+const shortcutsCode = await compile('shared/browser/useSelectionShortcuts.ts');
+const controllerCode = await compile('shared/browser/list-item-actions.ts');
+const actionViewCode = await compile('shared/browser/ListItemActions.tsx');
+const menuContextCode = await compile('shared/browser/browser-menu-context.ts');
 const flush = () => new Promise(setImmediate);
 function nodes(tree) {
   if (Array.isArray(tree)) return tree.flatMap(nodes);
   if (!tree || typeof tree !== 'object') return [];
+  if (tree.type?.name === 'ListItemActions') return nodes(tree.type(tree.props));
   return [tree, ...nodes(tree.props?.children)];
 }
-const share = id => ({ token: id, path: id, url: `/s/${id}`, type: 'FILE' });
-const request = id => ({ id, title: id, destinationPath: 'photos', allowedExtensions: [],
+const share = id => ({ token: id, path: id, url: `/s/${id}`, type: 'FILE', active: true, directDownloadUrl: null });
+const request = id => ({ id, title: id, url: `/r/${id}`, active: false, destinationPath: 'photos', allowedExtensions: [],
   acceptedBytes: 0, maxTotalBytes: 1000, createdLabel: '2026-10-04', expiresLabel: 'Never' });
 const payload = (domain, ids = []) => domain.scope === 'shares' ? ids.map(share) : {
   requests: ids.map(request), enabled: true, uploaderNamePolicies: [{ value: 'OPTIONAL', label: 'Optional' }],
@@ -44,18 +51,20 @@ const payload = (domain, ids = []) => domain.scope === 'shares' ? ids.map(share)
 function harness(t, domain, search = '') {
   const route = `/admin/${domain.scope}`;
   const router = createMemoryRouter([{ path: '*', element: null }], { initialEntries: [route + search] });
-  const slots = [], effects = [], requests = [], mutations = [];
-  let cursor = 0, dirty, registration;
+  const slots = [], effects = [], requests = [], mutations = [], confirmations = [], errors = [], copies = [], listeners = new Map();
+  let cursor = 0, dirty, registration, menuOptions;
+  let confirm = async () => true;
   const react = {
     useState(initial) {
       const index = cursor++;
-      if (!slots[index]) slots[index] = { value: initial };
+      if (!slots[index]) slots[index] = { value: typeof initial === 'function' ? initial() : initial };
       return [slots[index].value, next => {
         const value = typeof next === 'function' ? next(slots[index].value) : next;
         if (!Object.is(value, slots[index].value)) { slots[index].value = value; dirty = true; }
       }];
     },
     useRef(initial) { const index = cursor++; return slots[index] ??= { current: initial }; },
+    useMemo: factory => factory(),
     useEffect(run, deps) {
       const index = cursor++, previous = slots[index];
       if (previous && deps.every((dep, i) => Object.is(dep, previous.deps[i]))) return;
@@ -64,39 +73,89 @@ function harness(t, domain, search = '') {
       effects.push(() => { slot.cleanup?.(); slot.cleanup = run(); });
     },
   };
+  const body = { closest: () => null }, scope = { contains: element => element.inside !== false };
+  const document = { body, documentElement: { closest: () => null }, activeElement: body,
+    visibilityState: 'visible', fullscreenElement: null, querySelector: () => null,
+    addEventListener: (name, fn) => listeners.set(name, fn), removeEventListener: name => listeners.delete(name) };
+  const window = { clearTimeout() {}, setTimeout: () => assert.fail('No long press started'), EnderVault: {
+    askConfirmation: options => { confirmations.push(options); return confirm(options); },
+    copyText: async value => { copies.push(value); return true; }, showToast: (...args) => {},
+  } };
+  const api = new Proxy({}, { get(_target, name) {
+    if (name === domain.load) return (...args) => new Promise((resolve, reject) => {
+      const [signal, query] = domain.scope === 'shares' ? args : [args[1], new URLSearchParams(args[0]).get('q') ?? ''];
+      requests.push({ signal, query, args, resolve, reject });
+    });
+    return async (...args) => { mutations.push({ name, args }); };
+  } });
+  const routeHooks = { Link() {}, useLocation: () => router.state.location,
+    useNavigate: () => router.navigate,
+    useSearchParams: () => [new URLSearchParams(router.state.location.search), next => router.navigate({
+      pathname: route, search: new URLSearchParams(next).toString() })] };
+  const evaluate = (code, require) => {
+    const module = { exports: {} };
+    vm.runInNewContext(code, { module, exports: module.exports, document, window, Error, require });
+    return module.exports;
+  };
+  const formApi = { toastError: (reason, fallback) => errors.push(reason?.message ?? fallback) };
+  const controller = evaluate(controllerCode, () => formApi);
+  const actionView = evaluate(actionViewCode, id => id === 'react' ? react : id === 'react/jsx-runtime' ? jsx
+    : id === 'react-router-dom' ? routeHooks : id.endsWith('/list-item-actions') || id === './list-item-actions' ? controller
+    : { icon: () => null });
+  const actionDefinitions = evaluate(domain.actionsCode, id => id.endsWith('/list-item-actions') ? controller : api);
+  const selection = evaluate(selectionCode, () => react);
+  const shortcuts = evaluate(shortcutsCode, id => id === 'react' ? react : formApi);
+  const { browserMenuContext } = evaluate(menuContextCode, () => ({}));
   const module = { exports: {} };
   vm.runInNewContext(domain.code, { module, exports: module.exports, AbortController, URLSearchParams, Error,
-    window: { EnderVault: { askConfirmation: async () => true } },
+    document, window,
     require(id) {
       if (id === 'react') return react;
       if (id === 'react/jsx-runtime') return jsx;
-      if (id === 'react-router-dom') return { Link() {}, useLocation: () => router.state.location,
-        useNavigate: () => router.navigate,
-        useSearchParams: () => [new URLSearchParams(router.state.location.search), next => router.navigate({
-          pathname: route, search: new URLSearchParams(next).toString() })] };
+      if (id === 'react-router-dom') return routeHooks;
       if (id.endsWith('/RouteSearch')) return { useRouteSearch: control => { registration = control; } };
       if (id.endsWith('/BrowserEntries')) return { icon: () => null };
-      if (id.endsWith('/form-api')) return { toastError: reason => { throw reason; } };
+      if (id.endsWith('/form-api')) return formApi;
+      if (id.endsWith('/useItemSelection')) return selection;
+      if (id.endsWith('/useSelectionShortcuts')) return shortcuts;
+      if (id.endsWith('/useBrowserContextMenu')) return { useBrowserContextMenu: options => { menuOptions = options; } };
+      if (id.endsWith('/ListingHistoryContext')) return { useLocationGuard: () => {
+        const visit = router.state.location;
+        return () => router.state.location === visit;
+      } };
+      if (id.endsWith('/ListItemActions')) return actionView;
+      if (id.endsWith('/list-item-actions')) return controller;
+      if (id.endsWith('-list-actions')) return actionDefinitions;
       if (id.endsWith('/format-bytes')) return { formatBytes: String };
-      if (id.endsWith('-api')) return new Proxy({}, { get(_target, name) {
-        if (name === domain.load) return (...args) => new Promise((resolve, reject) => {
-          const [signal, query] = domain.scope === 'shares' ? args : [args[1], new URLSearchParams(args[0]).get('q') ?? ''];
-          requests.push({ signal, query, args, resolve, reject });
-        });
-        return async (...args) => { mutations.push({ name, args }); };
-      } });
+      if (id.endsWith('-api')) return api;
       const name = id.split('/').at(-1);
       return { [name]: { [name]: () => null }[name] };
     },
   });
   t.after(() => { slots.forEach(slot => slot.cleanup?.()); router.dispose(); });
-  return { router, requests, mutations,
+  return { router, requests, mutations, confirmations, errors, copies, document,
+    get menu() { return menuOptions; },
+    setConfirmation(fn) { confirm = fn; },
+    key(event) { listeners.get('keydown')?.(event); },
+    context(id, native = false) {
+      const entries = menuOptions.entries();
+      const elements = entries.map(item => ({ getAttribute: () => menuOptions.itemKey(item) }));
+      const row = elements.find(element => element.getAttribute() === id);
+      const target = { closest(selector) {
+        if (native && selector.startsWith('input,')) return this;
+        return selector === '[data-context-item="true"]' ? row : null;
+      } };
+      return browserMenuContext({ event: { target }, workspace: { contains: () => true, querySelectorAll: () => elements },
+        entries, itemKey: menuOptions.itemKey, keyAttribute: menuOptions.keyAttribute, selected: menuOptions.selectedRef.current,
+        clearSelection: () => menuOptions.setSelected(new Set()) });
+    },
     get search() { return registration; },
     render() {
       let tree, count = 0;
       do {
         assert.ok(++count < 20, 'render/effect loop');
         dirty = false; cursor = 0; tree = module.exports[domain.name]();
+        nodes(tree).filter(node => node.props?.ref).forEach(node => { node.props.ref.current = scope; });
         effects.splice(0).forEach(run => run());
       } while (dirty);
       return tree;
@@ -106,6 +165,145 @@ function harness(t, domain, search = '') {
     },
   };
 }
+
+const listRows = tree => nodes(tree).filter(node => node.type === 'tr' && node.props['data-context-item'] === 'true');
+const selectedKeys = tree => listRows(tree).filter(node => node.props.className === 'is-selected').map(node => node.key);
+const rowCheckbox = row => nodes(row).find(node => node.type === 'input' && node.props.type === 'checkbox');
+const click = (row, modifiers = {}) => {
+  const event = { target: { closest: () => null }, preventDefault() {}, stopPropagation() {}, ...modifiers };
+  row.props.onClickCapture(event);
+};
+const actionButton = (tree, id, label) => nodes(listRows(tree).find(row => row.key === id))
+  .find(node => node.type === 'button' && node.props['aria-label'] === label);
+
+for (const domain of domains) {
+  test(`${domain.scope} uses shared selection, Shift range, header and opt-in shortcuts without Delete`, async t => {
+    const h = harness(t, domain);
+    h.render(); await h.finish(0, ['one', 'two', 'three']);
+    let tree = h.render(), rows = listRows(tree);
+    assert.equal(nodes(tree).find(node => node.type?.name === 'StableTable').props.columns[0], 'select');
+    click(rows[0], { ctrlKey: true });
+    tree = h.render(); rows = listRows(tree);
+    click(rows[2], { shiftKey: true });
+    assert.deepEqual(selectedKeys(h.render()), ['one', 'two', 'three']);
+    const key = (value, ctrlKey = false) => {
+      let prevented = false;
+      h.key({ key: value, ctrlKey, target: h.document.body, preventDefault() { prevented = true; } });
+      return prevented;
+    };
+    assert.equal(key('Delete'), false);
+    assert.equal(h.mutations.length, 0);
+    assert.equal(key('Escape'), true);
+    assert.deepEqual(selectedKeys(h.render()), []);
+    assert.equal(key('a', true), true);
+    tree = h.render();
+    assert.deepEqual(selectedKeys(tree), ['one', 'two', 'three']);
+    const header = nodes(tree).find(node => node.type?.name === 'SelectionHeader');
+    assert.equal(header.props.total, 3); assert.equal(header.props.selected, 3);
+    header.props.onChange(false);
+    assert.deepEqual(selectedKeys(h.render()), []);
+    rowCheckbox(listRows(h.render())[1]).props.onChange({ currentTarget: { checked: true } });
+    assert.deepEqual(selectedKeys(h.render()), ['two']);
+  });
+
+  test(`${domain.scope} same-query refresh preserves surviving IDs, new rows are not selected and query changes clear selection`, async t => {
+    const h = harness(t, domain, '?q=status:active');
+    h.render(); await h.finish(0, ['one', 'two', 'three']);
+    let tree = h.render();
+    for (const row of listRows(tree).slice(0, 2)) rowCheckbox(row).props.onChange({ currentTarget: { checked: true } });
+    tree = h.render();
+    h.search.onChange('name:draft');
+    assert.deepEqual(selectedKeys(h.render()), ['one', 'two']);
+    await actionButton(tree, 'three', 'Revoke')?.props.onClick();
+    if (domain.scope === 'file-requests') {
+      // Fixture requests are inactive; Delete uses the same shared execution/reload path.
+      await actionButton(tree, 'three', 'Delete').props.onClick();
+    }
+    await flush(); h.render();
+    await h.finish(1, ['one', 'new', 'three']);
+    assert.deepEqual(selectedKeys(h.render()), ['one']);
+    h.search.onSubmit({ preventDefault() {} }); await flush(); h.render();
+    await h.finish(2, ['one', 'new']);
+    assert.deepEqual(selectedKeys(h.render()), []);
+  });
+
+  test(`${domain.scope} row buttons and single menu share actions; selected and background contexts never run single actions`, async t => {
+    const h = harness(t, domain);
+    h.render(); await h.finish(0, ['one', 'two']);
+    let tree = h.render(), context = h.context('one');
+    const menu = h.menu.actions().filter(action => action.visible(context));
+    const rowLabels = nodes(listRows(tree)[0]).filter(node => node.props?.['aria-label']
+      && (node.type === 'button' || node.type?.name === 'Link')).map(node => node.props['aria-label']);
+    assert.deepEqual(Array.from(menu, action => action.label), rowLabels);
+    assert.equal(menu.some(action => action.label === 'Copy direct download link'), false);
+    const label = domain.scope === 'shares' ? 'Copy link' : 'Copy request link';
+    await actionButton(tree, 'one', label).props.onClick();
+    await menu.find(action => action.label === label).run(context);
+    const url = domain.scope === 'shares' ? '/s/one' : '/r/one';
+    assert.deepEqual(h.copies, [url, url]);
+    assert.equal(h.requests.length, 1, 'Copy does not reload');
+    assert.equal(h.context('one', true), null, 'URL inputs keep their native context menu');
+    for (const row of listRows(h.render())) rowCheckbox(row).props.onChange({ currentTarget: { checked: true } });
+    h.render(); context = h.context('one');
+    assert.equal(context.mode, 'selection');
+    assert.equal(h.menu.actions().filter(action => action.visible(context)).length, 0);
+    for (const action of h.menu.actions()) await action.run(context);
+    assert.equal(h.mutations.length, 0);
+    assert.equal(h.menu.actions().filter(action => action.visible(h.context(null))).length, 0);
+    context = h.context('unselected');
+    assert.equal(context.mode, 'background');
+  });
+
+  test(`${domain.scope} read errors disable selection and menu execution while preserving the existing selection`, async t => {
+    const h = harness(t, domain);
+    h.render(); await h.finish(0, ['one']);
+    let tree = h.render(); rowCheckbox(listRows(tree)[0]).props.onChange({ currentTarget: { checked: true } });
+    tree = h.render();
+    const command = nodes(tree).find(node => domain.scope === 'shares'
+      ? node.type?.name === 'FloatingPageActions' : node.type === 'button' && node.props.children === 'Delete expired');
+    await (domain.scope === 'shares' ? command.props.onAction() : command.props.onClick());
+    await flush(); h.render();
+    h.requests[1].reject(new Error('Offline')); await flush(); tree = h.render();
+    assert.deepEqual(selectedKeys(tree), ['one']);
+    assert.equal(rowCheckbox(listRows(tree)[0]).props.disabled, true);
+    assert.equal(nodes(tree).find(node => node.type?.name === 'SelectionHeader').props.disabled, true);
+    assert.ok(h.menu.actions().every(action => action.disabled(h.context('one'))));
+    let prevented = false;
+    h.key({ key: 'a', ctrlKey: true, target: h.document.body, preventDefault() { prevented = true; } });
+    assert.equal(prevented, false);
+  });
+}
+
+test('request single confirmation is locked, revalidated and cannot submit after route navigation', async t => {
+  const h = harness(t, domains[1]);
+  h.render(); await h.finish(0, ['one']);
+  let resolve;
+  h.setConfirmation(() => new Promise(done => { resolve = done; }));
+  let tree = h.render();
+  const button = actionButton(tree, 'one', 'Delete');
+  const submitted = button.props.onClick();
+  await button.props.onClick();
+  assert.equal(h.confirmations.length, 1);
+  assert.equal(actionButton(h.render(), 'one', 'Delete').props.disabled, true);
+  await h.router.navigate('/admin/file-requests?q=name:other');
+  h.render();
+  await h.router.navigate(-1); h.render(); await h.finish(2, ['one']); h.render();
+  resolve(true); await submitted;
+  assert.equal(h.mutations.length, 0);
+  assert.equal(h.errors.length, 0);
+});
+
+test('request creation fields retain native Ctrl+A and do not enter the list shortcut scope', async t => {
+  const h = harness(t, domains[1]);
+  h.render(); await h.finish(0, ['one']); h.render();
+  const input = { inside: false, closest: selector => selector.includes('input') ? input : null,
+    matches: () => false };
+  h.document.activeElement = input;
+  let prevented = false;
+  h.key({ key: 'a', ctrlKey: true, target: input, preventDefault() { prevented = true; } });
+  assert.equal(prevented, false);
+  assert.deepEqual(selectedKeys(h.render()), []);
+});
 const errorPanels = tree => nodes(tree).filter(node => node.type?.name === 'PageErrorPanel');
 const rowKeys = tree => nodes(tree).filter(node => node.type === 'tr' && node.key).map(node => node.key);
 

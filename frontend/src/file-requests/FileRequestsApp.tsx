@@ -3,19 +3,25 @@ import { StableTable } from '../shared/browser/StableTable';
 import { OverflowMarquee } from '../shared/layout/OverflowMarquee';
 import { PathLink } from '../shared/browser/PathLink';
 import { formatBytes } from '../shared/format-bytes';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useRouteSearch } from '../app/RouteSearch';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
 import { PageHeader } from '../shared/layout/PageHeader';
 import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
+import { SelectionHeader } from '../shared/browser/SelectionHeader';
+import { useItemSelection } from '../shared/browser/useItemSelection';
+import { useSelectionShortcuts } from '../shared/browser/useSelectionShortcuts';
+import { useBrowserContextMenu } from '../shared/browser/useBrowserContextMenu';
+import { useLocationGuard } from '../shared/browser/ListingHistoryContext';
+import { ListItemActions, useListItemActions } from '../shared/browser/ListItemActions';
+import { listItemMenuActions } from '../shared/browser/list-item-actions';
+import { fileRequestItemIdentity, fileRequestItemKey, fileRequestListActions } from './file-request-list-actions';
 import {
   createFileRequest,
   deleteExpiredFileRequests,
-  deleteFileRequest,
   loadFileRequests,
-  revokeFileRequest,
 } from './file-request-api';
 import type { FileRequestCreateValues, FileRequestItem, FileRequestListPayload } from './types';
 
@@ -31,6 +37,9 @@ const valuesFrom = (payload: FileRequestListPayload): FileRequestCreateValues =>
   allowedExtensions: payload.defaults.allowedExtensions,
   customToken: '',
 });
+
+const emptyRequests: FileRequestItem[] = [];
+const keepRowClick = () => {};
 
 export function FileRequestsApp() {
   const location = useLocation();
@@ -48,6 +57,26 @@ export function FileRequestsApp() {
   const payload = snapshot?.context === createContext ? snapshot.payload : null;
   const requests = snapshot?.search === location.search ? snapshot.payload.requests : null;
   const error = feedback?.search === location.search ? feedback.message : '';
+  const listRef = useRef<HTMLElement>(null);
+  const pageBusy = useRef(false);
+  const items = requests ?? emptyRequests;
+  const selectable = requests !== null && !error;
+  const isCurrent = useLocationGuard();
+  const reload = () => setRefreshToken((value) => value + 1);
+  const selection = useItemSelection({ items, enabled: selectable, locationKey: location.search,
+    itemKey: fileRequestItemKey, openItem: keepRowClick });
+  const actions = useListItemActions({ items, definitions: fileRequestListActions(navigate), enabled: selectable,
+    blocked: () => pageBusy.current, contextKey: location.key, isCurrent,
+    itemKey: fileRequestItemKey, itemIdentity: fileRequestItemIdentity, reload });
+  const menuContent = useMemo(() => ({ items, error, selected: selection.selected }), [items, error, selection.selected]);
+  useBrowserContextMenu({ menuId: 'fileRequestsContextMenu', pageScope: 'file-requests-react', entries: () => items,
+    itemKey: fileRequestItemKey, keyAttribute: 'data-request-id',
+    selectedRef: selection.selectedRef, setSelected: selection.setSelected,
+    actions: () => listItemMenuActions(actions, fileRequestItemKey), contentKey: menuContent, contextKey: location.search,
+    errorMessage: 'The file request action failed.' });
+  useSelectionShortcuts({ enabled: selectable && items.length > 0, contextKey: location.search,
+    selectedCount: selection.selectedItems.length, selectAll: selection.selectAll,
+    clearSelection: selection.clearSelection, scope: () => listRef.current });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -88,56 +117,42 @@ export function FileRequestsApp() {
       setSearchParams(next);
     } });
 
-  const reload = () => setRefreshToken((value) => value + 1);
   const change = (name: keyof FileRequestCreateValues, value: string) => {
     setValues((current) => current ? { ...current, [name]: value } : current);
   };
 
   const create = async (event: FormEvent) => {
     event.preventDefault();
-    if (!values) return;
+    if (!values || pageBusy.current || actions.isBusy() || !isCurrent()) return;
+    pageBusy.current = true;
     setBusy('create');
     try {
       const response = await createFileRequest(values);
-      if (response.redirectUrl) navigate(response.redirectUrl);
-      else reload();
+      if (isCurrent()) {
+        if (response.redirectUrl) navigate(response.redirectUrl);
+        else reload();
+      }
     } catch (reason) {
       toastError(reason, 'File request could not be created.');
     } finally {
+      pageBusy.current = false;
       setBusy('');
     }
   };
 
   const mutate = async (key: string, action: () => Promise<unknown>, fallback: string) => {
+    if (pageBusy.current || actions.isBusy() || !isCurrent()) return;
+    pageBusy.current = true;
     setBusy(key);
     try {
       await action();
-      reload();
+      if (isCurrent()) reload();
     } catch (reason) {
       toastError(reason, fallback);
     } finally {
+      pageBusy.current = false;
       setBusy('');
     }
-  };
-
-  const revoke = async (item: FileRequestItem) => {
-    const confirmed = await window.EnderVault?.askConfirmation({
-      title: 'Revoke file request',
-      message: 'Revoke this file request? Active uploads will stop on their next protocol request.',
-      confirmLabel: 'Revoke',
-      danger: true,
-    });
-    if (confirmed) await mutate(`revoke:${item.id}`, () => revokeFileRequest(item.id), 'File request could not be revoked.');
-  };
-
-  const remove = async (item: FileRequestItem) => {
-    const confirmed = await window.EnderVault?.askConfirmation({
-      title: 'Delete file request',
-      message: 'Delete this file request record? Pending files and active uploads must be resolved first.',
-      confirmLabel: 'Delete',
-      danger: true,
-    });
-    if (confirmed) await mutate(`delete:${item.id}`, () => deleteFileRequest(item.id), 'File request could not be deleted.');
   };
 
   const deleteExpired = async () => {
@@ -148,10 +163,6 @@ export function FileRequestsApp() {
       danger: true,
     });
     if (confirmed) await mutate('expired', deleteExpiredFileRequests, 'Expired file requests could not be deleted.');
-  };
-
-  const copy = async (url: string) => {
-    if (await window.EnderVault?.copyText(url)) window.EnderVault?.showToast('success', 'File request link copied.');
   };
 
   return (
@@ -174,7 +185,7 @@ export function FileRequestsApp() {
               </span>
             </header>
             <form className="file-request-form" onSubmit={(event) => void create(event)}>
-              <fieldset disabled={!payload.enabled || Boolean(busy)}>
+              <fieldset disabled={!payload.enabled || Boolean(busy) || actions.isBusy()}>
                 <div className="file-request-field-grid">
                   <label><span>Title</span><input required maxLength={120} placeholder="Upload files"
                     value={values.title} onChange={(event) => change('title', event.target.value)} /></label>
@@ -221,19 +232,26 @@ export function FileRequestsApp() {
             </form>
           </section>
 
-          <section className="dashboard-panel">
+          <section ref={listRef} className="dashboard-panel" aria-label="Issued requests">
             <header className="section-heading">
               <div><h2>Issued Requests</h2><p>Revoke active links before deleting their records.</p></div>
-              {requests && (requests.length > 0 || activeQuery) && <button className="ghost" type="button" disabled={Boolean(busy)}
+              {requests && (requests.length > 0 || activeQuery) && <button className="ghost" type="button" disabled={Boolean(busy) || actions.isBusy()}
                 onClick={() => void deleteExpired()}>Delete expired</button>}
             </header>
             {!requests && !error && <LoadingState label={activeQuery ? 'Searching file requests...' : 'Loading file requests...'} />}
             {requests && (
             <div className="table-wrap compact-table"><StableTable className="file-requests-table"
-              columns={['text', 'text', 'usage', 'restrictions', 'date', 'status', 'actions']} actionCount={3}>
-              <thead><tr><th>Request</th><th>Destination</th><th>Usage</th><th>Restrictions</th><th>Created / Expires</th><th>Status</th><th>Actions</th></tr></thead>
+              columns={['select', 'text', 'text', 'usage', 'restrictions', 'date', 'status', 'actions']} actionCount={3}>
+              <thead><tr><SelectionHeader total={items.length} selected={selection.selectedItems.length} disabled={!selectable}
+                onChange={(checked) => checked ? selection.selectAll() : selection.clearSelection()}
+                label="Select all file requests in this result" />
+                <th>Request</th><th>Destination</th><th>Usage</th><th>Restrictions</th><th>Created / Expires</th><th>Status</th><th>Actions</th></tr></thead>
               <tbody>
-                {requests.map((item) => <tr key={item.id}>
+                {requests.map((item) => <tr key={item.id} data-context-item="true" data-request-id={item.id}
+                  className={selection.selected.has(item.id) ? 'is-selected' : undefined} {...selection.itemInteractionProps(item)}>
+                  <td className="select-cell"><input type="checkbox" className="row-select-checkbox"
+                    checked={selection.selected.has(item.id)} disabled={!selectable} aria-label={`Select ${item.title}`}
+                    onChange={(event) => selection.selectItem(item, event.currentTarget.checked)} /></td>
                   <td><Link className="table-primary-text" to={`/admin/file-requests/${item.id}`}><OverflowMarquee text={item.title} /></Link></td>
                   <td><PathLink path={item.destinationPath || ''} directory label={item.destinationLabel} /></td>
                   <td title={item.usageLabel}><div className="table-cell-stack">
@@ -250,17 +268,9 @@ export function FileRequestsApp() {
                     </span>
                   </div></td>
                   <td><span className={`status-badge ${item.statusClass}`}>{item.statusLabel}</span></td>
-                  <td><div className="table-actions">
-                    <Link className="button-link ghost icon-button action-icon" title="Details" aria-label="Details" to={`/admin/file-requests/${item.id}`}>{icon('fas fa-circle-info')}</Link>
-                    <button className="ghost icon-button action-icon" type="button" title="Copy request link" aria-label="Copy request link"
-                      onClick={() => void copy(item.url)}>{icon('fas fa-link')}</button>
-                    {item.active ? <button className="danger icon-button action-icon" type="button" title="Revoke" aria-label="Revoke"
-                      disabled={Boolean(busy)} onClick={() => void revoke(item)}>{icon('fas fa-link-slash')}</button>
-                      : <button className="ghost icon-button action-icon" type="button" title="Delete" aria-label="Delete"
-                        disabled={Boolean(busy)} onClick={() => void remove(item)}>{icon('fas fa-trash-can')}</button>}
-                  </div></td>
+                  <td><ListItemActions item={item} itemKey={fileRequestItemKey} actions={actions} /></td>
                 </tr>)}
-                {requests.length === 0 && <tr className="empty-row"><td colSpan={7} className="empty">
+                {requests.length === 0 && <tr className="empty-row"><td colSpan={8} className="empty">
                   {activeQuery ? 'No file requests match this search.' : 'No file requests have been issued.'}
                 </td></tr>}
               </tbody>

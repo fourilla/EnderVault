@@ -7,6 +7,7 @@ import { build } from 'vite';
 import * as React from 'react';
 import * as jsx from 'react/jsx-runtime';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { linkListStub } from './helpers/link-list-stubs.mjs';
 
 const pages = [
   { file: 'favorites/FavoritesApp', name: 'FavoritesApp', snapshot: { items: [] }, errorSlot: 2, tokenSlot: 3 },
@@ -288,15 +289,19 @@ for (const page of pages) {
       states[page.tokenSlot] = 0;
       let index = 0;
       const { [page.name]: App } = evaluate(code, id => {
+        const listStub = linkListStub(id);
+        if (page.name === 'SharedLinksApp' && listStub) return listStub;
         if (id === 'react') return {
           useEffect() {},
+          useRef: initial => ({ current: initial }),
+          useMemo: factory => factory(),
           useState(initial) {
             const slot = index++;
             if (!(slot in states)) states[slot] = initial;
             return [states[slot], value => { states[slot] = typeof value === 'function' ? value(states[slot]) : value; }];
           },
         };
-        if (id === 'react-router-dom') return { Link: ({ children }) => React.createElement('a', null, children),
+        if (id === 'react-router-dom') return { Link: ({ children }) => React.createElement('a', null, children), useLocation: () => ({ key: 'test' }),
           useSearchParams: () => [new URLSearchParams(), () => assert.fail('no navigation')] };
         if (id.endsWith('/RouteSearch')) return { useRouteSearch() {} };
         if (id.endsWith('/PageErrorPanel')) return { PageErrorPanel };

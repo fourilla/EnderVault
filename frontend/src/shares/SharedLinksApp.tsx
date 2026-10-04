@@ -1,18 +1,30 @@
 import { LoadingState } from '../shared/layout/LoadingState';
 import { StableTable } from '../shared/browser/StableTable';
 import { PathLink } from '../shared/browser/PathLink';
-import { type FormEvent, useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { useRouteSearch } from '../app/RouteSearch';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
 import { PageHeader } from '../shared/layout/PageHeader';
 import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import { FloatingPageActions } from '../app/FloatingPageActions';
-import { deleteExpiredShares, deleteShare, loadShares, revokeShare } from './share-api';
+import { SelectionHeader } from '../shared/browser/SelectionHeader';
+import { useItemSelection } from '../shared/browser/useItemSelection';
+import { useSelectionShortcuts } from '../shared/browser/useSelectionShortcuts';
+import { useBrowserContextMenu } from '../shared/browser/useBrowserContextMenu';
+import { useLocationGuard } from '../shared/browser/ListingHistoryContext';
+import { ListItemActions, useListItemActions } from '../shared/browser/ListItemActions';
+import { listItemMenuActions } from '../shared/browser/list-item-actions';
+import { shareItemIdentity, shareItemKey, shareListActions } from './share-list-actions';
+import { deleteExpiredShares, loadShares } from './share-api';
 import type { ShareLink } from './types';
 
+const emptyShares: ShareLink[] = [];
+const keepRowClick = () => {};
+
 export function SharedLinksApp() {
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeQuery = searchParams.get('q') ?? '';
   const [snapshot, setSnapshot] = useState<{ query: string; shares: ShareLink[] } | null>(null);
@@ -22,6 +34,26 @@ export function SharedLinksApp() {
   const [query, setQuery] = useState(activeQuery);
   const shares = snapshot?.query === activeQuery ? snapshot.shares : null;
   const error = feedback?.query === activeQuery ? feedback.message : '';
+  const listRef = useRef<HTMLElement>(null);
+  const pageBusy = useRef(false);
+  const items = shares ?? emptyShares;
+  const selectable = shares !== null && !error;
+  const isCurrent = useLocationGuard();
+  const reload = () => setRefreshToken((value) => value + 1);
+  const selection = useItemSelection({ items, enabled: selectable, locationKey: activeQuery,
+    itemKey: shareItemKey, openItem: keepRowClick });
+  const actions = useListItemActions({ items, definitions: shareListActions, enabled: selectable,
+    blocked: () => pageBusy.current, contextKey: location.key, isCurrent,
+    itemKey: shareItemKey, itemIdentity: shareItemIdentity, reload });
+  const menuContent = useMemo(() => ({ items, error, selected: selection.selected }), [items, error, selection.selected]);
+  useBrowserContextMenu({ menuId: 'sharedLinksContextMenu', pageScope: 'shares-react', entries: () => items,
+    itemKey: shareItemKey, keyAttribute: 'data-share-token',
+    selectedRef: selection.selectedRef, setSelected: selection.setSelected,
+    actions: () => listItemMenuActions(actions, shareItemKey), contentKey: menuContent, contextKey: activeQuery,
+    errorMessage: 'The share link action failed.' });
+  useSelectionShortcuts({ enabled: selectable && items.length > 0, contextKey: activeQuery,
+    selectedCount: selection.selectedItems.length, selectAll: selection.selectAll,
+    clearSelection: selection.clearSelection, scope: () => listRef.current });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -57,28 +89,18 @@ export function SharedLinksApp() {
       setSearchParams(next);
     } });
 
-  const reload = () => setRefreshToken((value) => value + 1);
-
   const run = async (key: string, action: () => Promise<unknown>, fallback: string) => {
+    if (pageBusy.current || actions.isBusy() || !isCurrent()) return;
+    pageBusy.current = true;
     setBusy(key);
     try {
       await action();
-      reload();
+      if (isCurrent()) reload();
     } catch (reason) {
       toastError(reason, fallback);
     } finally {
+      pageBusy.current = false;
       setBusy('');
-    }
-  };
-
-  const copy = async (value: string, message: string) => {
-    try {
-      const client = window.EnderVault;
-      if (client && await client.copyText(value)) {
-        client.showToast('success', message);
-      }
-    } catch (reason) {
-      toastError(reason, 'Link could not be copied.');
     }
   };
 
@@ -86,7 +108,7 @@ export function SharedLinksApp() {
     <>
       <PageHeader title="Shared Links" />
       {shares && (shares.length > 0 || activeQuery) && <FloatingPageActions mode="single" label="Delete expired links"
-        icon="fas fa-broom" disabled={Boolean(busy)}
+        icon="fas fa-broom" disabled={Boolean(busy) || actions.isBusy()}
         onAction={() => void run('expired', deleteExpiredShares, 'Expired links could not be deleted.')} />}
 
       <div className="page-feedback-layout">
@@ -98,14 +120,21 @@ export function SharedLinksApp() {
         <LoadingState label={activeQuery ? 'Searching shared links...' : 'Loading shared links...'} />
       )}
       {shares && (
-        <section className="table-wrap" aria-label="Shared links">
-          <StableTable columns={['text', 'text', 'type', 'date', 'status', 'actions']} actionCount={4}>
+        <section ref={listRef} className="table-wrap" aria-label="Shared links">
+          <StableTable columns={['select', 'text', 'text', 'type', 'date', 'status', 'actions']} actionCount={4}>
             <thead>
-              <tr><th>Link</th><th>Target</th><th>Type</th><th>Created / Expires</th><th>Status</th><th>Actions</th></tr>
+              <tr><SelectionHeader total={items.length} selected={selection.selectedItems.length} disabled={!selectable}
+                onChange={(checked) => checked ? selection.selectAll() : selection.clearSelection()}
+                label="Select all shared links in this result" />
+                <th>Link</th><th>Target</th><th>Type</th><th>Created / Expires</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody>
               {shares.map((share) => (
-                <tr key={share.token} data-share-status={share.statusClass}>
+                <tr key={share.token} data-share-status={share.statusClass} data-context-item="true" data-share-token={share.token}
+                  className={selection.selected.has(share.token) ? 'is-selected' : undefined} {...selection.itemInteractionProps(share)}>
+                  <td className="select-cell"><input type="checkbox" className="row-select-checkbox"
+                    checked={selection.selected.has(share.token)} disabled={!selectable} aria-label={`Select share for ${share.path}`}
+                    onChange={(event) => selection.selectItem(share, event.currentTarget.checked)} /></td>
                   <td><input readOnly value={share.url} aria-label={`Share URL for ${share.path}`} /></td>
                   <td><PathLink path={share.path} directory={share.type === 'DIRECTORY'} /></td>
                   <td>{share.type}</td>
@@ -124,33 +153,11 @@ export function SharedLinksApp() {
                     </span>
                   </div></td>
                   <td>
-                    <div className="table-actions">
-                      <button className="ghost icon-button action-icon" type="button" title="Copy link" aria-label="Copy link"
-                        onClick={() => void copy(share.url, 'Share link copied.')}>{icon('fas fa-link')}</button>
-                      {share.directDownloadUrl && (
-                        <button className="ghost icon-button action-icon" type="button" title="Copy direct download link"
-                          aria-label="Copy direct download link"
-                          onClick={() => void copy(share.directDownloadUrl!, 'Direct download link copied.')}>
-                          {icon('fas fa-file-arrow-down')}
-                        </button>
-                      )}
-                      {share.active && (
-                        <button className="danger icon-button action-icon" type="button" title="Revoke" aria-label="Revoke"
-                          disabled={Boolean(busy)}
-                          onClick={() => void run(`revoke:${share.token}`, () => revokeShare(share.token), 'Share link could not be revoked.')}>
-                          {icon('fas fa-link-slash')}
-                        </button>
-                      )}
-                      <button className="ghost icon-button action-icon" type="button" title="Delete" aria-label="Delete"
-                        disabled={Boolean(busy)}
-                        onClick={() => void run(`delete:${share.token}`, () => deleteShare(share.token), 'Share link could not be deleted.')}>
-                        {icon('fas fa-trash-can')}
-                      </button>
-                    </div>
+                    <ListItemActions item={share} itemKey={shareItemKey} actions={actions} />
                   </td>
                 </tr>
               ))}
-              {shares.length === 0 && <tr className="empty-row"><td colSpan={6} className="empty">
+              {shares.length === 0 && <tr className="empty-row"><td colSpan={7} className="empty">
                 {activeQuery ? 'No shared links match this search.' : 'No shared links yet.'}
               </td></tr>}
             </tbody>
