@@ -1,8 +1,10 @@
 import { FloatingPageActions } from '../../app/FloatingPageActions';
+import type { ReactNode } from 'react';
 import type { ListItemActionController } from './list-item-actions';
 
-export function ListItemSelectionActions<T>({ items, itemKey, actions, label }: {
+export function ListItemSelectionActions<T>({ items, itemKey, actions, label, pageActions }: {
   items: readonly T[]; itemKey: (item: T) => string; actions: ListItemActionController<T>; label: string;
+  pageActions?: ReactNode;
 }) {
   const definitions = actions.selectionDefinitions(items);
   const ids = items.map(itemKey);
@@ -22,6 +24,9 @@ export function ListItemSelectionActions<T>({ items, itemKey, actions, label }: 
           <i className="fas fa-circle-info" aria-hidden="true" />
         </button>}
       </div>
+      {pageActions && <div className="toolbar-actions floating-actions-page-group" aria-label="Whole-list actions">
+        {pageActions}
+      </div>}
     </div>
   </FloatingPageActions>;
 }

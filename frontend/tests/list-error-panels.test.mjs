@@ -12,7 +12,7 @@ import { linkListStub } from './helpers/link-list-stubs.mjs';
 const pages = [
   { file: 'favorites/FavoritesApp', name: 'FavoritesApp', snapshot: { items: [] }, errorSlot: 2, tokenSlot: 3 },
   { file: 'trash/TrashApp', name: 'TrashApp', snapshot: { items: [] }, errorSlot: 2, tokenSlot: 3 },
-  { file: 'shares/SharedLinksApp', name: 'SharedLinksApp', snapshot: [], errorSlot: 1, tokenSlot: 2 },
+  { file: 'shares/SharedLinksApp', name: 'SharedLinksApp', snapshot: [], errorSlot: 1, tokenSlot: 3 },
 ];
 
 async function compile(file) {

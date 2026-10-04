@@ -248,3 +248,24 @@ test('request selected transport submits encoded IDs and a single summary, never
   assert.equal(posts[0].values.action, 'DELETE');
   assert.equal(notified.length, 1);
 });
+
+test('share selected transport preserves case-sensitive tokens, uses encoded bulk and validates before notification', async () => {
+  const controller = evaluate(code, () => ({ toastError() {} })), posts = [], notified = [];
+  let invalid = false;
+  const forms = { postEncodedForm: async (url, values) => {
+    posts.push({ url, values }); return invalid ? { ok: true } : bulkResult(values.tokens);
+  }, postForm: () => assert.fail('No single mutation or multipart fallback'), notify: body => notified.push(body) };
+  const api = evaluate(await compile('shares/share-api.ts'), id => id.endsWith('/list-item-actions') ? controller : forms);
+  const ids = ['Custom_token-1', 'custom_token-1'];
+  await api.resolveShareSelection(ids, 'DELETE');
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].url, '/api/v1/shares/selected/resolve');
+  assert.deepEqual(Array.from(posts[0].values.tokens), ids);
+  assert.equal(posts[0].values.action, 'DELETE');
+  assert.equal(posts[0].values.confirmed, true);
+  assert.equal(notified.length, 1);
+  invalid = true;
+  await assert.rejects(api.resolveShareSelection(ids, 'REVOKE'), /could not be verified/);
+  assert.equal(notified.length, 1);
+  assert.equal(posts.length, 2);
+});

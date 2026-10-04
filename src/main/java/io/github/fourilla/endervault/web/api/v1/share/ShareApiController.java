@@ -14,11 +14,16 @@ import io.github.fourilla.endervault.web.support.ShareLinkView;
 import io.github.fourilla.endervault.web.support.ShareUrlBuilder;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.HashSet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,6 +33,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/shares")
 public class ShareApiController {
+
+    private static final Logger logger = LoggerFactory.getLogger(ShareApiController.class);
+    static final int MAX_BULK_ITEMS = 200;
 
     private final ShareLinkService shareLinkService;
     private final ActivityLogService activityLogService;
@@ -144,6 +152,72 @@ public class ShareApiController {
                 "Deleted %d expired share links.".formatted(deletedCount)
         ));
     }
+
+    @PostMapping("/selected/resolve")
+    public ResponseEntity<?> resolveSelected(
+            @RequestParam(value = "tokens", required = false) List<String> tokens,
+            @RequestParam(value = "action", required = false) BulkAction action,
+            @RequestParam(value = "confirmed", defaultValue = "false") boolean confirmed,
+            HttpServletRequest request
+    ) {
+        List<String> selected;
+        try {
+            selected = validateSelection(tokens, action, confirmed);
+        } catch (StorageAccessException ex) {
+            return ResponseEntity.badRequest().body(ActionResponse.error(ex.getMessage()));
+        }
+        var results = new java.util.ArrayList<BulkItemResponse>();
+        for (String token : selected) {
+            try {
+                // Preserve single-item idempotency and fingerprint-only activity records.
+                ActionResponse result = action == BulkAction.REVOKE ? revoke(token, request) : delete(token, request);
+                results.add(new BulkItemResponse(token, BulkStatus.APPLIED, result.notification().message()));
+            } catch (NoSuchFileException ex) {
+                results.add(new BulkItemResponse(token, BulkStatus.NOT_FOUND,
+                        "This share link is no longer available. Refresh the list."));
+            } catch (StorageAccessException ex) {
+                results.add(new BulkItemResponse(token, BulkStatus.REJECTED,
+                        "This action was rejected. Refresh shared links before retrying."));
+            } catch (IOException | RuntimeException ex) {
+                logger.warn("Selected share {} action failed for token fingerprint {}.",
+                        action, publicLinkTokenService.fingerprint(token));
+                results.add(new BulkItemResponse(token, BulkStatus.FAILED,
+                        "Could not complete this action. Refresh shared links before retrying."));
+            }
+        }
+        int succeeded = (int) results.stream().filter(item -> item.status() == BulkStatus.APPLIED).count();
+        int failed = results.size() - succeeded;
+        String message = "Share links processed: " + succeeded + " succeeded, " + failed + " unsuccessful.";
+        FlashNotification notification = failed == 0 ? FlashNotification.success(message)
+                : succeeded == 0 ? FlashNotification.error(message) : FlashNotification.warning(message);
+        return ResponseEntity.ok(new BulkResponse(true, notification, succeeded, failed, List.copyOf(results)));
+    }
+
+    private static List<String> validateSelection(List<String> tokens, BulkAction action, boolean confirmed) {
+        if (action == null || !confirmed) {
+            throw new StorageAccessException("Select a supported action and confirm the selected share links.");
+        }
+        if (tokens == null || tokens.isEmpty() || tokens.size() > MAX_BULK_ITEMS) {
+            throw new StorageAccessException("Select between 1 and " + MAX_BULK_ITEMS + " share links.");
+        }
+        var unique = new HashSet<String>();
+        for (String token : tokens) {
+            if (token == null || !token.matches("[A-Za-z0-9_-]+")) {
+                throw new StorageAccessException("Selected share tokens contain invalid characters.");
+            }
+            if (!unique.add(token)) {
+                throw new StorageAccessException("Selected share tokens must not contain duplicates.");
+            }
+        }
+        return List.copyOf(tokens);
+    }
+
+    public enum BulkAction { REVOKE, DELETE }
+    public enum BulkStatus { APPLIED, NOT_FOUND, REJECTED, FAILED }
+    public record BulkItemResponse(String id, BulkStatus status, String message) { }
+    public record BulkResponse(
+            boolean ok, FlashNotification notification, int succeededCount, int failedCount, List<BulkItemResponse> results
+    ) { }
 
     private Map<String, String> shareMetadata(String token) {
         return Map.of("tokenFingerprint", publicLinkTokenService.fingerprint(token));

@@ -1,4 +1,5 @@
-import { notify, postForm } from '../shared/api/form-api';
+import { notify, postEncodedForm, postForm } from '../shared/api/form-api';
+import { validateListBulkResult } from '../shared/browser/list-item-actions';
 import type { ShareLink } from './types';
 
 export async function loadShares(signal: AbortSignal, query = ''): Promise<ShareLink[]> {
@@ -26,3 +27,10 @@ async function mutate(url: string, values: Record<string, string> = {}) {
 export const revokeShare = (token: string) => mutate('/api/v1/shares/revoke', { token });
 export const deleteShare = (token: string) => mutate('/api/v1/shares/delete', { token });
 export const deleteExpiredShares = () => mutate('/api/v1/shares/expired/delete');
+
+export async function resolveShareSelection(ids: readonly string[], action: 'REVOKE' | 'DELETE') {
+  const body = await postEncodedForm('/api/v1/shares/selected/resolve', { tokens: [...ids], action, confirmed: true });
+  const result = validateListBulkResult(body, ids);
+  notify(body);
+  return result;
+}

@@ -83,7 +83,8 @@
   background: transparent;
 }
 
-.floating-actions-panel .browser-controls {
+.floating-actions-panel .browser-controls,
+.floating-actions-panel .floating-actions-page-group {
   border-top: 1px solid var(--line);
   padding-top: var(--space-md);
 }

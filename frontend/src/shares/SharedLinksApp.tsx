@@ -1,6 +1,7 @@
 import { LoadingState } from '../shared/layout/LoadingState';
 import { StableTable } from '../shared/browser/StableTable';
 import { PathLink } from '../shared/browser/PathLink';
+import { OverflowMarquee } from '../shared/layout/OverflowMarquee';
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { useRouteSearch } from '../app/RouteSearch';
@@ -8,14 +9,14 @@ import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
 import { PageHeader } from '../shared/layout/PageHeader';
 import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
-import { FloatingPageActions } from '../app/FloatingPageActions';
+import { ListItemSelectionActions } from '../shared/browser/ListItemSelectionActions';
 import { SelectionHeader } from '../shared/browser/SelectionHeader';
 import { useItemSelection } from '../shared/browser/useItemSelection';
 import { useSelectionShortcuts } from '../shared/browser/useSelectionShortcuts';
 import { useBrowserContextMenu } from '../shared/browser/useBrowserContextMenu';
 import { useLocationGuard } from '../shared/browser/ListingHistoryContext';
 import { ListItemActions, useListItemActions } from '../shared/browser/ListItemActions';
-import { listItemMenuActions } from '../shared/browser/list-item-actions';
+import { listItemMenuActions, type ListItemBulkResult } from '../shared/browser/list-item-actions';
 import { shareItemIdentity, shareItemKey, shareListActions } from './share-list-actions';
 import { deleteExpiredShares, loadShares } from './share-api';
 import type { ShareLink } from './types';
@@ -29,6 +30,7 @@ export function SharedLinksApp() {
   const activeQuery = searchParams.get('q') ?? '';
   const [snapshot, setSnapshot] = useState<{ query: string; shares: ShareLink[] } | null>(null);
   const [feedback, setFeedback] = useState<{ query: string; message: string } | null>(null);
+  const [bulkFeedback, setBulkFeedback] = useState<{ context: string; failures: Map<string, string> } | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
   const [busy, setBusy] = useState('');
   const [query, setQuery] = useState(activeQuery);
@@ -44,7 +46,17 @@ export function SharedLinksApp() {
     itemKey: shareItemKey, openItem: keepRowClick });
   const actions = useListItemActions({ items, definitions: shareListActions, enabled: selectable,
     blocked: () => pageBusy.current, contextKey: location.key, isCurrent,
-    itemKey: shareItemKey, itemIdentity: shareItemIdentity, reload });
+    itemKey: shareItemKey, itemIdentity: shareItemIdentity, reload,
+    selectedIds: () => [...selection.selectedRef.current],
+    bulkResolved: (result: ListItemBulkResult, actionId) => {
+      const applied = new Set(result.results.filter(item => item.status === 'APPLIED').map(item => item.id));
+      selection.setSelected(new Set([...selection.selectedRef.current].filter(id => !applied.has(id))));
+      if (actionId === 'share-delete') setSnapshot(current => current && current.query === activeQuery
+        ? { ...current, shares: current.shares.filter(item => !applied.has(item.token)) } : current);
+      setBulkFeedback({ context: location.key,
+        failures: new Map(result.results.filter(item => item.status !== 'APPLIED').map(item => [item.id, item.message])) });
+    } });
+  const failures = bulkFeedback && bulkFeedback.context === location.key ? bulkFeedback.failures : new Map<string, string>();
   const menuContent = useMemo(() => ({ items, error, selected: selection.selected }), [items, error, selection.selected]);
   useBrowserContextMenu({ menuId: 'sharedLinksContextMenu', pageScope: 'shares-react', entries: () => items,
     itemKey: shareItemKey, keyAttribute: 'data-share-token',
@@ -53,7 +65,10 @@ export function SharedLinksApp() {
     errorMessage: 'The share link action failed.' });
   useSelectionShortcuts({ enabled: selectable && items.length > 0, contextKey: activeQuery,
     selectedCount: selection.selectedItems.length, selectAll: selection.selectAll,
-    clearSelection: selection.clearSelection, scope: () => listRef.current });
+    clearSelection: selection.clearSelection, scope: () => listRef.current,
+    deleteSelection: async (isCurrentSelection) => {
+      if (isCurrentSelection()) await actions.runSelected([...selection.selectedRef.current], 'share-delete');
+    } });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -107,9 +122,14 @@ export function SharedLinksApp() {
   return (
     <>
       <PageHeader title="Shared Links" />
-      {shares && (shares.length > 0 || activeQuery) && <FloatingPageActions mode="single" label="Delete expired links"
-        icon="fas fa-broom" disabled={Boolean(busy) || actions.isBusy()}
-        onAction={() => void run('expired', deleteExpiredShares, 'Expired links could not be deleted.')} />}
+      {shares && (shares.length > 0 || activeQuery) && <ListItemSelectionActions
+        items={selection.selectedItems} itemKey={shareItemKey} actions={actions} label="Shared link actions"
+        pageActions={<button type="button" className="icon-button" aria-label="Delete expired links"
+          title="Delete expired links from the entire list, not only this search or selection."
+          disabled={!selectable || Boolean(busy) || actions.isBusy()}
+          onClick={() => void run('expired', deleteExpiredShares, 'Expired links could not be deleted.')}>
+          {icon('fas fa-broom')}
+        </button>} />}
 
       <div className="page-feedback-layout">
       {error && <PageErrorPanel title="Shared links unavailable" message={error} stale={shares !== null}
@@ -151,6 +171,7 @@ export function SharedLinksApp() {
                     <span className={`status-badge ${share.previewEnabled ? 'active' : 'info'}`}>
                       Preview {share.previewEnabled ? 'on' : 'off'}
                     </span>
+                    {failures.has(share.token) && <OverflowMarquee text={failures.get(share.token)!} />}
                   </div></td>
                   <td>
                     <ListItemActions item={share} itemKey={shareItemKey} actions={actions} />

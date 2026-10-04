@@ -113,11 +113,14 @@ test('single mode invokes the existing action directly without rendering a menu'
 
 test('only the five approved pages opt in; exit search is removed and trash keeps confirmation', () => {
   for (const [path, mode] of [['files/BrowserToolbar', 'menu'], ['recent/RecentApp', 'menu'],
-    ['bookmarks/BookmarksApp', 'menu'], ['shares/SharedLinksApp', 'single'], ['trash/TrashApp', 'single']]) {
+    ['bookmarks/BookmarksApp', 'menu'], ['trash/TrashApp', 'single']]) {
     const source = readFileSync(new URL(`../src/${path}.tsx`, import.meta.url), 'utf8');
     assert.ok(source.includes(`<FloatingPageActions mode="${mode}"`));
     assert.doesNotMatch(source, /className="toolbar"|Exit search/);
   }
+  const shares = readFileSync(new URL('../src/shares/SharedLinksApp.tsx', import.meta.url), 'utf8');
+  assert.match(shares, /<ListItemSelectionActions/);
+  assert.match(shares, /pageActions=\{<button[\s\S]*aria-label="Delete expired links"/);
   const trash = readFileSync(new URL('../src/trash/TrashApp.tsx', import.meta.url), 'utf8');
   assert.match(trash, /askConfirmation\(/);
   assert.match(trash, /<section className="table-wrap" aria-label="Trash items">/);

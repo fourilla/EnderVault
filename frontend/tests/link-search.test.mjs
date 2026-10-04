@@ -90,7 +90,7 @@ function harness(t, domain, search = '') {
     });
     return async (...args) => {
       mutations.push({ name, args });
-      if (name === 'resolveFileRequestSelection') {
+      if (name === 'resolveFileRequestSelection' || name === 'resolveShareSelection') {
         if (bulkOutcome instanceof Error) throw bulkOutcome;
         return bulkOutcome ?? { ok: true, succeededCount: args[0].length, failedCount: 0,
           results: Array.from(args[0], id => ({ id, status: 'APPLIED', message: 'Done' })) };
@@ -190,7 +190,7 @@ const actionButton = (tree, id, label) => nodes(listRows(tree).find(row => row.k
   .find(node => node.type === 'button' && node.props['aria-label'] === label);
 
 for (const domain of domains) {
-  test(`${domain.scope} uses shared selection, Shift range, header and opt-in shortcuts without Delete`, async t => {
+  test(`${domain.scope} uses shared selection, Shift range, header and opt-in shortcuts`, async t => {
     const h = harness(t, domain);
     h.render(); await h.finish(0, ['one', 'two', 'three']);
     let tree = h.render(), rows = listRows(tree);
@@ -204,7 +204,7 @@ for (const domain of domains) {
       h.key({ key: value, ctrlKey, target: h.document.body, preventDefault() { prevented = true; } });
       return prevented;
     };
-    assert.equal(key('Delete'), false);
+    if (domain.scope === 'file-requests') assert.equal(key('Delete'), false);
     assert.equal(h.mutations.length, 0);
     assert.equal(key('Escape'), true);
     assert.deepEqual(selectedKeys(h.render()), []);
@@ -260,8 +260,8 @@ for (const domain of domains) {
     h.render(); context = h.context('one');
     assert.equal(context.mode, 'selection');
     const selectedActions = h.menu.actions().filter(action => action.visible(context));
-    if (domain.scope === 'shares') assert.ok(selectedActions.every(action => action.disabled(context)));
-    else assert.deepEqual(Array.from(selectedActions, action => action.label), ['Delete']);
+    assert.deepEqual(Array.from(selectedActions, action => action.label),
+      domain.scope === 'shares' ? ['Revoke', 'Delete'] : ['Delete']);
     for (const action of h.menu.actions().filter(action => !action.visible(context))) await action.run(context);
     assert.equal(h.mutations.length, 0);
     assert.equal(h.menu.actions().filter(action => action.visible(h.context(null))).length, 0);
@@ -274,9 +274,9 @@ for (const domain of domains) {
     h.render(); await h.finish(0, ['one']);
     let tree = h.render(); rowCheckbox(listRows(tree)[0]).props.onChange({ currentTarget: { checked: true } });
     tree = h.render();
-    const command = nodes(tree).find(node => domain.scope === 'shares'
-      ? node.type?.name === 'FloatingPageActions' : node.type === 'button' && node.props.children === 'Delete expired');
-    await (domain.scope === 'shares' ? command.props.onAction() : command.props.onClick());
+    const command = nodes(tree).find(node => node.type === 'button' && (domain.scope === 'shares'
+      ? node.props['aria-label'] === 'Delete expired links' : node.props.children === 'Delete expired'));
+    await command.props.onClick();
     await flush(); h.render();
     h.requests[1].reject(new Error('Offline')); await flush(); tree = h.render();
     assert.deepEqual(selectedKeys(tree), ['one']);
@@ -417,6 +417,134 @@ test('request bulk confirmation cannot submit after an outgoing Router visit bef
 });
 const errorPanels = tree => nodes(tree).filter(node => node.type?.name === 'PageErrorPanel');
 const rowKeys = tree => nodes(tree).filter(node => node.type === 'tr' && node.key).map(node => node.key);
+
+test('share bulk menu uses the full selection intersection, never exposes multi-copy and Delete ignores status', async t => {
+  const h = harness(t, domains[0]);
+  h.render(); const data = payload(domains[0], ['one', 'two', 'three']);
+  data[1].active = false; data[2].active = false;
+  h.requests[0].resolve(data); await flush();
+  for (const row of listRows(h.render())) rowCheckbox(row).props.onChange({ currentTarget: { checked: true } });
+  const tree = h.render(), context = h.context('one');
+  assert.deepEqual(Array.from(h.menu.actions().filter(action => action.visible(context)), action => action.label), ['Delete']);
+  const floating = nodes(tree).find(node => node.type?.name === 'FloatingPageActions');
+  assert.equal(floating.props.mode, 'menu');
+  assert.equal(floating.props.selectedCount, 3);
+  const buttons = nodes(floating).filter(node => node.type === 'button');
+  assert.deepEqual(buttons.map(node => node.props['aria-label']), ['Delete', 'Delete expired links']);
+  await buttons[0].props.onClick(); await flush();
+  assert.equal(h.mutations.length, 1);
+  assert.equal(h.mutations[0].name, 'resolveShareSelection');
+  assert.equal(h.mutations[0].args[1], 'DELETE');
+  assert.deepEqual(Array.from(h.mutations[0].args[0]), ['one', 'two', 'three']);
+  assert.equal(h.confirmations.length, 1);
+  assert.deepEqual(rowKeys(h.render()), []);
+});
+
+test('share partial bulk delete keeps failed rows, failure text and selection while refreshing the current search once', async t => {
+  const h = harness(t, domains[0], '?q=path:photos');
+  h.render(); await h.finish(0, ['one', 'two']);
+  for (const row of listRows(h.render())) rowCheckbox(row).props.onChange({ currentTarget: { checked: true } });
+  h.render();
+  h.setBulkOutcome({ ok: true, succeededCount: 1, failedCount: 1, results: [
+    { id: 'one', status: 'APPLIED', message: 'Deleted' },
+    { id: 'two', status: 'FAILED', message: 'Refresh shared links before retrying.' },
+  ] });
+  const context = h.context('one');
+  await h.menu.actions().find(action => action.visible(context) && action.label === 'Delete').run(context);
+  await flush(); const tree = h.render();
+  assert.deepEqual(rowKeys(tree), ['two']);
+  assert.deepEqual(selectedKeys(tree), ['two']);
+  assert.ok(nodes(tree).some(node => node.props?.text === 'Refresh shared links before retrying.'));
+  assert.equal(h.requests.length, 2);
+  assert.equal(h.requests[1].query, 'path:photos');
+  assert.equal(h.mutations.length, 1);
+});
+
+test('share bulk revoke keeps records pending canonical reload and only clears successful selected IDs', async t => {
+  const h = harness(t, domains[0], '?q=status:active');
+  h.render(); await h.finish(0, ['one', 'two']);
+  for (const row of listRows(h.render())) rowCheckbox(row).props.onChange({ currentTarget: { checked: true } });
+  h.render(); const context = h.context('one');
+  await h.menu.actions().find(action => action.visible(context) && action.label === 'Revoke').run(context);
+  await flush();
+  assert.deepEqual(rowKeys(h.render()), ['one', 'two']);
+  assert.deepEqual(selectedKeys(h.render()), []);
+  assert.equal(h.mutations[0].args[1], 'REVOKE');
+  assert.equal(h.requests.length, 2);
+  await h.finish(1, []);
+  assert.deepEqual(rowKeys(h.render()), []);
+});
+
+test('share whole-list expiry cleanup stays available for an empty search and never submits selected tokens', async t => {
+  const h = harness(t, domains[0], '?q=path:nomatch');
+  h.render(); await h.finish(0, []);
+  const tree = h.render(), floating = nodes(tree).find(node => node.type?.name === 'FloatingPageActions');
+  assert.equal(floating.props.mode, 'menu');
+  const button = nodes(floating).find(node => node.type === 'button' && node.props['aria-label'] === 'Delete expired links');
+  assert.equal(button.props.disabled, false);
+  await button.props.onClick(); await flush(); h.render();
+  assert.deepEqual(h.mutations, [{ name: 'deleteExpiredShares', args: [] }]);
+  assert.equal(h.requests.length, 2);
+  assert.equal(h.requests[1].query, 'path:nomatch');
+});
+
+test('share Delete shortcut opts into the same confirmed bulk path with repeat and input protection', async t => {
+  const h = harness(t, domains[0]);
+  h.render(); await h.finish(0, ['one', 'two']);
+  for (const row of listRows(h.render())) rowCheckbox(row).props.onChange({ currentTarget: { checked: true } });
+  h.render();
+  let resolve;
+  h.setConfirmation(() => new Promise(done => { resolve = done; }));
+  const key = (repeat = false) => {
+    let prevented = false;
+    h.key({ key: 'Delete', repeat, target: h.document.body, preventDefault() { prevented = true; } });
+    return prevented;
+  };
+  const input = { inside: true, closest: selector => selector.includes('input') ? input : null, matches: () => false };
+  h.document.activeElement = input;
+  assert.equal(key(), false);
+  h.document.activeElement = h.document.body;
+  assert.equal(key(true), false);
+  assert.equal(key(), true);
+  assert.equal(key(), false);
+  assert.equal(h.confirmations.length, 1);
+  assert.equal(h.mutations.length, 0);
+  resolve(true); await flush(); h.render();
+  assert.equal(h.mutations.length, 1);
+  assert.equal(h.mutations[0].name, 'resolveShareSelection');
+  assert.equal(h.mutations[0].args[1], 'DELETE');
+  assert.deepEqual(selectedKeys(h.render()), []);
+});
+
+test('share bulk confirmation is canceled on selection or Router changes without sending a request', async t => {
+  for (const change of ['selection', 'route', 'cancel']) {
+    const h = harness(t, domains[0]);
+    h.render(); await h.finish(0, ['one', 'two']);
+    for (const row of listRows(h.render())) rowCheckbox(row).props.onChange({ currentTarget: { checked: true } });
+    h.render(); let resolve; h.setConfirmation(() => new Promise(done => { resolve = done; }));
+    const context = h.context('one');
+    const running = h.menu.actions().find(action => action.visible(context) && action.label === 'Delete').run(context);
+    if (change === 'selection') { rowCheckbox(listRows(h.render())[1]).props.onChange({ currentTarget: { checked: false } }); h.render(); }
+    if (change === 'route') await h.router.navigate('/admin/dashboard');
+    resolve(change !== 'cancel'); await running;
+    assert.equal(h.mutations.length, 0);
+    assert.equal(h.requests.length, 1);
+  }
+});
+
+test('share lost bulk response keeps uncertain selection and reloads without mutation replay', async t => {
+  const h = harness(t, domains[0]);
+  h.render(); await h.finish(0, ['one', 'two']);
+  for (const row of listRows(h.render())) rowCheckbox(row).props.onChange({ currentTarget: { checked: true } });
+  h.render(); h.setBulkOutcome(new Error('Lost response'));
+  const context = h.context('one');
+  await h.menu.actions().find(action => action.visible(context) && action.label === 'Delete').run(context);
+  await flush();
+  assert.deepEqual(selectedKeys(h.render()), ['one', 'two']);
+  assert.equal(h.requests.length, 2);
+  assert.equal(h.mutations.length, 1);
+  assert.deepEqual(h.errors, ['Lost response']);
+});
 
 for (const domain of domains) {
   test(`${domain.scope} submits only on command, preserves other URL fields and restores history`, async t => {

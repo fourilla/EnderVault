@@ -329,7 +329,8 @@ test('selectable administrator lists opt in explicitly; public viewers do not', 
     const page = readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8');
     assert.match(page, /useSelectionShortcuts\(\{/);
     assert.match(page, /scope: \(\) => listRef.current/);
-    assert.doesNotMatch(page, /deleteSelection:/);
+    if (file.startsWith('file-requests/')) assert.doesNotMatch(page, /deleteSelection:/);
+    else assert.match(page, /deleteSelection:[\s\S]*actions\.runSelected\([^;]*'share-delete'/);
   }
   assert.doesNotMatch(readFileSync(new URL('../src/shared-file/SharedComicViewer.tsx', import.meta.url), 'utf8'), /useSelectionShortcuts/);
 });
