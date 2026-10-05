@@ -304,7 +304,7 @@ test('selection identity follows all request conditions but ignores view and scr
   assert.equal(key(initial), key({ ...initial, view: 'grid', scrollTop: 600 }));
 });
 
-test('Files/Search, Bookmarks and Recent explicitly opt in; public and non-selectable lists do not', () => {
+test('selectable administrator lists opt in explicitly; public viewers do not', () => {
   const app = readFileSync(new URL('../src/files/BrowserApp.tsx', import.meta.url), 'utf8');
   assert.match(app, /listingRequestKeyFor\(currentState\)/);
   assert.match(app, /useSelectionShortcuts\(\{[\s\S]*payload && !loading && !error/);
@@ -325,8 +325,12 @@ test('Files/Search, Bookmarks and Recent explicitly opt in; public and non-selec
   assert.match(bookmarks, /deleteSelection: \(guard\) => actions\.deleteEntries\(selection\.selectedItems/);
   const recent = readFileSync(new URL('../src/recent/RecentApp.tsx', import.meta.url), 'utf8');
   assert.match(recent, /deleteSelection: \(guard\) => removeEntries\(selection\.selectedEntries, \{\s*confirm: true/);
-  for (const file of ['shares/SharedLinksApp.tsx',
-    'file-requests/FileRequestsApp.tsx', 'shared-file/SharedComicViewer.tsx']) {
-    assert.doesNotMatch(readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8'), /useSelectionShortcuts/);
+  for (const file of ['shares/SharedLinksApp.tsx', 'file-requests/FileRequestsApp.tsx']) {
+    const page = readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8');
+    assert.match(page, /useSelectionShortcuts\(\{/);
+    assert.match(page, /scope: \(\) => listRef.current/);
+    if (file.startsWith('file-requests/')) assert.doesNotMatch(page, /deleteSelection:/);
+    else assert.match(page, /deleteSelection:[\s\S]*actions\.runSelected\([^;]*'share-delete'/);
   }
+  assert.doesNotMatch(readFileSync(new URL('../src/shared-file/SharedComicViewer.tsx', import.meta.url), 'utf8'), /useSelectionShortcuts/);
 });

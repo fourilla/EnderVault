@@ -5,9 +5,10 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 import * as React from 'react';
 import * as jsx from 'react/jsx-runtime';
+import { linkListStub } from './helpers/link-list-stubs.mjs';
 
 const pages = [
-  { file: 'file-requests/FileRequestsApp', name: 'FileRequestsApp', load: 'loadFileRequests', token: 3,
+  { file: 'file-requests/FileRequestsApp', name: 'FileRequestsApp', load: 'loadFileRequests', token: 4,
     payload: { defaults: { title: 'Default', maxFiles: 10 } }, draft: 1 },
   { file: 'activity-logs/ActivityLogsApp', name: 'ActivityLogsApp', load: 'loadActivityLogs', token: 3,
     payload: { query: { text: 'Applied', size: 50 }, selectedFile: 'today' }, draft: 1 },
@@ -29,7 +30,7 @@ for (const page of pages) {
   test(`${page.name} retries only its read request and ignores aborted responses`, async () => {
     const states = [], refs = [], effects = [], requests = [];
     let stateIndex = 0, refIndex = 0;
-    const location = { search: '?q=applied' };
+    const location = { search: '?q=applied', key: 'test-visit' };
     const Panel = () => null;
     const module = { exports: {} };
     const react = {
@@ -39,10 +40,13 @@ for (const page of pages) {
         return [states[slot], value => { states[slot] = typeof value === 'function' ? value(states[slot]) : value; }];
       },
       useRef(initial) { const slot = refIndex++; return refs[slot] ??= { current: initial }; },
+      useMemo: factory => factory(),
       useEffect(run, deps) { effects.push({ run, deps }); },
     };
     vm.runInNewContext(code, { module, exports: module.exports, Error, AbortController, URLSearchParams,
       require(id) {
+        const listStub = linkListStub(id);
+        if (page.name === 'FileRequestsApp' && listStub) return listStub;
         if (id === 'react') return react;
         if (id === 'react/jsx-runtime') return jsx;
         if (id === 'react-router-dom') return { useLocation: () => location, useNavigate: () => () => assert.fail('no navigation'), Link: () => null,

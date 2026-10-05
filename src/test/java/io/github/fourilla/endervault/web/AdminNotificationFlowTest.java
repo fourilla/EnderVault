@@ -38,6 +38,7 @@ import io.github.fourilla.endervault.favorite.FavoriteService;
 import io.github.fourilla.endervault.filerequest.FileRequest;
 import io.github.fourilla.endervault.filerequest.FileRequestService;
 import io.github.fourilla.endervault.filerequest.UploaderNamePolicy;
+import io.github.fourilla.endervault.publiclink.PublicLinkTokenService;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.storage.StorageService;
@@ -83,6 +84,9 @@ class AdminNotificationFlowTest {
 
     @Autowired
     ActivityLogService activityLogService;
+
+    @Autowired
+    PublicLinkTokenService publicLinkTokenService;
 
     @Autowired
     FavoriteService favoriteService;
@@ -429,6 +433,60 @@ class AdminNotificationFlowTest {
                 .andExpect(jsonPath("$.redirectUrl").value(Matchers.nullValue()));
 
         assertThat(fileRequestService.list()).noneMatch(candidate -> candidate.id().equals(request.id()));
+    }
+
+    @Test
+    void selectedRequestActionsUseEncodedCsrfAndExistingOperationsWithoutRedirects() throws Exception {
+        var first = fileRequestService.create("Bulk first", "", "", UploaderNamePolicy.OPTIONAL,
+                1024, 4096, 3, List.of(), 7, null);
+        var second = fileRequestService.create("Bulk second", "", "", UploaderNamePolicy.OPTIONAL,
+                1024, 4096, 3, List.of(), 7, null);
+        mockMvc.perform(post("/api/v1/file-requests/selected/resolve").with(csrf())
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED).param("ids", first.id(), second.id())
+                        .param("action", "REVOKE").param("confirmed", "true"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.succeededCount").value(2))
+                .andExpect(jsonPath("$.redirectUrl").doesNotExist());
+        assertThat(fileRequestService.require(first.id()).enabled()).isFalse();
+        assertThat(fileRequestService.require(second.id()).enabled()).isFalse();
+        mockMvc.perform(post("/api/v1/file-requests/selected/resolve").with(csrf().asHeader())
+                        .param("ids", first.id(), second.id()).param("action", "DELETE").param("confirmed", "true"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.succeededCount").value(2));
+        assertThat(fileRequestService.list()).noneMatch(item -> item.id().equals(first.id()) || item.id().equals(second.id()));
+        assertThat(activityLogService.recentByMetadata("requestId", first.id(), 10))
+                .extracting(entry -> entry.type()).contains("FILE_REQUEST_REVOKE", "FILE_REQUEST_DELETE");
+    }
+
+    @Test
+    void selectedRequestDeleteRejectsActiveRecordsButStillDeletesEligibleRecords() throws Exception {
+        var inactive = fileRequestService.create("Bulk inactive", "", "", UploaderNamePolicy.OPTIONAL,
+                1024, 4096, 3, List.of(), 7, null);
+        var active = fileRequestService.create("Bulk active", "", "", UploaderNamePolicy.OPTIONAL,
+                1024, 4096, 3, List.of(), 7, null);
+        fileRequestService.revoke(inactive.id());
+        mockMvc.perform(post("/api/v1/file-requests/selected/resolve").with(csrf())
+                        .param("ids", inactive.id(), active.id()).param("action", "DELETE").param("confirmed", "true"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.succeededCount").value(1))
+                .andExpect(jsonPath("$.failedCount").value(1)).andExpect(jsonPath("$.results[0].status").value("APPLIED"))
+                .andExpect(jsonPath("$.results[1].status").value("REJECTED"));
+        assertThat(fileRequestService.require(active.id()).enabled()).isTrue();
+        assertThat(fileRequestService.list()).noneMatch(item -> item.id().equals(inactive.id()));
+    }
+
+    @Test
+    void selectedRequestActionsRequireCsrf() throws Exception {
+        var item = fileRequestService.create("Bulk CSRF", "", "", UploaderNamePolicy.OPTIONAL,
+                1024, 4096, 3, List.of(), 7, null);
+        mockMvc.perform(post("/api/v1/file-requests/selected/resolve").param("ids", item.id())
+                        .param("action", "REVOKE").param("confirmed", "true")).andExpect(status().isForbidden());
+        assertThat(fileRequestService.require(item.id()).enabled()).isTrue();
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    void selectedRequestActionsRequireAdministratorRoleEvenWithCsrf() throws Exception {
+        mockMvc.perform(post("/api/v1/file-requests/selected/resolve").with(csrf())
+                        .param("ids", java.util.UUID.randomUUID().toString()).param("action", "DELETE")
+                        .param("confirmed", "true")).andExpect(status().isForbidden());
     }
 
     @Test
@@ -2106,6 +2164,69 @@ class AdminNotificationFlowTest {
         assertThat(shareLinkService.list()).noneMatch(candidate -> candidate.token().equals(shareLink.token()));
         mockMvc.perform(post("/admin/shares/revoke").with(csrf()).param("token", shareLink.token()))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void shareBulkRevokeAndMixedStateDeletionReuseRealServicesWithoutDeletingFiles() throws Exception {
+        String filename = "share-bulk-" + System.nanoTime() + ".txt";
+        Files.writeString(ROOT.resolve(filename), "kept");
+        var active = shareLinkService.create("", filename, null);
+        var revoked = shareLinkService.create("", filename, null);
+        var expired = shareLinkService.create("", filename, Instant.now().minusSeconds(60));
+        shareLinkService.revoke(revoked.token());
+
+        mockMvc.perform(post("/api/v1/shares/selected/resolve").with(csrf())
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED).param("tokens", active.token())
+                        .param("action", "REVOKE").param("confirmed", "true"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.succeededCount").value(1))
+                .andExpect(jsonPath("$.redirectUrl").doesNotExist());
+        assertThat(shareLinkService.list()).filteredOn(link -> link.token().equals(active.token()))
+                .singleElement().extracting(ShareLink::enabled).isEqualTo(false);
+        var stillActive = shareLinkService.create("", filename, null);
+        mockMvc.perform(post("/api/v1/shares/selected/resolve").with(csrf().asHeader())
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .param("tokens", active.token(), revoked.token(), expired.token(), stillActive.token())
+                        .param("action", "DELETE").param("confirmed", "true"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.succeededCount").value(4))
+                .andExpect(jsonPath("$.failedCount").value(0));
+        var deleted = List.of(active.token(), revoked.token(), expired.token(), stillActive.token());
+        assertThat(shareLinkService.list()).noneMatch(link -> deleted.contains(link.token()));
+        assertThat(Files.readString(ROOT.resolve(filename))).isEqualTo("kept");
+        for (String token : deleted) assertThat(activityLogService.recentByMetadata(
+                        "tokenFingerprint", publicLinkTokenService.fingerprint(token), 10))
+                .filteredOn(entry -> "SHARE_DELETE".equals(entry.type()))
+                .singleElement().satisfies(entry -> assertThat(entry.metadata()).doesNotContainKeys("token"));
+    }
+
+    @Test
+    void shareBulkMaintainsExistingNoOpSuccessForAlreadyDeletedTokens() throws Exception {
+        String filename = "share-bulk-noop-" + System.nanoTime() + ".txt";
+        Files.writeString(ROOT.resolve(filename), "kept");
+        var link = shareLinkService.create("", filename, null);
+        shareLinkService.delete(link.token());
+        mockMvc.perform(post("/api/v1/shares/selected/resolve").with(csrf())
+                        .param("tokens", link.token()).param("action", "DELETE").param("confirmed", "true"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.results[0].status").value("APPLIED"));
+        assertThat(Files.exists(ROOT.resolve(filename))).isTrue();
+    }
+
+    @Test
+    void shareBulkWithoutCsrfDoesNotChangeLinks() throws Exception {
+        String filename = "share-bulk-csrf-" + System.nanoTime() + ".txt";
+        Files.writeString(ROOT.resolve(filename), "kept");
+        var link = shareLinkService.create("", filename, null);
+        mockMvc.perform(post("/api/v1/shares/selected/resolve").param("tokens", link.token())
+                        .param("action", "DELETE").param("confirmed", "true"))
+                .andExpect(status().isForbidden());
+        assertThat(shareLinkService.list()).anyMatch(item -> item.token().equals(link.token()) && item.enabled());
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    void shareBulkRequiresAdminEvenWithCsrf() throws Exception {
+        mockMvc.perform(post("/api/v1/shares/selected/resolve").with(csrf())
+                        .param("tokens", "safe_existing_token").param("action", "DELETE").param("confirmed", "true"))
+                .andExpect(status().isForbidden());
     }
 
     @Test

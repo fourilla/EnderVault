@@ -24,12 +24,15 @@ test('phase two keeps action capacity, selectable share URLs and request seconda
   const shares = source('shares/SharedLinksApp.tsx');
   assert.match(shares, /'type', 'date', 'status', 'actions'\]\} actionCount=\{4\}/);
   assert.match(shares, /<th>Created \/ Expires<\/th>/);
-  assert.match(shares, /colSpan=\{6\}/);
+  assert.match(shares, /colSpan=\{7\}/);
   assert.match(shares, /aria-label=\{`Created:/);
   assert.match(shares, /aria-label=\{`Expires:/);
   assert.match(shares, /<input readOnly value=\{share.url\}/);
   const requests = source('file-requests/FileRequestsApp.tsx');
-  assert.match(requests, /<Link className="button-link ghost icon-button action-icon" title="Details"/);
+  assert.match(requests, /<ListItemActions item=\{item\}/);
+  assert.match(source('shared/browser/ListItemActions.tsx'), /<Link key=\{action.id\} className=\{`button-link \$\{className\}`\}/);
+  assert.match(source('file-requests/file-request-list-actions.ts'), /label: 'Details', icon: 'fas fa-circle-info'/);
+  assert.match(requests, /colSpan=\{8\}/);
   assert.match(requests, /<StableTable className="file-requests-table"/);
   assert.match(requests, /'usage', 'restrictions', 'date', 'status', 'actions'\]\} actionCount=\{3\}/);
   assert.match(requests, /<th>Created \/ Expires<\/th>/);
