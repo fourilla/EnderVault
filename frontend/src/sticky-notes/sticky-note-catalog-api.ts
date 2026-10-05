@@ -1,4 +1,5 @@
 import { notify } from '../shared/api/form-api';
+import { resolveSelectedItems } from '../shared/api/selected-item-api';
 import type { StickyNoteCatalogPayload, StickyNoteDeletePayload } from './types';
 
 export async function loadStickyNoteCatalog(query: string, signal: AbortSignal): Promise<StickyNoteCatalogPayload> {
@@ -24,5 +25,16 @@ export async function deleteStickyNote(id: string): Promise<StickyNoteDeletePayl
     headers: csrf ? { 'X-CSRF-TOKEN': csrf.value } : {},
   }) as StickyNoteDeletePayload;
   notify(body);
+  stickyNoteDeleted(body.deletedId);
   return body;
+}
+
+function stickyNoteDeleted(id: string) {
+  document.dispatchEvent(new CustomEvent('endervault:sticky-note-deleted', { detail: { id } }));
+}
+
+export async function deleteSelectedStickyNotes(ids: readonly string[]) {
+  const result = await resolveSelectedItems('/api/v1/sticky-notes/selected/resolve', ids, 'DELETE');
+  result.results.filter(item => item.status === 'APPLIED').forEach(item => stickyNoteDeleted(item.id));
+  return result;
 }

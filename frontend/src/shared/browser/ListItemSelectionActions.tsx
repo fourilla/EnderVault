@@ -19,8 +19,8 @@ export function ListItemSelectionActions<T>({ items, itemKey, actions, label, pa
           <i className={action.icon} aria-hidden="true" />
         </button>)}
         {!definitions.length && <button type="button" className="icon-button" disabled
-          aria-label={items.length ? 'No common action for these links' : 'Select links first'}
-          title={items.length ? 'Select links with the same available actions. No subset will be processed.' : 'Select links first.'}>
+          aria-label={items.length ? `No common action for these ${actions.itemLabel()}` : `Select ${actions.itemLabel()} first`}
+          title={items.length ? `Select ${actions.itemLabel()} with the same available actions. No subset will be processed.` : `Select ${actions.itemLabel()} first.`}>
           <i className="fas fa-circle-info" aria-hidden="true" />
         </button>}
       </div>

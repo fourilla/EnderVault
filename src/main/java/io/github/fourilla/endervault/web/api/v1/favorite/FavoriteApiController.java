@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.web.api.v1.favorite;
 
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.favorite.FavoriteItem;
 import io.github.fourilla.endervault.favorite.FavoriteService;
 import io.github.fourilla.endervault.web.support.ActionResponse;
@@ -9,9 +10,12 @@ import io.github.fourilla.endervault.web.support.BrowserPreferenceCookies;
 import io.github.fourilla.endervault.web.support.FavoriteActionResponse;
 import io.github.fourilla.endervault.web.support.FavoritePayload;
 import io.github.fourilla.endervault.web.support.FlashNotification;
+import io.github.fourilla.endervault.web.support.SelectedItemActions;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -68,6 +72,22 @@ public class FavoriteApiController {
     ) throws IOException {
         favoriteService.move(path, direction);
         return ActionResponse.ok(FlashNotification.success("Favorite order updated."));
+    }
+
+    @PostMapping("/selected/resolve")
+    public ResponseEntity<?> resolveSelected(
+            @RequestParam MultiValueMap<String, String> parameters,
+            @RequestParam(value = "action", required = false) String action,
+            @RequestParam(value = "confirmed", defaultValue = "false") boolean confirmed) {
+        try {
+            // Preserve exact registry keys (including commas) instead of collection comma-splitting or path normalization.
+            var selected = SelectedItemActions.validate(parameters.get("ids"), action, "REMOVE", confirmed,
+                    id -> !id.isBlank() && id.length() <= 8192 && id.indexOf('\0') < 0);
+            return ResponseEntity.ok(SelectedItemActions.execute(selected, "Favorites",
+                    id -> remove(id).notification().message()));
+        } catch (StorageAccessException ex) {
+            return ResponseEntity.badRequest().body(ActionResponse.error(ex.getMessage()));
+        }
     }
 
     private FavoriteActionResponse toggleResponse(String path, FavoriteItem favorite) throws IOException {

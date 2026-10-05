@@ -1,4 +1,5 @@
 import { notify, postForm } from './form-api';
+import { resolveSelectedItems } from './selected-item-api';
 
 export interface FavoriteToggleResult {
   active?: boolean;
@@ -35,4 +36,10 @@ export async function moveFavorite(path: string, direction: FavoriteDirection): 
   notify(body);
   favoritesChanged();
   return body;
+}
+
+export async function removeSelectedFavorites(ids: readonly string[]) {
+  const result = await resolveSelectedItems('/api/v1/favorites/selected/resolve', ids, 'REMOVE');
+  if (result.succeededCount) favoritesChanged();
+  return result;
 }

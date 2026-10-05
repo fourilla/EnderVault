@@ -30,7 +30,7 @@ test('phase two keeps action capacity, selectable share URLs and request seconda
   assert.match(shares, /<input readOnly value=\{share.url\}/);
   const requests = source('file-requests/FileRequestsApp.tsx');
   assert.match(requests, /<ListItemActions item=\{item\}/);
-  assert.match(source('shared/browser/ListItemActions.tsx'), /<Link key=\{action.id\} className=\{`button-link \$\{className\}`\}/);
+  assert.match(source('shared/browser/ListItemActions.tsx'), /<AppNavigationLink key=\{action.id\} className=\{`button-link \$\{className\}`\}/);
   assert.match(source('file-requests/file-request-list-actions.ts'), /label: 'Details', icon: 'fas fa-circle-info'/);
   assert.match(requests, /colSpan=\{8\}/);
   assert.match(requests, /<StableTable className="file-requests-table"/);
@@ -93,8 +93,6 @@ test('existing list action buttons reuse danger for destructive actions and ghos
     assert.match(tag, /className="danger icon-button(?: action-icon)?"/);
   }
   assert.match(source('file-requests/FileRequestsApp.tsx'), /<button className="danger"[^>]*[\s\S]*?>Delete expired<\/button>/);
-  const restore = source('trash/TrashApp.tsx').match(/<button\b[^>]*title="Restore"[^>]*>/)?.[0];
-  assert.match(restore, /className="ghost icon-button action-icon"/);
-  const removeFavorite = source('favorites/FavoritesApp.tsx').match(/<button\b[^>]*title="Remove"[^>]*>/)?.[0];
-  assert.match(removeFavorite, /className="ghost icon-button action-icon"/);
+  assert.match(source('trash/trash-list-actions.ts'), /id: 'trash-restore', label: 'Restore'/);
+  assert.match(source('favorites/favorite-list-actions.ts'), /id: 'favorite-remove'[\s\S]*icon: 'fas fa-star-half-stroke'/);
 });

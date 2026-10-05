@@ -110,6 +110,7 @@ function harness(t, domain, search = '') {
   const controller = evaluate(controllerCode, () => formApi);
   const actionView = evaluate(actionViewCode, id => id === 'react' ? react : id === 'react/jsx-runtime' ? jsx
     : id === 'react-router-dom' ? routeHooks : id.endsWith('/list-item-actions') || id === './list-item-actions' ? controller
+    : id.endsWith('/AppNavigationLink') ? { AppNavigationLink: routeHooks.Link }
     : { icon: () => null });
   const actionDefinitions = evaluate(domain.actionsCode, id => id.endsWith('/list-item-actions') ? controller : api);
   const selectionActionView = evaluate(selectionActionViewCode, id => id === 'react/jsx-runtime' ? jsx

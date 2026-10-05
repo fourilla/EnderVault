@@ -17,8 +17,11 @@ export interface ListItemAction<T> {
   group: string;
   danger?: boolean;
   href?: (item: T) => string;
+  newTab?: (item: T) => boolean;
+  inRow?: boolean;
+  disabled?: (item: T) => boolean;
   supports: (item: T) => boolean;
-  confirmation?: Confirmation;
+  confirmation?: Confirmation | ((item: T) => Confirmation);
   changesList?: boolean;
   execute: (item: T) => unknown | Promise<unknown>;
   bulk?: { confirmation: (count: number) => Confirmation; execute: (ids: readonly string[]) => Promise<ListItemBulkResult> };
@@ -36,6 +39,7 @@ export interface ListItemActionOptions<T> {
   reload: () => void;
   selectedIds?: () => readonly string[];
   bulkResolved?: (result: ListItemBulkResult, actionId: string) => void;
+  itemLabel?: string;
 }
 
 export function createListItemActions<T>(options: () => ListItemActionOptions<T>, changed: () => void) {
@@ -45,37 +49,39 @@ export function createListItemActions<T>(options: () => ListItemActionOptions<T>
   const find = (id: string) => options().items.find((item) => options().itemKey(item) === id);
   const actionFor = (id: string) => options().definitions.find((action) => action.id === id);
   const disabled = () => busy || options().blocked() || !options().enabled;
+  const itemLabel = () => options().itemLabel ?? 'links';
   const selectionDefinitions = (items: readonly T[]) => items.length
     ? options().definitions.filter((action) => action.bulk && items.every(action.supports)) : [];
   const unavailableReason = (ids: readonly string[], actionId: string) => {
-    if (!ids.length) return 'Select links first.';
-    if (ids.length > MAX_LIST_BULK_ITEMS) return `Select no more than ${MAX_LIST_BULK_ITEMS} links per action.`;
+    if (!ids.length) return `Select ${itemLabel()} first.`;
+    if (ids.length > MAX_LIST_BULK_ITEMS) return `Select no more than ${MAX_LIST_BULK_ITEMS} ${itemLabel()} per action.`;
     if (!active || !options().enabled || !options().isCurrent()) return 'Wait for the current list to load successfully.';
-    if (busy || options().blocked()) return 'Another link action is in progress.';
+    if (busy || options().blocked()) return 'Another list action is in progress.';
     const action = actionFor(actionId);
     if (new Set(ids).size !== ids.length || !action?.bulk || ids.some((id) => {
       const item = find(id);
-      return !item || !action.supports(item);
-    })) return 'This action is not available for all selected links.';
+      return !item || !action.supports(item) || Boolean(action.disabled?.(item));
+    })) return `This action is not available for all selected ${itemLabel()}.`;
     return '';
   };
   const run = async (id: string, actionId: string) => {
     const initial = options(), item = find(id), action = actionFor(actionId);
-    if (!active || disabled() || !initial.isCurrent() || !item || !action?.supports(item)) return;
+    if (!active || disabled() || !initial.isCurrent() || !item || !action?.supports(item) || action.disabled?.(item)) return;
     const identity = initial.itemIdentity(item), context = initial.contextKey, started = lifetime;
     const current = () => active && lifetime === started && options().contextKey === context
       && initial.isCurrent() && options().isCurrent();
     busy = true;
     changed();
     try {
-      if (action.confirmation && !await window.EnderVault?.askConfirmation(action.confirmation)) return;
+      const confirmation = typeof action.confirmation === 'function' ? action.confirmation(item) : action.confirmation;
+      if (confirmation && !await window.EnderVault?.askConfirmation(confirmation)) return;
       const latest = options(), target = find(id), latestAction = actionFor(actionId);
-      if (!current() || !latest.enabled || latest.blocked() || !target || !latestAction?.supports(target)
+      if (!current() || !latest.enabled || latest.blocked() || !target || !latestAction?.supports(target) || latestAction.disabled?.(target)
         || latest.itemIdentity(target) !== identity) return;
       await latestAction.execute(target);
       if (current() && latestAction.changesList) options().reload();
     } catch (reason) {
-      toastError(reason, 'The link action failed.');
+      toastError(reason, 'The list action failed.');
     } finally {
       busy = false;
       if (active) changed();
@@ -103,15 +109,15 @@ export function createListItemActions<T>(options: () => ListItemActionOptions<T>
       if (!current() || !latest.enabled || latest.blocked()) return;
       if (!selectionMatches() || !latestAction?.bulk || !ids.every((id, index) => {
         const item = find(id);
-        return item && latestAction.supports(item) && latest.itemIdentity(item) === identities[index];
+        return item && latestAction.supports(item) && !latestAction.disabled?.(item) && latest.itemIdentity(item) === identities[index];
       })) {
-        throw new Error('Selected links changed. Review the selection before continuing.');
+        throw new Error('Selected items changed. Review the selection before continuing.');
       }
       submitted = true;
       const result = await latestAction.bulk.execute(ids);
       if (current()) options().bulkResolved?.(result, actionId);
     } catch (reason) {
-      toastError(reason, 'The selected link action failed. Refresh the list before retrying.');
+      toastError(reason, 'The selected list action failed. Refresh the list before retrying.');
     } finally {
       // A lost response may still follow successful server work. Read once; never replay the mutation.
       if (submitted && current()) options().reload();
@@ -124,6 +130,7 @@ export function createListItemActions<T>(options: () => ListItemActionOptions<T>
     dispose() { active = false; lifetime += 1; },
     isBusy: () => busy,
     disabled,
+    itemLabel,
     definitions: () => options().definitions,
     selectionDefinitions,
     unavailableReason,
@@ -139,17 +146,18 @@ export function listItemMenuActions<T>(controller: ListItemActionController<T>, 
     id: action.id, group: action.group, label: action.label, icon: action.icon, danger: action.danger,
     visible: ({ mode, item, items }) => mode === 'single' ? item !== null && action.supports(item)
       : mode === 'selection' && Boolean(action.bulk) && items.every(action.supports),
-    disabled: ({ mode, items }) => mode === 'selection'
-      ? Boolean(controller.unavailableReason(items.map(itemKey), action.id)) : controller.disabled(),
+    disabled: ({ mode, item, items }) => mode === 'selection'
+      ? Boolean(controller.unavailableReason(items.map(itemKey), action.id))
+      : controller.disabled() || Boolean(item && action.disabled?.(item)),
     title: ({ mode, items }) => mode === 'selection' ? controller.unavailableReason(items.map(itemKey), action.id) : '',
     run: ({ mode, item, items }) => mode === 'single' && item ? controller.run(itemKey(item), action.id)
       : mode === 'selection' ? controller.runSelected(items.map(itemKey), action.id) : undefined,
   })).concat([{
-    id: 'no-common-link-action', group: 'mutate', label: 'No common action for these links', icon: 'fas fa-circle-info',
+    id: 'no-common-link-action', group: 'mutate', label: `No common action for these ${controller.itemLabel()}`, icon: 'fas fa-circle-info',
     visible: ({ mode, items }) => mode === 'selection' && controller.definitions().some(action => Boolean(action.bulk))
       && !controller.selectionDefinitions(items).length,
     disabled: () => true,
-    title: () => 'Select links with the same available actions. No subset will be processed.',
+    title: () => `Select ${controller.itemLabel()} with the same available actions. No subset will be processed.`,
     run: () => undefined,
   }]);
 }
@@ -171,4 +179,9 @@ export async function copyListLink(value: string, message: string) {
   const client = window.EnderVault;
   if (!client) throw new Error('Clipboard services are unavailable.');
   if (await client.copyText(value)) client.showToast('success', message);
+}
+
+export function openListTarget(url: string, newTab = false) {
+  if (newTab) window.open(url, '_blank', 'noopener,noreferrer');
+  else window.EnderVault?.navigate(url) || window.location.assign(url);
 }

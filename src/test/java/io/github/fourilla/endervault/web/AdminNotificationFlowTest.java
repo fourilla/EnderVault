@@ -134,6 +134,72 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void selectedListActionsReuseStorageOperationsAndPreserveFavoriteTargets(
+            @Autowired io.github.fourilla.endervault.stickynote.StickyNoteService notes) throws Exception {
+        String prefix = "selected-list-" + System.nanoTime();
+        String file = prefix + ".txt", directory = prefix + "-directory";
+        Files.writeString(ROOT.resolve(file), "keep underlying target");
+        Files.createDirectory(ROOT.resolve(directory));
+        favoriteService.toggle(file);
+        favoriteService.toggle(directory);
+        mockMvc.perform(post("/api/v1/favorites/selected/resolve").with(csrf().asHeader())
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED).param("ids", file, directory)
+                        .param("action", "REMOVE").param("confirmed", "true"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.succeededCount").value(2))
+                .andExpect(jsonPath("$.results[0].status").value("APPLIED"));
+        assertThat(favoriteService.isFavorite(file)).isFalse();
+        assertThat(favoriteService.isFavorite(directory)).isFalse();
+        assertThat(ROOT.resolve(file)).hasContent("keep underlying target");
+        assertThat(ROOT.resolve(directory)).isDirectory();
+
+        var trashed = trashService.moveToTrash("", List.of(file, directory));
+        String missing = java.util.UUID.randomUUID().toString();
+        mockMvc.perform(post("/api/v1/trash/selected/resolve").with(csrf()).param("ids", trashed.get(0).id(), missing, trashed.get(1).id())
+                        .param("action", "DELETE").param("confirmed", "true"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.succeededCount").value(2))
+                .andExpect(jsonPath("$.failedCount").value(1)).andExpect(jsonPath("$.results[1].status").value("NOT_FOUND"));
+        assertThat(trashService.list()).noneMatch(item -> item.id().equals(trashed.get(0).id()) || item.id().equals(trashed.get(1).id()));
+
+        var context = new io.github.fourilla.endervault.stickynote.StickyNoteContext(
+                io.github.fourilla.endervault.stickynote.StickyNoteTargetType.PAGE, "dashboard",
+                io.github.fourilla.endervault.stickynote.StickyNoteSurface.PAGE);
+        var one = notes.create(context, 10, 10, null);
+        var two = notes.create(context, 20, 20, null);
+        mockMvc.perform(post("/api/v1/sticky-notes/selected/resolve").with(csrf()).param("ids", one.id(), two.id())
+                        .param("action", "DELETE").param("confirmed", "true"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.succeededCount").value(2))
+                .andExpect(jsonPath("$.results[1].status").value("APPLIED"));
+        assertThat(notes.list(context)).noneMatch(note -> note.id().equals(one.id()) || note.id().equals(two.id()));
+    }
+
+    @Test
+    void selectedListActionsRequireCsrfAndPrevalidateWholeRequest() throws Exception {
+        String file = "selected-csrf-" + System.nanoTime() + ".txt";
+        Files.writeString(ROOT.resolve(file), "must stay");
+        favoriteService.toggle(file);
+        for (String domain : List.of("trash", "sticky-notes", "favorites")) {
+            mockMvc.perform(post("/api/v1/" + domain + "/selected/resolve").param("ids", file)
+                            .param("action", domain.equals("favorites") ? "REMOVE" : "DELETE").param("confirmed", "true"))
+                    .andExpect(status().isForbidden());
+        }
+        mockMvc.perform(post("/api/v1/favorites/selected/resolve").with(csrf()).param("ids", file, "")
+                        .param("action", "REMOVE").param("confirmed", "true"))
+                .andExpect(status().isBadRequest());
+        assertThat(favoriteService.isFavorite(file)).isTrue();
+    }
+
+    @Test
+    @WithMockUser(roles = "USER")
+    void selectedListActionsRequireAdministratorRoleEvenWithCsrf() throws Exception {
+        for (String domain : List.of("trash", "sticky-notes", "favorites")) {
+            mockMvc.perform(post("/api/v1/" + domain + "/selected/resolve").with(csrf())
+                            .param("ids", java.util.UUID.randomUUID().toString())
+                            .param("action", domain.equals("favorites") ? "REMOVE" : "DELETE").param("confirmed", "true"))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
+    @Test
     void filesPageRendersAuthenticatedAppRootAndRuntime() throws Exception {
         mockMvc.perform(get("/files"))
                 .andExpect(status().isOk())

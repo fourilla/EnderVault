@@ -3,8 +3,7 @@ import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import test from 'node:test';
 import { build } from 'vite';
-import * as jsx from 'react/jsx-runtime';
-import { createMemoryRouter } from 'react-router-dom';
+import { listHarness, domains, nodes as listNodes } from './helpers/selectable-list-harness.mjs';
 
 async function compile(file) {
   const result = await build({ configFile: false, logLevel: 'silent',
@@ -14,73 +13,19 @@ async function compile(file) {
   });
   return (Array.isArray(result) ? result[0] : result).output.find(item => item.type === 'chunk').code;
 }
-const code = await compile('TrashApp.tsx');
 const apiCode = await compile('trash-api.ts');
 const flush = () => new Promise(setImmediate);
 function nodes(tree) {
   if (Array.isArray(tree)) return tree.flatMap(nodes);
   if (!tree || typeof tree !== 'object') return [];
+  if (tree.type?.name === 'ListItemActions') return nodes(tree.type(tree.props));
   return [tree, ...nodes(tree.props?.children)];
 }
 const payload = ids => ({ items: ids.map(id => ({ id, originalName: `${id}.pdf`, originalPath: `photos/${id}.pdf` })) });
 const rows = tree => nodes(tree).filter(node => node.type === 'tr' && node.key).map(node => node.key);
 const panels = tree => nodes(tree).filter(node => node.type?.name === 'PageErrorPanel');
 
-function harness(t, search = '') {
-  const router = createMemoryRouter([{ path: '*', element: null }], { initialEntries: ['/admin/trash' + search] });
-  const slots = [], effects = [], requests = [], mutations = [], confirmations = [];
-  let cursor = 0, dirty, registration;
-  const module = { exports: {} };
-  vm.runInNewContext(code, { module, exports: module.exports, AbortController, URLSearchParams, Error,
-    window: { EnderVault: { askConfirmation: async config => { confirmations.push(config); return true; } } },
-    require(id) {
-      if (id === 'react') return {
-        useState(initial) {
-          const index = cursor++;
-          slots[index] ??= { value: initial };
-          return [slots[index].value, next => {
-            const value = typeof next === 'function' ? next(slots[index].value) : next;
-            if (!Object.is(value, slots[index].value)) { slots[index].value = value; dirty = true; }
-          }];
-        },
-        useEffect(run, deps) {
-          const index = cursor++, previous = slots[index];
-          if (previous && deps.every((dep, i) => Object.is(dep, previous.deps[i]))) return;
-          const slot = { deps, cleanup: previous?.cleanup };
-          slots[index] = slot;
-          effects.push(() => { slot.cleanup?.(); slot.cleanup = run(); });
-        },
-      };
-      if (id === 'react/jsx-runtime') return jsx;
-      if (id === 'react-router-dom') return { useSearchParams: () => [new URLSearchParams(router.state.location.search),
-        next => router.navigate({ pathname: '/admin/trash', search: new URLSearchParams(next).toString() })] };
-      if (id.endsWith('/RouteSearch')) return { useRouteSearch: control => { registration = control; } };
-      if (id.endsWith('/BrowserEntries')) return { icon: () => null };
-      if (id.endsWith('/form-api')) return { toastError: reason => { throw reason; } };
-      if (id.endsWith('/trash-api')) return {
-        loadTrash: (signal, query) => new Promise((resolve, reject) => { requests.push({ signal, query, resolve, reject }); }),
-        ...Object.fromEntries(['restoreTrashItem', 'deleteTrashItem', 'emptyTrash'].map(name => [name,
-          async (...args) => { mutations.push({ name, args }); }])),
-      };
-      const name = id.split('/').at(-1);
-      return { [name]: { [name]: () => null }[name] };
-    },
-  });
-  t.after(() => { slots.forEach(slot => slot.cleanup?.()); router.dispose(); });
-  return { router, requests, mutations, confirmations,
-    get search() { return registration; },
-    render() {
-      let tree, count = 0;
-      do {
-        assert.ok(++count < 20, 'render/effect loop');
-        dirty = false; cursor = 0; tree = module.exports.TrashApp();
-        effects.splice(0).forEach(run => run());
-      } while (dirty);
-      return tree;
-    },
-    async finish(index = requests.length - 1, ids = []) { requests[index].resolve(payload(ids)); await flush(); },
-  };
-}
+const harness = (t, search = '') => listHarness(t, domains[0], search);
 
 test('trash search submits on command, preserves URL fields and restores history', async t => {
   const h = harness(t, '?q=name:old&context=keep');
@@ -158,8 +103,8 @@ test('empty filtered results keep search and the whole-catalog empty command', a
   const tree = h.render();
   assert.ok(nodes(tree).find(node => node.type === 'p' && node.props.children === 'No trash items match this search.'));
   assert.equal(h.search.disabled, undefined);
-  const action = nodes(tree).find(node => node.props?.mode === 'single');
-  action.props.onAction(); await flush(); h.render();
+  const action = listNodes(tree).find(node => node.props?.['aria-label'] === 'Empty trash');
+  action.props.onClick(); await flush(); h.render();
   assert.match(h.confirmations[0].message, /every item in trash/);
   assert.deepEqual(h.mutations, [{ name: 'emptyTrash', args: [] }]);
   assert.equal(h.requests.at(-1).query, 'name:missing');
