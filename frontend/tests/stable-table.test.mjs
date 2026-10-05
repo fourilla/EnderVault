@@ -79,3 +79,22 @@ test('phase one opts in browser, favorites and trash without global table layout
   const common = readFileSync(new URL('../../src/main/resources/static/css/components/browser.css', import.meta.url), 'utf8');
   assert.doesNotMatch(common, /table-layout: fixed/);
 });
+
+test('existing list action buttons reuse danger for destructive actions and ghost for restore', () => {
+  const cases = [
+    ['file-detail/FileDetailApp.tsx', 'Delete'],
+    ['settings/sections/PasskeySettings.tsx', 'Delete passkey'],
+    ['activity-logs/ActivityLogsApp.tsx', 'Delete selected log file'],
+    ['shares/SharedLinksApp.tsx', 'Delete expired links'],
+  ];
+  for (const [path, label] of cases) {
+    const tag = source(path).match(new RegExp(`<button\\b[^>]*(?:title|aria-label)="${label}"[^>]*>`))?.[0];
+    assert.ok(tag, `${path}: ${label}`);
+    assert.match(tag, /className="danger icon-button(?: action-icon)?"/);
+  }
+  assert.match(source('file-requests/FileRequestsApp.tsx'), /<button className="danger"[^>]*[\s\S]*?>Delete expired<\/button>/);
+  const restore = source('trash/TrashApp.tsx').match(/<button\b[^>]*title="Restore"[^>]*>/)?.[0];
+  assert.match(restore, /className="ghost icon-button action-icon"/);
+  const removeFavorite = source('favorites/FavoritesApp.tsx').match(/<button\b[^>]*title="Remove"[^>]*>/)?.[0];
+  assert.match(removeFavorite, /className="ghost icon-button action-icon"/);
+});

@@ -124,7 +124,7 @@ export function SharedLinksApp() {
       <PageHeader title="Shared Links" />
       {shares && (shares.length > 0 || activeQuery) && <ListItemSelectionActions
         items={selection.selectedItems} itemKey={shareItemKey} actions={actions} label="Shared link actions"
-        pageActions={<button type="button" className="icon-button" aria-label="Delete expired links"
+        pageActions={<button type="button" className="danger icon-button" aria-label="Delete expired links"
           title="Delete expired links from the entire list, not only this search or selection."
           disabled={!selectable || Boolean(busy) || actions.isBusy()}
           onClick={() => void run('expired', deleteExpiredShares, 'Expired links could not be deleted.')}>

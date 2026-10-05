@@ -13,7 +13,7 @@ export const shareListActions: readonly ListItemAction<ShareLink>[] = [
     bulk: { confirmation: (count) => ({ title: 'Revoke selected share links?',
       message: `Revoke ${count} selected share link(s)? These links will stop allowing access.`,
       confirmLabel: 'Revoke links', danger: true }), execute: (ids) => resolveShareSelection(ids, 'REVOKE') } },
-  { id: 'share-delete', label: 'Delete', icon: 'fas fa-trash-can', group: 'mutate',
+  { id: 'share-delete', label: 'Delete', icon: 'fas fa-trash-can', group: 'mutate', danger: true,
     supports: () => true, changesList: true, execute: (item) => deleteShare(item.token),
     bulk: { confirmation: (count) => ({ title: 'Delete selected share links?',
       message: `Permanently delete ${count} selected share link(s)? Files and directories will not be deleted.`,

@@ -248,7 +248,7 @@ export function FileRequestsApp() {
           <section ref={listRef} className="dashboard-panel" aria-label="Issued requests">
             <header className="section-heading">
               <div><h2>Issued Requests</h2><p>Revoke active links before deleting their records.</p></div>
-              {requests && (requests.length > 0 || activeQuery) && <button className="ghost" type="button" disabled={Boolean(busy) || actions.isBusy()}
+              {requests && (requests.length > 0 || activeQuery) && <button className="danger" type="button" disabled={Boolean(busy) || actions.isBusy()}
                 onClick={() => void deleteExpired()}>Delete expired</button>}
             </header>
             {!requests && !error && <LoadingState label={activeQuery ? 'Searching file requests...' : 'Loading file requests...'} />}

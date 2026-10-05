@@ -196,7 +196,7 @@ export function ActivityLogsApp() {
                   </button>
                 </form>
                 {payload.selectedFileDeletable && (
-                  <button className="ghost icon-button action-icon" type="button" disabled={busy}
+                  <button className="danger icon-button action-icon" type="button" disabled={busy}
                     title="Delete selected log file" aria-label="Delete selected log file"
                     onClick={() => void deleteSelectedLog()}>
                     {icon('fas fa-trash-can')}

@@ -72,7 +72,7 @@ export function PasskeySettings({ onDirtyChange }: { onDirtyChange: (dirty: bool
                   <td>{credential.transports}</td>
                   <td><span className={`status-badge ${credential.backedUp ? 'active' : 'expired'}`}>{credential.backedUp ? 'Backed up' : 'Local'}</span></td>
                   <td>{credential.created}</td><td>{credential.lastUsed}</td>
-                  <td><button className="ghost action-icon" type="button" title="Delete passkey" aria-label={`Delete ${credential.label}`} onClick={() => void remove(credential.id, credential.label)}><i className="fas fa-trash-can" aria-hidden="true" /></button></td>
+                  <td><button className="danger icon-button action-icon" type="button" title="Delete passkey" aria-label={`Delete ${credential.label}`} onClick={() => void remove(credential.id, credential.label)}><i className="fas fa-trash-can" aria-hidden="true" /></button></td>
                 </tr>
               ))}
               {snapshot.credentials.length === 0 && <tr><td className="empty" colSpan={7}>No passkeys registered.</td></tr>}

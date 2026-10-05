@@ -155,7 +155,7 @@ export function TrashApp() {
                     <td>{item.expiresLabel}</td>
                     <td>
                       <div className="table-actions">
-                        <button className="icon-button action-icon" type="button"
+                        <button className="ghost icon-button action-icon" type="button"
                           disabled={Boolean(busyAction)} title="Restore" aria-label="Restore"
                           onClick={() => void restore(item)}>
                           {icon('fas fa-rotate-left')}
