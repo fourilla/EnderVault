@@ -31,10 +31,11 @@ class StorageServiceTest {
     Path root;
 
     private StorageService storageService;
+    private NasProperties properties;
 
     @BeforeEach
     void setUp() throws Exception {
-        NasProperties properties = new NasProperties();
+        properties = new NasProperties();
         properties.getStorage().setRoot(root);
         storageService = new StorageService(properties);
         storageService.initialize();
@@ -593,6 +594,78 @@ class StorageServiceTest {
     }
 
     @Test
+    void sharedZipExcludesHiddenDescendantsAndKeepsVisibleDirectories() throws Exception {
+        createZipHiddenDescendants();
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+
+        storageService.writeSharedZip("shared", "", List.of("visible"), output);
+
+        Map<String, String> entries = zipEntries(output.toByteArray());
+        assertThat(entries.keySet()).containsExactly(
+                "visible/",
+                "visible/deep/",
+                "visible/deep/only-hidden/",
+                "visible/guide.txt"
+        );
+        assertThat(entries.get("visible/guide.txt")).isEqualTo("guide");
+    }
+
+    @Test
+    void sharedZipIncludesHiddenDescendantsWhenEnabled() throws Exception {
+        List<String> hiddenEntries = createZipHiddenDescendants();
+        properties.getShare().setDirectoryShowHiddenItems(true);
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+
+        storageService.writeSharedZip("shared", "", List.of("visible"), output);
+
+        Map<String, String> entries = zipEntries(output.toByteArray());
+        assertThat(entries.keySet()).containsAll(hiddenEntries);
+        assertThat(entries).containsEntry(hiddenEntries.getFirst(), "secret");
+    }
+
+    @Test
+    void sharedZipRejectsDirectHiddenSelectionAndHiddenParent() throws Exception {
+        Files.createDirectories(root.resolve("shared/private"));
+        Files.writeString(root.resolve("shared/private/visible.txt"), "private");
+        String hiddenPath = storageService.setHiddenVaultPath("shared/private", true, ConflictPolicy.CANCEL);
+        String hiddenName = root.resolve(hiddenPath).getFileName().toString();
+
+        assertThatThrownBy(() -> storageService.writeSharedZip(
+                "shared", "", List.of(hiddenName), new ByteArrayOutputStream()
+        )).isInstanceOf(NoSuchFileException.class);
+        assertThatThrownBy(() -> storageService.writeSharedZip(
+                "shared", hiddenName, List.of("visible.txt"), new ByteArrayOutputStream()
+        )).isInstanceOf(NoSuchFileException.class);
+    }
+
+    @Test
+    void adminZipIncludesHiddenDescendantsRegardlessOfSharePolicy() throws Exception {
+        List<String> hiddenEntries = createZipHiddenDescendants();
+        ByteArrayOutputStream selectedOutput = new ByteArrayOutputStream();
+        ByteArrayOutputStream pathsOutput = new ByteArrayOutputStream();
+
+        storageService.writeZip(StorageScope.VAULT, "shared", List.of("visible"), selectedOutput);
+        storageService.writeVaultPathsZip(
+                "shared", List.of("shared/visible"), pathsOutput, StorageProgressListener.NOOP
+        );
+
+        assertThat(zipEntries(selectedOutput.toByteArray()).keySet()).containsAll(hiddenEntries);
+        assertThat(zipEntries(pathsOutput.toByteArray()).keySet()).containsAll(hiddenEntries);
+    }
+
+    @Test
+    void sharedZipAllowsExplicitHiddenShareRoot() throws Exception {
+        Files.createDirectories(root.resolve("shared"));
+        Files.writeString(root.resolve("shared/visible.txt"), "visible");
+        String sharedBase = storageService.setHiddenVaultPath("shared", true, ConflictPolicy.CANCEL);
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+
+        storageService.writeSharedZip(sharedBase, "", List.of("visible.txt"), output);
+
+        assertThat(zipEntries(output.toByteArray())).containsExactly(Map.entry("visible.txt", "visible"));
+    }
+
+    @Test
     void zipWritingChecksCancellationWhileReadingFileContent() throws Exception {
         Files.write(root.resolve("large.bin"), new byte[192 * 1024]);
         ByteArrayOutputStream output = new ByteArrayOutputStream();
@@ -656,6 +729,30 @@ class StorageServiceTest {
         assertThat(root.resolve("report.txt")).hasContent("existing");
         assertThat(content.resolve("report.txt")).hasContent("first");
         assertThat(content.resolve("report - 1.txt")).hasContent("second");
+    }
+
+    private List<String> createZipHiddenDescendants() throws Exception {
+        Files.createDirectories(root.resolve("shared/visible/deep/only-hidden"));
+        Files.createDirectories(root.resolve("shared/visible/private/nested"));
+        Files.writeString(root.resolve("shared/visible/guide.txt"), "guide");
+        Files.writeString(root.resolve("shared/visible/deep/only-hidden/secret.txt"), "secret");
+        Files.writeString(root.resolve("shared/visible/private/nested/visible.txt"), "private descendant");
+        String hiddenFile = storageService.setHiddenVaultPath(
+                "shared/visible/deep/only-hidden/secret.txt", true, ConflictPolicy.CANCEL
+        );
+        String hiddenDirectory = storageService.setHiddenVaultPath(
+                "shared/visible/private", true, ConflictPolicy.CANCEL
+        );
+        assertThat(Files.isHidden(root.resolve(hiddenFile))).isTrue();
+        assertThat(Files.isHidden(root.resolve(hiddenDirectory))).isTrue();
+        String prefix = "shared/";
+        String hiddenDirectoryEntry = hiddenDirectory.substring(prefix.length()) + "/";
+        return List.of(
+                hiddenFile.substring(prefix.length()),
+                hiddenDirectoryEntry,
+                hiddenDirectoryEntry + "nested/",
+                hiddenDirectoryEntry + "nested/visible.txt"
+        );
     }
 
     private Map<String, String> zipEntries(byte[] archive) throws Exception {

@@ -26,17 +26,28 @@ final class StorageZipWriter {
     }
 
     EntryWriter open(OutputStream outputStream, StorageProgressListener progressListener) {
-        return new EntryWriter(outputStream, progressListener);
+        return open(outputStream, progressListener, source -> true);
+    }
+
+    EntryWriter open(OutputStream outputStream, StorageProgressListener progressListener, EntryFilter entryFilter) {
+        return new EntryWriter(outputStream, progressListener, entryFilter);
+    }
+
+    @FunctionalInterface
+    interface EntryFilter {
+        boolean include(Path source) throws IOException;
     }
 
     static final class EntryWriter implements AutoCloseable {
 
         private final ZipOutputStream zipOutputStream;
         private final StorageProgressListener progress;
+        private final EntryFilter entryFilter;
 
-        private EntryWriter(OutputStream outputStream, StorageProgressListener progressListener) {
+        private EntryWriter(OutputStream outputStream, StorageProgressListener progressListener, EntryFilter entryFilter) {
             this.zipOutputStream = new ZipOutputStream(outputStream);
             this.progress = progressListener == null ? StorageProgressListener.NOOP : progressListener;
+            this.entryFilter = entryFilter;
         }
 
         void write(Path source, String entryName) throws IOException {
@@ -48,6 +59,9 @@ final class StorageZipWriter {
             );
             if (attributes.isSymbolicLink()) {
                 throw new StorageAccessException("Symbolic links cannot be added to ZIP archives.");
+            }
+            if (!entryFilter.include(source)) {
+                return;
             }
             String normalizedEntryName = entryName.replace('\\', '/');
             if (attributes.isDirectory()) {

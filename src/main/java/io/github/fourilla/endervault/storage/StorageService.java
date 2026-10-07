@@ -812,7 +812,12 @@ public class StorageService {
         Path directory = pathResolver.resolveSharedPath(sharedBase, directoryPath);
         rejectHiddenSharedPathIfNeeded(sharedBase, directory);
 
-        try (StorageZipWriter.EntryWriter zip = zipWriter.open(outputStream)) {
+        try (StorageZipWriter.EntryWriter zip = zipWriter.open(
+                outputStream,
+                StorageProgressListener.NOOP,
+                source -> shareProperties.isDirectoryShowHiddenItems()
+                        || !StorageHiddenPolicy.containsHiddenElement(sharedBase, source)
+        )) {
             for (String itemName : itemNames) {
                 pathResolver.validateSingleName(itemName);
                 Path item = directory.resolve(itemName).normalize();
