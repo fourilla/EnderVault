@@ -19,12 +19,14 @@ test('share targets and request destinations use encoded SPA links to the repres
 
 test('phase two keeps action capacity, selectable share URLs and request secondary information', () => {
   const bookmarks = source('bookmarks/BookmarkEntries.tsx');
-  assert.match(bookmarks, /columns=\{\['select', 'text', 'type', 'date', 'actions'\]\} actionCount=\{4\}/);
+  assert.match(bookmarks, /useTableColumns\(\['select', 'text', 'type', 'date', 'actions'\]\)/);
+  assert.match(bookmarks, /columns=\{table.columns\} actionCount=\{4\}/);
   assert.match(bookmarks, /<OverflowMarquee text=\{entry.title\}/);
   const shares = source('shares/SharedLinksApp.tsx');
-  assert.match(shares, /'type', 'date', 'status', 'actions'\]\} actionCount=\{4\}/);
+  assert.match(shares, /useTableColumns\(\['select', 'text', 'text', 'type', 'date', 'status', 'actions'\]\)/);
+  assert.match(shares, /actionCount=\{4\}/);
   assert.match(shares, /<th>Created \/ Expires<\/th>/);
-  assert.match(shares, /colSpan=\{7\}/);
+  assert.match(shares, /colSpan=\{table.columnCount\}/);
   assert.match(shares, /aria-label=\{`Created:/);
   assert.match(shares, /aria-label=\{`Expires:/);
   assert.match(shares, /<input readOnly value=\{share.url\}/);
@@ -32,9 +34,10 @@ test('phase two keeps action capacity, selectable share URLs and request seconda
   assert.match(requests, /<ListItemActions item=\{item\}/);
   assert.match(source('shared/browser/ListItemActions.tsx'), /<AppNavigationLink key=\{action.id\} className=\{`button-link \$\{className\}`\}/);
   assert.match(source('file-requests/file-request-list-actions.ts'), /label: 'Details', icon: 'fas fa-circle-info'/);
-  assert.match(requests, /colSpan=\{8\}/);
+  assert.match(requests, /colSpan=\{table.columnCount\}/);
   assert.match(requests, /<StableTable className="file-requests-table"/);
-  assert.match(requests, /'usage', 'restrictions', 'date', 'status', 'actions'\]\} actionCount=\{3\}/);
+  assert.match(requests, /useTableColumns\(\['select', 'text', 'text', 'usage', 'restrictions', 'date', 'status', 'actions'\]\)/);
+  assert.match(requests, /actionCount=\{3\}/);
   assert.match(requests, /<th>Created \/ Expires<\/th>/);
   assert.match(requests, /<td><div className="table-cell-stack">\s*<span title="Created" aria-label=\{`Created: \$\{item.createdLabel\}`\}>/);
   assert.match(requests, /<span title="Expires" aria-label=\{`Expires: \$\{item.expiresLabel\}`\}>/);

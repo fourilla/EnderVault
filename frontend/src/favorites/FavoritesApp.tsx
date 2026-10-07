@@ -1,6 +1,7 @@
 import { LoadingState } from '../shared/layout/LoadingState';
 import { OverflowMarquee } from '../shared/layout/OverflowMarquee';
 import { StableTable } from '../shared/browser/StableTable';
+import { useTableColumns } from '../shared/browser/useTableColumns';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AppNavigationLink } from '../app/AppNavigationLink';
@@ -18,6 +19,7 @@ import './favorites-app.css';
 const emptyItems: FavoriteEntry[] = [];
 
 export function FavoritesApp() {
+  const table = useTableColumns(['select', 'text', 'type', 'text', 'date', 'actions']);
   const [payload, setPayload] = useState<FavoritesPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -82,11 +84,11 @@ export function FavoritesApp() {
             <p>{payload.items.length} item(s)</p>
           </header>
           <div className="table-wrap compact-table">
-            <StableTable columns={['select', 'text', 'type', 'text', 'date', 'actions']} actionCount={3}>
+            <StableTable columns={table.columns} actionCount={3}>
               <thead>
                 <tr><SelectionHeader total={items.length} selected={selection.selectedItems.length} disabled={!selectable}
                   onChange={checked => checked ? selection.selectAll() : selection.clearSelection()} label="Select all favorites in this list" />
-                  <th>Name</th><th>Type</th><th>Target</th><th>Added</th><th>Actions</th></tr>
+                  <th>Name</th><th>Type</th><th>Target</th><th>Added</th>{table.showActions && <th>Actions</th>}</tr>
               </thead>
               <tbody>
                 {items.map(entry => (
@@ -111,13 +113,13 @@ export function FavoritesApp() {
                     <td>{entry.typeLabel}</td>
                     <td><span className="path-cell"><OverflowMarquee text={entry.targetLabel} /></span></td>
                     <td>{entry.createdLabel}</td>
-                    <td>
+                    {table.showActions && <td>
                       <ListItemActions item={entry} itemKey={favoriteItemKey} actions={actions} />
-                    </td>
+                    </td>}
                   </tr>
                 ))}
                 {payload.items.length === 0 && (
-                  <tr className="empty-row"><td colSpan={6} className="empty">No favorites yet.</td></tr>
+                  <tr className="empty-row"><td colSpan={table.columnCount} className="empty">No favorites yet.</td></tr>
                 )}
               </tbody>
             </StableTable>

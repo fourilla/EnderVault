@@ -1,10 +1,10 @@
 import type { CSSProperties, ReactNode } from 'react';
 import './stable-table.css';
 
-type Column = 'select' | 'text' | 'type' | 'size' | 'date' | 'status' | 'usage' | 'restrictions' | 'actions';
+export type StableTableColumn = 'select' | 'text' | 'type' | 'size' | 'date' | 'status' | 'usage' | 'restrictions' | 'actions';
 
 export function StableTable({ columns, actionCount, children, className = '' }: {
-  columns: Column[];
+  columns: StableTableColumn[];
   actionCount: number;
   children: ReactNode;
   className?: string;

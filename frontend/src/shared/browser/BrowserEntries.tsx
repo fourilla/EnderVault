@@ -2,6 +2,7 @@ import { MouseEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { OverflowMarquee } from '../layout/OverflowMarquee';
 import { StableTable } from './StableTable';
+import { useTableColumns } from './useTableColumns';
 import { PathLink } from './PathLink';
 import { SelectionHeader } from './SelectionHeader';
 import type { BrowserEntry } from './types';
@@ -97,13 +98,14 @@ export function EntryTable({
   onFavorite?: (entry: BrowserEntry) => void;
   itemInteractionProps: (entry: BrowserEntry) => Record<string, unknown>;
 }) {
+  const table = useTableColumns([
+    ...(selectable ? ['select' as const] : []), 'text',
+    ...(showLocation ? ['text' as const] : []), 'type', 'size',
+    ...(showAccessed ? ['date' as const] : []), 'date', 'actions',
+  ]);
   return (
     <div className="table-wrap">
-      <StableTable columns={[
-        ...(selectable ? ['select' as const] : []), 'text',
-        ...(showLocation ? ['text' as const] : []), 'type', 'size',
-        ...(showAccessed ? ['date' as const] : []), 'date', 'actions',
-      ]} actionCount={onFavorite ? 4 : 3}>
+      <StableTable columns={table.columns} actionCount={onFavorite ? 4 : 3}>
         <thead>
           <tr>
             {selectable && (
@@ -117,7 +119,7 @@ export function EntryTable({
             <th>Size</th>
             {showAccessed && <th>Accessed</th>}
             <th>Modified</th>
-            <th>Actions</th>
+            {table.showActions && <th>Actions</th>}
           </tr>
         </thead>
         <tbody>
@@ -158,7 +160,7 @@ export function EntryTable({
               <td>{entry.sizeLabel}</td>
               {showAccessed && <td>{entry.accessedLabel || '-'}</td>}
               <td>{entry.modifiedLabel}</td>
-              <td>
+              {table.showActions && <td>
                 <div className="table-actions">
                   {onFavorite && (
                     <button
@@ -174,7 +176,7 @@ export function EntryTable({
                   )}
                   <EntryActions entry={entry} />
                 </div>
-              </td>
+              </td>}
             </tr>
           ))}
         </tbody>

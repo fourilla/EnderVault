@@ -263,11 +263,31 @@ class AdminNotificationFlowTest {
                 .andExpect(jsonPath("$.favorites").isArray())
                 .andExpect(jsonPath("$.tasks.activityPanelEnabled").isBoolean())
                 .andExpect(jsonPath("$.uploads.maxConcurrentUploads").isNumber())
+                .andExpect(jsonPath("$.browser.showTableActions").value(false))
                 .andExpect(jsonPath("$.sessions.activeCount").isNumber())
                 .andExpect(jsonPath("$.outboundRoute.route").isString())
                 .andExpect(jsonPath("$.stickyNoteTheme.backgroundColor").value("#1B3033"))
                 .andExpect(jsonPath("$.botToken").doesNotExist())
                 .andExpect(jsonPath("$.password").doesNotExist());
+    }
+
+    @Test
+    void tableActionVisibilityIsExposedInSettingsAndBootstrap(
+            @Autowired io.github.fourilla.endervault.config.NasProperties properties) throws Exception {
+        boolean original = properties.getBrowser().isShowTableActions();
+        try {
+            for (boolean shown : new boolean[]{false, true}) {
+                properties.getBrowser().setShowTableActions(shown);
+                mockMvc.perform(get("/api/v1/settings/general"))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.browser.showTableActions").value(shown));
+                mockMvc.perform(get("/api/v1/app/bootstrap"))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.browser.showTableActions").value(shown));
+            }
+        } finally {
+            properties.getBrowser().setShowTableActions(original);
+        }
     }
 
     @Test

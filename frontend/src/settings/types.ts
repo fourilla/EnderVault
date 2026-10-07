@@ -22,6 +22,7 @@ export type GeneralSettingsSnapshot = {
     defaultSort: string;
     defaultDirection: string;
     defaultPageSize: number;
+    showTableActions: boolean;
   };
   stickyNotes: {
     backgroundColor: string;

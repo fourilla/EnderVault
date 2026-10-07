@@ -1,5 +1,6 @@
 import { LoadingState } from '../shared/layout/LoadingState';
 import { StableTable } from '../shared/browser/StableTable';
+import { useTableColumns } from '../shared/browser/useTableColumns';
 import { OverflowMarquee } from '../shared/layout/OverflowMarquee';
 import { PathLink } from '../shared/browser/PathLink';
 import { formatBytes } from '../shared/format-bytes';
@@ -43,6 +44,7 @@ const emptyRequests: FileRequestItem[] = [];
 const keepRowClick = () => {};
 
 export function FileRequestsApp() {
+  const table = useTableColumns(['select', 'text', 'text', 'usage', 'restrictions', 'date', 'status', 'actions']);
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -254,11 +256,11 @@ export function FileRequestsApp() {
             {!requests && !error && <LoadingState label={activeQuery ? 'Searching file requests...' : 'Loading file requests...'} />}
             {requests && (
             <div className="table-wrap compact-table"><StableTable className="file-requests-table"
-              columns={['select', 'text', 'text', 'usage', 'restrictions', 'date', 'status', 'actions']} actionCount={3}>
+              columns={table.columns} actionCount={3}>
               <thead><tr><SelectionHeader total={items.length} selected={selection.selectedItems.length} disabled={!selectable}
                 onChange={(checked) => checked ? selection.selectAll() : selection.clearSelection()}
                 label="Select all file requests in this result" />
-                <th>Request</th><th>Destination</th><th>Usage</th><th>Restrictions</th><th>Created / Expires</th><th>Status</th><th>Actions</th></tr></thead>
+                <th>Request</th><th>Destination</th><th>Usage</th><th>Restrictions</th><th>Created / Expires</th><th>Status</th>{table.showActions && <th>Actions</th>}</tr></thead>
               <tbody>
                 {requests.map((item) => <tr key={item.id} data-context-item="true" data-request-id={item.id}
                   className={selection.selected.has(item.id) ? 'is-selected' : undefined} {...selection.itemInteractionProps(item)}>
@@ -283,9 +285,9 @@ export function FileRequestsApp() {
                   <td><div className="table-cell-stack"><span className={`status-badge ${item.statusClass}`}>{item.statusLabel}</span>
                     {failures.has(item.id) && <small title={failures.get(item.id)}><OverflowMarquee text={failures.get(item.id)!} /></small>}
                   </div></td>
-                  <td><ListItemActions item={item} itemKey={fileRequestItemKey} actions={actions} /></td>
+                  {table.showActions && <td><ListItemActions item={item} itemKey={fileRequestItemKey} actions={actions} /></td>}
                 </tr>)}
-                {requests.length === 0 && <tr className="empty-row"><td colSpan={8} className="empty">
+                {requests.length === 0 && <tr className="empty-row"><td colSpan={table.columnCount} className="empty">
                   {activeQuery ? 'No file requests match this search.' : 'No file requests have been issued.'}
                 </td></tr>}
               </tbody>

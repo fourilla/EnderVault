@@ -1,5 +1,6 @@
 // Feedback-only fixtures isolate list interaction; behavioral tests use the real hooks.
 export function linkListStub(id) {
+  if (id.endsWith('/useTableColumns')) return { useTableColumns: columns => ({ columns, showActions: true, columnCount: columns.length }) };
   if (id.endsWith('/useSelectableActionList')) return { useSelectableActionList: () => ({
     selection: { selected: new Set(), selectedItems: [], setSelected() {}, selectAll() {},
       clearSelection() {}, selectItem() {}, itemInteractionProps: () => ({}) },

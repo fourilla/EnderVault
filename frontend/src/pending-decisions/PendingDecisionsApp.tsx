@@ -5,6 +5,7 @@ import { useRouteSearch } from '../app/RouteSearch';
 import { useHashTarget } from '../shared/browser/useHashTarget';
 import { icon } from '../shared/browser/BrowserEntries';
 import { StableTable } from '../shared/browser/StableTable';
+import { useTableColumns } from '../shared/browser/useTableColumns';
 import { SelectionHeader } from '../shared/browser/SelectionHeader';
 import { useItemSelection } from '../shared/browser/useItemSelection';
 import { useSelectionShortcuts } from '../shared/browser/useSelectionShortcuts';
@@ -25,6 +26,7 @@ const itemKey = (decision: PendingFileDecision) => decision.id;
 const keepRowClick = () => {};
 
 export function PendingDecisionsApp() {
+  const table = useTableColumns(['select', 'text', 'type', 'text', 'size', 'date', 'status', 'actions']);
   const [searchParams, setSearchParams] = useSearchParams();
   const activeQuery = searchParams.get('q') ?? '';
   const [query, setQuery] = useState(activeQuery);
@@ -152,14 +154,14 @@ export function PendingDecisionsApp() {
             Replace is rejected if the existing target changed after this decision was created.
           </p>
           <div className="table-wrap compact-table">
-            <StableTable columns={['select', 'text', 'type', 'text', 'size', 'date', 'status', 'actions']}
+            <StableTable columns={table.columns}
               actionCount={4} className="pending-decisions-table">
               <thead>
                 <tr>
                   <SelectionHeader total={items.length} selected={selection.selectedItems.length} disabled={!selectable}
                     onChange={(checked) => checked ? selection.selectAll() : selection.clearSelection()}
                     label="Select all pending decisions in this result" />
-                  <th>Item</th><th>Source</th><th>Destination</th><th>Size</th><th>Created</th><th>Status</th><th>Actions</th>
+                  <th>Item</th><th>Source</th><th>Destination</th><th>Size</th><th>Created</th><th>Status</th>{table.showActions && <th>Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -191,13 +193,13 @@ export function PendingDecisionsApp() {
                         <OverflowMarquee text={failures.get(decision.id)!} />
                       </small>}
                     </div></td>
-                    <td>
+                    {table.showActions && <td>
                       <PendingDecisionActions decision={decision} actions={actions} />
-                    </td>
+                    </td>}
                   </tr>
                 ))}
                 {decisions.length === 0 && (
-                  <tr className="empty-row"><td colSpan={8} className="empty">
+                  <tr className="empty-row"><td colSpan={table.columnCount} className="empty">
                     {activeQuery ? 'No pending decisions match this search.' : 'No items are awaiting review.'}
                   </td></tr>
                 )}

@@ -5,6 +5,7 @@ import { useRouteSearch } from '../app/RouteSearch';
 import { PageHeader } from '../shared/layout/PageHeader';
 import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
 import { StableTable } from '../shared/browser/StableTable';
+import { useTableColumns } from '../shared/browser/useTableColumns';
 import { OverflowMarquee } from '../shared/layout/OverflowMarquee';
 import { ListItemActions } from '../shared/browser/ListItemActions';
 import { ListItemSelectionActions } from '../shared/browser/ListItemSelectionActions';
@@ -17,6 +18,7 @@ import type { StickyNoteCatalogItem } from './types';
 const emptyNotes: StickyNoteCatalogItem[] = [];
 
 export function StickyNoteListApp() {
+  const table = useTableColumns(['select', 'text', 'text', 'type', 'date', 'status', 'actions']);
   const [searchParams, setSearchParams] = useSearchParams();
   const activeQuery = searchParams.get('q')?.trim() ?? '';
   const [query, setQuery] = useState(activeQuery);
@@ -100,10 +102,10 @@ export function StickyNoteListApp() {
         )}
         {notes && (
           <div className="table-wrap compact-table">
-            <StableTable columns={['select', 'text', 'text', 'type', 'date', 'status', 'actions']} actionCount={2}>
+            <StableTable columns={table.columns} actionCount={2}>
               <thead><tr><SelectionHeader total={items.length} selected={selection.selectedItems.length} disabled={!selectable}
                 onChange={checked => checked ? selection.selectAll() : selection.clearSelection()} label="Select all sticky notes in this result" />
-                <th>Note</th><th>Context</th><th>Surface</th><th>Updated</th><th>Status</th><th>Actions</th></tr></thead>
+                <th>Note</th><th>Context</th><th>Surface</th><th>Updated</th><th>Status</th>{table.showActions && <th>Actions</th>}</tr></thead>
               <tbody>
                 {notes.map((note) => (
                   <tr key={note.id} data-context-item="true" data-note-id={note.id}
@@ -117,12 +119,12 @@ export function StickyNoteListApp() {
                     <td>{note.surfaceLabel}</td>
                     <td title={note.updatedLabel}>{note.updatedLabel}</td>
                     <td><span className={`status-badge ${note.targetExists ? 'active' : 'expired'}`}>{note.targetExists ? 'Available' : 'Orphan'}</span></td>
-                    <td>
+                    {table.showActions && <td>
                       <ListItemActions item={note} itemKey={stickyNoteItemKey} actions={actions} />
-                    </td>
+                    </td>}
                   </tr>
                 ))}
-                {notes.length === 0 && <tr className="empty-row"><td colSpan={7} className="empty">No sticky notes found.</td></tr>}
+                {notes.length === 0 && <tr className="empty-row"><td colSpan={table.columnCount} className="empty">No sticky notes found.</td></tr>}
               </tbody>
             </StableTable>
           </div>

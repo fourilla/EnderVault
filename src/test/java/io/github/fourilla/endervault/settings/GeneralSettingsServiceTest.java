@@ -153,6 +153,43 @@ class GeneralSettingsServiceTest {
     }
 
     @Test
+    void tableActionsDefaultToHiddenAndPersistAtRuntimeWithoutRestart() throws Exception {
+        Path config = tempDir.resolve("list-display.properties");
+        Files.writeString(config, "# Existing config without the new key\n");
+        NasProperties properties = new NasProperties();
+        GeneralSettingsService service = service(properties, config);
+        assertThat(service.currentSettings().browser().showTableActions()).isFalse();
+        var originalAppearance = properties.getAppearance();
+        var parameters = validParameters();
+        var update = service.updateFrom(parameters);
+        assertThat(service.requiresRestart(update)).isFalse();
+        assertThat(properties.getBrowser().isShowTableActions()).isFalse();
+        service.save(update);
+        assertThat(service.currentSettings().browser().showTableActions()).isTrue();
+        assertThat(Files.readString(config)).contains("nas.browser.show-table-actions=true");
+        assertThat(properties.getAppearance()).isEqualTo(originalAppearance);
+
+        parameters.remove("showTableActions");
+        service.save(service.updateFrom(parameters));
+        assertThat(properties.getBrowser().isShowTableActions()).isFalse();
+        assertThat(Files.readString(config)).contains("nas.browser.show-table-actions=false");
+    }
+
+    @Test
+    void failedSaveDoesNotChangeTableActionVisibility() throws Exception {
+        NasProperties properties = new NasProperties();
+        properties.getBrowser().setShowTableActions(true);
+        Path directory = tempDir.resolve("not-a-properties-file");
+        Files.createDirectories(directory);
+        GeneralSettingsService service = service(properties, directory);
+        var parameters = validParameters();
+        parameters.remove("showTableActions");
+        assertThatThrownBy(() -> service.save(service.updateFrom(parameters)))
+                .isInstanceOf(java.io.IOException.class);
+        assertThat(properties.getBrowser().isShowTableActions()).isTrue();
+    }
+
+    @Test
     void rejectsManualTextLimitBelowAutoLoadLimit() throws Exception {
         GeneralSettingsService service = service(new NasProperties(), tempDir.resolve("missing.properties"));
         MultiValueMap<String, String> parameters = validParameters();
@@ -219,6 +256,7 @@ class GeneralSettingsServiceTest {
         parameters.add("defaultSort", "name");
         parameters.add("defaultDirection", "asc");
         parameters.add("defaultPageSize", "200");
+        parameters.add("showTableActions", "on");
         parameters.add("stickyNoteBackgroundColor", "#1B3033");
         parameters.add("stickyNoteBorderColor", "#4E8F8A");
         parameters.add("stickyNoteTextColor", "#EAF6F4");

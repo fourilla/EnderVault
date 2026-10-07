@@ -39,6 +39,9 @@ export interface AdminAppBootstrap {
   uploads: {
     maxConcurrentUploads: number;
   };
+  browser: {
+    showTableActions: boolean;
+  };
   sessions: {
     activeCount: number;
   };

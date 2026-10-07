@@ -141,6 +141,9 @@ nas.browser.default-view=table
 nas.browser.default-sort=name
 nas.browser.default-direction=asc
 nas.browser.default-page-size=200
+# Server-wide display setting, independent of browser preference cookies.
+# Show Actions columns in administrator lists with context-menu alternatives.
+nas.browser.show-table-actions=false
 
 # ---------------------------------------------------------------------------
 # Sticky notes

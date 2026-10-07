@@ -4,6 +4,24 @@ import { domains, listHarness, flush, nodes, rows, checkbox, selected, button, c
 import vm from 'node:vm';
 
 for (const domain of domains) {
+  test(`${domain.scope} hides the Actions column without resetting selection, querying or losing menu actions`, async t => {
+    const h = listHarness(t, domain); h.render(); await h.finish(0, ['one', 'two']);
+    checkbox(rows(h.render())[0]).props.onChange({ currentTarget: { checked: true } });
+    const visibleTree = h.render();
+    const shownColumns = nodes(visibleTree).find(node => node.type?.name === 'StableTable').props.columns;
+    h.setTableActions(false);
+    const hiddenTree = h.render();
+    const hiddenColumns = nodes(hiddenTree).find(node => node.type?.name === 'StableTable').props.columns;
+    assert.deepEqual(Array.from(hiddenColumns), Array.from(shownColumns).filter(column => column !== 'actions'));
+    assert.ok(!nodes(hiddenTree).some(node => node.type === 'th' && node.props.children === 'Actions'));
+    for (const row of rows(hiddenTree)) assert.equal(nodes(row).filter(node => node.type === 'td').length, hiddenColumns.length);
+    assert.deepEqual(selected(hiddenTree), ['one']);
+    assert.equal(h.requests.length, 1);
+    assert.ok(h.menu.actions().some(action => action.label === domain.deleteLabel && action.visible(h.context('one'))));
+    h.setTableActions(true);
+    assert.deepEqual(selected(h.render()), ['one']);
+    assert.ok(button(h.render(), 'one', domain.deleteLabel));
+  });
   test(`${domain.scope} shares Shift selection, select all and native shortcut exclusions`, async t => {
     const h = listHarness(t, domain); h.render(); await h.finish(0, ['one', 'two', 'three']);
     const tree = h.render();

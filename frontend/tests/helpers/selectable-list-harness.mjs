@@ -4,6 +4,7 @@ import vm from 'node:vm';
 import { build } from 'vite';
 import * as jsx from 'react/jsx-runtime';
 import { createMemoryRouter } from 'react-router-dom';
+import { tableColumnsHarness } from './table-columns-harness.mjs';
 
 export const flush = () => new Promise(setImmediate);
 export async function compile(file) {
@@ -51,6 +52,7 @@ export const button = (tree, id, label) => nodes(rows(tree).find(row => row.key 
 
 // Real selection, shortcut, action controller and composition hooks with deterministic Router/effects.
 export function listHarness(t, domain, search = '') {
+  const tableColumns = tableColumnsHarness();
   const router = createMemoryRouter([{ path: '*', element: null }], { initialEntries: [domain.route + search] });
   const slots = [], effects = [], requests = [], mutations = [], confirmations = [], errors = [], opened = [], listeners = new Map();
   let cursor = 0, dirty, registration, menuOptions, confirm = async () => true, bulkOutcome;
@@ -119,6 +121,7 @@ export function listHarness(t, domain, search = '') {
     if (id === 'react/jsx-runtime') return jsx;
     if (id === 'react-router-dom') return routeHooks;
     if (id.endsWith('/useItemSelection')) return selection;
+    if (id.endsWith('/useTableColumns')) return tableColumns;
     if (id.endsWith('/useSelectionShortcuts')) return shortcuts;
     if (id.endsWith('/ListItemActions')) return actionView;
     if (id.endsWith('/ListItemSelectionActions')) return selectionView;
@@ -143,6 +146,7 @@ export function listHarness(t, domain, search = '') {
   });
   t.after(() => { slots.forEach(slot => slot.cleanup?.()); router.dispose(); });
   return { router, requests, mutations, confirmations, errors, opened, document,
+    setTableActions: tableColumns.setShown,
     get search() { return registration; }, get menu() { return menuOptions; },
     setConfirmation(fn) { confirm = fn; }, setBulkOutcome(result) { bulkOutcome = result; },
     key(event) { document.dispatchEvent({ ...event, type: 'keydown' }); },

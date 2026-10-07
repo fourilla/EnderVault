@@ -1,6 +1,7 @@
 import { LoadingState } from '../shared/layout/LoadingState';
 import { OverflowMarquee } from '../shared/layout/OverflowMarquee';
 import { StableTable } from '../shared/browser/StableTable';
+import { useTableColumns } from '../shared/browser/useTableColumns';
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useRouteSearch } from '../app/RouteSearch';
@@ -20,6 +21,7 @@ import './trash-app.css';
 const emptyItems: TrashItem[] = [];
 
 export function TrashApp() {
+  const table = useTableColumns(['select', 'text', 'text', 'type', 'size', 'date', 'date', 'actions']);
   const [params, setParams] = useSearchParams();
   const activeQuery = params.get('q') ?? '';
   const [snapshot, setSnapshot] = useState<{ query: string; payload: TrashPayload } | null>(null);
@@ -116,13 +118,13 @@ export function TrashApp() {
       )}
       {payload && items.length > 0 && (
         <section ref={listRef} className="table-wrap" aria-label="Trash items">
-            <StableTable columns={['select', 'text', 'text', 'type', 'size', 'date', 'date', 'actions']} actionCount={2}>
+            <StableTable columns={table.columns} actionCount={2}>
               <thead>
                 <tr>
                   <SelectionHeader total={items.length} selected={selection.selectedItems.length} disabled={!selectable}
                     onChange={checked => checked ? selection.selectAll() : selection.clearSelection()} label="Select all trash items in this result" />
                   <th>Name</th><th>Original path</th><th>Type</th><th>Size</th>
-                  <th>Deleted</th><th>Expires</th><th>Actions</th>
+                  <th>Deleted</th><th>Expires</th>{table.showActions && <th>Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -144,9 +146,9 @@ export function TrashApp() {
                     <td>{item.sizeLabel}</td>
                     <td>{item.deletedLabel}</td>
                     <td>{item.expiresLabel}</td>
-                    <td>
+                    {table.showActions && <td>
                       <ListItemActions item={item} itemKey={trashItemKey} actions={actions} />
-                    </td>
+                    </td>}
                   </tr>
                 ))}
               </tbody>

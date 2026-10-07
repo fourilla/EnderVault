@@ -50,6 +50,7 @@ const toValues = (snapshot: GeneralSettingsSnapshot): FormValues => ({
   defaultSort: snapshot.browser.defaultSort,
   defaultDirection: snapshot.browser.defaultDirection,
   defaultPageSize: String(snapshot.browser.defaultPageSize),
+  showTableActions: snapshot.browser.showTableActions,
   stickyNoteBackgroundColor: snapshot.stickyNotes.backgroundColor,
   stickyNoteBorderColor: snapshot.stickyNotes.borderColor,
   stickyNoteTextColor: snapshot.stickyNotes.textColor,
@@ -140,6 +141,14 @@ function GeneralSettingsEditor({ snapshot, scope, onDirtyChange }: {
     <form className="general-settings-form settings-spa-form" onSubmit={(event) => { event.preventDefault(); void editor.save(); }}>
       <SettingsSaveBar {...editor} onSave={() => void editor.save()} onDiscard={editor.discard} />
       {scope === 'appearance' && <AppearanceFields values={editor.values} change={editor.change} />}
+
+      {scope === 'appearance' && <SettingsSection title="List Display" description="Shared by every administrator device.">
+        <div className="settings-field-grid">
+          <SettingsToggle name="showTableActions" label="Show table action buttons"
+            description="Administrator lists only. Context menus and selection actions remain available when hidden."
+            values={editor.values} onChange={editor.change} />
+        </div>
+      </SettingsSection>}
 
       {scope === 'appearance' && <SettingsSection title="Browser Defaults" description="Used when the browser has no saved preference cookie.">
         <div className="settings-field-grid">{browserFields.map(field)}</div>

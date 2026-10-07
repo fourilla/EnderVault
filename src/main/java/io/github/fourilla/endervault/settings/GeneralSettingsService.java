@@ -59,7 +59,8 @@ public class GeneralSettingsService {
                         browser.getDefaultView(),
                         browser.getDefaultSort(),
                         browser.getDefaultDirection(),
-                        browser.getDefaultPageSize()
+                        browser.getDefaultPageSize(),
+                        browser.isShowTableActions()
                 ),
                 new StickyNoteSettings(
                         stickyNotes.getBackgroundColor(),
@@ -195,7 +196,8 @@ public class GeneralSettingsService {
                             first(parameters, "appearanceText"), first(parameters, "appearanceMutedText"),
                             first(parameters, "appearanceControlSize"), first(parameters, "appearanceCardSize"))
                         : nasProperties.getAppearance(),
-                new BrowserSettings(defaultView, defaultSort, defaultDirection, defaultPageSize),
+                new BrowserSettings(defaultView, defaultSort, defaultDirection, defaultPageSize,
+                        parameters.containsKey("showTableActions")),
                 stickyNotes,
                 new StorageSettings(defaultConflictPolicy),
                 new RecentSettings(recentMaxItems, recordDirectories),
@@ -248,6 +250,7 @@ public class GeneralSettingsService {
         updates.put("nas.browser.default-sort", browser.defaultSort());
         updates.put("nas.browser.default-direction", browser.defaultDirection());
         updates.put("nas.browser.default-page-size", Integer.toString(browser.defaultPageSize()));
+        updates.put("nas.browser.show-table-actions", Boolean.toString(browser.showTableActions()));
 
         StickyNoteSettings stickyNotes = update.stickyNotes();
         updates.put("nas.sticky-notes.background-color", stickyNotes.backgroundColor());
@@ -307,6 +310,7 @@ public class GeneralSettingsService {
         browser.setDefaultSort(update.browser().defaultSort());
         browser.setDefaultDirection(update.browser().defaultDirection());
         browser.setDefaultPageSize(update.browser().defaultPageSize());
+        browser.setShowTableActions(update.browser().showTableActions());
 
         NasProperties.StickyNotes stickyNotes = nasProperties.getStickyNotes();
         stickyNotes.setBackgroundColor(update.stickyNotes().backgroundColor());
@@ -469,7 +473,8 @@ public class GeneralSettingsService {
     ) {
     }
 
-    public record BrowserSettings(String defaultView, String defaultSort, String defaultDirection, int defaultPageSize) {
+    public record BrowserSettings(String defaultView, String defaultSort, String defaultDirection, int defaultPageSize,
+                                  boolean showTableActions) {
     }
 
     public record StickyNoteSettings(String backgroundColor, String borderColor, String textColor) {
