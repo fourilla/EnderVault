@@ -55,6 +55,7 @@ export function listHarness(t, domain, search = '') {
   const tableColumns = tableColumnsHarness();
   const router = createMemoryRouter([{ path: '*', element: null }], { initialEntries: [domain.route + search] });
   const slots = [], effects = [], requests = [], mutations = [], confirmations = [], errors = [], opened = [], listeners = new Map();
+  const mutationOutcomes = new Map();
   let cursor = 0, dirty, registration, menuOptions, confirm = async () => true, bulkOutcome;
   const react = {
     useState(initial) {
@@ -93,6 +94,7 @@ export function listHarness(t, domain, search = '') {
     });
     return async (...args) => {
       mutations.push({ name, args });
+      if (mutationOutcomes.has(name)) return mutationOutcomes.get(name);
       if (name === domain.bulk) {
         if (bulkOutcome instanceof Error) throw bulkOutcome;
         return bulkOutcome ?? { ok: true, succeededCount: args[0].length, failedCount: 0,
@@ -149,6 +151,7 @@ export function listHarness(t, domain, search = '') {
     setTableActions: tableColumns.setShown,
     get search() { return registration; }, get menu() { return menuOptions; },
     setConfirmation(fn) { confirm = fn; }, setBulkOutcome(result) { bulkOutcome = result; },
+    setMutationOutcome(name, result) { mutationOutcomes.set(name, result); },
     key(event) { document.dispatchEvent({ ...event, type: 'keydown' }); },
     event(type, detail) { document.dispatchEvent({ type, detail }); },
     context(id) {

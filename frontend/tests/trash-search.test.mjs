@@ -110,6 +110,63 @@ test('empty filtered results keep search and the whole-catalog empty command', a
   assert.equal(h.requests.at(-1).query, 'name:missing');
 });
 
+for (const confirmed of [false, true]) {
+  test(`empty trash releases its lock after query navigation and late confirmation ${confirmed}`, async t => {
+    const h = harness(t, '?q=name:old');
+    h.render(); await h.finish(0, ['old']); h.render();
+    let finishConfirmation;
+    h.setConfirmation(() => new Promise(resolve => { finishConfirmation = resolve; }));
+    const empty = () => listNodes(h.render()).find(node => node.props?.['aria-label'] === 'Empty trash');
+    empty().props.onClick();
+    assert.equal(empty().props.disabled, true);
+    await h.router.navigate('/admin/trash?q=name:new'); h.render();
+    await h.finish(1, ['new']);
+    assert.equal(empty().props.disabled, true, 'The pending action still owns the shared lock');
+    empty().props.onClick();
+    assert.equal(h.confirmations.length, 1);
+    finishConfirmation(confirmed); await flush();
+    assert.equal(empty().props.disabled, false);
+    assert.deepEqual(h.mutations, [], 'The outgoing confirmation cannot submit');
+    assert.equal(h.requests.length, 2, 'The outgoing visit cannot reload the new query');
+    assert.deepEqual(rows(h.render()), ['new']);
+    h.setConfirmation(async () => false);
+    empty().props.onClick(); await flush();
+    assert.equal(h.confirmations.length, 2, 'A new action can acquire the released lock');
+    assert.equal(empty().props.disabled, false);
+  });
+}
+
+for (const outcome of ['resolve', 'reject']) {
+  test(`empty trash releases its lock after query navigation and submitted request ${outcome}`, async t => {
+    const h = harness(t, '?q=name:old');
+    h.render(); await h.finish(0, ['old']); h.render();
+    let finishRequest, failRequest;
+    h.setMutationOutcome('emptyTrash', new Promise((resolve, reject) => { finishRequest = resolve; failRequest = reject; }));
+    const empty = () => listNodes(h.render()).find(node => node.props?.['aria-label'] === 'Empty trash');
+    empty().props.onClick(); await flush();
+    assert.deepEqual(h.mutations, [{ name: 'emptyTrash', args: [] }]);
+    await h.router.navigate('/admin/trash?q=name:new'); h.render();
+    await h.finish(1, ['new']);
+    assert.equal(empty().props.disabled, true, 'Submitted work keeps ownership until it settles');
+    empty().props.onClick();
+    const restore = nodes(h.render()).find(node => node.type === 'button' && node.props['aria-label'] === 'Restore');
+    restore.props.onClick(); await flush();
+    assert.equal(h.confirmations.length, 1);
+    assert.equal(h.mutations.length, 1, 'Neither whole-list nor row actions overlap submitted work');
+    if (outcome === 'resolve') finishRequest(); else failRequest(new Error('Connection lost'));
+    await flush();
+    assert.equal(empty().props.disabled, false);
+    assert.equal(h.requests.length, 2, 'Completion cannot reload the outgoing or new visit');
+    assert.equal(h.mutations.length, 1, 'Submitted work is never replayed');
+    assert.deepEqual(rows(h.render()), ['new']);
+    assert.deepEqual(h.errors, outcome === 'reject' ? ['Connection lost'] : []);
+    h.setConfirmation(async () => false);
+    empty().props.onClick(); await flush();
+    assert.equal(h.confirmations.length, 2, 'A new action can acquire the released lock');
+    assert.equal(empty().props.disabled, false);
+  });
+}
+
 test('trash transport forwards quoted expressions and structured errors without fallback', async () => {
   const module = { exports: {} }, calls = [];
   vm.runInNewContext(apiCode, { module, exports: module.exports, URLSearchParams, Error,

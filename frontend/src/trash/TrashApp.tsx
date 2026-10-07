@@ -95,7 +95,8 @@ export function TrashApp() {
       toastError(reason, 'Trash could not be emptied.');
     } finally {
       pageBusy.current = false;
-      if (isCurrent()) setBusyAction('');
+      // Release this component's lock even when its Router visit has changed.
+      setBusyAction('');
     }
   };
 
