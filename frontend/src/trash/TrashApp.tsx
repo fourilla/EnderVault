@@ -1,19 +1,27 @@
 import { LoadingState } from '../shared/layout/LoadingState';
 import { OverflowMarquee } from '../shared/layout/OverflowMarquee';
 import { StableTable } from '../shared/browser/StableTable';
-import { useEffect, useState } from 'react';
+import { useTableColumns } from '../shared/browser/useTableColumns';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useRouteSearch } from '../app/RouteSearch';
 import { toastError } from '../shared/api/form-api';
 import { icon } from '../shared/browser/BrowserEntries';
 import { PageHeader } from '../shared/layout/PageHeader';
 import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
-import { FloatingPageActions } from '../app/FloatingPageActions';
-import { deleteTrashItem, emptyTrash, loadTrash, restoreTrashItem } from './trash-api';
+import { ListItemActions } from '../shared/browser/ListItemActions';
+import { ListItemSelectionActions } from '../shared/browser/ListItemSelectionActions';
+import { SelectionHeader } from '../shared/browser/SelectionHeader';
+import { useSelectableActionList } from '../shared/browser/useSelectableActionList';
+import { trashItemIdentity, trashItemKey, trashListActions } from './trash-list-actions';
+import { emptyTrash, loadTrash } from './trash-api';
 import type { TrashItem, TrashPayload } from './types';
 import './trash-app.css';
 
+const emptyItems: TrashItem[] = [];
+
 export function TrashApp() {
+  const table = useTableColumns(['select', 'text', 'text', 'type', 'size', 'date', 'date', 'actions']);
   const [params, setParams] = useSearchParams();
   const activeQuery = params.get('q') ?? '';
   const [snapshot, setSnapshot] = useState<{ query: string; payload: TrashPayload } | null>(null);
@@ -24,6 +32,16 @@ export function TrashApp() {
   const [query, setQuery] = useState(activeQuery);
   const payload = snapshot?.query === activeQuery ? snapshot.payload : null;
   const error = feedback?.query === activeQuery ? feedback.message : '';
+  const items = payload?.items ?? emptyItems;
+  const selectable = payload !== null && !error;
+  const pageBusy = useRef(false);
+  const reload = () => setRefreshToken(value => value + 1);
+  const { selection, actions, listRef, isCurrent, failures } = useSelectableActionList({ items, enabled: selectable,
+    contextKey: activeQuery, itemKey: trashItemKey, itemIdentity: trashItemIdentity, definitions: trashListActions,
+    reload, blocked: () => pageBusy.current, itemLabel: 'trash items', deleteActionId: 'trash-delete',
+    menuId: 'trashContextMenu', pageScope: 'trash-react', keyAttribute: 'data-trash-id',
+    removeApplied: ids => setSnapshot(current => current && current.query === activeQuery
+      ? { ...current, payload: { items: current.payload.items.filter(item => !ids.has(item.id)) } } : current) });
 
   useEffect(() => setQuery(activeQuery), [activeQuery]);
 
@@ -63,64 +81,33 @@ export function TrashApp() {
     return () => controller.abort();
   }, [activeQuery, refreshToken]);
 
-  const reload = () => setRefreshToken((value) => value + 1);
-
-  const restore = async (item: TrashItem) => {
-    setBusyAction(`restore:${item.id}`);
-    try {
-      await restoreTrashItem(item.id);
-      reload();
-    } catch (reason) {
-      toastError(reason, 'Trash item could not be restored.');
-    } finally {
-      setBusyAction('');
-    }
-  };
-
-  const deletePermanently = async (item: TrashItem) => {
-    const confirmed = await window.EnderVault?.askConfirmation({
-      title: 'Permanently delete item',
-      message: `Permanently delete ${item.originalName}? This cannot be undone.`,
-      confirmLabel: 'Delete permanently',
-      danger: true,
-    });
-    if (!confirmed) return;
-    setBusyAction(`delete:${item.id}`);
-    try {
-      await deleteTrashItem(item.id);
-      reload();
-    } catch (reason) {
-      toastError(reason, 'Trash item could not be permanently deleted.');
-    } finally {
-      setBusyAction('');
-    }
-  };
-
   const empty = async () => {
-    const confirmed = await window.EnderVault?.askConfirmation({
-      title: 'Empty trash',
-      message: 'Permanently delete every item in trash? This cannot be undone.',
-      confirmLabel: 'Empty trash',
-      danger: true,
-    });
-    if (!confirmed) return;
+    if (pageBusy.current || actions.isBusy() || !selectable || !isCurrent()) return;
+    pageBusy.current = true;
     setBusyAction('empty');
     try {
+      const confirmed = await window.EnderVault?.askConfirmation({ title: 'Empty trash',
+        message: 'Permanently delete every item in trash? This cannot be undone.', confirmLabel: 'Empty trash', danger: true });
+      if (!confirmed || !isCurrent()) return;
       await emptyTrash();
-      reload();
+      if (isCurrent()) reload();
     } catch (reason) {
       toastError(reason, 'Trash could not be emptied.');
     } finally {
+      pageBusy.current = false;
+      // Release this component's lock even when its Router visit has changed.
       setBusyAction('');
     }
   };
 
-  const items = payload?.items ?? [];
   return (
     <>
       <PageHeader title="Trash" />
-      {payload && (items.length > 0 || activeQuery) && <FloatingPageActions mode="single" label="Empty trash" icon="fas fa-broom"
-        danger disabled={Boolean(busyAction)} onAction={() => void empty()} />}
+      {payload && (items.length > 0 || activeQuery) && <ListItemSelectionActions items={selection.selectedItems}
+        itemKey={trashItemKey} actions={actions} label="Trash actions"
+        pageActions={<button type="button" className="danger icon-button" title="Empty all trash, not only this search or selection"
+          aria-label="Empty trash" disabled={!selectable || Boolean(busyAction) || actions.isBusy()}
+          onClick={() => void empty()}>{icon('fas fa-broom')}</button>} />}
 
       <div className="page-feedback-layout">
       {error && <PageErrorPanel title="Trash unavailable" message={error} stale={payload !== null}
@@ -131,42 +118,38 @@ export function TrashApp() {
         <LoadingState label="Loading trash..." />
       )}
       {payload && items.length > 0 && (
-        <section className="table-wrap" aria-label="Trash items">
-            <StableTable columns={['text', 'text', 'type', 'size', 'date', 'date', 'actions']} actionCount={2}>
+        <section ref={listRef} className="table-wrap" aria-label="Trash items">
+            <StableTable columns={table.columns} actionCount={2}>
               <thead>
                 <tr>
+                  <SelectionHeader total={items.length} selected={selection.selectedItems.length} disabled={!selectable}
+                    onChange={checked => checked ? selection.selectAll() : selection.clearSelection()} label="Select all trash items in this result" />
                   <th>Name</th><th>Original path</th><th>Type</th><th>Size</th>
-                  <th>Deleted</th><th>Expires</th><th>Actions</th>
+                  <th>Deleted</th><th>Expires</th>{table.showActions && <th>Actions</th>}
                 </tr>
               </thead>
               <tbody>
                 {items.map((item) => (
-                  <tr key={item.id}>
+                  <tr key={item.id} data-context-item="true" data-trash-id={item.id}
+                    className={selection.selected.has(item.id) ? 'is-selected' : undefined} {...selection.itemInteractionProps(item)}>
+                    <td className="select-cell"><input type="checkbox" className="row-select-checkbox" checked={selection.selected.has(item.id)}
+                      disabled={!selectable} aria-label={`Select ${item.originalName}`}
+                      onChange={event => selection.selectItem(item, event.currentTarget.checked)} /></td>
                     <td>
                       <span className="item-name" title={item.originalName}>
                         {icon(item.directory ? 'fas fa-folder item-icon' : 'fas fa-file item-icon')}
                         <OverflowMarquee text={item.originalName} />
                       </span>
+                      {failures.has(item.id) && <small role="status">{failures.get(item.id)}</small>}
                     </td>
                     <td><span className="path-cell"><OverflowMarquee text={item.originalPath} /></span></td>
                     <td>{item.typeLabel}</td>
                     <td>{item.sizeLabel}</td>
                     <td>{item.deletedLabel}</td>
                     <td>{item.expiresLabel}</td>
-                    <td>
-                      <div className="table-actions">
-                        <button className="icon-button action-icon" type="button"
-                          disabled={Boolean(busyAction)} title="Restore" aria-label="Restore"
-                          onClick={() => void restore(item)}>
-                          {icon('fas fa-rotate-left')}
-                        </button>
-                        <button className="danger icon-button action-icon" type="button"
-                          disabled={Boolean(busyAction)} title="Permanently delete" aria-label="Permanently delete"
-                          onClick={() => void deletePermanently(item)}>
-                          {icon('fas fa-trash-can')}
-                        </button>
-                      </div>
-                    </td>
+                    {table.showActions && <td>
+                      <ListItemActions item={item} itemKey={trashItemKey} actions={actions} />
+                    </td>}
                   </tr>
                 ))}
               </tbody>

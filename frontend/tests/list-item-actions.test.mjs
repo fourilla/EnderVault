@@ -114,6 +114,9 @@ test('share and request definitions retain their original single transports and 
   const shares = evaluate(await compile('shares/share-list-actions.ts'), id => id.endsWith('/list-item-actions') ? controller : shareApi);
   const requests = evaluate(await compile('file-requests/file-request-list-actions.ts'), id => id.endsWith('/list-item-actions') ? controller : requestApi);
   const item = { token: 'not-a-uuid_token', id: 'request/id', active: true };
+  for (const definition of [...shares.shareListActions, ...requests.fileRequestListActions(() => {})]) {
+    assert.equal(Boolean(definition.danger), Boolean(definition.changesList), definition.id);
+  }
   for (const action of shares.shareListActions.filter(action => action.changesList)) {
     assert.equal(action.confirmation, undefined);
     await action.execute(item);
@@ -129,6 +132,43 @@ test('share and request definitions retain their original single transports and 
   assert.equal(posts[0].values.token, item.token);
   assert.equal(posts[1].values.token, item.token);
   assert.equal(notified.length, 4);
+});
+
+test('row, single menu, selected menu and floating actions share the same semantic danger flag', async () => {
+  const shared = evaluate(code, () => ({ toastError() {} }));
+  const definitions = [
+    { id: 'delete', label: 'Delete', icon: 'fas fa-trash-can', group: 'mutate', danger: true,
+      supports: () => true, execute() {}, bulk: { confirmation() {}, execute() {} } },
+    { id: 'copy', label: 'Copy', icon: 'fas fa-link', group: 'copy', supports: () => true, execute() {} },
+  ];
+  const item = { id: 'one' }, items = [item, { id: 'two' }], itemKey = item => item.id;
+  const controller = shared.createListItemActions(() => ({ items, definitions, enabled: true,
+    blocked: () => false, contextKey: {}, isCurrent: () => true, itemKey, itemIdentity: itemKey,
+    selectedIds: () => items.map(itemKey), reload() {} }), () => {});
+  controller.activate();
+  const jsx = (type, props) => ({ type, props });
+  const views = evaluate(await compile('shared/browser/ListItemActions.tsx'), id => {
+    if (id.endsWith('/BrowserEntries')) return { icon: name => name };
+    if (id === 'react-router-dom') return { Link: 'Link' };
+    if (id === 'react/jsx-runtime') return { jsx, jsxs: jsx };
+    return {};
+  });
+  const row = views.ListItemActions({ item, itemKey, actions: controller });
+  assert.equal(row.props.children[0].props.className, 'danger icon-button action-icon');
+  assert.equal(row.props.children[1].props.className, 'ghost icon-button action-icon');
+  const menus = shared.listItemMenuActions(controller, itemKey);
+  for (const context of [{ mode: 'single', item, items: [item] }, { mode: 'selection', item, items }]) {
+    const visible = menus.filter(action => action.visible(context));
+    assert.equal(visible.find(action => action.id === 'delete').danger, true);
+  }
+  assert.equal(menus.find(action => action.id === 'copy').danger, undefined);
+  const selectionView = evaluate(await compile('shared/browser/ListItemSelectionActions.tsx'), id =>
+    id === 'react/jsx-runtime' ? { jsx, jsxs: jsx } : { FloatingPageActions: 'FloatingPageActions' });
+  const floating = selectionView.ListItemSelectionActions({ items, itemKey, actions: controller, label: 'Actions' });
+  const buttons = floating.props.children.props.children[0].props.children[0];
+  assert.equal(buttons.length, 1);
+  assert.equal(buttons[0].props.className, 'icon-button danger');
+  controller.dispose();
 });
 
 function bulkSetup() {

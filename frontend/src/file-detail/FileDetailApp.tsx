@@ -85,7 +85,7 @@ function ShareSection({ payload, refresh }: { payload: FileDetailPayload; refres
                 }}>{icon('fas fa-file-arrow-down')}</button>}
               {share.active && <button className="danger icon-button action-icon" type="button" title="Revoke"
                 aria-label="Revoke" onClick={() => void mutate('revoke', share)}>{icon('fas fa-link-slash')}</button>}
-              <button className="ghost icon-button action-icon" type="button" title="Delete" aria-label="Delete"
+              <button className="danger icon-button action-icon" type="button" title="Delete" aria-label="Delete"
                 onClick={() => void mutate('delete', share)}>{icon('fas fa-trash-can')}</button>
             </div></td>
           </tr>)}</tbody></table>

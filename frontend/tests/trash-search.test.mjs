@@ -3,8 +3,7 @@ import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import test from 'node:test';
 import { build } from 'vite';
-import * as jsx from 'react/jsx-runtime';
-import { createMemoryRouter } from 'react-router-dom';
+import { listHarness, domains, nodes as listNodes } from './helpers/selectable-list-harness.mjs';
 
 async function compile(file) {
   const result = await build({ configFile: false, logLevel: 'silent',
@@ -14,73 +13,19 @@ async function compile(file) {
   });
   return (Array.isArray(result) ? result[0] : result).output.find(item => item.type === 'chunk').code;
 }
-const code = await compile('TrashApp.tsx');
 const apiCode = await compile('trash-api.ts');
 const flush = () => new Promise(setImmediate);
 function nodes(tree) {
   if (Array.isArray(tree)) return tree.flatMap(nodes);
   if (!tree || typeof tree !== 'object') return [];
+  if (tree.type?.name === 'ListItemActions') return nodes(tree.type(tree.props));
   return [tree, ...nodes(tree.props?.children)];
 }
 const payload = ids => ({ items: ids.map(id => ({ id, originalName: `${id}.pdf`, originalPath: `photos/${id}.pdf` })) });
 const rows = tree => nodes(tree).filter(node => node.type === 'tr' && node.key).map(node => node.key);
 const panels = tree => nodes(tree).filter(node => node.type?.name === 'PageErrorPanel');
 
-function harness(t, search = '') {
-  const router = createMemoryRouter([{ path: '*', element: null }], { initialEntries: ['/admin/trash' + search] });
-  const slots = [], effects = [], requests = [], mutations = [], confirmations = [];
-  let cursor = 0, dirty, registration;
-  const module = { exports: {} };
-  vm.runInNewContext(code, { module, exports: module.exports, AbortController, URLSearchParams, Error,
-    window: { EnderVault: { askConfirmation: async config => { confirmations.push(config); return true; } } },
-    require(id) {
-      if (id === 'react') return {
-        useState(initial) {
-          const index = cursor++;
-          slots[index] ??= { value: initial };
-          return [slots[index].value, next => {
-            const value = typeof next === 'function' ? next(slots[index].value) : next;
-            if (!Object.is(value, slots[index].value)) { slots[index].value = value; dirty = true; }
-          }];
-        },
-        useEffect(run, deps) {
-          const index = cursor++, previous = slots[index];
-          if (previous && deps.every((dep, i) => Object.is(dep, previous.deps[i]))) return;
-          const slot = { deps, cleanup: previous?.cleanup };
-          slots[index] = slot;
-          effects.push(() => { slot.cleanup?.(); slot.cleanup = run(); });
-        },
-      };
-      if (id === 'react/jsx-runtime') return jsx;
-      if (id === 'react-router-dom') return { useSearchParams: () => [new URLSearchParams(router.state.location.search),
-        next => router.navigate({ pathname: '/admin/trash', search: new URLSearchParams(next).toString() })] };
-      if (id.endsWith('/RouteSearch')) return { useRouteSearch: control => { registration = control; } };
-      if (id.endsWith('/BrowserEntries')) return { icon: () => null };
-      if (id.endsWith('/form-api')) return { toastError: reason => { throw reason; } };
-      if (id.endsWith('/trash-api')) return {
-        loadTrash: (signal, query) => new Promise((resolve, reject) => { requests.push({ signal, query, resolve, reject }); }),
-        ...Object.fromEntries(['restoreTrashItem', 'deleteTrashItem', 'emptyTrash'].map(name => [name,
-          async (...args) => { mutations.push({ name, args }); }])),
-      };
-      const name = id.split('/').at(-1);
-      return { [name]: { [name]: () => null }[name] };
-    },
-  });
-  t.after(() => { slots.forEach(slot => slot.cleanup?.()); router.dispose(); });
-  return { router, requests, mutations, confirmations,
-    get search() { return registration; },
-    render() {
-      let tree, count = 0;
-      do {
-        assert.ok(++count < 20, 'render/effect loop');
-        dirty = false; cursor = 0; tree = module.exports.TrashApp();
-        effects.splice(0).forEach(run => run());
-      } while (dirty);
-      return tree;
-    },
-    async finish(index = requests.length - 1, ids = []) { requests[index].resolve(payload(ids)); await flush(); },
-  };
-}
+const harness = (t, search = '') => listHarness(t, domains[0], search);
 
 test('trash search submits on command, preserves URL fields and restores history', async t => {
   const h = harness(t, '?q=name:old&context=keep');
@@ -158,12 +103,69 @@ test('empty filtered results keep search and the whole-catalog empty command', a
   const tree = h.render();
   assert.ok(nodes(tree).find(node => node.type === 'p' && node.props.children === 'No trash items match this search.'));
   assert.equal(h.search.disabled, undefined);
-  const action = nodes(tree).find(node => node.props?.mode === 'single');
-  action.props.onAction(); await flush(); h.render();
+  const action = listNodes(tree).find(node => node.props?.['aria-label'] === 'Empty trash');
+  action.props.onClick(); await flush(); h.render();
   assert.match(h.confirmations[0].message, /every item in trash/);
   assert.deepEqual(h.mutations, [{ name: 'emptyTrash', args: [] }]);
   assert.equal(h.requests.at(-1).query, 'name:missing');
 });
+
+for (const confirmed of [false, true]) {
+  test(`empty trash releases its lock after query navigation and late confirmation ${confirmed}`, async t => {
+    const h = harness(t, '?q=name:old');
+    h.render(); await h.finish(0, ['old']); h.render();
+    let finishConfirmation;
+    h.setConfirmation(() => new Promise(resolve => { finishConfirmation = resolve; }));
+    const empty = () => listNodes(h.render()).find(node => node.props?.['aria-label'] === 'Empty trash');
+    empty().props.onClick();
+    assert.equal(empty().props.disabled, true);
+    await h.router.navigate('/admin/trash?q=name:new'); h.render();
+    await h.finish(1, ['new']);
+    assert.equal(empty().props.disabled, true, 'The pending action still owns the shared lock');
+    empty().props.onClick();
+    assert.equal(h.confirmations.length, 1);
+    finishConfirmation(confirmed); await flush();
+    assert.equal(empty().props.disabled, false);
+    assert.deepEqual(h.mutations, [], 'The outgoing confirmation cannot submit');
+    assert.equal(h.requests.length, 2, 'The outgoing visit cannot reload the new query');
+    assert.deepEqual(rows(h.render()), ['new']);
+    h.setConfirmation(async () => false);
+    empty().props.onClick(); await flush();
+    assert.equal(h.confirmations.length, 2, 'A new action can acquire the released lock');
+    assert.equal(empty().props.disabled, false);
+  });
+}
+
+for (const outcome of ['resolve', 'reject']) {
+  test(`empty trash releases its lock after query navigation and submitted request ${outcome}`, async t => {
+    const h = harness(t, '?q=name:old');
+    h.render(); await h.finish(0, ['old']); h.render();
+    let finishRequest, failRequest;
+    h.setMutationOutcome('emptyTrash', new Promise((resolve, reject) => { finishRequest = resolve; failRequest = reject; }));
+    const empty = () => listNodes(h.render()).find(node => node.props?.['aria-label'] === 'Empty trash');
+    empty().props.onClick(); await flush();
+    assert.deepEqual(h.mutations, [{ name: 'emptyTrash', args: [] }]);
+    await h.router.navigate('/admin/trash?q=name:new'); h.render();
+    await h.finish(1, ['new']);
+    assert.equal(empty().props.disabled, true, 'Submitted work keeps ownership until it settles');
+    empty().props.onClick();
+    const restore = nodes(h.render()).find(node => node.type === 'button' && node.props['aria-label'] === 'Restore');
+    restore.props.onClick(); await flush();
+    assert.equal(h.confirmations.length, 1);
+    assert.equal(h.mutations.length, 1, 'Neither whole-list nor row actions overlap submitted work');
+    if (outcome === 'resolve') finishRequest(); else failRequest(new Error('Connection lost'));
+    await flush();
+    assert.equal(empty().props.disabled, false);
+    assert.equal(h.requests.length, 2, 'Completion cannot reload the outgoing or new visit');
+    assert.equal(h.mutations.length, 1, 'Submitted work is never replayed');
+    assert.deepEqual(rows(h.render()), ['new']);
+    assert.deepEqual(h.errors, outcome === 'reject' ? ['Connection lost'] : []);
+    h.setConfirmation(async () => false);
+    empty().props.onClick(); await flush();
+    assert.equal(h.confirmations.length, 2, 'A new action can acquire the released lock');
+    assert.equal(empty().props.disabled, false);
+  });
+}
 
 test('trash transport forwards quoted expressions and structured errors without fallback', async () => {
   const module = { exports: {} }, calls = [];

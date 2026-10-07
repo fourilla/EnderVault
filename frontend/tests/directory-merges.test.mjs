@@ -298,6 +298,7 @@ test('the unified pending page has one table and no page-owned review dialog', a
     'react-router-dom': { useSearchParams: () => [new URLSearchParams(), () => {}] },
     RouteSearch: { useRouteSearch: () => {} },
     StableTable: { StableTable: 'table' },
+    useTableColumns: { useTableColumns: columns => ({ columns, showActions: true, columnCount: columns.length }) },
     useItemSelection: { useItemSelection: () => ({ selected: new Set(), selectedItems: [],
       selectAll() {}, clearSelection() {} }) },
     useSelectionShortcuts: { useSelectionShortcuts() {} },

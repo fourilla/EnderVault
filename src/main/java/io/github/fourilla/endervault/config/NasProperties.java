@@ -668,6 +668,8 @@ public class NasProperties {
     }
 
     public static class Browser {
+        private boolean showTableActions = false;
+
         @NotBlank
         private String defaultView = "table";
 
@@ -711,6 +713,14 @@ public class NasProperties {
 
         public void setDefaultPageSize(int defaultPageSize) {
             this.defaultPageSize = defaultPageSize;
+        }
+
+        public boolean isShowTableActions() {
+            return showTableActions;
+        }
+
+        public void setShowTableActions(boolean showTableActions) {
+            this.showTableActions = showTableActions;
         }
     }
 

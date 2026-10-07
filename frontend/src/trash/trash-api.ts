@@ -1,4 +1,5 @@
 import { notify, postForm } from '../shared/api/form-api';
+import { resolveSelectedItems } from '../shared/api/selected-item-api';
 import type { TrashPayload } from './types';
 
 export const loadTrash = async (signal: AbortSignal, query = '') => {
@@ -31,3 +32,6 @@ export const emptyTrash = async () => {
   notify(body);
   return body;
 };
+
+export const deleteSelectedTrashItems = (ids: readonly string[]) =>
+  resolveSelectedItems('/api/v1/trash/selected/resolve', ids, 'DELETE');

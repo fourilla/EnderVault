@@ -9,6 +9,8 @@ import io.github.fourilla.endervault.stickynote.StickyNoteSnapshot;
 import io.github.fourilla.endervault.stickynote.StickyNoteSurface;
 import io.github.fourilla.endervault.stickynote.StickyNoteTargetType;
 import io.github.fourilla.endervault.web.support.FlashNotification;
+import io.github.fourilla.endervault.web.support.ActionResponse;
+import io.github.fourilla.endervault.web.support.SelectedItemActions;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.util.List;
@@ -114,20 +116,32 @@ public class StickyNoteApiController {
             HttpServletRequest request
     ) {
         try {
-            StickyNote note = stickyNoteService.delete(id);
-            activityLogService.record(
-                    "STICKY_NOTE_DELETE",
-                    request,
-                    request.getRequestURI(),
-                    note.context().targetKey(),
-                    "Sticky note deleted.",
-                    logMetadata(note)
-            );
-            FlashNotification notification = FlashNotification.success("Sticky note deleted.");
-            return ResponseEntity.ok(StickyNoteResponse.deleted(notification, note.id()));
+            return ResponseEntity.ok(deleteNote(id, request));
         } catch (IOException | RuntimeException ex) {
             return error(ex);
         }
+    }
+
+    @PostMapping("/selected/resolve")
+    public ResponseEntity<?> resolveSelected(
+            @RequestParam(value = "ids", required = false) List<String> ids,
+            @RequestParam(value = "action", required = false) String action,
+            @RequestParam(value = "confirmed", defaultValue = "false") boolean confirmed,
+            HttpServletRequest request) {
+        try {
+            var selected = SelectedItemActions.validate(ids, action, "DELETE", confirmed, SelectedItemActions::canonicalUuid);
+            return ResponseEntity.ok(SelectedItemActions.execute(selected, "Sticky notes",
+                    id -> deleteNote(id, request).notification().message()));
+        } catch (StorageAccessException ex) {
+            return ResponseEntity.badRequest().body(ActionResponse.error(ex.getMessage()));
+        }
+    }
+
+    private StickyNoteResponse deleteNote(String id, HttpServletRequest request) throws IOException {
+        StickyNote note = stickyNoteService.delete(id);
+        activityLogService.record("STICKY_NOTE_DELETE", request, request.getRequestURI(), note.context().targetKey(),
+                "Sticky note deleted.", logMetadata(note));
+        return StickyNoteResponse.deleted(FlashNotification.success("Sticky note deleted."), note.id());
     }
 
     private Map<String, String> logMetadata(StickyNote note) {

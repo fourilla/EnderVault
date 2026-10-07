@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { AppNavigationLink } from '../../app/AppNavigationLink';
 import { icon } from './BrowserEntries';
 import { createListItemActions, type ListItemActionController, type ListItemActionOptions } from './list-item-actions';
 
@@ -20,13 +20,15 @@ export function ListItemActions<T>({ item, itemKey, actions }: {
   item: T; itemKey: (item: T) => string; actions: ListItemActionController<T>;
 }) {
   return <div className="table-actions">
-    {actions.definitions().filter((action) => action.supports(item)).map((action) => {
+    {actions.definitions().filter((action) => action.inRow !== false && action.supports(item)).map((action) => {
       const className = `${action.danger ? 'danger' : 'ghost'} icon-button action-icon`;
-      return action.href && !actions.disabled()
-        ? <Link key={action.id} className={`button-link ${className}`} title={action.label} aria-label={action.label}
-          to={action.href(item)}>{icon(action.icon)}</Link>
+      const disabled = actions.disabled() || Boolean(action.disabled?.(item));
+      return action.href && !disabled
+        ? <AppNavigationLink key={action.id} className={`button-link ${className}`} title={action.label} aria-label={action.label}
+          href={action.href(item)} target={action.newTab?.(item) ? '_blank' : undefined}
+          rel={action.newTab?.(item) ? 'noopener noreferrer' : undefined}>{icon(action.icon)}</AppNavigationLink>
         : <button key={action.id} type="button" className={className} title={action.label} aria-label={action.label}
-          disabled={actions.disabled()} onClick={() => actions.run(itemKey(item), action.id)}>{icon(action.icon)}</button>;
+          disabled={disabled} onClick={() => actions.run(itemKey(item), action.id)}>{icon(action.icon)}</button>;
     })}
   </div>;
 }

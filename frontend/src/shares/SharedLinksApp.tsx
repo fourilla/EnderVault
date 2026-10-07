@@ -1,5 +1,6 @@
 import { LoadingState } from '../shared/layout/LoadingState';
 import { StableTable } from '../shared/browser/StableTable';
+import { useTableColumns } from '../shared/browser/useTableColumns';
 import { PathLink } from '../shared/browser/PathLink';
 import { OverflowMarquee } from '../shared/layout/OverflowMarquee';
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
@@ -25,6 +26,7 @@ const emptyShares: ShareLink[] = [];
 const keepRowClick = () => {};
 
 export function SharedLinksApp() {
+  const table = useTableColumns(['select', 'text', 'text', 'type', 'date', 'status', 'actions']);
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeQuery = searchParams.get('q') ?? '';
@@ -124,7 +126,7 @@ export function SharedLinksApp() {
       <PageHeader title="Shared Links" />
       {shares && (shares.length > 0 || activeQuery) && <ListItemSelectionActions
         items={selection.selectedItems} itemKey={shareItemKey} actions={actions} label="Shared link actions"
-        pageActions={<button type="button" className="icon-button" aria-label="Delete expired links"
+        pageActions={<button type="button" className="danger icon-button" aria-label="Delete expired links"
           title="Delete expired links from the entire list, not only this search or selection."
           disabled={!selectable || Boolean(busy) || actions.isBusy()}
           onClick={() => void run('expired', deleteExpiredShares, 'Expired links could not be deleted.')}>
@@ -141,12 +143,12 @@ export function SharedLinksApp() {
       )}
       {shares && (
         <section ref={listRef} className="table-wrap" aria-label="Shared links">
-          <StableTable columns={['select', 'text', 'text', 'type', 'date', 'status', 'actions']} actionCount={4}>
+          <StableTable columns={table.columns} actionCount={4}>
             <thead>
               <tr><SelectionHeader total={items.length} selected={selection.selectedItems.length} disabled={!selectable}
                 onChange={(checked) => checked ? selection.selectAll() : selection.clearSelection()}
                 label="Select all shared links in this result" />
-                <th>Link</th><th>Target</th><th>Type</th><th>Created / Expires</th><th>Status</th><th>Actions</th></tr>
+                <th>Link</th><th>Target</th><th>Type</th><th>Created / Expires</th><th>Status</th>{table.showActions && <th>Actions</th>}</tr>
             </thead>
             <tbody>
               {shares.map((share) => (
@@ -173,12 +175,12 @@ export function SharedLinksApp() {
                     </span>
                     {failures.has(share.token) && <OverflowMarquee text={failures.get(share.token)!} />}
                   </div></td>
-                  <td>
+                  {table.showActions && <td>
                     <ListItemActions item={share} itemKey={shareItemKey} actions={actions} />
-                  </td>
+                  </td>}
                 </tr>
               ))}
-              {shares.length === 0 && <tr className="empty-row"><td colSpan={7} className="empty">
+              {shares.length === 0 && <tr className="empty-row"><td colSpan={table.columnCount} className="empty">
                 {activeQuery ? 'No shared links match this search.' : 'No shared links yet.'}
               </td></tr>}
             </tbody>

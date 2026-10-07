@@ -6,6 +6,7 @@ import test from 'node:test';
 import { build } from 'vite';
 import * as jsx from 'react/jsx-runtime';
 import { createMemoryRouter } from 'react-router-dom';
+import { tableColumnsHarness } from './helpers/table-columns-harness.mjs';
 
 async function compile(file) {
   const result = await build({ configFile: false, logLevel: 'silent',
@@ -68,6 +69,7 @@ test('Pending client preserves query errors and cancellation instead of retrying
 
 // Deterministic effects, Router history, requests and timers; not a browser layout test.
 function harness(t, query = '') {
+  const tableColumns = tableColumnsHarness();
   const router = createMemoryRouter([{ path: '*', element: null }], {
     initialEntries: [`/admin/pending-decisions${query ? `?${new URLSearchParams({ q: query })}` : ''}`],
   });
@@ -121,6 +123,7 @@ function harness(t, query = '') {
     '../shared/browser/useHashTarget': { useHashTarget() {} },
     '../shared/browser/BrowserEntries': { icon: () => null },
     '../shared/browser/StableTable': { StableTable() {} },
+    '../shared/browser/useTableColumns': tableColumns,
     '../shared/browser/SelectionHeader': { SelectionHeader() {} },
     '../shared/browser/useItemSelection': hook(selectionCode),
     '../shared/browser/useSelectionShortcuts': hook(shortcutsCode),
@@ -155,6 +158,7 @@ function harness(t, query = '') {
   t.after(() => { dispose(); router.dispose(); });
   return {
     router, requests, timers, listeners, client, dispose,
+    setTableActions: tableColumns.setShown,
     get search() { return registration; },
     get menu() { return menuOptions; },
     resolve(id) { actionOptions.resolved(id); },
@@ -308,6 +312,26 @@ test('transient Pending polling errors retain same-query rows, and unmount cance
   assert.equal(h.timers.size, 0);
   assert.equal(h.listeners.size, 0);
   assert.deepEqual(rowIds(h.render()), ['decision-file']);
+});
+
+test('Pending hides Actions without dropping selection, polling or its shared decision actions', async t => {
+  const h = harness(t); h.render(); await h.finish(0, [row('one')]);
+  h.render(); h.press('a', { ctrlKey: true }); h.render();
+  h.setTableActions(false);
+  let tree = h.render();
+  const table = nodes(tree).find(node => node.type?.name === 'StableTable');
+  assert.equal(table.props.columns.length, 7);
+  assert.ok(!table.props.columns.includes('actions'));
+  assert.ok(!nodes(tree).some(node => node.type === 'th' && node.props.children === 'Actions'));
+  assert.ok(!nodes(tree).some(node => node.type?.name === 'PendingDecisionActions'));
+  const item = nodes(tree).find(node => node.type === 'tr' && node.props['data-context-item']);
+  assert.equal(nodes(item).filter(node => node.type === 'td').length, 7);
+  assert.ok(item.props.className.includes('is-selected'));
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.timers.size, 1);
+  assert.ok(nodes(tree).some(node => node.type?.name === 'PendingDecisionSelectionActions'));
+  await h.poll(); await h.finish(1, []); tree = h.render();
+  assert.equal(nodes(tree).find(node => node.props?.className === 'empty').props.colSpan, 7);
 });
 
 test('Pending uses stable columns, shared select-all and marquee without adding a bulk toolbar', async t => {

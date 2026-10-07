@@ -63,6 +63,10 @@ public class AdminShellStateService {
         return new UploadUiConfig(Math.min(nasProperties.getUpload().getMaxConcurrentChunks(), 8));
     }
 
+    public BrowserUiConfig browserUiConfig() {
+        return new BrowserUiConfig(nasProperties.getBrowser().isShowTableActions());
+    }
+
     public String bookmarkLinkClickAction() {
         return BookmarkLinkClickAction.from(nasProperties);
     }
@@ -127,6 +131,9 @@ public class AdminShellStateService {
     }
 
     public record UploadUiConfig(int maxConcurrentUploads) {
+    }
+
+    public record BrowserUiConfig(boolean showTableActions) {
     }
 
     public record Capabilities(

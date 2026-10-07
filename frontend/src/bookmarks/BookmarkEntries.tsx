@@ -1,6 +1,7 @@
 import { Fragment } from 'react';
 import { icon } from '../shared/browser/BrowserEntries';
 import { StableTable } from '../shared/browser/StableTable';
+import { useTableColumns } from '../shared/browser/useTableColumns';
 import { SelectionHeader } from '../shared/browser/SelectionHeader';
 import { OverflowMarquee } from '../shared/layout/OverflowMarquee';
 import type { BookmarkEntry } from './types';
@@ -73,16 +74,17 @@ export function BookmarkTable({
   toggleFavorite: (entry: BookmarkEntry) => void;
   refreshMetadata: (entry: BookmarkEntry) => void;
 }) {
+  const table = useTableColumns(['select', 'text', 'type', 'date', 'actions']);
   return (
     <section className="browser-section bookmarks-panel" aria-label={'Bookmark ' + heading.toLowerCase()}>
       <header className="section-heading"><h2>{heading} ({entries.length})</h2></header>
       <div className="table-wrap">
-        <StableTable columns={['select', 'text', 'type', 'date', 'actions']} actionCount={4}>
+        <StableTable columns={table.columns} actionCount={4}>
           <thead><tr>
             <SelectionHeader total={entries.length} selected={entries.filter((entry) => selected.has(entry.id)).length}
               onChange={(checked) => entries.forEach((entry) => select(entry, checked))}
               label={'Select all bookmark ' + heading.toLowerCase() + ' in this table'} />
-            <th>Name</th><th>Type</th><th>Updated</th><th>Actions</th>
+            <th>Name</th><th>Type</th><th>Updated</th>{table.showActions && <th>Actions</th>}
           </tr></thead>
           <tbody>
             {entries.map((entry) => (
@@ -95,7 +97,7 @@ export function BookmarkTable({
                 <td><BookmarkName entry={entry} browse={browse} /></td>
                 <td>{entry.type === 'directory' ? 'Directory' : 'Link'}</td>
                 <td>{entry.updatedLabel}</td>
-                <td><div className="table-actions">
+                {table.showActions && <td><div className="table-actions">
                   <button className={'ghost icon-button action-icon favorite-toggle'
                     + (entry.favorite ? ' is-favorite' : '')} type="button"
                     title={entry.favorite ? 'Remove from favorites' : 'Add to favorites'}
@@ -123,7 +125,7 @@ export function BookmarkTable({
                         refreshMetadata(entry);
                       }}>{icon('fas fa-wand-magic-sparkles')}</button>
                   )}
-                </div></td>
+                </div></td>}
               </tr>
             ))}
           </tbody>

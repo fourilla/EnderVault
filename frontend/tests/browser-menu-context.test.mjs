@@ -77,3 +77,25 @@ test('shared entry actions use the clicked entry and omit directory-dependent ba
   const multiple = visible({ mode: 'selection', item: file, items: [file, file] }).map((action) => action.id);
   assert.deepEqual(multiple, ['download', 'add-to-buffer', 'move-to-trash']);
 });
+
+test('directory menus keep Open and add separate SPA Details without duplicating file or multi actions', () => {
+  const calls = [];
+  const menu = fileEntryMenuActions({ actions: {}, browse: path => calls.push(['browse', path]),
+    openFile: url => calls.push(['detail', url]) });
+  const directory = { type: 'directory', path: 'a/nested directory', detailUrl: '/files/detail?path=a%2Fnested%20directory' };
+  const single = { mode: 'single', item: directory, items: [directory] };
+  const visible = context => menu.filter(action => !action.visible || action.visible(context));
+  const primary = visible(single).filter(action => action.group === 'primary');
+  assert.deepEqual(primary.map(action => typeof action.label === 'function' ? action.label(single) : action.label),
+    ['Open', 'Details']);
+  assert.equal(primary[1].icon, 'fas fa-circle-info');
+  primary.forEach(action => action.run(single));
+  assert.deepEqual(calls, [['browse', directory.path], ['detail', directory.detailUrl]]);
+  const file = { ...directory, type: 'file' }, fileContext = { mode: 'single', item: file, items: [file] };
+  assert.deepEqual(visible(fileContext).filter(action => action.group === 'primary').map(action => action.id), ['open']);
+  assert.equal(menu.find(action => action.id === 'open').label(fileContext), 'Details');
+  for (const context of [{ mode: 'selection', item: directory, items: [directory, directory] },
+    { mode: 'background', item: null, items: [] }]) {
+    assert.equal(visible(context).some(action => action.id === 'directory-details'), false);
+  }
+});

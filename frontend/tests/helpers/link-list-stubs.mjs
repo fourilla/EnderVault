@@ -1,5 +1,15 @@
 // Feedback-only fixtures isolate list interaction; behavioral tests use the real hooks.
 export function linkListStub(id) {
+  if (id.endsWith('/useTableColumns')) return { useTableColumns: columns => ({ columns, showActions: true, columnCount: columns.length }) };
+  if (id.endsWith('/useSelectableActionList')) return { useSelectableActionList: () => ({
+    selection: { selected: new Set(), selectedItems: [], setSelected() {}, selectAll() {},
+      clearSelection() {}, selectItem() {}, itemInteractionProps: () => ({}) },
+    actions: { isBusy: () => false }, listRef: { current: null }, isCurrent: () => true, failures: new Map(),
+  }) };
+  if (id.endsWith('/trash-list-actions')) return { trashListActions: [], trashItemKey: item => item.id };
+  if (id.endsWith('/sticky-note-list-actions')) return { stickyNoteListActions: [], stickyNoteItemKey: item => item.id };
+  if (id.endsWith('/favorite-list-actions')) return { favoriteListActions: () => [], favoriteItemKey: item => item.path };
+  if (id.endsWith('/AppNavigationLink')) return { AppNavigationLink: () => null };
   if (id.endsWith('/useItemSelection')) return { useItemSelection: () => ({
     selected: new Set(), selectedRef: { current: new Set() }, selectedItems: [], setSelected() {},
     selectAll() {}, clearSelection() {}, selectItem() {}, itemInteractionProps: () => ({}),

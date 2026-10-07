@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import test from 'node:test';
 import { build } from 'vite';
 import * as jsx from 'react/jsx-runtime';
+import { linkListStub } from './helpers/link-list-stubs.mjs';
 
 const domains = [
   { scope: 'bookmarks', file: 'bookmarks/bookmark-api', page: 'bookmarks/BookmarksApp',
@@ -30,6 +31,7 @@ for (const domain of domains) {
     const module = { exports: {} };
     vm.runInNewContext(code, { module, exports: module.exports, URLSearchParams, fetch,
       require: (id) => {
+        if (id.endsWith('/selected-item-api')) return { resolveSelectedItems() { assert.fail('Read must not mutate'); } };
         assert.equal(id, '../shared/api/form-api');
         return { notify() { assert.fail('Read requests must not emit mutation notifications'); } };
       },
@@ -114,6 +116,8 @@ function catalogHarness() {
   vm.runInNewContext(catalogPageCode, { module, exports: module.exports, AbortController, URLSearchParams,
     document: { addEventListener() {}, removeEventListener() {} },
     require(id) {
+      const stub = linkListStub(id);
+      if (stub) return stub;
       if (id === 'react/jsx-runtime') return jsx;
       if (id === 'react') return {
         useState(initial) {
@@ -196,8 +200,8 @@ for (const outcome of ['resolve', 'reject']) {
     if (outcome === 'resolve') h.requests[0].resolve({ notes: [{ id: 'old' }] });
     else h.requests[0].reject(new Error('Old query failed'));
     await new Promise(setImmediate);
-    assert.equal(h.states[1], notes);
-    assert.equal(h.states[3], '');
+    assert.equal(h.states[1].notes, notes);
+    assert.equal(h.states[2], null);
   });
 }
 
@@ -208,5 +212,5 @@ test('sticky-note search ignores a response delivered after unmount', async () =
   h.requests[0].resolve({ notes: [{ id: 'old' }] });
   await new Promise(setImmediate);
   assert.equal(h.states[1], null);
-  assert.equal(h.states[3], '');
+  assert.equal(h.states[2], null);
 });

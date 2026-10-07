@@ -5,6 +5,7 @@ import test from 'node:test';
 import { build } from 'vite';
 import * as jsx from 'react/jsx-runtime';
 import { createMemoryRouter } from 'react-router-dom';
+import { tableColumnsHarness } from './helpers/table-columns-harness.mjs';
 
 async function compile(file) {
   const result = await build({ configFile: false, logLevel: 'silent',
@@ -48,8 +49,33 @@ const payload = (domain, ids = []) => domain.scope === 'shares' ? ids.map(share)
     allowedExtensions: '', duplicating: false },
 };
 
+for (const domain of domains) test(`${domain.scope} action visibility removes real cells and updates empty colspan without a reload`, async t => {
+  const h = harness(t, domain); h.render();
+  h.requests[0].resolve(payload(domain, ['one'])); await flush();
+  let tree = h.render();
+  const shownTable = nodes(tree).find(node => node.type?.name === 'StableTable');
+  nodes(tree).find(node => node.type === 'input' && node.props.className === 'row-select-checkbox')
+    .props.onChange({ currentTarget: { checked: true } });
+  h.render(); h.setTableActions(false); tree = h.render();
+  const hiddenTable = nodes(tree).find(node => node.type?.name === 'StableTable');
+  assert.equal(hiddenTable.props.columns.length, shownTable.props.columns.length - 1);
+  assert.ok(!hiddenTable.props.columns.includes('actions'));
+  assert.ok(!nodes(tree).some(node => node.type === 'th' && node.props.children === 'Actions'));
+  const row = nodes(tree).find(node => node.type === 'tr' && node.props['data-context-item']);
+  assert.equal(nodes(row).filter(node => node.type === 'td').length, hiddenTable.props.columns.length);
+  assert.ok(row.props.className.includes('is-selected'));
+  assert.equal(h.requests.length, 1);
+  assert.ok(h.menu.actions().length > 0);
+  // A fresh fixture verifies the empty row while Actions are hidden.
+  const empty = harness(t, domain); empty.setTableActions(false); empty.render();
+  empty.requests[0].resolve(payload(domain)); await flush();
+  tree = empty.render();
+  assert.equal(nodes(tree).find(node => node.type === 'td' && node.props.colSpan).props.colSpan, hiddenTable.props.columns.length);
+});
+
 // Deterministic page effects + actual Router history; no backend or browser layout is involved.
 function harness(t, domain, search = '') {
+  const tableColumns = tableColumnsHarness();
   const route = `/admin/${domain.scope}`;
   const router = createMemoryRouter([{ path: '*', element: null }], { initialEntries: [route + search] });
   const slots = [], effects = [], requests = [], mutations = [], confirmations = [], errors = [], copies = [], listeners = new Map();
@@ -110,6 +136,7 @@ function harness(t, domain, search = '') {
   const controller = evaluate(controllerCode, () => formApi);
   const actionView = evaluate(actionViewCode, id => id === 'react' ? react : id === 'react/jsx-runtime' ? jsx
     : id === 'react-router-dom' ? routeHooks : id.endsWith('/list-item-actions') || id === './list-item-actions' ? controller
+    : id.endsWith('/AppNavigationLink') ? { AppNavigationLink: routeHooks.Link }
     : { icon: () => null });
   const actionDefinitions = evaluate(domain.actionsCode, id => id.endsWith('/list-item-actions') ? controller : api);
   const selectionActionView = evaluate(selectionActionViewCode, id => id === 'react/jsx-runtime' ? jsx
@@ -128,6 +155,7 @@ function harness(t, domain, search = '') {
       if (id.endsWith('/BrowserEntries')) return { icon: () => null };
       if (id.endsWith('/form-api')) return formApi;
       if (id.endsWith('/useItemSelection')) return selection;
+      if (id.endsWith('/useTableColumns')) return tableColumns;
       if (id.endsWith('/useSelectionShortcuts')) return shortcuts;
       if (id.endsWith('/useBrowserContextMenu')) return { useBrowserContextMenu: options => { menuOptions = options; } };
       if (id.endsWith('/ListingHistoryContext')) return { useLocationGuard: () => {
@@ -146,6 +174,7 @@ function harness(t, domain, search = '') {
   });
   t.after(() => { slots.forEach(slot => slot.cleanup?.()); router.dispose(); });
   return { router, requests, mutations, confirmations, errors, copies, document,
+    setTableActions: tableColumns.setShown,
     get menu() { return menuOptions; },
     setConfirmation(fn) { confirm = fn; },
     setBulkOutcome(result) { bulkOutcome = result; },

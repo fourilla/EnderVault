@@ -234,11 +234,13 @@ test('history-backed lists reuse reload and keep their existing navigation and s
 });
 
 test('sticky note retry retains the applied query instead of submitting uncommitted search text', async () => {
-  const states = ['unsubmitted text', null, '', 'Fetch failed', 0];
+  const states = ['unsubmitted text', null, { query: 'applied', message: 'Fetch failed' }, 0];
   let index = 0;
   const effects = [];
   const queries = [];
   const { StickyNoteListApp } = evaluate(await compile('sticky-notes/StickyNoteListApp'), id => {
+    const stub = linkListStub(id);
+    if (stub) return stub;
     if (id === 'react') return {
       useEffect: (run, deps) => effects.push({ run, deps }),
       useState() { const slot = index++; return [states[slot], value => {
@@ -248,6 +250,8 @@ test('sticky note retry retains the applied query instead of submitting uncommit
     if (id === 'react-router-dom') return { useSearchParams: () => [new URLSearchParams('q=applied'), () => assert.fail('no navigation')] };
     if (id.endsWith('/PageErrorPanel')) return { PageErrorPanel };
     if (id.endsWith('/PageHeader')) return { PageHeader: () => null };
+    if (id.endsWith('/StableTable')) return { StableTable: () => null };
+    if (id.endsWith('/OverflowMarquee')) return { OverflowMarquee: () => null };
     if (id.endsWith('/RouteSearch')) return { useRouteSearch() {} };
     if (id.endsWith('/AppNavigationLink') || id.endsWith('/form-api')) return {};
     if (id.endsWith('/sticky-note-catalog-api')) return { loadStickyNoteCatalog: async query => {
@@ -257,7 +261,7 @@ test('sticky note retry retains the applied query instead of submitting uncommit
   });
   const tree = StickyNoteListApp();
   findPanel(tree).props.actions.props.onClick();
-  assert.equal(states[4], 1);
+  assert.equal(states[3], 1);
   assert.equal(states[0], 'unsubmitted text');
   index = 0;
   effects.length = 0;
@@ -267,8 +271,9 @@ test('sticky note retry retains the applied query instead of submitting uncommit
   const cleanup = fetchEffect.run();
   await Promise.resolve();
   assert.deepEqual(queries, ['applied']);
-  assert.equal(states[3], '');
-  assert.deepEqual(states[1], []);
+  assert.equal(states[2], null);
+  assert.equal(states[1].query, 'applied');
+  assert.deepEqual(states[1].notes, []);
   cleanup();
 });
 
@@ -290,7 +295,7 @@ for (const page of pages) {
       let index = 0;
       const { [page.name]: App } = evaluate(code, id => {
         const listStub = linkListStub(id);
-        if (page.name === 'SharedLinksApp' && listStub) return listStub;
+        if (listStub) return listStub;
         if (id === 'react') return {
           useEffect() {},
           useRef: initial => ({ current: initial }),

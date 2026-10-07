@@ -2,35 +2,53 @@ import { LoadingState } from '../shared/layout/LoadingState';
 import { type FormEvent, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useRouteSearch } from '../app/RouteSearch';
-import { AppNavigationLink } from '../app/AppNavigationLink';
-import { toastError } from '../shared/api/form-api';
 import { PageHeader } from '../shared/layout/PageHeader';
 import { PageErrorPanel } from '../shared/layout/PageErrorPanel';
-import { deleteStickyNote, loadStickyNoteCatalog } from './sticky-note-catalog-api';
+import { StableTable } from '../shared/browser/StableTable';
+import { useTableColumns } from '../shared/browser/useTableColumns';
+import { OverflowMarquee } from '../shared/layout/OverflowMarquee';
+import { ListItemActions } from '../shared/browser/ListItemActions';
+import { ListItemSelectionActions } from '../shared/browser/ListItemSelectionActions';
+import { SelectionHeader } from '../shared/browser/SelectionHeader';
+import { useSelectableActionList } from '../shared/browser/useSelectableActionList';
+import { stickyNoteItemIdentity, stickyNoteItemKey, stickyNoteListActions } from './sticky-note-list-actions';
+import { loadStickyNoteCatalog } from './sticky-note-catalog-api';
 import type { StickyNoteCatalogItem } from './types';
 
+const emptyNotes: StickyNoteCatalogItem[] = [];
+
 export function StickyNoteListApp() {
+  const table = useTableColumns(['select', 'text', 'text', 'type', 'date', 'status', 'actions']);
   const [searchParams, setSearchParams] = useSearchParams();
   const activeQuery = searchParams.get('q')?.trim() ?? '';
   const [query, setQuery] = useState(activeQuery);
-  const [notes, setNotes] = useState<StickyNoteCatalogItem[] | null>(null);
-  const [busyId, setBusyId] = useState('');
-  const [error, setError] = useState('');
+  const [snapshot, setSnapshot] = useState<{ query: string; notes: StickyNoteCatalogItem[] } | null>(null);
+  const [feedback, setFeedback] = useState<{ query: string; message: string } | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
+  const notes = snapshot?.query === activeQuery ? snapshot.notes : null;
+  const error = feedback?.query === activeQuery ? feedback.message : '';
+  const items = notes ?? emptyNotes;
+  const selectable = notes !== null && !error;
+  const reload = () => setRefreshToken(value => value + 1);
+  const { selection, actions, listRef, failures } = useSelectableActionList({ items, enabled: selectable,
+    contextKey: activeQuery, itemKey: stickyNoteItemKey, itemIdentity: stickyNoteItemIdentity, definitions: stickyNoteListActions,
+    reload, itemLabel: 'sticky notes', deleteActionId: 'note-delete', menuId: 'stickyNoteListContextMenu',
+    pageScope: 'sticky-notes-react', keyAttribute: 'data-note-id',
+    removeApplied: ids => setSnapshot(current => current && current.query === activeQuery
+      ? { ...current, notes: current.notes.filter(item => !ids.has(item.id)) } : current) });
 
   useEffect(() => setQuery(activeQuery), [activeQuery]);
 
   useEffect(() => {
     const controller = new AbortController();
-    setError('');
-    setNotes(null);
+    setFeedback(null);
     void loadStickyNoteCatalog(activeQuery, controller.signal)
       .then((payload) => {
-        if (!controller.signal.aborted) setNotes(payload.notes);
+        if (!controller.signal.aborted) setSnapshot({ query: activeQuery, notes: payload.notes });
       })
       .catch((reason: unknown) => {
         if (!controller.signal.aborted) {
-          setError(reason instanceof Error ? reason.message : 'Sticky notes could not be loaded.');
+          setFeedback({ query: activeQuery, message: reason instanceof Error ? reason.message : 'Sticky notes could not be loaded.' });
         }
       });
     return () => controller.abort();
@@ -39,7 +57,7 @@ export function StickyNoteListApp() {
   useEffect(() => {
     const onDeleted = (event: Event) => {
       const id = String((event as CustomEvent<{ id?: string }>).detail?.id ?? '');
-      if (id) setNotes((current) => current?.filter((item) => item.id !== id) ?? current);
+      if (id) setSnapshot(current => current ? { ...current, notes: current.notes.filter(item => item.id !== id) } : current);
     };
     document.addEventListener('endervault:sticky-note-deleted', onDeleted);
     return () => document.removeEventListener('endervault:sticky-note-deleted', onDeleted);
@@ -61,40 +79,19 @@ export function StickyNoteListApp() {
       setSearchParams(next);
     } });
 
-  const remove = async (note: StickyNoteCatalogItem) => {
-    const confirmed = await window.EnderVault?.askConfirmation({
-      title: 'Delete sticky note',
-      message: 'Delete this sticky note? This cannot be undone.',
-      confirmLabel: 'Delete',
-      danger: true,
-    });
-    if (!confirmed) return;
-
-    setBusyId(note.id);
-    try {
-      const body = await deleteStickyNote(note.id);
-      setNotes((current) => current?.filter((item) => item.id !== body.deletedId) ?? []);
-      document.dispatchEvent(new CustomEvent('endervault:sticky-note-deleted', {
-        detail: { id: body.deletedId },
-      }));
-    } catch (reason) {
-      toastError(reason, 'Sticky note could not be deleted.');
-    } finally {
-      setBusyId('');
-    }
-  };
-
   return (
     <div className="dashboard-workspace">
       <PageHeader title="Sticky Notes" />
+      {notes && items.length > 0 && <ListItemSelectionActions items={selection.selectedItems}
+        itemKey={stickyNoteItemKey} actions={actions} label="Sticky note actions" />}
 
-      {error && <PageErrorPanel title="Sticky notes unavailable" message={error}
+      {error && <PageErrorPanel title="Sticky notes unavailable" message={error} stale={notes !== null}
         actions={<button type="button" className="icon-text-button"
-          onClick={() => setRefreshToken((value) => value + 1)}>
+          onClick={reload}>
           <i className="fas fa-arrows-rotate" aria-hidden="true" /><span>Retry</span>
         </button>} />}
 
-      <section className="dashboard-panel" aria-label="Sticky note manager">
+      <section ref={listRef} className="dashboard-panel" aria-label="Sticky note manager">
         <header className="section-heading">
           <div><h2>All Notes</h2><p>Review notes attached to pages, files, directories, and bookmarks.</p></div>
           <span className="status-badge info">{notes?.length ?? 0} note(s)</span>
@@ -105,35 +102,31 @@ export function StickyNoteListApp() {
         )}
         {notes && (
           <div className="table-wrap compact-table">
-            <table>
-              <thead><tr><th>Note</th><th>Context</th><th>Surface</th><th>Updated</th><th>Status</th><th>Actions</th></tr></thead>
+            <StableTable columns={table.columns} actionCount={2}>
+              <thead><tr><SelectionHeader total={items.length} selected={selection.selectedItems.length} disabled={!selectable}
+                onChange={checked => checked ? selection.selectAll() : selection.clearSelection()} label="Select all sticky notes in this result" />
+                <th>Note</th><th>Context</th><th>Surface</th><th>Updated</th><th>Status</th>{table.showActions && <th>Actions</th>}</tr></thead>
               <tbody>
                 {notes.map((note) => (
-                  <tr key={note.id}>
-                    <td><span className="table-primary-text" title={note.content}>{note.summary}</span></td>
-                    <td><span className="table-primary-text" title={note.contextLabel}>{note.contextLabel}</span><small>{note.targetType}</small></td>
+                  <tr key={note.id} data-context-item="true" data-note-id={note.id}
+                    className={selection.selected.has(note.id) ? 'is-selected' : undefined} {...selection.itemInteractionProps(note)}>
+                    <td className="select-cell"><input type="checkbox" className="row-select-checkbox" checked={selection.selected.has(note.id)}
+                      disabled={!selectable} aria-label={`Select ${note.summary || 'sticky note'}`}
+                      onChange={event => selection.selectItem(note, event.currentTarget.checked)} /></td>
+                    <td><span className="table-primary-text" title={note.content}><OverflowMarquee text={note.summary} /></span>
+                      {failures.has(note.id) && <small role="status">{failures.get(note.id)}</small>}</td>
+                    <td><span className="table-primary-text"><OverflowMarquee text={note.contextLabel} /></span><small>{note.targetType}</small></td>
                     <td>{note.surfaceLabel}</td>
                     <td title={note.updatedLabel}>{note.updatedLabel}</td>
                     <td><span className={`status-badge ${note.targetExists ? 'active' : 'expired'}`}>{note.targetExists ? 'Available' : 'Orphan'}</span></td>
-                    <td>
-                      <div className="table-actions">
-                        {note.openUrl && (
-                          <AppNavigationLink className="button-link ghost icon-button action-icon" href={note.openUrl}
-                            title="Open target" aria-label="Open target">
-                            <i className="fas fa-arrow-up-right-from-square" aria-hidden="true" />
-                          </AppNavigationLink>
-                        )}
-                        <button className="danger icon-button action-icon" type="button" disabled={busyId === note.id}
-                          title="Delete sticky note" aria-label="Delete sticky note" onClick={() => void remove(note)}>
-                          <i className="fas fa-trash-can" aria-hidden="true" />
-                        </button>
-                      </div>
-                    </td>
+                    {table.showActions && <td>
+                      <ListItemActions item={note} itemKey={stickyNoteItemKey} actions={actions} />
+                    </td>}
                   </tr>
                 ))}
-                {notes.length === 0 && <tr className="empty-row"><td colSpan={6} className="empty">No sticky notes found.</td></tr>}
+                {notes.length === 0 && <tr className="empty-row"><td colSpan={table.columnCount} className="empty">No sticky notes found.</td></tr>}
               </tbody>
-            </table>
+            </StableTable>
           </div>
         )}
       </section>

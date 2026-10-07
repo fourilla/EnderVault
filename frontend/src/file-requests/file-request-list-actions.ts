@@ -18,7 +18,7 @@ export const fileRequestListActions = (navigate: NavigateFunction): readonly Lis
     bulk: { confirmation: (count) => ({ title: 'Revoke selected file requests',
       message: `Revoke these ${count} file requests? Active uploads will stop on their next protocol request.`,
       confirmLabel: 'Revoke', danger: true }), execute: (ids) => resolveFileRequestSelection(ids, 'REVOKE') } },
-  { id: 'request-delete', label: 'Delete', icon: 'fas fa-trash-can', group: 'mutate',
+  { id: 'request-delete', label: 'Delete', icon: 'fas fa-trash-can', group: 'mutate', danger: true,
     supports: (item) => !item.active, changesList: true,
     confirmation: { title: 'Delete file request',
       message: 'Delete this file request record? Pending files and active uploads must be resolved first.',

@@ -115,7 +115,12 @@ class ThumbnailServiceTest {
 
         assertThat(firstResponse.generated()).isFalse();
         Path cacheFile = thumbnailService.comicCacheFile(comic, "webp-book.cbz");
-        waitForFile(cacheFile);
+        // Native decoding can exceed three seconds on a cold or busy host.
+        waitForFile(cacheFile, Duration.ofSeconds(15));
+        BufferedImage thumbnail = ImageIO.read(cacheFile.toFile());
+        assertThat(thumbnail).isNotNull();
+        assertThat(thumbnail.getWidth()).isEqualTo(4);
+        assertThat(thumbnail.getHeight()).isEqualTo(4);
 
         ThumbnailFile cachedResponse = thumbnailService.comicThumbnail(comic, "webp-book.cbz");
         assertThat(cachedResponse.generated()).isTrue();
@@ -225,7 +230,11 @@ class ThumbnailServiceTest {
     }
 
     private void waitForFile(Path file) throws Exception {
-        long deadline = System.nanoTime() + Duration.ofSeconds(3).toNanos();
+        waitForFile(file, Duration.ofSeconds(3));
+    }
+
+    private void waitForFile(Path file, Duration timeout) throws Exception {
+        long deadline = System.nanoTime() + timeout.toNanos();
         while (System.nanoTime() < deadline) {
             if (Files.exists(file)) {
                 return;

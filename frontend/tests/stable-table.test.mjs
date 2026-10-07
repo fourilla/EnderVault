@@ -19,22 +19,25 @@ test('share targets and request destinations use encoded SPA links to the repres
 
 test('phase two keeps action capacity, selectable share URLs and request secondary information', () => {
   const bookmarks = source('bookmarks/BookmarkEntries.tsx');
-  assert.match(bookmarks, /columns=\{\['select', 'text', 'type', 'date', 'actions'\]\} actionCount=\{4\}/);
+  assert.match(bookmarks, /useTableColumns\(\['select', 'text', 'type', 'date', 'actions'\]\)/);
+  assert.match(bookmarks, /columns=\{table.columns\} actionCount=\{4\}/);
   assert.match(bookmarks, /<OverflowMarquee text=\{entry.title\}/);
   const shares = source('shares/SharedLinksApp.tsx');
-  assert.match(shares, /'type', 'date', 'status', 'actions'\]\} actionCount=\{4\}/);
+  assert.match(shares, /useTableColumns\(\['select', 'text', 'text', 'type', 'date', 'status', 'actions'\]\)/);
+  assert.match(shares, /actionCount=\{4\}/);
   assert.match(shares, /<th>Created \/ Expires<\/th>/);
-  assert.match(shares, /colSpan=\{7\}/);
+  assert.match(shares, /colSpan=\{table.columnCount\}/);
   assert.match(shares, /aria-label=\{`Created:/);
   assert.match(shares, /aria-label=\{`Expires:/);
   assert.match(shares, /<input readOnly value=\{share.url\}/);
   const requests = source('file-requests/FileRequestsApp.tsx');
   assert.match(requests, /<ListItemActions item=\{item\}/);
-  assert.match(source('shared/browser/ListItemActions.tsx'), /<Link key=\{action.id\} className=\{`button-link \$\{className\}`\}/);
+  assert.match(source('shared/browser/ListItemActions.tsx'), /<AppNavigationLink key=\{action.id\} className=\{`button-link \$\{className\}`\}/);
   assert.match(source('file-requests/file-request-list-actions.ts'), /label: 'Details', icon: 'fas fa-circle-info'/);
-  assert.match(requests, /colSpan=\{8\}/);
+  assert.match(requests, /colSpan=\{table.columnCount\}/);
   assert.match(requests, /<StableTable className="file-requests-table"/);
-  assert.match(requests, /'usage', 'restrictions', 'date', 'status', 'actions'\]\} actionCount=\{3\}/);
+  assert.match(requests, /useTableColumns\(\['select', 'text', 'text', 'usage', 'restrictions', 'date', 'status', 'actions'\]\)/);
+  assert.match(requests, /actionCount=\{3\}/);
   assert.match(requests, /<th>Created \/ Expires<\/th>/);
   assert.match(requests, /<td><div className="table-cell-stack">\s*<span title="Created" aria-label=\{`Created: \$\{item.createdLabel\}`\}>/);
   assert.match(requests, /<span title="Expires" aria-label=\{`Expires: \$\{item.expiresLabel\}`\}>/);
@@ -78,4 +81,21 @@ test('phase one opts in browser, favorites and trash without global table layout
   assert.match(browser, /actionCount=\{onFavorite \? 4 : 3\}/);
   const common = readFileSync(new URL('../../src/main/resources/static/css/components/browser.css', import.meta.url), 'utf8');
   assert.doesNotMatch(common, /table-layout: fixed/);
+});
+
+test('existing list action buttons reuse danger for destructive actions and ghost for restore', () => {
+  const cases = [
+    ['file-detail/FileDetailApp.tsx', 'Delete'],
+    ['settings/sections/PasskeySettings.tsx', 'Delete passkey'],
+    ['activity-logs/ActivityLogsApp.tsx', 'Delete selected log file'],
+    ['shares/SharedLinksApp.tsx', 'Delete expired links'],
+  ];
+  for (const [path, label] of cases) {
+    const tag = source(path).match(new RegExp(`<button\\b[^>]*(?:title|aria-label)="${label}"[^>]*>`))?.[0];
+    assert.ok(tag, `${path}: ${label}`);
+    assert.match(tag, /className="danger icon-button(?: action-icon)?"/);
+  }
+  assert.match(source('file-requests/FileRequestsApp.tsx'), /<button className="danger"[^>]*[\s\S]*?>Delete expired<\/button>/);
+  assert.match(source('trash/trash-list-actions.ts'), /id: 'trash-restore', label: 'Restore'/);
+  assert.match(source('favorites/favorite-list-actions.ts'), /id: 'favorite-remove'[\s\S]*icon: 'fas fa-star-half-stroke'/);
 });
