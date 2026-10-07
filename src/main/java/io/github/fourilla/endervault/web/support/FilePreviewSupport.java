@@ -5,6 +5,8 @@ import io.github.fourilla.endervault.filetool.FileToolType;
 import io.github.fourilla.endervault.recent.RecentListItem;
 import io.github.fourilla.endervault.storage.FileDetail;
 import io.github.fourilla.endervault.storage.FileItem;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -84,11 +86,15 @@ public class FilePreviewSupport {
 
     public String sharedDirectoryFileUrl(String token, FileItem item) {
         UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/s/{token}/file")
-                .queryParam("item", item.name());
+                .queryParam("item", "{item}");
+        Map<String, String> variables = new LinkedHashMap<>();
+        variables.put("token", token);
+        variables.put("item", item.name());
         if (item.parentPath() != null && !item.parentPath().isBlank()) {
-            builder.queryParam("path", item.parentPath());
+            builder.queryParam("path", "{path}");
+            variables.put("path", item.parentPath());
         }
-        return builder.buildAndExpand(token).encode().toUriString();
+        return builder.encode().buildAndExpand(variables).toUriString();
     }
 
     public String sharedFileDownloadUrl(String token, FileItem item) {
@@ -134,25 +140,40 @@ public class FilePreviewSupport {
     private String sharedPreviewUrl(String token, String name, String path, String item) {
         String endpoint = previewType(name) == FileToolType.COMIC ? "/s/{token}/comic/preview" : "/s/{token}/preview";
         UriComponentsBuilder builder = UriComponentsBuilder.fromPath(endpoint);
+        Map<String, String> variables = new LinkedHashMap<>();
+        variables.put("token", token);
         if (path != null && !path.isBlank()) {
-            builder.queryParam("path", path);
+            builder.queryParam("path", "{path}");
+            variables.put("path", path);
         }
         if (item != null && !item.isBlank()) {
-            builder.queryParam("item", item);
+            builder.queryParam("item", "{item}");
+            variables.put("item", item);
         }
-        return builder.buildAndExpand(token).encode().toUriString();
+        return builder.encode().buildAndExpand(variables).toUriString();
     }
 
     private String sharedDownloadUrl(String token, String name, String path, String item) {
-        UriComponentsBuilder builder = UriComponentsBuilder.newInstance()
-                .pathSegment("s", token, "download", name);
+        // Spring Security rejects encoded percent/semicolon in URL paths. The existing
+        // query-only endpoint keeps these valid filenames reachable without relaxing the firewall.
+        boolean queryOnly = name.indexOf('%') >= 0 || name.indexOf(';') >= 0;
+        UriComponentsBuilder builder = queryOnly
+                ? UriComponentsBuilder.fromPath("/s/{token}/download")
+                : UriComponentsBuilder.newInstance().pathSegment("s", "{token}", "download", "{name}");
+        Map<String, String> variables = new LinkedHashMap<>();
+        variables.put("token", token);
+        if (!queryOnly) {
+            variables.put("name", name);
+        }
         if (path != null && !path.isBlank()) {
-            builder.queryParam("path", path);
+            builder.queryParam("path", "{path}");
+            variables.put("path", path);
         }
         if (item != null && !item.isBlank()) {
-            builder.queryParam("item", item);
+            builder.queryParam("item", "{item}");
+            variables.put("item", item);
         }
-        return builder.build().encode().toUriString();
+        return builder.encode().buildAndExpand(variables).toUriString();
     }
 
     private String downloadUrl(String path) {

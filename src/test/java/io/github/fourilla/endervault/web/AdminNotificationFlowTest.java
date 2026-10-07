@@ -2320,8 +2320,8 @@ class AdminNotificationFlowTest {
         String filename = "wget sample, " + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "shared download", StandardCharsets.UTF_8);
         ShareLink shareLink = shareLinkService.create("", filename, null);
-        String encodedFilename = filename.replace(" ", "%20");
-        String contentDispositionFilename = encodedFilename.replace(",", "%2C");
+        String encodedFilename = filename.replace(" ", "%20").replace(",", "%2C");
+        String contentDispositionFilename = encodedFilename;
 
         mockMvc.perform(get("/s/{token}", shareLink.token()))
                 .andExpect(status().isOk())

@@ -2,6 +2,9 @@ package io.github.fourilla.endervault.web.share;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 
@@ -30,6 +33,20 @@ class SharedFileRoutesTest {
     void directoryUrlOmitsBlankPath() {
         assertThat(SharedFileRoutes.directoryUrl("token", " "))
                 .isEqualTo("/s/token");
+    }
+
+    @Test
+    void directoryAndZipRoutesRoundTripLiteralQueryCharacters() {
+        String path = "a+b/50% & 한글";
+        for (String url : new String[] {
+                SharedFileRoutes.directoryUrl("token", path),
+                SharedFileRoutes.downloadZipUrl("token", path)
+        }) {
+            assertThat(url).contains("%2B", "%2F", "%25", "%26");
+            String query = URI.create(url).getRawQuery();
+            assertThat(URLDecoder.decode(query.substring("path=".length()), StandardCharsets.UTF_8)).isEqualTo(path);
+        }
+        assertThat(SharedFileRoutes.downloadZipUrl("token", null)).isEqualTo("/s/token/download.zip");
     }
 
     @Test
