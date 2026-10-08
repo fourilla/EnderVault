@@ -358,9 +358,9 @@ td input[readonly] {
     font-family: inherit;
     max-width: calc(100% - 24px);
     overflow: hidden;
-    border: 1px solid rgba(237, 243, 247, 0.18);
+    border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
     border-radius: var(--radius-control);
-    background: rgba(15, 20, 26, 0.82);
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
     color: var(--text);
     font-size: var(--font-size-xs);
     font-weight: 700;

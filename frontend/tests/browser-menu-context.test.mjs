@@ -99,3 +99,38 @@ test('directory menus keep Open and add separate SPA Details without duplicating
     assert.equal(visible(context).some(action => action.id === 'directory-details'), false);
   }
 });
+
+test('download menus resolve single directories and one selected directory as ZIP targets', () => {
+  const paths = ['one/폴더 + & [1], %;.zip', 'two/같은 이름 + &.txt', 'three/no-download.txt'];
+  const current = setup(paths);
+  Object.assign(current.entries[0], { type: 'directory', path: paths[0], downloadUrl: null });
+  Object.assign(current.entries[1], { type: 'file', path: paths[1], downloadUrl: '/download-file' });
+  Object.assign(current.entries[2], { type: 'file', path: paths[2], downloadUrl: null });
+  const calls = [];
+  const menu = fileEntryMenuActions({ actions: { downloadEntries: items => calls.push(items) },
+    browse() {}, openFile() {} });
+  const download = menu.find(action => action.id === 'download');
+
+  for (const selected of [[], [paths[0]]]) {
+    const context = current.context(current.rows[0], selected);
+    assert.equal(context.mode, 'single');
+    assert.equal(download.visible(context), true);
+    assert.equal(download.label(context), 'Download ZIP');
+    download.run(context);
+    assert.deepEqual(calls.at(-1).map(item => item.path), [paths[0]]);
+  }
+  const file = current.context(current.rows[1]);
+  assert.equal(download.visible(file), true);
+  assert.equal(download.label(file), 'Download');
+  download.run(file);
+  assert.deepEqual(calls.at(-1).map(item => item.path), [paths[1]]);
+  assert.equal(download.visible(current.context(current.rows[2])), false);
+
+  const mixed = current.context(current.rows[0], paths.slice(0, 2));
+  assert.equal(mixed.mode, 'selection');
+  assert.equal(download.visible(mixed), true);
+  assert.equal(download.label(mixed), 'Download 2 selected');
+  download.run(mixed);
+  assert.deepEqual(calls.at(-1).map(item => item.path), paths.slice(0, 2));
+  assert.equal(download.visible(current.context(current.background)), false);
+});

@@ -17,10 +17,10 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 @ControllerAdvice
 public class WebExceptionHandler {
 
-    private final FrontendAssetModelAdvice frontendAssets;
+    private final ErrorPageViewSupport errorPages;
 
-    public WebExceptionHandler(FrontendAssetModelAdvice frontendAssets) {
-        this.frontendAssets = frontendAssets;
+    public WebExceptionHandler(ErrorPageViewSupport errorPages) {
+        this.errorPages = errorPages;
     }
 
     @ExceptionHandler(StorageAccessException.class)
@@ -100,9 +100,7 @@ public class WebExceptionHandler {
         }
 
         response.setStatus(status.value());
-        model.addAttribute("stylesFrontend", frontendAssets.stylesFrontend());
-        model.addAttribute("title", title);
-        model.addAttribute("message", cleanMessage);
+        errorPages.populate(model.asMap(), title, cleanMessage);
         return "error";
     }
 

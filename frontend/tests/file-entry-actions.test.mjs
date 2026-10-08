@@ -195,6 +195,35 @@ test('single downloads stay direct and multi-selection uses the correct surface 
   assert.deepEqual(url.searchParams.getAll('paths'), state.entries.map((entry) => entry.path));
 });
 
+test('directory downloads use the existing Files/Search and Recent ZIP contracts with exact full paths', async (t) => {
+  const directory = { type: 'directory', path: 'one/폴더 + & [1], %;.zip', downloadUrl: null };
+  const file = { type: 'file', path: 'two/같은 이름 + & [2], %;.txt', downloadUrl: '/single-file' };
+  const surfaces = [
+    { name: 'Files', options: { currentPath: () => 'one/기준 + &;' }, endpoint: '/files/download.zip' },
+    { name: 'Search', options: { currentPath: () => '검색 기준/하위 + &' }, endpoint: '/files/download.zip' },
+    { name: 'Recent', options: { zipDownloadUrl: '/files/recent/download.zip' }, endpoint: '/files/recent/download.zip' },
+  ];
+  for (const { name, options, endpoint } of surfaces) {
+    await t.test(name, (surface) => {
+      const state = setup(surface, options);
+      state.actions.downloadEntries([directory]);
+      state.actions.downloadEntries([directory, file]);
+      state.actions.downloadEntries([file]);
+      state.actions.downloadEntries([]);
+      assert.equal(state.urls.length, 3);
+      for (const [index, paths] of [[0, [directory.path]], [1, [directory.path, file.path]]]) {
+        const url = new URL(state.urls[index], 'https://nas.test');
+        assert.equal(url.pathname, endpoint);
+        assert.deepEqual(url.searchParams.getAll('paths'), paths);
+        assert.equal(url.searchParams.get('path'), options.currentPath?.() || null);
+        assert.equal(url.searchParams.has('items'), false);
+      }
+      assert.equal(state.urls[2], file.downloadUrl);
+      assert.deepEqual(state.requests, []);
+    });
+  }
+});
+
 test('cancel and empty selections do not send a mutation or refresh', async (t) => {
   const state = setup(t);
   window.EnderVault.askConfirmation = async () => false;
