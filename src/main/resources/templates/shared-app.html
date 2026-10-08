@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>EnderVault Share</title>
+    <th:block th:replace="~{fragments/assets :: styles(true)}"></th:block>
+    <th:block th:replace="~{fragments/assets :: publicShareScript}"></th:block>
+</head>
+<body class="public-share-app">
+<script type="application/json" id="public-share-bootstrap" th:inline="javascript">[[${publicShareBootstrap}]]</script>
+<div id="public-share-root">
+    <p class="tool-message" role="status" th:if="${publicShareFrontend.available()}">Loading shared files...</p>
+    <p class="tool-message" role="status" th:unless="${publicShareFrontend.available()}">This shared page is currently unavailable.</p>
+</div>
+<noscript><p class="tool-message">Enable JavaScript to browse this share.</p></noscript>
+</body>
+</html>

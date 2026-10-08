@@ -186,6 +186,15 @@ class ViteAssetServiceTest {
     }
 
     @Test
+    void resolvesPublicShareEntryWithoutAdminRuntime() {
+        ViteAssetService service = new ViteAssetService(new ObjectMapper(), new DefaultResourceLoader(), "");
+        ViteAssetService.ViteEntry entry = service.entry("src/public-share/main.tsx");
+        assertThat(entry.available()).isTrue();
+        assertThat(entry.entryScript()).startsWith("/react/assets/publicShare-").endsWith(".js");
+        assertThat(entry.modulePreloads()).noneMatch(url -> url.contains("adminApp-") || url.contains("shell-"));
+    }
+
+    @Test
     void invalidManifestIsUnavailableAndCanBeReadAgainAfterRepair() {
         AtomicReference<String> manifest = new AtomicReference<>("{not-json");
         DefaultResourceLoader loader = new DefaultResourceLoader() {

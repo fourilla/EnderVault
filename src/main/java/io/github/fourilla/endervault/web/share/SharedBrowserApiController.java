@@ -2,6 +2,7 @@ package io.github.fourilla.endervault.web.share;
 
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.web.support.ActionResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import org.springframework.http.CacheControl;
@@ -23,23 +24,24 @@ public class SharedBrowserApiController {
         this.queryService = queryService;
     }
 
-    // The existing HTML landing still owns SHARE_ACCESS logging during this API foundation stage.
-    // Move that event to one public view boundary when the SPA replaces the landing document.
+    // Successful JSON view queries own SHARE_ACCESS; the HTML host and byte endpoints do not duplicate it.
     @GetMapping(value = "/s/{token}/listing.json", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<SharedBrowserPayloads.Listing> listing(
             @PathVariable String token,
-            @RequestParam(required = false) String path
+            @RequestParam(required = false) String path,
+            HttpServletRequest request
     ) throws IOException {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(queryService.listing(token, path));
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(queryService.listing(token, path, request));
     }
 
     @GetMapping(value = "/s/{token}/detail.json", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<SharedBrowserPayloads.Detail> detail(
             @PathVariable String token,
             @RequestParam(required = false) String path,
-            @RequestParam(required = false) String item
+            @RequestParam(required = false) String item,
+            HttpServletRequest request
     ) throws IOException {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(queryService.detail(token, path, item));
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(queryService.detail(token, path, item, request));
     }
 
     @ExceptionHandler({IOException.class, StorageAccessException.class, IllegalArgumentException.class})

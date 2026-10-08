@@ -14,13 +14,14 @@ export function useBrowserContextMenu<T>(options: {
   contentKey: unknown;
   contextKey?: unknown;
   keepOnRefresh?: (context: BrowserMenuContext<T>) => boolean;
+  getRoot?: () => Element | null;
   errorMessage: string;
 }) {
   const current = useRef(options);
   current.current = options;
   const menuRef = useRef<ReturnType<NonNullable<Window['EnderVaultContextMenus']>['createActionMenu']>>(null);
   useEffect(() => {
-    const workspace = document.querySelector('.app-main');
+    const workspace = options.getRoot ? options.getRoot() : document.querySelector('.app-main');
     if (!workspace) return;
     const menu = window.EnderVaultContextMenus?.createActionMenu({
       menuId: options.menuId,
@@ -45,7 +46,7 @@ export function useBrowserContextMenu<T>(options: {
       menu?.dispose();
       if (menuRef.current === menu) menuRef.current = null;
     };
-  }, [options.menuId, options.pageScope, options.errorMessage]);
+  }, [options.menuId, options.pageScope, options.errorMessage, options.getRoot]);
 
   useEffect(() => { menuRef.current?.close(); }, [options.contextKey]);
   // Polling pages can retain unchanged targets; default callers still close on every new snapshot.

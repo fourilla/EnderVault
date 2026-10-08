@@ -1,0 +1,12 @@
+.public-share-detail-up {
+    display: inline-flex;
+    margin-bottom: 1rem;
+}
+
+.public-share-main[aria-busy="true"] {
+    min-height: 12rem;
+}
+
+.public-share-error h1 {
+    margin-top: 0;
+}

@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.publiclink.PublicLinkTokenService;
 import io.github.fourilla.endervault.share.ShareLink;
 import io.github.fourilla.endervault.share.ShareLinkService;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
@@ -21,6 +22,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -45,6 +48,7 @@ class SharedBrowserApiTest {
     @Autowired NasProperties properties;
     @Autowired ObjectMapper mapper;
     @Autowired ActivityLogService activity;
+    @Autowired PublicLinkTokenService tokens;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -52,6 +56,7 @@ class SharedBrowserApiTest {
         registry.add("nas.share.enabled", () -> true);
         registry.add("nas.share.directory-share-enabled", () -> true);
         registry.add("nas.share.directory-show-hidden-items", () -> false);
+        registry.add("nas.activity-log.enabled", () -> true);
         registry.add("nas.file-tools.text-auto-load-max-bytes", () -> 1024);
         registry.add("nas.file-tools.text-manual-load-max-bytes", () -> 2048);
     }
@@ -239,6 +244,10 @@ class SharedBrowserApiTest {
                 .andExpect(status().isNotFound());
         mockMvc.perform(get("/s/{token}/detail.json", link.token()).param("item", hiddenFile))
                 .andExpect(status().isNotFound());
+        mockMvc.perform(get("/s/{token}", link.token()).param("path", hiddenDirectory))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/s/{token}/file", link.token()).param("path", hiddenDirectory).param("item", "inside.txt"))
+                .andExpect(status().isNotFound());
 
         boolean previous = properties.getShare().isDirectoryShowHiddenItems();
         properties.getShare().setDirectoryShowHiddenItems(true);
@@ -250,6 +259,8 @@ class SharedBrowserApiTest {
                     .andExpect(status().isOk()).andExpect(jsonPath("$.text.content").value("nested secret"));
             mockMvc.perform(get("/s/{token}/detail.json", link.token()).param("item", hiddenFile))
                     .andExpect(status().isOk()).andExpect(jsonPath("$.text.content").value("hidden file"));
+            mockMvc.perform(get("/s/{token}/file", link.token()).param("path", hiddenDirectory).param("item", "inside.txt"))
+                    .andExpect(status().isOk()).andExpect(content().string(containsString("id=\"public-share-root\"")));
         } finally {
             properties.getShare().setDirectoryShowHiddenItems(previous);
         }
@@ -366,15 +377,97 @@ class SharedBrowserApiTest {
     }
 
     @Test
-    void foundationJsonDoesNotDuplicateLandingAccessActivity() throws Exception {
+    void htmlHostsExposeOnlyMinimalPublicBootstrapAndValidateBothLandingKinds() throws Exception {
+        String privatePrefix = directory("host-private");
+        String directory = privatePrefix + "/published";
+        write(directory + "/plain.txt", "private text is fetched only through the JSON view");
+        ShareLink directoryLink = share(directory, true);
+        ShareLink fileLink = share(directory + "/plain.txt", true);
+        for (ShareLink link : new ShareLink[] {directoryLink, fileLink}) {
+            String html = mockMvc.perform(get("/s/{token}", link.token()))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("Cache-Control", containsString("no-store")))
+                    .andExpect(content().string(containsString("id=\"public-share-root\"")))
+                    .andExpect(content().string(containsString("class=\"public-share-app\"")))
+                    .andExpect(content().string(containsString("/react/assets/publicShare-")))
+                    .andReturn().getResponse().getContentAsString();
+            Matcher bootstrapScript = Pattern.compile(
+                    "<script[^>]*id=\"public-share-bootstrap\"[^>]*>(.*?)</script>", Pattern.DOTALL).matcher(html);
+            assertThat(bootstrapScript.find()).isTrue();
+            JsonNode bootstrap = mapper.readTree(bootstrapScript.group(1));
+            assertThat(bootstrap.size()).isEqualTo(3);
+            assertThat(bootstrap.get("token").asText()).isEqualTo(link.token());
+            assertThat(bootstrap.get("targetType").asText()).isEqualTo(link.type().name());
+            assertThat(bootstrap.get("rootUrl").asText()).isEqualTo("/s/" + link.token());
+            assertThat(html).doesNotContain(privatePrefix, "private text", "plain.txt", "_csrf",
+                    "admin-app-root", "/react/assets/adminApp-", "/react/assets/shell-", "/api/v1/",
+                    "/js/file-selection.js", "/react/assets/sharedImage-", "/react/assets/sharedComic-",
+                    "/react/assets/fileTools-");
+        }
+        mockMvc.perform(get("/s/{token}/file", directoryLink.token()).param("item", "plain.txt"))
+                .andExpect(status().isOk()).andExpect(content().string(containsString("id=\"public-share-root\"")));
+        mockMvc.perform(get("/s/{token}/file", fileLink.token()).param("item", "plain.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/s/{token}", directoryLink.token()).param("path", "../outside"))
+                .andExpect(status().isForbidden());
+        String missingHost = mockMvc.perform(get("/s/{token}/file", directoryLink.token()).param("item", "missing.txt"))
+                .andExpect(status().isNotFound())
+                .andExpect(content().string(containsString("Shared content is unavailable.")))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(missingHost).doesNotContain(privatePrefix, "missing.txt", ROOT.toString());
+        shares.revoke(directoryLink.token());
+        mockMvc.perform(get("/s/{token}", directoryLink.token())).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void successfulJsonViewsRecordOneAccessEachAndHtmlOrFailedViewsDoNotDuplicateIt() throws Exception {
         String directory = directory("activity");
         write(directory + "/plain.txt", "text");
         ShareLink link = share(directory, true);
         long before = accessCount(directory);
+        mockMvc.perform(get("/s/{token}", link.token())).andExpect(status().isOk());
+        mockMvc.perform(get("/s/{token}/file", link.token()).param("item", "plain.txt")).andExpect(status().isOk());
+        assertThat(accessCount(directory)).isEqualTo(before);
         mockMvc.perform(get("/s/{token}/listing.json", link.token())).andExpect(status().isOk());
+        assertThat(accessCount(directory)).isEqualTo(before + 1);
         mockMvc.perform(get("/s/{token}/detail.json", link.token()).param("item", "plain.txt"))
                 .andExpect(status().isOk());
-        assertThat(accessCount(directory)).isEqualTo(before);
+        assertThat(accessCount(directory)).isEqualTo(before + 2);
+        mockMvc.perform(get("/s/{token}/preview", link.token()).param("item", "plain.txt")).andExpect(status().isOk());
+        mockMvc.perform(get("/s/{token}/detail.json", link.token()).param("item", "missing.txt"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/s/{token}/listing.json", link.token()).param("path", "../outside"))
+                .andExpect(status().isForbidden());
+        assertThat(accessCount(directory)).isEqualTo(before + 2);
+        var entries = activity.recentByMetadata("tokenFingerprint", tokens.fingerprint(link.token()), 100);
+        assertThat(entries).hasSize(2);
+        assertThat(entries).allSatisfy(entry -> {
+            assertThat(entry.type()).isEqualTo("SHARE_ACCESS");
+            assertThat(entry.path()).isEqualTo(directory);
+            assertThat(entry.metadata()).containsOnlyKeys("tokenFingerprint");
+            assertThat(entry.toString()).doesNotContain(link.token());
+        });
+        assertThat(entries).anySatisfy(entry -> assertThat(entry.targetPath()).isEqualTo("plain.txt"));
+        assertThat(entries).anySatisfy(entry -> assertThat(entry.targetPath()).isNull());
+    }
+
+    @Test
+    void directFileAccessUsesTokenFingerprintAndDoesNotLogIgnoredQueryTargets() throws Exception {
+        String directory = directory("file-activity");
+        write(directory + "/plain.txt", "text");
+        ShareLink link = share(directory + "/plain.txt", true);
+        mockMvc.perform(get("/s/{token}", link.token())).andExpect(status().isOk());
+        assertThat(accessCount(directory + "/plain.txt")).isZero();
+        mockMvc.perform(get("/s/{token}/detail.json", link.token()).param("path", "../ignored").param("item", "other.txt"))
+                .andExpect(status().isOk());
+        var entries = activity.recentByMetadata("tokenFingerprint", tokens.fingerprint(link.token()), 100);
+        assertThat(entries).singleElement().satisfies(entry -> {
+            assertThat(entry.type()).isEqualTo("SHARE_ACCESS");
+            assertThat(entry.path()).isEqualTo(directory + "/plain.txt");
+            assertThat(entry.targetPath()).isNull();
+            assertThat(entry.message()).isEqualTo("Accessed share link");
+            assertThat(entry.toString()).doesNotContain(link.token(), "../ignored", "other.txt");
+        });
     }
 
     private void unavailable(String token, String endpoint, int expectedStatus) throws Exception {

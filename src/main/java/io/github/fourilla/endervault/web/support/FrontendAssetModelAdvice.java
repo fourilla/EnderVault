@@ -11,6 +11,7 @@ public class FrontendAssetModelAdvice {
     private static final String FILE_TOOLS_ENTRY = "src/file-tools/main.ts";
     private static final String SHARED_IMAGE_ENTRY = "src/shared-file/image.tsx";
     private static final String SHARED_COMIC_ENTRY = "src/shared-file/comic.tsx";
+    private static final String PUBLIC_SHARE_ENTRY = "src/public-share/main.tsx";
     private static final String MARKDOWN_ENTRY = "src/markdown/main.ts";
 
     private final ViteAssetService.ViteEntry stylesEntry;
@@ -18,6 +19,7 @@ public class FrontendAssetModelAdvice {
     private final ViteAssetService.ViteEntry fileToolsEntry;
     private final ViteAssetService.ViteEntry sharedImageEntry;
     private final ViteAssetService.ViteEntry sharedComicEntry;
+    private final ViteAssetService.ViteEntry publicShareEntry;
     private final ViteAssetService.ViteEntry markdownEntry;
     private final ViteAssetService.ViteEntry dialogsEntry;
     private final ViteAssetService.ViteEntry requestUploadEntry;
@@ -28,6 +30,7 @@ public class FrontendAssetModelAdvice {
         this.fileToolsEntry = viteAssetService.entry(FILE_TOOLS_ENTRY);
         this.sharedImageEntry = viteAssetService.entry(SHARED_IMAGE_ENTRY);
         this.sharedComicEntry = viteAssetService.entry(SHARED_COMIC_ENTRY);
+        this.publicShareEntry = viteAssetService.entry(PUBLIC_SHARE_ENTRY);
         this.markdownEntry = viteAssetService.entry(MARKDOWN_ENTRY);
         this.dialogsEntry = viteAssetService.entry("src/dialogs/main.tsx");
         this.requestUploadEntry = viteAssetService.entry("src/public-request/upload.js");
@@ -69,5 +72,10 @@ public class FrontendAssetModelAdvice {
     @ModelAttribute("sharedComicFrontend")
     public ViteAssetService.ViteEntry sharedComicFrontend() {
         return sharedComicEntry;
+    }
+
+    @ModelAttribute("publicShareFrontend")
+    public ViteAssetService.ViteEntry publicShareFrontend() {
+        return publicShareEntry;
     }
 }

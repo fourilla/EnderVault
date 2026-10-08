@@ -20,7 +20,8 @@ export function ListingHistoryProvider({ history, children }: { history: Listing
   return <Context.Provider value={history}>{children}</Context.Provider>;
 }
 
-export function useListingHistory<T extends ListingState>(config: ListingHistoryConfig<T>) {
+export function useListingHistory<T extends ListingState>(config: ListingHistoryConfig<T>,
+  { preserveSearch = false }: { preserveSearch?: boolean } = {}) {
   const history = useContext(Context);
   if (!history) throw new Error('ListingHistoryProvider is required.');
   const location = useLocation();
@@ -28,22 +29,23 @@ export function useListingHistory<T extends ListingState>(config: ListingHistory
   const state = useMemo(() => history.read(config, location), [history, config, location]);
   useLayoutEffect(() => {
     if (location.pathname !== config.pathname) return;
-    if (location.search) {
+    if (location.search && !preserveSearch) {
       void routeNavigate({ pathname: config.pathname, hash: location.hash },
         { replace: true, state: { listing: state }, preventScrollReset: true });
       return;
     }
     history.activate(location, state);
     return () => history.deactivate(location);
-  }, [history, config.pathname, location, state, routeNavigate]);
+  }, [history, config.pathname, location, state, routeNavigate, preserveSearch]);
   const remember = useCallback((next: T) => history.remember(location, next), [history, location]);
   const isCurrent = useCallback(() => location.pathname === config.pathname && history.isCurrent(location),
     [history, config.pathname, location]);
   const ready = useCallback(() => history.ready(location), [history, location]);
   const navigate = useCallback((next: T, replace = false) => {
     if (!isCurrent()) return;
-    void routeNavigate(config.pathname, { replace, state: { listing: next }, preventScrollReset: true });
-  }, [isCurrent, routeNavigate, config.pathname]);
+    void routeNavigate({ pathname: config.pathname, search: preserveSearch ? location.search : '' },
+      { replace, state: { listing: next }, preventScrollReset: true });
+  }, [isCurrent, routeNavigate, config.pathname, location.search, preserveSearch]);
   return { state, key: location.key, remember, navigate, isCurrent, ready };
 }
 
