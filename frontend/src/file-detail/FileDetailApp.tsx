@@ -107,9 +107,9 @@ function DetailMetadata({ payload, onToggleFavorite }: {
   return <article className="detail-panel detail-main">
     <p className="eyebrow">{detail.directory ? 'Directory' : 'File'}</p><h1>{detail.name}</h1>
     <div className="detail-actions">
-      {detail.directory && <Link className="button-link icon-button" to={urls.openDirectory || '/files'}
+      {detail.directory && <Link className="button-link ghost icon-button action-icon" to={urls.openDirectory || '/files'}
         title="Open directory" aria-label="Open directory">{icon('fas fa-folder-open')}</Link>}
-      {detail.directory && <a className="button-link icon-button" href={urls.downloadZip || '#'}
+      {detail.directory && <a className="button-link ghost icon-button action-icon" href={urls.downloadZip || '#'}
         title="Download zip" aria-label="Download zip">{icon('fas fa-file-zipper')}</a>}
       {urls.actions.map((action) => <a key={action.id} className="button-link ghost icon-button action-icon"
         href={action.href} target={action.newTab ? '_blank' : undefined}

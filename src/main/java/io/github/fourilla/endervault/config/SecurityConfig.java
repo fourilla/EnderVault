@@ -6,8 +6,10 @@ import io.github.fourilla.endervault.session.DynamicConcurrentSessionStrategy;
 import io.github.fourilla.endervault.session.ManagedSessionAuthenticationStrategy;
 import io.github.fourilla.endervault.session.SessionManagementService;
 import io.github.fourilla.endervault.session.SessionPolicyService;
+import jakarta.servlet.DispatcherType;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -31,6 +33,9 @@ import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.session.SessionRegistryImpl;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.AndRequestMatcher;
+import org.springframework.security.web.util.matcher.DispatcherTypeRequestMatcher;
 
 @Configuration
 public class SecurityConfig {
@@ -42,9 +47,14 @@ public class SecurityConfig {
             LoginFailureAlertHandler failureHandler,
             SecurityContextRepository securityContextRepository,
             SessionAuthenticationStrategy sessionAuthenticationStrategy,
-            SessionRegistry sessionRegistry
+            SessionRegistry sessionRegistry,
+            @Value("${spring.web.error.path:${error.path:/error}}") String errorPath
     ) throws Exception {
         http.authorizeHttpRequests(auth -> auth
+                        .requestMatchers(new AndRequestMatcher(
+                                new DispatcherTypeRequestMatcher(DispatcherType.ERROR),
+                                PathPatternRequestMatcher.pathPattern(errorPath)))
+                        .permitAll()
                         .requestMatchers(
                                 "/css/**", "/js/**", "/react/**", "/webjars/**", "/_static/**", "/favicon.ico")
                         .permitAll()

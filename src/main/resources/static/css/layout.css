@@ -434,7 +434,7 @@
     align-items: center;
     justify-content: center;
     border: 2px dashed var(--accent);
-    background: rgba(15, 20, 26, 0.78);
+    background: color-mix(in srgb, var(--bg) 78%, transparent);
     pointer-events: none;
 }
 

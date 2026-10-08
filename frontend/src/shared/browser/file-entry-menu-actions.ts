@@ -23,8 +23,10 @@ export function fileEntryMenuActions({
       visible: ({ mode, item }) => mode === 'single' && Boolean(item?.previewUrl),
       run: ({ item }) => window.open(item!.previewUrl!, '_blank', 'noopener,noreferrer') },
     { id: 'download', group: 'transfer', icon: 'fas fa-download',
-      label: ({ mode, items }) => mode === 'selection' ? `Download ${items.length} selected` : 'Download',
-      visible: ({ mode, item }) => mode === 'selection' || (mode === 'single' && Boolean(item?.downloadUrl)),
+      label: ({ mode, item, items }) => mode === 'selection' ? `Download ${items.length} selected`
+        : item?.type === 'directory' ? 'Download ZIP' : 'Download',
+      visible: ({ mode, item }) => mode === 'selection'
+        || (mode === 'single' && (item?.type === 'directory' || Boolean(item?.downloadUrl))),
       run: ({ items }) => actions.downloadEntries(items) },
     { id: 'favorite', group: 'organize', icon: 'fas fa-star',
       label: ({ item }) => item?.favorite ? 'Remove from favorites' : 'Add to favorites',
