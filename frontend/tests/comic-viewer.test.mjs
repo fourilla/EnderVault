@@ -25,7 +25,6 @@ function load(code, modules, globals = {}) {
 const viewerCode = await compile('shared/file-tools/ComicViewer.tsx');
 const adminCode = await compile('file-detail/ComicTool.tsx');
 const publicCode = await compile('shared-file/SharedComicViewer.tsx');
-const entryCode = await compile('shared-file/comic.tsx');
 const { ComicViewer } = load(viewerCode, { react: React, 'react/jsx-runtime': jsx });
 const manifest = { pageCount: 3, metadata: { present: true, truncated: false,
   rawText: '<script>bad()</script>', entries: [{ name: 'Title', value: '<img onerror=bad()>' }] } };
@@ -190,17 +189,4 @@ test('public manifest request aborts and ignores late results after unmount', as
   resolve({ ok: true, headers: new Headers({ 'content-type': 'application/json' }), json: async () => manifest });
   await tick();
   assert.equal(context.writes.length, count);
-});
-
-test('public comic bootstrap only mounts a server-provided comic root', () => {
-  const component = () => null;
-  for (const root of [null, { dataset: {} }, { dataset: { manifestUrl: '/s/token/comic/manifest' } }]) {
-    let rendered;
-    load(entryCode, { 'react/jsx-runtime': jsx, './SharedComicViewer': { SharedComicViewer: component },
-      './preview-disclosure': { mountWhenPreviewOpened: (_container, mount) => mount() },
-      'react-dom/client': { createRoot(container) { assert.equal(container, root); return { render(value) { rendered = value; } }; } },
-    }, { document: { getElementById: () => root } });
-    assert.equal(Boolean(rendered), Boolean(root?.dataset.manifestUrl));
-    if (rendered) { assert.equal(rendered.type, component); assert.equal(rendered.props.manifestUrl, root.dataset.manifestUrl); }
-  }
 });

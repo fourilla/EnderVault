@@ -39,14 +39,6 @@ public class FileActionViewSupport {
         return links(fileActionRegistry.browserActions(detail), kind -> detailFileHref(kind, detail), true);
     }
 
-    public List<FileActionLink> sharedDirectoryActions(String token, FileItem item, boolean previewEnabled) {
-        return links(
-                fileActionRegistry.sharedDirectoryActions(item, previewEnabled),
-                kind -> sharedDirectoryHref(kind, token, item),
-                false
-        );
-    }
-
     public String previewUrl(FileItem item) {
         return filePreviewSupport.previewUrl(item);
     }
@@ -109,14 +101,6 @@ public class FileActionViewSupport {
                     .encode()
                     .toUriString();
             case PREVIEW -> filePreviewSupport.previewUrl(detail);
-        };
-    }
-
-    private String sharedDirectoryHref(FileActionKind kind, String token, FileItem item) {
-        return switch (kind) {
-            case DETAILS -> filePreviewSupport.sharedDirectoryFileUrl(token, item);
-            case DOWNLOAD -> filePreviewSupport.sharedDirectoryDownloadUrl(token, item);
-            case PREVIEW -> filePreviewSupport.sharedDirectoryFileUrl(token, item);
         };
     }
 

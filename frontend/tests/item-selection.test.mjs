@@ -105,7 +105,7 @@ test('row, toolbar and dialog interactions preserve selection; actual background
   try {
     s.render().selectItem(s.items[0], true);
     s.render();
-    for (const target of ['[data-context-item="true"]', '.toolbar', '.floating-page-actions', 'dialog']) {
+    for (const target of ['[data-context-item="true"]', '.toolbar', '.floating-page-actions', '.toast-region', 'dialog']) {
       s.click([target]); assert.equal(s.render().selected.size, 1);
     }
     s.click([]); assert.equal(s.render().selected.size, 0);

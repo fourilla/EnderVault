@@ -2,8 +2,6 @@ package io.github.fourilla.endervault.filetool;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.github.fourilla.endervault.storage.FileItem;
-import java.time.Instant;
 import org.junit.jupiter.api.Test;
 
 class FileActionRegistryTest {
@@ -130,32 +128,4 @@ class FileActionRegistryTest {
                 .containsExactly(FileActionKind.DOWNLOAD);
     }
 
-    @Test
-    void sharedDirectoryActionsRequireBothLinkPolicyAndSharedCapability() {
-        FileItem text = item("note.txt", "text/plain");
-        FileItem pdf = item("document.pdf", "application/pdf");
-
-        assertThat(registry.sharedDirectoryActions(text, true))
-                .containsExactly(FileActionKind.DOWNLOAD, FileActionKind.PREVIEW);
-        assertThat(registry.sharedDirectoryActions(text, false))
-                .containsExactly(FileActionKind.DOWNLOAD);
-        assertThat(registry.sharedDirectoryActions(pdf, true))
-                .containsExactly(FileActionKind.DOWNLOAD);
-    }
-
-    private FileItem item(String name, String mediaType) {
-        return new FileItem(
-                name,
-                name,
-                false,
-                1,
-                "1 B",
-                "2026-01-01 00:00:00",
-                Instant.EPOCH,
-                mediaType,
-                true,
-                false,
-                false
-        );
-    }
 }

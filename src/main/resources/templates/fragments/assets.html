@@ -70,10 +70,6 @@
     <script defer th:src="@{/js/resumable-upload-client.js}"></script>
 </th:block>
 
-<th:block th:fragment="selectionScript">
-    <script defer th:src="@{/js/file-selection.js}"></script>
-</th:block>
-
 <th:block th:fragment="markdownRendererScript">
     <th:block th:if="${markdownFrontend.available()}"
               th:replace="~{fragments/assets :: viteEntry(${markdownFrontend})}"></th:block>
@@ -82,16 +78,6 @@
 <th:block th:fragment="fileToolsScript">
     <th:block th:if="${fileToolsFrontend.available()}"
               th:replace="~{fragments/assets :: viteEntry(${fileToolsFrontend})}"></th:block>
-</th:block>
-
-<th:block th:fragment="sharedImageScript">
-    <th:block th:if="${sharedImageFrontend.available()}"
-              th:replace="~{fragments/assets :: viteEntry(${sharedImageFrontend})}"></th:block>
-</th:block>
-
-<th:block th:fragment="sharedComicScript">
-    <th:block th:if="${sharedComicFrontend.available()}"
-              th:replace="~{fragments/assets :: viteEntry(${sharedComicFrontend})}"></th:block>
 </th:block>
 
 <th:block th:fragment="publicShareScript">
