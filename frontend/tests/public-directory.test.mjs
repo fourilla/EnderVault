@@ -81,12 +81,12 @@ function nodes(tree) {
   return [tree, ...nodes(tree.props?.children)];
 }
 const rows = tree => nodes(tree).filter(node => node.type === 'tr' && node.props['data-context-item'] === 'true');
-function dom({ anchor = false, row = false, inside = true, checkbox = false } = {}) {
+function dom({ anchor = false, row = false, inside = true, checkbox = false, classes = [] } = {}) {
   const node = { inside,
     closest(selector) {
       const selectors = selector.split(',').map(part => part.trim());
       return anchor && selectors.includes('a[href]') || row && selectors.includes('[data-context-item="true"]')
-        || checkbox && selectors.includes('input') ? node : null;
+        || checkbox && selectors.includes('input') || classes.some(name => selectors.includes('.' + name)) ? node : null;
     },
     matches(selector) { return checkbox && selector.includes('.row-select-checkbox'); },
   };
@@ -134,7 +134,9 @@ function setup(initialSelectedNames = [], payload = listing()) {
       preventDefault() { this.prevented = true; }, stopPropagation() { this.stopped = true; }, ...extras };
     row.props.onMouseDownCapture(event); row.props.onClickCapture(event); return event;
   };
-  return { render, changes, navigations, downloads, created, scope, listeners, timers, document, key, click, props,
+  const documentClick = target => listeners.get('click')?.forEach(listener => listener({ target,
+    preventDefault() { assert.fail('background selection must not prevent native clicks'); } }));
+  return { render, changes, navigations, downloads, created, scope, listeners, timers, document, key, click, documentClick, props,
     selectText(value) { textSelection = value; }, closes: () => closes, disposals: () => disposals, cleanup: () => h.dispose() };
 }
 
@@ -149,7 +151,18 @@ test('history selection restores visible names without reporting a transient emp
     const table = nodes(tree).find(node => node.type?.name === 'StableTable');
     assert.deepEqual(Array.from(table.props.columns), ['select', 'text', 'type', 'size', 'date', 'actions']);
     assert.equal(table.props.actionCount, 2);
-    assert.ok(nodes(tree).some(node => node.type === 'td' && node.props.children === 'text/plain'));
+    const typeCell = rows(tree)[1].props.children[2];
+    assert.equal(typeCell.props.children.type.name, 'OverflowMarquee');
+    assert.equal(typeCell.props.children.props.text, 'text/plain');
+    assert.equal(nodes(rows(tree)[0]).filter(node => node.type === 'i' && node.props.className === 'fas fa-folder item-icon').length, 1);
+    assert.equal(nodes(rows(tree)[1]).filter(node => node.type === 'i' && node.props.className?.includes('item-icon')).length, 0);
+    const toolbar = nodes(tree).find(node => node.props?.className === 'toolbar public-share-toolbar');
+    assert.equal(toolbar.props.children[0].props.className, 'muted public-share-selection-count');
+    assert.equal(toolbar.props.children[1].type, 'button');
+    assert.equal(nodes(toolbar).filter(node => node.type === 'button').length, 1);
+    for (const action of nodes(rows(tree)[1]).filter(node => node.props?.className?.includes('action-icon'))) {
+      assert.equal(action.props.className, 'button-link ghost icon-button action-icon');
+    }
     assert.equal(nodes(tree).filter(node => node.props?.title === 'Preview').length, 1);
   } finally { s.cleanup(); }
 });
@@ -211,21 +224,42 @@ test('context menu is scoped to the public listing and native text selection or 
   } finally { empty.cleanup(); }
 });
 
-test('selection ZIP stays a native byte navigation and toolbar clicks preserve selected rows', () => {
+test('selection ZIP stays a native byte navigation and the button and its children preserve selected rows', () => {
   const s = setup(['folder', 'a.txt']);
   try {
     let tree = s.render();
-    nodes(tree).find(node => node.type === 'button' && node.props.className.includes('shared-download-button')).props.onClick();
+    const button = nodes(tree).find(node => node.type === 'button' && node.props.className.includes('shared-download-button'));
+    button.props.onClick();
     assert.deepEqual(new URL(s.downloads[0], 'https://example.test').searchParams.getAll('items'), ['folder', 'a.txt']);
     assert.deepEqual(s.navigations, []);
-    s.listeners.get('click').forEach(listener => listener({ target: { closest: selector => selector.includes('.toolbar') ? {} : null } }));
-    tree = s.render(); assert.deepEqual(s.changes.at(-1), ['folder', 'a.txt']);
+    for (const target of [button, ...nodes(button.props.children)]) {
+      assert.ok(['button', 'i', 'span'].includes(target.type));
+      s.documentClick(dom({ classes: ['toolbar', ...button.props.className.split(' ')] }));
+      tree = s.render(); assert.deepEqual(s.changes.at(-1), ['folder', 'a.txt']);
+    }
     rows(tree)[0].props.onPointerDown({ button: 0, shiftKey: false, ctrlKey: false, metaKey: false, altKey: false,
       pointerId: 1, clientX: 0, clientY: 0, target: dom({ row: true }) });
     assert.equal(s.timers.size, 1);
     s.cleanup(); assert.equal(s.timers.size, 0);
   } finally { s.cleanup(); }
 });
+
+for (const classes of [['toolbar', 'public-share-toolbar'], ['toolbar', 'public-share-selection-count']]) {
+  test(`public ${classes.at(-1)} background clears selection, disables ZIP and resets the Shift anchor`, () => {
+    const s = setup(['folder', 'a.txt']);
+    try {
+      // Establish an anchor separately from history-restored selection.
+      s.click(rows(s.render())[0], { ctrlKey: true }); s.render();
+      s.documentClick(dom({ classes }));
+      let tree = s.render();
+      assert.deepEqual(s.changes.at(-1), []);
+      assert.ok(rows(tree).every(row => row.props['aria-selected'] === false));
+      assert.equal(nodes(tree).find(node => node.type === 'button').props.disabled, true);
+      s.click(rows(tree)[2], { shiftKey: true }); tree = s.render();
+      assert.deepEqual(s.changes.at(-1), ['b.txt']);
+    } finally { s.cleanup(); }
+  });
+}
 
 test('common context menu keeps the admin default root and permits a public root without falling back', () => {
   for (const custom of [false, true]) {

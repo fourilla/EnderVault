@@ -11,12 +11,14 @@ export function useItemSelection<T>({
   locationKey,
   itemKey,
   openItem,
+  toolbarSelectionSelector = '.toolbar',
 }: {
   items: T[];
   enabled: boolean;
   locationKey: string;
   itemKey: (item: T) => string;
   openItem: (item: T) => void;
+  toolbarSelectionSelector?: string;
 }) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const selectedRef = useRef(selected);
@@ -200,15 +202,16 @@ export function useItemSelection<T>({
     const clearSelectionFromBackground = (event: globalThis.MouseEvent) => {
       if (selectedRef.current.size === 0 && anchorRef.current == null) return;
       const target = event.target as HTMLElement;
-      // Header controls are outside item rows, but are not background clicks.
-      if (target.closest('[data-context-item="true"], .select-all-checkbox, .select-all-label, dialog, .toolbar, .floating-page-actions, .transfer-buffer-panel, .toast-region, .context-menu')) {
+      // Header controls and overlays are outside item rows, but are not background clicks.
+      if (target.closest('[data-context-item="true"], .select-all-checkbox, .select-all-label, dialog, .floating-page-actions, .transfer-buffer-panel, .toast-region, .context-menu')
+          || target.closest(toolbarSelectionSelector)) {
         return;
       }
       clearSelection();
     };
     document.addEventListener('click', clearSelectionFromBackground);
     return () => document.removeEventListener('click', clearSelectionFromBackground);
-  }, []);
+  }, [toolbarSelectionSelector]);
 
   return {
     selected,

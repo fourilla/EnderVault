@@ -54,7 +54,7 @@ test('public detail keeps MIME metadata and native download while its preview st
   const html = renderToStaticMarkup(tree);
   assert.match(html, /&lt;script&gt;file.txt&lt;\/script&gt;/);
   assert.match(html, /<dt>Type<\/dt><dd>text\/plain<\/dd>/);
-  assert.match(html, /Back to folder/);
+  assert.doesNotMatch(html, /Back to folder/);
   assert.match(html, /href="\/s\/token\/download\/file.txt\?path=folder&amp;item=file.txt"/);
   assert.doesNotMatch(html, /<form|\/api\/|\/files\/|csrf|draft|Save|Extract/);
 });

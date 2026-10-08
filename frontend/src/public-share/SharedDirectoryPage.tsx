@@ -22,7 +22,8 @@ export function SharedDirectoryPage({ listing, initialSelectedNames, onSelection
   const getRoot = useCallback(() => root.current, []);
   const openItem = useCallback((entry: SharedEntry) => { void navigate(entry.openUrl); }, [navigate]);
   const selection = useItemSelection({ items: listing.entries, enabled: true,
-    locationKey: listing.rootUrl + ':' + listing.path, itemKey, openItem });
+    locationKey: listing.rootUrl + ':' + listing.path, itemKey, openItem,
+    toolbarSelectionSelector: '.shared-download-button' });
   const restoredNames = useRef(new Set(initialSelectedNames.filter(name => listing.entries.some(entry => entry.name === name))));
   const restoring = useRef(true);
   const reportedNames = useRef<string[] | null>(null);
@@ -95,16 +96,13 @@ export function SharedDirectoryPage({ listing, initialSelectedNames, onSelection
       </Link>}
     </section>
     <section className="toolbar public-share-toolbar" aria-label="Shared directory actions">
+      <span className="muted public-share-selection-count" aria-live="polite">
+        {selection.selectedItems.length} selected
+      </span>
       <button className="button-link shared-download-button" type="button" disabled={selection.selectedItems.length === 0}
         onClick={() => download(sharedZipUrl(listing.downloadZipUrl, selection.selectedItems.map(entry => entry.name)))}>
         <i className="fas fa-download" aria-hidden="true" /><span>Download selected ZIP</span>
       </button>
-      {selection.selectedItems.length > 0 && <button className="button-link ghost" type="button" onClick={selection.clearSelection}>
-        Clear selection
-      </button>}
-      <span className="muted public-share-selection-count" aria-live="polite">
-        {selection.selectedItems.length} selected
-      </span>
     </section>
     <section className="browser-section" aria-label="Shared directory">
       <div className="table-wrap">
@@ -126,17 +124,17 @@ export function SharedDirectoryPage({ listing, initialSelectedNames, onSelection
               </td>
               <td><div className="table-item-label">
                 <Link className={'item-name' + (entry.directory ? ' directory' : '')} to={entry.openUrl} title={entry.name}>
-                  <i className={(entry.directory ? 'fas fa-folder' : 'fas fa-file') + ' item-icon'} aria-hidden="true" />
+                  {entry.directory && <i className="fas fa-folder item-icon" aria-hidden="true" />}
                   <OverflowMarquee text={entry.name} />
                 </Link>
                 {entry.hidden && <span className="status-badge expired hidden-badge">Hidden</span>}
               </div></td>
-              <td>{entry.directory ? 'Directory' : entry.mediaType || '-'}</td>
+              <td><OverflowMarquee text={entry.directory ? 'Directory' : entry.mediaType || '-'} /></td>
               <td>{entry.directory ? '-' : entry.sizeLabel}</td><td>{entry.modifiedLabel}</td>
               <td>{entry.directory ? <span className="muted">-</span> : <div className="table-actions">
-                {entry.downloadUrl && <a className="ghost icon-button action-icon" href={entry.downloadUrl}
+                {entry.downloadUrl && <a className="button-link ghost icon-button action-icon" href={entry.downloadUrl}
                   title="Download" aria-label="Download"><i className="fas fa-download" aria-hidden="true" /></a>}
-                {entry.previewLandingUrl && <Link className="ghost icon-button action-icon" to={entry.previewLandingUrl}
+                {entry.previewLandingUrl && <Link className="button-link ghost icon-button action-icon" to={entry.previewLandingUrl}
                   title="Preview" aria-label="Preview"><i className="fas fa-eye" aria-hidden="true" /></Link>}
               </div>}</td>
             </tr>)}

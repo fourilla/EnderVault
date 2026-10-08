@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { ImageViewer } from '../shared/file-tools/ImageViewer';
 import { SharedComicViewer } from '../shared-file/SharedComicViewer';
 import { ReadOnlyTextPreview } from './ReadOnlyTextPreview';
@@ -38,10 +37,6 @@ export function SharedFilePage({ detail }: { detail: SharedDetail }) {
   const [previewOpened, setPreviewOpened] = useState(false);
   const canPreview = detail.previewEnabled && previewTypes.has(detail.toolType || '');
   return <section className="shared-summary">
-    {detail.targetType === 'DIRECTORY' && detail.upUrl && <Link
-      className="button-link ghost public-share-detail-up" to={detail.upUrl}>
-      <i className="fas fa-arrow-up" aria-hidden="true" /><span>Back to folder</span>
-    </Link>}
     <header className="shared-file-header">
       <div className="shared-file-title"><p className="eyebrow">Shared file</p><h1>{detail.name}</h1></div>
       <a className="button-link shared-download-button" href={detail.downloadUrl} title="Download" aria-label="Download">
