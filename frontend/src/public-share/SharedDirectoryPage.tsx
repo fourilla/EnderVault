@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useRef } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { StableTable } from '../shared/browser/StableTable';
 import { SelectionHeader } from '../shared/browser/SelectionHeader';
@@ -12,16 +12,17 @@ import type { SharedEntry, SharedListing } from './types';
 
 const itemKey = (entry: SharedEntry) => entry.name;
 
-export function SharedDirectoryPage({ listing, initialSelectedNames, onSelectionChange }: {
+export function SharedDirectoryPage({ listing, initialSelectedNames, onSelectionChange, disabled = false }: {
   listing: SharedListing;
   initialSelectedNames: string[];
   onSelectionChange: (names: string[]) => void;
+  disabled?: boolean;
 }) {
   const navigate = useNavigate();
   const root = useRef<HTMLElement>(null);
   const getRoot = useCallback(() => root.current, []);
-  const openItem = useCallback((entry: SharedEntry) => { void navigate(entry.openUrl); }, [navigate]);
-  const selection = useItemSelection({ items: listing.entries, enabled: true,
+  const openItem = useCallback((entry: SharedEntry) => { if (!disabled) void navigate(entry.openUrl); }, [navigate, disabled]);
+  const selection = useItemSelection({ items: listing.entries, enabled: !disabled,
     locationKey: listing.rootUrl + ':' + listing.path, itemKey, openItem,
     toolbarSelectionSelector: '.shared-download-button' });
   const restoredNames = useRef(new Set(initialSelectedNames.filter(name => listing.entries.some(entry => entry.name === name))));
@@ -47,17 +48,19 @@ export function SharedDirectoryPage({ listing, initialSelectedNames, onSelection
     changeSelection.current(names);
   }, [selection.selected, selection.selectedItems]);
 
-  useSelectionShortcuts({ enabled: listing.entries.length > 0, contextKey: listing.rootUrl + ':' + listing.path,
+  useSelectionShortcuts({ enabled: !disabled && listing.entries.length > 0, contextKey: listing.rootUrl + ':' + listing.path,
     selectedCount: selection.selectedItems.length, selectAll: selection.selectAll,
     clearSelection: selection.clearSelection, scope: getRoot });
-  const download = (url: string) => window.location.assign(url);
+  const download = (url: string) => { if (!disabled) window.location.assign(url); };
   const menu = useBrowserContextMenu({ menuId: 'sharedDirectoryContextMenu', pageScope: 'public-directory',
     getRoot, entries: () => listing.entries, itemKey, keyAttribute: 'data-entry-name',
     selectedRef: selection.selectedRef, setSelected: selection.setSelected,
-    actions: () => sharedDirectoryMenuActions({ listing, selectedCount: selection.selectedItems.length,
+    actions: () => disabled ? [] : sharedDirectoryMenuActions({ listing, selectedCount: selection.selectedItems.length,
       navigate: url => { void navigate(url); }, download,
       selectAll: selection.selectAll, clearSelection: selection.clearSelection }),
     contentKey: listing, contextKey: listing.path, errorMessage: 'The shared file action failed.' });
+
+  useLayoutEffect(() => { if (disabled) menu.current?.close(); }, [disabled, menu]);
 
   const interactionProps = (entry: SharedEntry) => {
     const handlers = selection.itemInteractionProps(entry);
@@ -99,7 +102,7 @@ export function SharedDirectoryPage({ listing, initialSelectedNames, onSelection
       <span className="muted public-share-selection-count" aria-live="polite">
         {selection.selectedItems.length} selected
       </span>
-      <button className="button-link shared-download-button" type="button" disabled={selection.selectedItems.length === 0}
+      <button className="button-link shared-download-button" type="button" disabled={disabled || selection.selectedItems.length === 0}
         onClick={() => download(sharedZipUrl(listing.downloadZipUrl, selection.selectedItems.map(entry => entry.name)))}>
         <i className="fas fa-download" aria-hidden="true" /><span>Download selected ZIP</span>
       </button>

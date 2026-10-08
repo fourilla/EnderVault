@@ -94,6 +94,7 @@ function dom({ anchor = false, row = false, inside = true, checkbox = false, cla
 }
 function setup(initialSelectedNames = [], payload = listing()) {
   const h = createHookHarness(), changes = [], navigations = [], downloads = [], created = [], listeners = new Map(), timers = new Map();
+  const react = { ...h.react, useLayoutEffect: h.react.useEffect };
   const body = dom(), html = dom();
   const scope = { contains: target => target?.inside !== false, querySelectorAll: () => payload.entries.map(item => ({ getAttribute: () => item.name })) };
   let timerId = 0, textSelection = null, closes = 0, disposals = 0;
@@ -114,7 +115,7 @@ function setup(initialSelectedNames = [], payload = listing()) {
   function StableTable() {}
   function OverflowMarquee() {}
   function Link() {}
-  const page = load('public-share/SharedDirectoryPage.tsx', { react: h.react, 'react/jsx-runtime': jsx,
+  const page = load('public-share/SharedDirectoryPage.tsx', { react, 'react/jsx-runtime': jsx,
     'react-router-dom': { Link, useNavigate: () => url => navigations.push(url) },
     '../shared/browser/useItemSelection': selectionHook, '../shared/browser/useSelectionShortcuts': shortcuts,
     '../shared/browser/useBrowserContextMenu': menuHook, '../shared/browser/SelectionHeader': { SelectionHeader },
@@ -260,6 +261,33 @@ for (const classes of [['toolbar', 'public-share-toolbar'], ['toolbar', 'public-
     } finally { s.cleanup(); }
   });
 }
+
+test('a retained pending directory cancels long presses and disables selection, ZIP and menus without clearing its state', () => {
+  const s = setup(['a.txt']);
+  try {
+    let tree = s.render();
+    rows(tree)[0].props.onPointerDown({ button: 0, shiftKey: false, pointerId: 1,
+      clientX: 0, clientY: 0, target: dom({ row: true }) });
+    assert.equal(s.timers.size, 1);
+    const closes = s.closes();
+    s.props.disabled = true; tree = s.render();
+    assert.equal(s.timers.size, 0);
+    assert.ok(s.closes() > closes);
+    assert.equal(s.created[0].actions().length, 0);
+    assert.equal(s.key('a', { ctrlKey: true }).defaultPrevented, false);
+    assert.equal(s.key('Escape').defaultPrevented, false);
+    const button = nodes(tree).find(node => node.type === 'button');
+    assert.equal(button.props.disabled, true);
+    button.props.onClick();
+    s.click(rows(tree)[2]); s.render();
+    assert.deepEqual(s.downloads, []); assert.deepEqual(s.navigations, []);
+    assert.deepEqual(s.changes.at(-1), ['a.txt']);
+    s.props.disabled = false; tree = s.render();
+    assert.equal(nodes(tree).find(node => node.type === 'button').props.disabled, false);
+    assert.equal(s.key('a', { ctrlKey: true }).defaultPrevented, true); s.render();
+    assert.deepEqual(s.changes.at(-1), ['folder', 'a.txt', 'b.txt']);
+  } finally { s.cleanup(); }
+});
 
 test('common context menu keeps the admin default root and permits a public root without falling back', () => {
   for (const custom of [false, true]) {
