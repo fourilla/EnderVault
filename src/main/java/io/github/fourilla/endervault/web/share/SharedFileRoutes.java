@@ -50,12 +50,23 @@ final class SharedFileRoutes {
     }
 
     static String directoryUrl(String token, String path) {
-        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/s/{token}");
+        return directoryScopedUrl("/s/{token}", token, path);
+    }
+
+    static String downloadZipUrl(String token, String path) {
+        return directoryScopedUrl("/s/{token}/download.zip", token, path);
+    }
+
+    private static String directoryScopedUrl(String endpoint, String token, String path) {
+        UriComponentsBuilder builder = UriComponentsBuilder.fromPath(endpoint);
+        Map<String, String> variables = new LinkedHashMap<>();
+        variables.put("token", token);
         if (path != null && !path.isBlank()) {
-            builder.queryParam("path", path);
+            builder.queryParam("path", "{path}");
+            variables.put("path", path);
         }
-        return builder.buildAndExpand(token)
-                .encode()
+        return builder.encode()
+                .buildAndExpand(variables)
                 .toUriString();
     }
 

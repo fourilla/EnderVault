@@ -38,3 +38,8 @@ export const initializeFileTools = (root: ParentNode = document) => {
 export const destroyFileTools = (root: ParentNode = document) => {
   window.EnderVaultFileTools?.destroy(root);
 };
+
+export const initializeReadOnlyTextPreview = (root: HTMLElement): (() => void) => {
+  window.EnderVaultFileTools?.initReadOnlyTextPreview(root);
+  return () => window.EnderVaultFileTools?.destroyReadOnlyTextPreview(root);
+};

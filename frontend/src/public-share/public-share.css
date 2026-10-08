@@ -1,0 +1,19 @@
+.public-share-pending-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10010;
+    display: grid;
+    place-items: center;
+}
+
+.public-share-pending-status {
+    max-width: calc(100vw - var(--space-xl));
+    border: 1px solid var(--line);
+    border-radius: var(--radius-panel);
+    background: var(--panel);
+    box-shadow: 0 12px 28px var(--shadow);
+}
+
+.public-share-error h1 {
+    margin-top: 0;
+}

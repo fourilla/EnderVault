@@ -22,11 +22,17 @@ const destroyFileTools = (root = document) => {
         delete form._endervaultFileToolsCleanup;
         delete form.dataset.textEditorBound;
     });
+    const sharedPreviews = root.matches?.("[data-shared-text-preview]")
+        ? [root]
+        : root.querySelectorAll("[data-shared-text-preview]");
+    sharedPreviews.forEach(destroySharedTextPreview);
 };
 
 window.EnderVaultFileTools = {
     init: initializeFileTools,
-    destroy: destroyFileTools
+    destroy: destroyFileTools,
+    initReadOnlyTextPreview: (preview) => initializeSharedTextPreview(preview),
+    destroyReadOnlyTextPreview: (preview) => destroySharedTextPreview(preview)
 };
 
 document.addEventListener("DOMContentLoaded", () => initializeFileTools());
@@ -865,57 +871,91 @@ const enhanceWithCodeMirror = (form, textarea) => {
 };
 
 const initializeSharedTextPreview = (preview) => {
-    if (!window.CodeMirror || preview.dataset.sharedTextPreviewBound === "true") {
+    if (!window.CodeMirror || preview._endervaultSharedTextPreviewCleanup) {
         return;
     }
 
     const disclosure = preview.closest("details[data-shared-preview]");
-    if (disclosure && !disclosure.open) {
-        if (preview.dataset.sharedTextPreviewPending === "true") {
+    let disposed = false;
+    let editor = null;
+    let refreshTimer = null;
+    let initializeWhenOpened = null;
+    const cleanup = () => {
+        if (disposed) return;
+        disposed = true;
+        if (initializeWhenOpened) {
+            disclosure?.removeEventListener("toggle", initializeWhenOpened);
+            initializeWhenOpened = null;
+        }
+        window.clearTimeout(refreshTimer);
+        refreshTimer = null;
+        try {
+            if (editor) {
+                // End focus before removing the generated editor DOM.
+                editor.getInputField?.().blur();
+                editor.toTextArea();
+            }
+        } finally {
+            editor = null;
+            preview.classList.remove("is-codemirror-enhanced");
+            delete preview.dataset.sharedTextPreviewBound;
+            delete preview.dataset.sharedTextPreviewPending;
+            if (preview._endervaultSharedTextPreviewCleanup === cleanup) {
+                delete preview._endervaultSharedTextPreviewCleanup;
+            }
+        }
+    };
+    preview._endervaultSharedTextPreviewCleanup = cleanup;
+
+    const mount = () => {
+        if (disposed) return;
+        const textarea = preview.querySelector("textarea[data-shared-text-source]");
+        if (!textarea) {
+            cleanup();
             return;
         }
+        try {
+            editor = window.CodeMirror.fromTextArea(textarea, {
+                mode: modeFor(preview.dataset.textExtension, preview.dataset.textName),
+                theme: "material-darker",
+                lineNumbers: true,
+                lineWrapping: preferredLineWrapping(),
+                readOnly: true,
+                styleActiveLine: false,
+                matchBrackets: true,
+                tabSize: 4,
+                indentUnit: 4,
+                viewportMargin: 80
+            });
+            preview.dataset.sharedTextPreviewBound = "true";
+            preview.classList.add("is-codemirror-enhanced");
+            applyFontSize(editor, preferredFontSize());
+            refreshTimer = window.setTimeout(() => {
+                refreshTimer = null;
+                if (!disposed) editor.refresh();
+            }, 0);
+        } catch (error) {
+            cleanup();
+            console.warn("Shared text CodeMirror preview failed.", error);
+        }
+    };
+
+    if (disclosure && !disclosure.open) {
         preview.dataset.sharedTextPreviewPending = "true";
-        const initializeWhenOpened = () => {
-            if (!disclosure.open) {
-                return;
-            }
+        initializeWhenOpened = () => {
+            if (disposed || !disclosure.open) return;
             disclosure.removeEventListener("toggle", initializeWhenOpened);
+            initializeWhenOpened = null;
             delete preview.dataset.sharedTextPreviewPending;
-            initializeSharedTextPreview(preview);
+            mount();
         };
         disclosure.addEventListener("toggle", initializeWhenOpened);
         return;
     }
-
-    const textarea = preview.querySelector("textarea[data-shared-text-source]");
-    if (!textarea) {
-        return;
-    }
-
-    preview.dataset.sharedTextPreviewBound = "true";
-
-    try {
-        const editor = window.CodeMirror.fromTextArea(textarea, {
-            mode: modeFor(preview.dataset.textExtension, preview.dataset.textName),
-            theme: "material-darker",
-            lineNumbers: true,
-            lineWrapping: preferredLineWrapping(),
-            readOnly: true,
-            styleActiveLine: false,
-            matchBrackets: true,
-            tabSize: 4,
-            indentUnit: 4,
-            viewportMargin: 80
-        });
-
-        preview.classList.add("is-codemirror-enhanced");
-        applyFontSize(editor, preferredFontSize());
-        window.setTimeout(() => editor.refresh(), 0);
-    } catch (error) {
-        preview.dataset.sharedTextPreviewBound = "false";
-        console.warn("Shared text CodeMirror preview failed.", error);
-    }
+    mount();
 };
+
+const destroySharedTextPreview = (preview) => preview._endervaultSharedTextPreviewCleanup?.();
 
 const attachEditorControls = (form, editor, mode, lineWrapping, fontSize) => {
     const toolbar = form.querySelector(".text-editor-toolbar");

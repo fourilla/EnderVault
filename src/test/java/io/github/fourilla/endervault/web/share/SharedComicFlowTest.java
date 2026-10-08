@@ -65,13 +65,17 @@ class SharedComicFlowTest {
 
         mockMvc.perform(get("/s/{token}", link.token()))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("id=\"shared-comic-root\"")))
-                .andExpect(content().string(containsString("/react/assets/sharedComic-")))
-                .andExpect(content().string(containsString("data-manifest-url=\"/s/" + link.token() + "/comic/manifest\"")))
+                .andExpect(content().string(containsString("id=\"public-share-root\"")))
+                .andExpect(content().string(containsString("/react/assets/publicShare-")))
                 .andExpect(content().string(not(containsString("/react/assets/adminApp-"))))
                 .andExpect(content().string(not(containsString("/react/assets/shell-"))))
                 .andExpect(content().string(not(containsString("/react/assets/fileTools-"))))
                 .andExpect(content().string(not(containsString(directory))));
+        mockMvc.perform(get("/s/{token}/detail.json", link.token()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.toolType").value("comic"))
+                .andExpect(jsonPath("$.previewEnabled").value(true))
+                .andExpect(jsonPath("$.comicManifestUrl").value("/s/" + link.token() + "/comic/manifest"))
+                .andExpect(jsonPath("$.path").value(""));
         String response = mockMvc.perform(get("/s/{token}/comic/manifest", link.token())
                         .param("path", "../unshared").param("item", "other.cbz").accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
@@ -99,8 +103,10 @@ class SharedComicFlowTest {
         String manifestUrl = SharedFileRoutes.comicManifestUrl(link.token(), nested, name);
         mockMvc.perform(get("/s/{token}/file", link.token()).param("path", nested).param("item", name))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString(manifestUrl.replace("&", "&amp;"))))
+                .andExpect(content().string(containsString("id=\"public-share-root\"")))
                 .andExpect(content().string(not(containsString("/files/detail/comic"))));
+        mockMvc.perform(get("/s/{token}/detail.json", link.token()).param("path", nested).param("item", name))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.comicManifestUrl").value(manifestUrl));
         JsonNode body = mapper.readTree(mockMvc.perform(get(URI.create(manifestUrl)).accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.name").value(name))
                 .andReturn().getResponse().getContentAsString());
@@ -154,7 +160,10 @@ class SharedComicFlowTest {
         Files.writeString(ROOT.resolve(name), "not a zip");
         ShareLink link = shares.create("", name, null);
         mockMvc.perform(get("/s/{token}", link.token())).andExpect(status().isOk())
-                .andExpect(content().string(containsString("shared-download-button")));
+                .andExpect(content().string(containsString("id=\"public-share-root\"")));
+        mockMvc.perform(get("/s/{token}/detail.json", link.token()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.downloadUrl").isNotEmpty())
+                .andExpect(jsonPath("$.previewEnabled").value(true));
         mockMvc.perform(get("/s/{token}/comic/manifest", link.token()).accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.notification.message").value("This CBZ file could not be opened as a ZIP archive."));
@@ -189,8 +198,11 @@ class SharedComicFlowTest {
         Files.writeString(ROOT.resolve(text), "text");
         ShareLink textLink = shares.create("", text, null);
         mockMvc.perform(get("/s/{token}", textLink.token())).andExpect(status().isOk())
-                .andExpect(content().string(not(containsString("shared-comic-root"))))
+                .andExpect(content().string(containsString("id=\"public-share-root\"")))
                 .andExpect(content().string(not(containsString("/react/assets/sharedComic-"))));
+        mockMvc.perform(get("/s/{token}/detail.json", textLink.token()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.toolType").value("text"))
+                .andExpect(jsonPath("$.comicManifestUrl").doesNotExist());
     }
 
     @Test
@@ -201,10 +213,14 @@ class SharedComicFlowTest {
 
         mockMvc.perform(get("/s/{token}", link.token()))
                 .andExpect(status().isOk())
-                .andExpect(content().string(not(containsString("shared-preview-panel"))))
-                .andExpect(content().string(not(containsString("shared-comic-root"))))
+                .andExpect(content().string(containsString("id=\"public-share-root\"")))
                 .andExpect(content().string(not(containsString("/react/assets/sharedComic-"))))
-                .andExpect(content().string(containsString("shared-download-button")));
+                .andExpect(content().string(not(containsString("/react/assets/adminApp-"))));
+        mockMvc.perform(get("/s/{token}/detail.json", link.token()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.previewEnabled").value(false))
+                .andExpect(jsonPath("$.previewContentUrl").doesNotExist())
+                .andExpect(jsonPath("$.comicManifestUrl").doesNotExist())
+                .andExpect(jsonPath("$.downloadUrl").isNotEmpty());
         mockMvc.perform(get("/s/{token}/comic/manifest", link.token()).accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.notification.message").value("Shared preview is unavailable."));

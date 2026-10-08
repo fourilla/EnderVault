@@ -10,9 +10,10 @@ test('table and file-card links share a scoped no-underline hover policy', () =>
   assert.match(css, /\.item-name,\s*\.table-wrap \.path-link\s*\{\s*font-weight: 600;/);
   const base = read('../../src/main/resources/static/css/base.css');
   assert.match(base, /a:hover\s*\{\s*text-decoration: underline;/);
-  const shared = read('../../src/main/resources/templates/shared-directory.html');
-  assert.match(shared, /class="table-wrap"/);
-  assert.match(shared, /fragments\/assets :: styles/);
+  const shared = read('../src/public-share/SharedDirectoryPage.tsx');
+  assert.match(shared, /className="table-wrap"/);
+  const host = read('../../src/main/resources/templates/shared-app.html');
+  assert.match(host, /fragments\/assets :: styles/);
   const path = read('../src/shared/browser/path-link.css');
   assert.doesNotMatch(path, /text-decoration/);
   assert.doesNotMatch(path, /font-weight/);

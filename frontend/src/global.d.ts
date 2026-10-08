@@ -22,6 +22,8 @@ declare global {
     EnderVaultFileTools?: {
       init: (root?: ParentNode) => void;
       destroy: (root?: ParentNode) => void;
+      initReadOnlyTextPreview: (root: HTMLElement) => void;
+      destroyReadOnlyTextPreview: (root: HTMLElement) => void;
     };
     Viewer?: new (image: HTMLImageElement, options: Record<string, unknown>) => any;
     EnderVaultImageViewers?: {

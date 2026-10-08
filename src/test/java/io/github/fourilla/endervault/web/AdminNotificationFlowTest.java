@@ -2320,13 +2320,15 @@ class AdminNotificationFlowTest {
         String filename = "wget sample, " + System.nanoTime() + ".txt";
         Files.writeString(ROOT.resolve(filename), "shared download", StandardCharsets.UTF_8);
         ShareLink shareLink = shareLinkService.create("", filename, null);
-        String encodedFilename = filename.replace(" ", "%20");
-        String contentDispositionFilename = encodedFilename.replace(",", "%2C");
+        String encodedFilename = filename.replace(" ", "%20").replace(",", "%2C");
+        String contentDispositionFilename = encodedFilename;
 
         mockMvc.perform(get("/s/{token}", shareLink.token()))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString(
-                        "/s/" + shareLink.token() + "/download/" + encodedFilename)));
+                .andExpect(content().string(Matchers.containsString("id=\"public-share-root\"")));
+        mockMvc.perform(get("/s/{token}/detail.json", shareLink.token()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.downloadUrl").value("/s/" + shareLink.token() + "/download/" + encodedFilename));
 
         mockMvc.perform(get(URI.create("/s/" + shareLink.token() + "/download/" + encodedFilename)))
                 .andExpect(status().isOk())
@@ -2345,19 +2347,21 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get("/s/{token}", shareLink.token()))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("shared-preview-panel")))
-                .andExpect(content().string(Matchers.containsString("data-shared-preview")))
-                .andExpect(content().string(Matchers.not(Matchers.containsString("data-shared-preview open"))))
-                .andExpect(content().string(Matchers.containsString("id=\"shared-image-root\"")))
-                .andExpect(content().string(Matchers.containsString("/react/assets/sharedImage-")))
-                .andExpect(content().string(Matchers.containsString("<img class=\"preview-media\"")))
-                .andExpect(content().string(Matchers.containsString("data-shared-image-source")))
-                .andExpect(content().string(Matchers.containsString("/s/" + shareLink.token() + "/preview")))
+                .andExpect(content().string(Matchers.containsString("id=\"public-share-root\"")))
+                .andExpect(content().string(Matchers.containsString("id=\"public-share-bootstrap\"")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/publicShare-")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("/react/assets/adminApp-"))))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("/react/assets/shell-"))))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("/api/v1/"))))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/react/assets/sharedImage-"))))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("fa-eye"))))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("target=\"_blank\""))));
+        mockMvc.perform(get("/s/{token}/detail.json", shareLink.token()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.toolType").value("image"))
+                .andExpect(jsonPath("$.previewEnabled").value(true))
+                .andExpect(jsonPath("$.previewContentUrl").value("/s/" + shareLink.token() + "/preview"))
+                .andExpect(jsonPath("$.text").doesNotExist())
+                .andExpect(jsonPath("$.capabilities").doesNotExist());
     }
 
     @Test
@@ -2373,11 +2377,14 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get("/s/{token}/file", shareLink.token()).param("path", nested).param("item", filename))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("id=\"shared-image-root\"")))
-                .andExpect(content().string(Matchers.containsString("/react/assets/sharedImage-")))
-                .andExpect(content().string(Matchers.containsString("/s/" + shareLink.token()
-                        + "/preview?path=nested%20images&amp;item=picture%20%26%2001.jpg")))
+                .andExpect(content().string(Matchers.containsString("id=\"public-share-root\"")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/publicShare-")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("/files/preview"))));
+        mockMvc.perform(get("/s/{token}/detail.json", shareLink.token()).param("path", nested).param("item", filename))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.toolType").value("image"))
+                .andExpect(jsonPath("$.previewEnabled").value(true))
+                .andExpect(jsonPath("$.previewContentUrl").value("/s/" + shareLink.token()
+                        + "/preview?path=nested%20images&item=picture%20%26%2001.jpg"));
 
         mockMvc.perform(get("/s/{token}/preview", shareLink.token()).param("path", nested).param("item", filename)
                         .header(HttpHeaders.RANGE, "bytes=0-1"))
@@ -2419,10 +2426,14 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get("/s/{token}", shareLink.token()))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("Audio Player")))
-                .andExpect(content().string(Matchers.not(Matchers.containsString("/react/assets/sharedImage-"))))
-                .andExpect(content().string(Matchers.containsString("class=\"audio-tool-player\"")))
-                .andExpect(content().string(Matchers.containsString("/s/" + shareLink.token() + "/preview")));
+                .andExpect(content().string(Matchers.containsString("id=\"public-share-root\"")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/publicShare-")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/react/assets/sharedImage-"))));
+        mockMvc.perform(get("/s/{token}/detail.json", shareLink.token()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.toolType").value("audio"))
+                .andExpect(jsonPath("$.toolLabel").value("Audio Player"))
+                .andExpect(jsonPath("$.previewEnabled").value(true))
+                .andExpect(jsonPath("$.previewContentUrl").value("/s/" + shareLink.token() + "/preview"));
     }
 
     @Test
@@ -2431,24 +2442,23 @@ class AdminNotificationFlowTest {
         Files.writeString(ROOT.resolve(filename), "<script>alert(1)</script>", StandardCharsets.UTF_8);
         ShareLink shareLink = shareLinkService.create("", filename, null);
 
-        MvcResult result = mockMvc.perform(get("/s/{token}", shareLink.token()))
+        mockMvc.perform(get("/s/{token}", shareLink.token()))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("/react/assets/fileTools-")))
+                .andExpect(content().string(Matchers.containsString("id=\"public-share-root\"")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/publicShare-")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/react/assets/fileTools-"))))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("/webjars/codemirror/"))))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("/js/file-tools.js"))))
-                .andExpect(content().string(Matchers.containsString("data-shared-text-preview")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("/react/assets/sharedImage-"))))
-                .andExpect(content().string(Matchers.containsString("data-text-extension=\"html\"")))
-                .andExpect(content().string(Matchers.containsString("Text Preview")))
-                .andExpect(content().string(Matchers.containsString("shared-download-button")))
-                .andExpect(content().string(Matchers.containsString("<span>Download</span>")))
-                .andExpect(content().string(Matchers.containsString("shared-file-details")))
-                .andExpect(content().string(Matchers.containsString("data-shared-text-source")))
-                .andExpect(content().string(Matchers.containsString("readonly")))
-                .andExpect(content().string(Matchers.containsString("&lt;script&gt;alert(1)&lt;/script&gt;")))
-                .andExpect(content().string(Matchers.not(Matchers.containsString("<script>alert"))))
-                .andReturn();
-        assertThat(result.getResponse().getContentAsString()).contains("/react/assets/fileTools-");
+                .andExpect(content().string(Matchers.not(Matchers.containsString("<script>alert"))));
+        mockMvc.perform(get("/s/{token}/detail.json", shareLink.token()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.extension").value("html"))
+                .andExpect(jsonPath("$.toolLabel").value("Text Preview"))
+                .andExpect(jsonPath("$.text.loaded").value(true))
+                .andExpect(jsonPath("$.text.content").value("<script>alert(1)</script>"))
+                .andExpect(jsonPath("$.text.editable").doesNotExist())
+                .andExpect(jsonPath("$.text.manualLoadAvailable").doesNotExist())
+                .andExpect(jsonPath("$.downloadUrl").isNotEmpty());
     }
 
     @Test
@@ -2462,23 +2472,26 @@ class AdminNotificationFlowTest {
 
         mockMvc.perform(get("/s/{token}", shareLink.token()).param("path", subdirectory))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("/js/file-selection.js")))
-                .andExpect(content().string(Matchers.containsString("data-select-pick-label")))
-                .andExpect(content().string(Matchers.containsString("data-select-all")))
-                .andExpect(content().string(Matchers.containsString("class=\"select-cell\"")))
-                .andExpect(content().string(Matchers.containsString("Download selected file")))
-                .andExpect(content().string(Matchers.containsString(
-                        "/s/" + shareLink.token() + "/file?item=chapter.txt&amp;path=series")))
+                .andExpect(content().string(Matchers.containsString("id=\"public-share-root\"")))
+                .andExpect(content().string(Matchers.containsString("/react/assets/publicShare-")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("/js/file-selection.js"))))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("target=\"_blank\""))));
+        mockMvc.perform(get("/s/{token}/listing.json", shareLink.token()).param("path", subdirectory))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.downloadZipUrl").value("/s/" + shareLink.token() + "/download.zip?path=series"))
+                .andExpect(jsonPath("$.entries[0].previewLandingUrl").value(
+                        "/s/" + shareLink.token() + "/file?item=chapter.txt&path=series"));
 
         mockMvc.perform(get("/s/{token}/file", shareLink.token())
                         .param("path", subdirectory)
                         .param("item", filename))
                 .andExpect(status().isOk())
-                .andExpect(content().string(Matchers.containsString("Text Preview")))
-                .andExpect(content().string(Matchers.containsString("chapter text")))
+                .andExpect(content().string(Matchers.containsString("id=\"public-share-root\"")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString(
                         "/s/" + shareLink.token() + "/preview?path=series&amp;item=chapter.txt"))));
+        mockMvc.perform(get("/s/{token}/detail.json", shareLink.token()).param("path", subdirectory).param("item", filename))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.toolLabel").value("Text Preview"))
+                .andExpect(jsonPath("$.text.content").value("chapter text"));
     }
 
     @Test

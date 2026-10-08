@@ -29,6 +29,7 @@ export function createListingHistory(
   router: HistoryRouter,
   scrollY: () => number,
   storage: () => Pick<Storage, 'getItem' | 'setItem'>,
+  storageKey = STORAGE_KEY,
 ) {
   // "default" is shared by unrelated document entries; give the first visit a real Router key.
   if (router.state.location.key === 'default') {
@@ -37,7 +38,7 @@ export function createListingHistory(
   }
   const snapshots = new Map<string, unknown>();
   try {
-    const saved: unknown = JSON.parse(storage().getItem(STORAGE_KEY) || 'null');
+    const saved: unknown = JSON.parse(storage().getItem(storageKey) || 'null');
     if (Array.isArray(saved)) {
       for (const pair of saved.slice(-MAX_ENTRIES)) {
         if (Array.isArray(pair) && typeof pair[0] === 'string') snapshots.set(pair[0], pair[1]);
@@ -51,7 +52,7 @@ export function createListingHistory(
     snapshots.delete(id);
     snapshots.set(id, state);
     while (snapshots.size > MAX_ENTRIES) snapshots.delete(snapshots.keys().next().value!);
-    try { storage().setItem(STORAGE_KEY, JSON.stringify([...snapshots])); } catch { /* Optional persistence. */ }
+    try { storage().setItem(storageKey, JSON.stringify([...snapshots])); } catch { /* Optional persistence. */ }
   };
   const capture = () => {
     if (!active) return;
