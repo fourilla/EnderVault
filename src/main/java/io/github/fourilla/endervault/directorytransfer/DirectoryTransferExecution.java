@@ -63,6 +63,7 @@ public class DirectoryTransferExecution {
 
     private Map<String, DirectoryTransferResult> execute(DirectoryTransferReview review, PendingFileDecision pending,
             StorageProgressListener listener) throws IOException {
+        reviews.requireItemwiseExecution(review.plan().id());
         var progress = listener == null ? StorageProgressListener.NOOP : listener;
         var results = new HashMap<>(reviews.results(review));
         var index = new DirectoryTransferIndex(review.plan());

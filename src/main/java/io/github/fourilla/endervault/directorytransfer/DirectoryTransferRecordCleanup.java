@@ -39,11 +39,19 @@ public class DirectoryTransferRecordCleanup {
             var approval = read(root.resolve("executions").resolve(id + ".json"), DirectoryTransferReview.class);
             if (!approval.equals(review) || !approval.fullyReviewed()) return false;
         } else if (run.phase() != DirectoryTransferRun.Phase.ABANDONED) return false;
+        var move = optional(root.resolve("moves").resolve(id + ".json"), DirectoryTransferMoveRecord.class);
+        if (run.strategy() == DirectoryTransferRun.Strategy.WHOLE_DIRECTORY_MOVE) {
+            if (!frozen || move == null || run.phase() != DirectoryTransferRun.Phase.COMPLETE
+                    || move.phase() != DirectoryTransferMoveRecord.Phase.COMPLETE
+                        && move.phase() != DirectoryTransferMoveRecord.Phase.FALLBACK) return false;
+            DirectoryTransferReviewStore.validateMove(review, run, move);
+        } else if (move != null) return false;
         var results = new java.util.HashMap<String, DirectoryTransferResult>();
         for (var item : review.plan().items()) {
             var result = optional(root.resolve("results").resolve(id).resolve(item.id() + ".json"), DirectoryTransferResult.class);
             if (result != null) {
                 DirectoryTransferReviewStore.validateResult(item, result);
+                DirectoryTransferReviewStore.validateResultProof(review, item, result, move);
                 results.put(item.id(), result);
             }
         }
@@ -68,6 +76,9 @@ public class DirectoryTransferRecordCleanup {
                         && completion.phase() != DirectoryTransferCompletion.Phase.COMPLETE) return false;
             }
             if (completion != null && result == null) return false;
+            if (move != null && move.phase() == DirectoryTransferMoveRecord.Phase.COMPLETE
+                    && (result == null || result.status() != DirectoryTransferResult.Status.MOVED
+                        || completion == null || completion.phase() != DirectoryTransferCompletion.Phase.COMPLETE)) return false;
         }
         return true;
     }
@@ -103,6 +114,7 @@ public class DirectoryTransferRecordCleanup {
         }
         delete(reviews.inspectionRoot().resolve("executions").resolve(id + ".json"));
         delete(reviews.inspectionRoot().resolve("runs").resolve(id + ".json"));
+        delete(reviews.inspectionRoot().resolve("moves").resolve(id + ".json"));
         delete(reviews.inspectionRoot().resolve(id + ".json"));
         delete(marker(id));
     }
@@ -153,7 +165,8 @@ public class DirectoryTransferRecordCleanup {
         }
         for (Path path : List.of(root.resolve(approval.id() + ".json"),
                 root.resolve("executions").resolve(approval.id() + ".json"),
-                root.resolve("runs").resolve(approval.id() + ".json"))) {
+                root.resolve("runs").resolve(approval.id() + ".json"),
+                root.resolve("moves").resolve(approval.id() + ".json"))) {
             DirectoryTransferPlanner.rejectLinks(path);
             if (Files.exists(path, LinkOption.NOFOLLOW_LINKS)) requireRegular(path);
         }

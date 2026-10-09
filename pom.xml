@@ -30,6 +30,7 @@
         <xz.version>1.12</xz.version>
         <tus-java-server.version>1.0.0-3.3</tus-java-server.version>
         <tus-js-client.version>4.3.1</tus-js-client.version>
+        <jna.version>5.17.0</jna.version>
     </properties>
 
     <dependencies>
@@ -133,6 +134,11 @@
             <groupId>org.bytedeco</groupId>
             <artifactId>ffmpeg-platform</artifactId>
             <version>7.1-1.5.11</version>
+        </dependency>
+        <dependency>
+            <groupId>net.java.dev.jna</groupId>
+            <artifactId>jna</artifactId>
+            <version>${jna.version}</version>
         </dependency>
 
         <dependency>

@@ -6,9 +6,17 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 
 /** Only this record authorizes startup resumption; a saved review alone does not. */
 public record DirectoryTransferRun(String id, @JsonProperty(required = true) long revision,
-        Phase phase, @JsonProperty(required = true) boolean paused, boolean recoveryRequired) {
+        Phase phase, @JsonProperty(required = true) boolean paused, boolean recoveryRequired, Strategy strategy) {
     public DirectoryTransferRun(String id, long revision, Phase phase, boolean paused) {
-        this(id, revision, phase, paused, false);
+        this(id, revision, phase, paused, false, Strategy.ITEMWISE);
+    }
+
+    public DirectoryTransferRun(String id, long revision, Phase phase, boolean paused, boolean recoveryRequired) {
+        this(id, revision, phase, paused, recoveryRequired, Strategy.ITEMWISE);
+    }
+
+    public DirectoryTransferRun(String id, long revision, Phase phase, boolean paused, Strategy strategy) {
+        this(id, revision, phase, paused, false, strategy);
     }
 
     @JsonCreator
@@ -16,14 +24,17 @@ public record DirectoryTransferRun(String id, @JsonProperty(required = true) lon
             @JsonProperty(value = "revision", required = true) long revision,
             @JsonProperty("phase") Phase phase,
             @JsonProperty(value = "paused", required = true) boolean paused,
-            @JsonProperty("recoveryRequired") Boolean recoveryRequired) {
+            @JsonProperty("recoveryRequired") Boolean recoveryRequired,
+            @JsonProperty("strategy") Strategy strategy) {
         // This diagnostic flag was absent in existing runs; execution authority stays strict.
-        return new DirectoryTransferRun(id, revision, phase, paused, Boolean.TRUE.equals(recoveryRequired));
+        return new DirectoryTransferRun(id, revision, phase, paused, Boolean.TRUE.equals(recoveryRequired),
+                strategy == null ? Strategy.ITEMWISE : strategy);
     }
+    public enum Strategy { ITEMWISE, WHOLE_DIRECTORY_MOVE }
     public enum Phase { PUBLISHING, FINALIZING, OWNER_COMPLETING, COMPLETE, NEEDS_REVIEW, ABANDONING, ABANDONED }
 
     public DirectoryTransferRun {
-        if (id == null || !UUID.fromString(id).toString().equals(id) || revision < 0 || phase == null) {
+        if (id == null || !UUID.fromString(id).toString().equals(id) || revision < 0 || phase == null || strategy == null) {
             throw new IllegalArgumentException("Invalid directory merge run.");
         }
     }

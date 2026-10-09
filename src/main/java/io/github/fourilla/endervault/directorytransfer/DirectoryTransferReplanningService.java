@@ -30,6 +30,9 @@ public class DirectoryTransferReplanningService {
                 || run == null || run.phase() != DirectoryTransferRun.Phase.NEEDS_REVIEW) {
             throw new StorageAccessException("Only a transfer requiring review can be replanned.");
         }
+        if (run.strategy() == DirectoryTransferRun.Strategy.WHOLE_DIRECTORY_MOVE) {
+            throw new StorageAccessException("Whole-directory move evidence requires manual review; it cannot be replanned as a partial transfer.");
+        }
         String successor = reviews.successor(id);
         if (successor != null) {
             var next = reviews.require(successor);

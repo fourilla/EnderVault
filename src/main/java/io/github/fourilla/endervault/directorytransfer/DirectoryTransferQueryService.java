@@ -105,8 +105,13 @@ public class DirectoryTransferQueryService {
             @com.fasterxml.jackson.annotation.JsonIgnore boolean replannedUpload) {
         @com.fasterxml.jackson.annotation.JsonProperty public String title() { return DirectoryTransferPresentation.title(operation); }
         @com.fasterxml.jackson.annotation.JsonProperty public String statusLabel() { return DirectoryTransferPresentation.status(operation, run, editable); }
+        @com.fasterxml.jackson.annotation.JsonProperty public boolean canReplan() {
+            return run != null && run.phase() == DirectoryTransferRun.Phase.NEEDS_REVIEW
+                    && run.strategy() == DirectoryTransferRun.Strategy.ITEMWISE;
+        }
         @com.fasterxml.jackson.annotation.JsonProperty public boolean canAbandonRemainingTransfer() {
             return !replannedUpload && run != null && successorId == null
+                    && run.strategy() == DirectoryTransferRun.Strategy.ITEMWISE
                     && (run.phase() == DirectoryTransferRun.Phase.ABANDONING
                         || run.paused() && (run.phase() == DirectoryTransferRun.Phase.PUBLISHING
                             || operation != DirectoryTransferPlan.Operation.PENDING && run.phase() == DirectoryTransferRun.Phase.FINALIZING));

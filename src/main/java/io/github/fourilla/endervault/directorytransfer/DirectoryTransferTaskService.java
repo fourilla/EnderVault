@@ -160,7 +160,9 @@ public class DirectoryTransferTaskService {
         }
         return result.phase() == DirectoryTransferRun.Phase.COMPLETE
                 ? TaskOutcome.complete(DirectoryTransferPresentation.title(operation) + " complete.")
-                : TaskOutcome.pending("Directory items changed. A new review is required.");
+                : TaskOutcome.pending(result.strategy() == DirectoryTransferRun.Strategy.WHOLE_DIRECTORY_MOVE
+                        ? "Directory move locations changed. Inspect the original and destination before further changes."
+                        : "Directory items changed. A new review is required.");
     }
 
     private static final class Submission {

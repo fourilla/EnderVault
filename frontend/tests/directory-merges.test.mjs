@@ -188,6 +188,39 @@ test('remaining transfer abandonment confirms preservation and never offers resu
   }
 });
 
+test('changed transfers offer replanning only when the server permits it', async () => {
+  for (const canReplan of [false, true]) {
+    const executed = [];
+    const data = { review: { operation: 'MOVE', editable: false, fullyReviewed: true,
+      canReplan, canAbandonRemainingTransfer: false, run: { phase: 'NEEDS_REVIEW', paused: false } },
+      executionView: true, entries: { items: [], total: 0, size: 50 } };
+    const jsx = (type, props) => ({ type, props });
+    const react = { useEffect: () => {}, useState: (value) => [value === null ? data : value, () => {}],
+      createElement: (type, props, ...children) => jsx(type, { ...props, children }) };
+    const component = await load('../src/directory-merges/DirectoryMergeDialog.tsx', { React: react }, {
+      react, 'react/jsx-runtime': { jsx, jsxs: jsx }, AppDialog: { AppDialog: 'dialog' },
+      'merge-api': { mergeChoices: () => [], runMerge: async (...args) => executed.push(args) },
+    });
+    const buttons = []; const texts = [];
+    const visit = (node) => {
+      if (Array.isArray(node)) return node.forEach(visit);
+      if (typeof node === 'string') { texts.push(node); return; }
+      if (!node || typeof node !== 'object') return;
+      if (node.type === 'button') buttons.push(node);
+      visit(node.props?.children);
+    };
+    visit(component.DirectoryMergeDialog({ id: 'review', close: () => {}, changed: () => {} }));
+    const replan = buttons.find((button) => [button.props.children].flat().includes('Review changed items'));
+    assert.equal(Boolean(replan), canReplan);
+    assert.equal(texts.some((text) => text.includes('manual inspection')), !canReplan);
+    assert.equal(buttons.some((button) => [button.props.children].flat().includes('Resume move')), false);
+    replan?.props.onClick();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(executed.length, canReplan ? 1 : 0);
+    if (canReplan) assert.equal(executed[0][1], true);
+  }
+});
+
 test('saving merge choices sends CSRF and revision but never source snapshots', async () => {
   let sent;
   const api = await load('../src/directory-merges/merge-api.ts', {

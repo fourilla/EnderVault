@@ -176,6 +176,7 @@ public class DirectoryTransferFinalizer {
     private Map<String, DirectoryTransferCompletion> complete(DirectoryTransferReview review, Path sourceRoot,
             StorageProgressListener listener) throws IOException {
         String id = review.plan().id();
+        reviews.requireItemwiseExecution(id);
         var results = reviews.results(review);
         if (review.plan().items().stream().anyMatch(item -> !results.containsKey(item.id()))) {
             throw new StorageAccessException("Finish publication before completing the merge.");

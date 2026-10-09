@@ -46,7 +46,7 @@ final class DirectoryTransferIndex {
             return (slash < 0 ? "" : plan.destinationPath().substring(0, slash + 1)) + name;
         }
         var result = results.get(parent.id());
-        if (result == null || result.status() != DirectoryTransferResult.Status.PUBLISHED) throw new StorageAccessException("Merge parent is unavailable.");
+        if (result == null || !result.hasTarget()) throw new StorageAccessException("Merge parent is unavailable.");
         return result.targetPath() + "/" + name;
     }
 

@@ -9,6 +9,8 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +24,7 @@ public class DirectoryTransferReviewStore {
     private final Path root;
     private final ObjectMapper mapper;
     private final DurableJsonFileWriter writer;
+    private CachedMove cachedItemMove;
 
     Path inspectionRoot() { return root; }
 
@@ -90,7 +93,7 @@ public class DirectoryTransferReviewStore {
     public synchronized void pauseRun(DirectoryTransferRun run, Throwable cancellation) throws IOException {
         boolean interrupted = Thread.interrupted();
         try {
-            saveRun(run, new DirectoryTransferRun(run.id(), run.revision(), run.phase(), true));
+            saveRun(run, new DirectoryTransferRun(run.id(), run.revision(), run.phase(), true, run.recoveryRequired(), run.strategy()));
         } catch (IOException | RuntimeException failure) {
             failure.addSuppressed(cancellation);
             throw failure;
@@ -102,7 +105,7 @@ public class DirectoryTransferReviewStore {
     /** Preserve recovery eligibility; failure recording must not replace the original IO error. */
     synchronized void recordFailure(DirectoryTransferRun run, IOException failure) {
         try {
-            saveRun(run, new DirectoryTransferRun(run.id(), run.revision(), run.phase(), run.paused(), true));
+            saveRun(run, new DirectoryTransferRun(run.id(), run.revision(), run.phase(), run.paused(), true, run.strategy()));
         } catch (IOException | RuntimeException recordingFailure) {
             failure.addSuppressed(recordingFailure);
         }
@@ -203,6 +206,11 @@ public class DirectoryTransferReviewStore {
             results.put(item.id(), result);
         }
         validateResultTargets(review, results);
+        var move = move(review.plan().id());
+        for (var item : review.plan().items()) {
+            var result = results.get(item.id());
+            if (result != null) validateResultProof(review, item, result, move);
+        }
         return Map.copyOf(results);
     }
 
@@ -210,7 +218,7 @@ public class DirectoryTransferReviewStore {
         var index = new DirectoryTransferIndex(review.plan());
         for (var item : review.plan().items()) {
             var result = results.get(item.id());
-            if (result == null || result.status() != DirectoryTransferResult.Status.PUBLISHED) continue;
+            if (result == null || !result.hasTarget()) continue;
             String expected = index.targetPath(item, results);
             if (review.choices().get(item.id()) == DirectoryTransferReview.Choice.KEEP_BOTH) {
                 String expectedParent = expected.substring(0, Math.max(0, expected.lastIndexOf('/')));
@@ -225,7 +233,19 @@ public class DirectoryTransferReviewStore {
     /** One immutable file per item avoids rewriting a growing 100,000-item ledger on each commit. */
     synchronized void recordResult(DirectoryTransferReview review, DirectoryTransferPlan.Item item,
             DirectoryTransferResult result) throws IOException {
+        recordResult(review, item, result, itemMove(review.plan().id()));
+    }
+
+    synchronized void recordResult(DirectoryTransferReview review, DirectoryTransferPlan.Item item,
+            DirectoryTransferResult result, DirectoryTransferMoveRecord move) throws IOException {
         validateResult(item, result);
+        requireCurrentItemProof(review.plan().id(), move);
+        validateResultProof(review, item, result, move);
+        if (result.status() == DirectoryTransferResult.Status.MOVED
+                && move.phase() != DirectoryTransferMoveRecord.Phase.METADATA_APPLIED
+                && move.phase() != DirectoryTransferMoveRecord.Phase.COMPLETE) {
+            throw new StorageAccessException("Directory move metadata has not completed.");
+        }
         Path directory = resultDirectory(review.plan().id());
         Path file = directory.resolve(item.id() + ".json");
         DirectoryTransferPlanner.rejectLinks(file);
@@ -245,6 +265,188 @@ public class DirectoryTransferReviewStore {
         Path directory = root.resolve("results").resolve(id);
         DirectoryTransferPlanner.rejectLinks(directory);
         return directory;
+    }
+
+    synchronized DirectoryTransferMoveRecord move(String id) throws IOException {
+        var move = readMove(id);
+        if (move == null) return null;
+        var review = require(id);
+        requireMoveApproval(review);
+        validateMove(review, run(id), move);
+        return move;
+    }
+
+    /** Keep whole-tree moves out of copy/source-deletion engines unless no-effect fallback was recorded. */
+    synchronized void requireItemwiseExecution(String id) throws IOException {
+        var run = run(id);
+        if (run == null || run.strategy() == DirectoryTransferRun.Strategy.ITEMWISE) return;
+        var move = move(id);
+        if (move == null || move.phase() != DirectoryTransferMoveRecord.Phase.FALLBACK) {
+            throw new StorageAccessException("Whole-directory move cannot enter itemwise publication or source cleanup.");
+        }
+    }
+
+    private DirectoryTransferMoveRecord readMove(String id) throws IOException {
+        Path file = movePath(id);
+        if (!Files.exists(file, LinkOption.NOFOLLOW_LINKS)) return null;
+        var move = new JsonRegistry<DirectoryTransferMoveRecord>(mapper, file, new TypeReference<>() {},
+                () -> null, JsonRegistry.CorruptionPolicy.BACKUP_AND_THROW).read();
+        if (move == null || !id.equals(move.id())) throw new StorageAccessException("Invalid directory move evidence.");
+        return move;
+    }
+
+    /** One-entry cache only for item ledgers; CAS, recovery inspection and cleanup always read durable files. */
+    private DirectoryTransferMoveRecord itemMove(String id) throws IOException {
+        var file = movePath(id);
+        if (!Files.exists(file, LinkOption.NOFOLLOW_LINKS)) {
+            if (cachedItemMove != null && cachedItemMove.id().equals(id)) cachedItemMove = null;
+            return null;
+        }
+        var before = moveStamp(file);
+        if (cachedItemMove != null && cachedItemMove.id().equals(id) && cachedItemMove.stamp().equals(before)) {
+            return cachedItemMove.move();
+        }
+        var move = readMove(id);
+        var after = moveStamp(file);
+        if (!before.equals(after)) throw new StorageAccessException("Directory move evidence changed while reading.");
+        cachedItemMove = new CachedMove(id, move, after);
+        return move;
+    }
+
+    private void requireCurrentItemProof(String id, DirectoryTransferMoveRecord proof) throws IOException {
+        var current = itemMove(id);
+        if (proof != current && !java.util.Objects.equals(proof, current)) {
+            throw new StorageAccessException("Directory move item proof changed.");
+        }
+        // Reuse the caller's already validated immutable object after a disk reload of the same JSON.
+        if (proof != null && proof != current) cachedItemMove = new CachedMove(id, proof, cachedItemMove.stamp());
+    }
+
+    private MoveStamp moveStamp(Path file) throws IOException {
+        DirectoryTransferPlanner.rejectLinks(file);
+        var attributes = Files.readAttributes(file, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        if (!attributes.isRegularFile()) throw new StorageAccessException("Directory move evidence is not a regular file.");
+        return new MoveStamp(attributes.size(), attributes.lastModifiedTime(), attributes.creationTime(), attributes.fileKey());
+    }
+
+    private record MoveStamp(long size, FileTime modified, FileTime created, Object fileKey) {}
+    private record CachedMove(String id, DirectoryTransferMoveRecord move, MoveStamp stamp) {}
+
+    synchronized void saveMove(DirectoryTransferMoveRecord previous, DirectoryTransferMoveRecord next) throws IOException {
+        if (next == null || !java.util.Objects.equals(previous, move(next.id()))) {
+            throw new StorageAccessException("Directory move evidence changed.");
+        }
+        var review = require(next.id());
+        requireMoveApproval(review);
+        validateMove(review, run(next.id()), next);
+        boolean allowed = previous == null ? next.phase() == DirectoryTransferMoveRecord.Phase.INTENT
+                : previous.equals(next) || previous.sameIntent(next) && switch (previous.phase()) {
+                    case INTENT -> next.phase() == DirectoryTransferMoveRecord.Phase.RENAMED
+                            || next.phase() == DirectoryTransferMoveRecord.Phase.FALLBACK
+                            || next.phase() == DirectoryTransferMoveRecord.Phase.NEEDS_REVIEW;
+                    case RENAMED -> next.phase() == DirectoryTransferMoveRecord.Phase.METADATA_APPLIED
+                            || next.phase() == DirectoryTransferMoveRecord.Phase.NEEDS_REVIEW;
+                    case METADATA_APPLIED -> next.phase() == DirectoryTransferMoveRecord.Phase.COMPLETE
+                            || next.phase() == DirectoryTransferMoveRecord.Phase.NEEDS_REVIEW;
+                    default -> previous.equals(next);
+                };
+        if (!allowed) throw new StorageAccessException("Invalid directory move transition.");
+        var file = movePath(next.id());
+        cachedItemMove = null;
+        writer.write(file, next);
+        writer.forceDirectory(file.getParent());
+        writer.forceDirectory(root);
+        cachedItemMove = new CachedMove(next.id(), next, moveStamp(file));
+    }
+
+    private void requireMoveApproval(DirectoryTransferReview review) throws IOException {
+        Path execution = executionPath(review.plan().id());
+        if (!Files.isRegularFile(execution, LinkOption.NOFOLLOW_LINKS)) {
+            throw new StorageAccessException("Directory move has no frozen approval.");
+        }
+        var frozen = new JsonRegistry<DirectoryTransferReview>(mapper, execution, new TypeReference<>() {},
+                () -> null, JsonRegistry.CorruptionPolicy.BACKUP_AND_THROW).read();
+        if (!review.equals(frozen) || !review.fullyReviewed()) {
+            throw new StorageAccessException("Directory move approval changed.");
+        }
+    }
+
+    static void validateMove(DirectoryTransferReview review, DirectoryTransferRun run, DirectoryTransferMoveRecord move) {
+        var plan = review.plan();
+        if (move == null || run == null || run.strategy() != DirectoryTransferRun.Strategy.WHOLE_DIRECTORY_MOVE
+                || !plan.id().equals(move.id()) || !plan.id().equals(run.id())
+                || move.revision() != review.revision() || run.revision() != review.revision()
+                || plan.operation() != DirectoryTransferPlan.Operation.MOVE
+                || !plan.sourceReference().equals(move.sourcePath()) || !plan.destinationPath().equals(move.targetPath())
+                || !plan.excludedSources().isEmpty() || !plan.targetNames().isEmpty() || !review.choices().isEmpty()
+                || plan.items().stream().anyMatch(item -> item.conflict() != DirectoryTransferPlan.Conflict.ADD)
+                || !move.entryKeys().isEmpty() && (move.entryKeys().size() != plan.items().size()
+                    || plan.items().stream().anyMatch(item -> !move.entryKeys().containsKey(item.relativePath())))
+                || !DirectoryTransferMoveRecord.fingerprint(plan).equals(move.treeFingerprint())) {
+            throw new StorageAccessException("Directory move evidence does not match its approved tree.");
+        }
+    }
+
+    static void validateResultProof(DirectoryTransferReview review, DirectoryTransferPlan.Item item,
+            DirectoryTransferResult result, DirectoryTransferMoveRecord move) {
+        if (result.status() == DirectoryTransferResult.Status.MOVED) {
+            if (move == null || !review.plan().id().equals(move.id()) || !move.id().equals(result.renameId())
+                    || review.revision() != move.revision()
+                    || !review.plan().sourceReference().equals(move.sourcePath())
+                    || !review.plan().destinationPath().equals(move.targetPath())
+                    || move.phase() != DirectoryTransferMoveRecord.Phase.METADATA_APPLIED
+                        && move.phase() != DirectoryTransferMoveRecord.Phase.COMPLETE
+                        && move.phase() != DirectoryTransferMoveRecord.Phase.NEEDS_REVIEW
+                    || !item.source().equals(result.target())
+                    || !move.entryKeys().isEmpty() && !move.entryKeys().containsKey(item.relativePath())
+                    || !(item.relativePath().isEmpty() ? move.targetPath() : move.targetPath() + "/" + item.relativePath())
+                            .equals(result.targetPath())) {
+                throw new StorageAccessException("Moved item has no matching completed directory move proof.");
+            }
+        } else if (move != null && move.phase() != DirectoryTransferMoveRecord.Phase.FALLBACK
+                && result.status() == DirectoryTransferResult.Status.PUBLISHED) {
+            throw new StorageAccessException("Directory move cannot contain file publication results.");
+        }
+    }
+
+    private Path movePath(String id) throws IOException {
+        path(id);
+        var file = root.resolve("moves").resolve(id + ".json");
+        DirectoryTransferPlanner.rejectLinks(file);
+        return file;
+    }
+
+    /** Whole-tree metadata is already applied; this path never removes a source or completes a journal. */
+    synchronized void recordMovedCompletion(DirectoryTransferReview review, DirectoryTransferPlan.Item item) throws IOException {
+        recordMovedCompletion(review, item, itemMove(review.plan().id()));
+    }
+
+    synchronized void recordMovedCompletion(DirectoryTransferReview review, DirectoryTransferPlan.Item item,
+            DirectoryTransferMoveRecord move) throws IOException {
+        requireCurrentItemProof(review.plan().id(), move);
+        if (move == null || move.phase() != DirectoryTransferMoveRecord.Phase.METADATA_APPLIED
+                && move.phase() != DirectoryTransferMoveRecord.Phase.COMPLETE) {
+            throw new StorageAccessException("Directory move bookkeeping has no matching metadata proof.");
+        }
+        var file = resultDirectory(review.plan().id()).resolve(item.id() + ".json");
+        DirectoryTransferPlanner.rejectLinks(file);
+        var result = new JsonRegistry<DirectoryTransferResult>(mapper, file, new TypeReference<>() {},
+                () -> null, JsonRegistry.CorruptionPolicy.BACKUP_AND_THROW).read();
+        validateResult(item, result);
+        validateResultProof(review, item, result, move);
+        if (result.status() != DirectoryTransferResult.Status.MOVED) {
+            throw new StorageAccessException("Directory move bookkeeping requires a moved item.");
+        }
+        var next = new DirectoryTransferCompletion(item.id(), DirectoryTransferCompletion.Phase.COMPLETE, null);
+        var previous = completion(review.plan().id(), item.id());
+        if (previous != null) {
+            if (!previous.equals(next)) throw new StorageAccessException("Directory move completion already exists.");
+            return;
+        }
+        var completion = completionPath(review.plan().id(), item.id());
+        writer.write(completion, next);
+        writer.forceDirectory(completion.getParent().getParent());
+        writer.forceDirectory(root);
     }
 
     synchronized DirectoryTransferCompletion completion(String planId, String itemId) throws IOException {
@@ -292,7 +494,7 @@ public class DirectoryTransferReviewStore {
 
     static void validateResult(DirectoryTransferPlan.Item item, DirectoryTransferResult result) {
         if (result == null || !item.id().equals(result.itemId())
-                || result.status() == DirectoryTransferResult.Status.PUBLISHED && result.target().kind() != item.source().kind()) {
+                || result.hasTarget() && result.target().kind() != item.source().kind()) {
             throw new StorageAccessException("Invalid directory merge result.");
         }
     }
@@ -321,6 +523,8 @@ public class DirectoryTransferReviewStore {
         boolean allowed = previous == null || switch (previous.phase()) {
             case PUBLISHING -> next.phase() == DirectoryTransferRun.Phase.PUBLISHING
                     || next.phase() == DirectoryTransferRun.Phase.FINALIZING
+                    || previous.strategy() == DirectoryTransferRun.Strategy.WHOLE_DIRECTORY_MOVE
+                        && next.phase() == DirectoryTransferRun.Phase.NEEDS_REVIEW
                     || previous.paused() && next.phase() == DirectoryTransferRun.Phase.ABANDONING;
             case FINALIZING -> next.phase() == DirectoryTransferRun.Phase.FINALIZING
                     || next.phase() == DirectoryTransferRun.Phase.OWNER_COMPLETING
@@ -333,11 +537,25 @@ public class DirectoryTransferReviewStore {
                     || next.phase() == DirectoryTransferRun.Phase.COMPLETE;
             default -> false;
         };
-        if (previous != null && (previous.revision() != next.revision() || !allowed)) {
+        if (previous != null && (previous.revision() != next.revision() || previous.strategy() != next.strategy() || !allowed)) {
             throw new StorageAccessException("Invalid merge run transition.");
         }
         if (previous == null && next.phase() != DirectoryTransferRun.Phase.PUBLISHING) {
             throw new StorageAccessException("Invalid initial merge run.");
+        }
+        if (next.strategy() == DirectoryTransferRun.Strategy.WHOLE_DIRECTORY_MOVE) {
+            var review = require(next.id());
+            if (review.plan().operation() != DirectoryTransferPlan.Operation.MOVE || next.revision() != review.revision()
+                    || next.phase() == DirectoryTransferRun.Phase.ABANDONING || next.phase() == DirectoryTransferRun.Phase.ABANDONED
+                    || previous == null && hasPredecessor(next.id())) {
+                throw new StorageAccessException("Invalid whole-directory move run.");
+            }
+            requireMoveApproval(review);
+            if (previous == null && (Files.exists(resultDirectory(next.id()), LinkOption.NOFOLLOW_LINKS)
+                    || Files.exists(root.resolve("completion").resolve(next.id()), LinkOption.NOFOLLOW_LINKS)
+                    || Files.exists(movePath(next.id()), LinkOption.NOFOLLOW_LINKS))) {
+                throw new StorageAccessException("Existing transfer evidence cannot select a whole-directory strategy.");
+            }
         }
         if (next.phase() == DirectoryTransferRun.Phase.ABANDONING
                 && require(next.id()).plan().operation() == DirectoryTransferPlan.Operation.PENDING
