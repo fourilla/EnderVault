@@ -16,6 +16,7 @@ export interface MergeSummary {
   editable: boolean;
   canAbandon: boolean;
   canAbandonRemainingTransfer: boolean;
+  canReplan: boolean;
   successorId: string | null;
   run: { phase: string; paused: boolean } | null;
 }

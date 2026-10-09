@@ -21,7 +21,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Read-only diagnostics: never invoke registry readers that back up corrupt input. */
 @Component
 public class DirectoryTransferMetadataInspector implements MetadataInspector {
-    private static final Set<String> SINGLE = Set.of("executions", "runs", "successors", "cleanup");
+    private static final Set<String> SINGLE = Set.of("executions", "runs", "moves", "successors", "cleanup");
     private static final Set<String> ITEMS = Set.of("results", "completion");
     private static final int MAX_FILES = 1_000_000;
     private final DirectoryTransferReviewStore store;
@@ -129,6 +129,14 @@ public class DirectoryTransferMetadataInspector implements MetadataInspector {
                 var review = read(root.resolve(id + ".json"), DirectoryTransferReview.class);
                 var frozen = read(root.resolve("executions").resolve(id + ".json"), DirectoryTransferReview.class);
                 var run = optional(root.resolve("runs").resolve(id + ".json"), DirectoryTransferRun.class);
+                var move = optional(root.resolve("moves").resolve(id + ".json"), DirectoryTransferMoveRecord.class);
+                if (run != null && run.strategy() == DirectoryTransferRun.Strategy.WHOLE_DIRECTORY_MOVE) {
+                    DirectoryTransferReviewStore.validateMove(review, run, move);
+                    if (move.phase() != DirectoryTransferMoveRecord.Phase.FALLBACK) {
+                        issue(issues, id, "Whole-directory move unexpectedly owns file publication journals");
+                        continue;
+                    }
+                } else if (move != null) throw new IOException("Move evidence has no whole-directory run");
                 if (run != null && run.phase() == DirectoryTransferRun.Phase.ABANDONED) {
                     issue(issues, id, "Abandoned transfer still owns commit journals");
                 }
@@ -141,7 +149,8 @@ public class DirectoryTransferMetadataInspector implements MetadataInspector {
                     check(context);
                     var result = optional(root.resolve("results").resolve(id).resolve(item.id() + ".json"), DirectoryTransferResult.class);
                     if (result != null) {
-                        if (!item.id().equals(result.itemId())) throw new IOException("Result identity mismatch");
+                        DirectoryTransferReviewStore.validateResult(item, result);
+                        DirectoryTransferReviewStore.validateResultProof(review, item, result, move);
                         results.put(item.id(), result);
                     }
                 }
@@ -190,6 +199,7 @@ public class DirectoryTransferMetadataInspector implements MetadataInspector {
             if (!id.equals(review.plan().id())) throw new IOException("Review identity mismatch");
             var frozen = optional(root.resolve("executions").resolve(id + ".json"), DirectoryTransferReview.class);
             var run = optional(root.resolve("runs").resolve(id + ".json"), DirectoryTransferRun.class);
+            var move = optional(root.resolve("moves").resolve(id + ".json"), DirectoryTransferMoveRecord.class);
             if (frozen != null && (!frozen.equals(review) || !frozen.fullyReviewed())) {
                 issue(issues, id, "Execution approval does not match the saved review");
             }
@@ -197,11 +207,48 @@ public class DirectoryTransferMetadataInspector implements MetadataInspector {
             if (run != null && (!id.equals(run.id()) || run.revision() != review.revision() || !abandoned && frozen == null)) {
                 issue(issues, id, "Merge run has no matching execution approval");
             }
+            if (move != null) {
+                if (frozen == null || !frozen.equals(review)) throw new IOException("Move has no matching frozen approval");
+                DirectoryTransferReviewStore.validateMove(review, run, move);
+            }
+            if (run != null && run.strategy() == DirectoryTransferRun.Strategy.WHOLE_DIRECTORY_MOVE
+                    && (review.plan().operation() != DirectoryTransferPlan.Operation.MOVE || abandoned
+                        || move == null && run.phase() != DirectoryTransferRun.Phase.PUBLISHING
+                            && run.phase() != DirectoryTransferRun.Phase.NEEDS_REVIEW)) {
+                issue(issues, id, "Whole-directory run has no matching move evidence");
+            }
             Map<String, DirectoryTransferPlan.Item> items = review.plan().items().stream()
                     .collect(Collectors.toMap(DirectoryTransferPlan.Item::id, item -> item));
             boolean complete = run != null && run.phase() == DirectoryTransferRun.Phase.COMPLETE;
-            var resultIds = inspectItems(root, id, "results", items, frozen != null, complete, issues, context);
-            var completionIds = inspectItems(root, id, "completion", items, frozen != null, complete, issues, context);
+            var resultIds = inspectItems(root, id, "results", items, frozen != null, complete, issues, context, review, move);
+            var completionIds = inspectItems(root, id, "completion", items, frozen != null, complete, issues, context, review, move);
+            if (run != null && run.strategy() == DirectoryTransferRun.Strategy.WHOLE_DIRECTORY_MOVE && move == null
+                    && (!resultIds.isEmpty() || !completionIds.isEmpty())) {
+                issue(issues, id, "Whole-directory run contains item outcomes before move evidence");
+            }
+            var results = new java.util.HashMap<String, DirectoryTransferResult>();
+            for (String itemId : resultIds) {
+                check(context);
+                results.put(itemId, read(root.resolve("results").resolve(id).resolve(itemId + ".json"), DirectoryTransferResult.class));
+            }
+            DirectoryTransferReviewStore.validateResultTargets(review, results);
+            if (complete && run.strategy() == DirectoryTransferRun.Strategy.WHOLE_DIRECTORY_MOVE
+                    && (move == null || move.phase() != DirectoryTransferMoveRecord.Phase.COMPLETE
+                        && move.phase() != DirectoryTransferMoveRecord.Phase.FALLBACK)) {
+                issue(issues, id, "Completed whole-directory run has unsettled move evidence");
+            }
+            if (move != null && move.phase() == DirectoryTransferMoveRecord.Phase.COMPLETE) {
+                for (var item : review.plan().items()) {
+                    check(context);
+                    var result = results.get(item.id());
+                    var done = optional(root.resolve("completion").resolve(id).resolve(item.id() + ".json"), DirectoryTransferCompletion.class);
+                    if (result == null || result.status() != DirectoryTransferResult.Status.MOVED
+                            || done == null || done.phase() != DirectoryTransferCompletion.Phase.COMPLETE) {
+                        issue(issues, id, "Completed directory move is missing matching moved-item bookkeeping");
+                        break;
+                    }
+                }
+            }
             boolean abandonedTransfer = abandoned && frozen != null;
             if (abandoned && (run.paused() || !abandonedTransfer && (frozen != null
                     || !resultIds.isEmpty() || !completionIds.isEmpty()))) {
@@ -250,7 +297,8 @@ public class DirectoryTransferMetadataInspector implements MetadataInspector {
     }
 
     private Set<String> inspectItems(Path root, String id, String kind, Map<String, DirectoryTransferPlan.Item> items,
-            boolean frozen, boolean complete, List<MetadataIssue> issues, TaskContext context) throws IOException {
+            boolean frozen, boolean complete, List<MetadataIssue> issues, TaskContext context,
+            DirectoryTransferReview review, DirectoryTransferMoveRecord move) throws IOException {
         Path directory = root.resolve(kind).resolve(id);
         DirectoryTransferPlanner.rejectLinks(directory);
         if (!Files.exists(directory, LinkOption.NOFOLLOW_LINKS)) return Set.of();
@@ -268,8 +316,8 @@ public class DirectoryTransferMetadataInspector implements MetadataInspector {
                     }
                     if (kind.equals("results")) {
                         var result = read(path, DirectoryTransferResult.class);
-                        if (!itemId.equals(result.itemId()) || result.status() == DirectoryTransferResult.Status.PUBLISHED
-                                && result.target().kind() != item.source().kind()) throw new IOException("Invalid result identity");
+                        DirectoryTransferReviewStore.validateResult(item, result);
+                        DirectoryTransferReviewStore.validateResultProof(review, item, result, move);
                         if (complete && result.status() == DirectoryTransferResult.Status.NEEDS_REVIEW) {
                             throw new IOException("Completed run contains unresolved result");
                         }
@@ -308,6 +356,7 @@ public class DirectoryTransferMetadataInspector implements MetadataInspector {
 
     private <T> T read(Path path, Class<T> type) throws IOException {
         int limit = type == DirectoryTransferReview.class || type == DirectoryTransferRecordCleanup.Approval.class
+                || type == DirectoryTransferMoveRecord.class
                 ? 128 * 1024 * 1024 : 1024 * 1024;
         return DirectoryTransferInspectionReader.read(mapper, path, type, limit);
     }

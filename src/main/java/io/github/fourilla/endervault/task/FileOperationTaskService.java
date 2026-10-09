@@ -151,7 +151,7 @@ public class FileOperationTaskService {
                             && directoryTransfers.execute(plan.id(), review.revision(), cancellationListener(context))
                                     .phase() == DirectoryTransferRun.Phase.COMPLETE;
                     if (complete) {
-                        // The merge finalizer already updates moved-path metadata item by item.
+                        // Transfer execution has already applied moved-path metadata.
                         completedCount++;
                         activityLogService.record(operation.activityType(), request.actor(), request.ip(),
                                 source.path(), plan.destinationPath(), true, "Completed directory transfer", Map.of());

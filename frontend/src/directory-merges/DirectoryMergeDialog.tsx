@@ -156,7 +156,9 @@ export function DirectoryMergeDialog({ id, close, changed }: { id: string; close
           {review?.canAbandonRemainingTransfer && <button type="button" className="danger" disabled={busy}
             onClick={() => void stopCopy()}>{abandoning ? 'Finish abandonment' : `Abandon remaining ${action}`}</button>}
           <button type="button" className="ghost" onClick={close} disabled={busy}>Close</button>
-          {abandoning ? null : needsReview ? <button type="button" disabled={busy} onClick={() => void start(true)}>Review changed items</button>
+          {abandoning ? null : needsReview ? review?.canReplan
+            ? <button type="button" disabled={busy} onClick={() => void start(true)}>Review changed items</button>
+            : <span>This transfer requires manual inspection before further changes.</span>
             : <span title={reviewHint}><button type="button" title={reviewHint} disabled={busy || !review?.fullyReviewed || review?.run?.phase === 'COMPLETE'}
               onClick={() => void start(false)}>{`${review?.editable ? 'Apply' : 'Resume'} ${action}`}</button></span>}
         </footer>
