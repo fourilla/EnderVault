@@ -1,5 +1,6 @@
 package io.github.fourilla.endervault.filetool.text;
 
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 import io.github.fourilla.endervault.common.JsonRegistry;
@@ -8,11 +9,9 @@ import io.github.fourilla.endervault.config.NasProperties;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +28,7 @@ public class TextDraftRepository {
 
     private final JsonRegistry<List<TextDraftRecord>> registry;
     private final Path contentRoot;
+    private final FileSystemOperations fileSystem = FileSystemOperations.systemDefault();
     private final NasProperties.FileTools fileTools;
 
     public TextDraftRepository(ObjectMapper objectMapper, NasProperties nasProperties) {
@@ -236,10 +236,6 @@ public class TextDraftRepository {
     }
 
     private void moveReplacing(Path source, Path target) throws IOException {
-        try {
-            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (AtomicMoveNotSupportedException ex) {
-            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
-        }
+        fileSystem.replace(source, target, FileSystemOperations.Atomicity.PREFERRED);
     }
 }

@@ -1,21 +1,18 @@
 package io.github.fourilla.endervault.storage;
 
 import io.github.fourilla.endervault.common.StorageAccessException;
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
 import io.github.fourilla.endervault.temporary.TemporaryArtifactType;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.channels.FileChannel;
-import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
-import java.nio.file.FileStore;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.stream.Collectors;
@@ -26,15 +23,26 @@ final class StorageTreeOperations {
     private final StoragePathResolver pathResolver;
     private final FileStagingService fileStagingService;
     private final TemporaryArtifactRegistry temporaryArtifactRegistry;
+    private final FileSystemOperations fileSystem;
 
     StorageTreeOperations(
             StoragePathResolver pathResolver,
             FileStagingService fileStagingService,
             TemporaryArtifactRegistry temporaryArtifactRegistry
     ) {
+        this(pathResolver, fileStagingService, temporaryArtifactRegistry, FileSystemOperations.systemDefault());
+    }
+
+    StorageTreeOperations(
+            StoragePathResolver pathResolver,
+            FileStagingService fileStagingService,
+            TemporaryArtifactRegistry temporaryArtifactRegistry,
+            FileSystemOperations fileSystem
+    ) {
         this.pathResolver = pathResolver;
         this.fileStagingService = fileStagingService;
         this.temporaryArtifactRegistry = temporaryArtifactRegistry;
+        this.fileSystem = fileSystem;
     }
 
     void move(Path source, Path target) throws IOException {
@@ -42,17 +50,11 @@ final class StorageTreeOperations {
     }
 
     void move(Path source, Path target, boolean overwrite) throws IOException {
-        StandardCopyOption[] options = overwrite
-                ? new StandardCopyOption[] { StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING }
-                : new StandardCopyOption[] { StandardCopyOption.ATOMIC_MOVE };
-        try {
-            Files.move(source, target, options);
-        } catch (AtomicMoveNotSupportedException ex) {
-            if (overwrite) {
-                Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
-            } else {
-                Files.move(source, target);
-            }
+        if (overwrite) {
+            fileSystem.replace(source, target, FileSystemOperations.Atomicity.PREFERRED);
+        } else if (fileSystem.moveNoReplace(source, target) == FileSystemOperations.MoveResult.UNSUPPORTED) {
+            // Preserve the existing provider-specific move policy when no stronger primitive is available.
+            fileSystem.moveWithAtomicPreference(source, target);
         }
     }
 
@@ -65,9 +67,7 @@ final class StorageTreeOperations {
         if (targetParent == null || !Files.isDirectory(targetParent, LinkOption.NOFOLLOW_LINKS)) {
             throw new StorageAccessException("File commit destination directory is unavailable.");
         }
-        FileStore sourceStore = Files.getFileStore(source);
-        FileStore targetStore = Files.getFileStore(targetParent);
-        if (!sourceStore.equals(targetStore)) {
+        if (!fileSystem.sameFileSystem(source, targetParent)) {
             throw new StorageAccessException("Crash-safe file commit requires staging and destination on one filesystem.");
         }
 
@@ -79,6 +79,11 @@ final class StorageTreeOperations {
             }
             forceDirectory(targetParent);
         } else {
+            if (fileSystem.moveNoReplace(source, target) == FileSystemOperations.MoveResult.MOVED) {
+                forceDirectory(targetParent);
+                forceDirectory(source.getParent());
+                return;
+            }
             try {
                 Files.createLink(target, source);
             } catch (UnsupportedOperationException ex) {
@@ -94,9 +99,9 @@ final class StorageTreeOperations {
         forceDirectory(source.getParent());
     }
 
-    // Java ATOMIC_MOVE has provider-specific replacement semantics. The existence check does not
-    // exclude external target writers, and fingerprints cannot lock the source tree against edits
-    // or same-directory renames between validation and move. Callers must control staging writers.
+    // The legacy atomic fallback has provider-specific replacement semantics and cannot exclude
+    // external target writers. Neither path locks source mutations after fingerprinting;
+    // callers must control staging writers.
     void commitEntryNoReplace(Path source, Path target) throws IOException {
         rejectSymbolicLink(source);
         boolean validSource = Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)
@@ -111,11 +116,13 @@ final class StorageTreeOperations {
         if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
             throw new java.nio.file.FileAlreadyExistsException(target.toString());
         }
-        if (!Files.getFileStore(source).equals(Files.getFileStore(targetParent))) {
+        if (!fileSystem.sameFileSystem(source, targetParent)) {
             throw new StorageAccessException("Crash-safe archive commit requires one filesystem.");
         }
         try {
-            Files.move(source, target, StandardCopyOption.ATOMIC_MOVE);
+            if (fileSystem.moveNoReplace(source, target) == FileSystemOperations.MoveResult.UNSUPPORTED) {
+                fileSystem.moveAtomically(source, target);
+            }
         } catch (AtomicMoveNotSupportedException ex) {
             throw new StorageAccessException("The destination filesystem does not support atomic archive commits.", ex);
         }
@@ -135,9 +142,7 @@ final class StorageTreeOperations {
             }
             return;
         }
-        FileStore targetStore = Files.getFileStore(target);
-        FileStore backupStore = Files.getFileStore(backup.getParent());
-        if (!targetStore.equals(backupStore)) {
+        if (!fileSystem.sameFileSystem(target, backup.getParent())) {
             throw new StorageAccessException("Crash-safe file replacement requires one filesystem.");
         }
         try {
@@ -159,13 +164,11 @@ final class StorageTreeOperations {
             throw new StorageAccessException("Crash-safe replacement requires regular files.");
         }
         Path targetParent = target.getParent();
-        FileStore sourceStore = Files.getFileStore(source);
-        FileStore targetStore = Files.getFileStore(targetParent);
-        if (!sourceStore.equals(targetStore)) {
+        if (!fileSystem.sameFileSystem(source, targetParent)) {
             throw new StorageAccessException("Crash-safe file replacement requires one filesystem.");
         }
         try {
-            Files.move(source, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            fileSystem.replace(source, target, FileSystemOperations.Atomicity.REQUIRED);
         } catch (AtomicMoveNotSupportedException ex) {
             throw new StorageAccessException("The destination filesystem does not support atomic file replacement.", ex);
         }
@@ -186,11 +189,7 @@ final class StorageTreeOperations {
     }
 
     private void forceDirectory(Path directory) throws IOException {
-        try (FileChannel channel = FileChannel.open(directory, StandardOpenOption.READ)) {
-            channel.force(true);
-        } catch (AccessDeniedException | UnsupportedOperationException ex) {
-            // Windows does not generally allow opening a directory as a FileChannel.
-        }
+        fileSystem.syncDirectory(directory);
     }
 
     void copyDirectory(Path source, Path target, StorageProgressListener progressListener) throws IOException {

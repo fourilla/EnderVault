@@ -341,6 +341,31 @@ ENDERVAULT_STORAGE_PATH
 
 ---
 
+### Filesystem Compatibility
+
+파일 이동의 native 최적화는 JNA를 선택적으로 사용합니다. Docker에서는 host OS나 디스크 포맷을 추측하지 않고, container OS와 실제 storage 경로의 filesystem 및 mount 경계를 기준으로 지원 여부를 확인합니다. bind mount나 named volume이라는 이유만으로 최적화를 강제하지 않습니다.
+
+JNA를 로딩할 수 없거나 해당 filesystem이 최적화를 지원하지 않으면 새 디렉토리 MOVE는 기존 복사·완료 기록·원본 정리 파이프라인을 사용합니다. 기존 작업도 같은 filesystem, hard link, atomic move 등 필요한 조건은 충족해야 하므로 Java가 실행되는 모든 filesystem에서 모든 작업이 지원되는 것은 아닙니다. 이미 통째 이동의 복구 기록이 있는 작업은 확인 없이 복사 방식으로 전환하지 않습니다.
+
+native 최적화를 명시적으로 끄려면 JVM 옵션을 지정합니다.
+
+```bash
+java -Dendervault.filesystem.native-enabled=false -jar target/endervault-nas-0.1.0-SNAPSHOT.jar
+```
+
+Docker Compose에서는 다음 내용의 `compose.override.yaml`을 추가할 수 있습니다.
+
+```yaml
+services:
+  endervault:
+    environment:
+      JAVA_TOOL_OPTIONS: "-Dendervault.filesystem.native-enabled=false"
+```
+
+기존 `JAVA_TOOL_OPTIONS`가 있다면 필요한 옵션을 함께 유지합니다. `docker compose`는 기본 override 파일을 읽으며, `-f`로 구성 파일을 직접 지정할 때는 `-f compose.override.yaml`도 포함해야 합니다.
+
+---
+
 ### Start
 
 ```bash

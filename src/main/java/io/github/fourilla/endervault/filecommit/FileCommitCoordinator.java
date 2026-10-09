@@ -64,8 +64,8 @@ public class FileCommitCoordinator {
     /**
      * Publishes one direct file-staging child using a same-filesystem atomic move, never a merge.
      * The owner must stop staging writers and complete owner metadata before calling complete().
-     * Java's precheck plus ATOMIC_MOVE cannot guarantee no replacement against external writers
-     * racing the destination, or exclude source mutations/same-directory renames after fingerprinting.
+     * Supported filesystems reject a racing destination during the move itself. The legacy atomic
+     * fallback cannot guarantee that, and neither path excludes staging mutations after fingerprinting.
      * DIRECTORY_UPLOAD recovery and completion belong to the upload group service.
      */
     public synchronized StagedFileCommit commitSingleDirectory(

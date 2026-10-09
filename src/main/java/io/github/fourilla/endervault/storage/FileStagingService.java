@@ -2,12 +2,12 @@ package io.github.fourilla.endervault.storage;
 
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
 import io.github.fourilla.endervault.common.StorageAccessException;
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -23,15 +23,26 @@ final class FileStagingService {
     private final Path fileStagingRoot;
     private final StoragePathResolver pathResolver;
     private final TemporaryArtifactRegistry temporaryArtifactRegistry;
+    private final FileSystemOperations fileSystem;
 
     FileStagingService(
             Path fileStagingRoot,
             StoragePathResolver pathResolver,
             TemporaryArtifactRegistry temporaryArtifactRegistry
     ) {
+        this(fileStagingRoot, pathResolver, temporaryArtifactRegistry, FileSystemOperations.systemDefault());
+    }
+
+    FileStagingService(
+            Path fileStagingRoot,
+            StoragePathResolver pathResolver,
+            TemporaryArtifactRegistry temporaryArtifactRegistry,
+            FileSystemOperations fileSystem
+    ) {
         this.fileStagingRoot = fileStagingRoot;
         this.pathResolver = pathResolver;
         this.temporaryArtifactRegistry = temporaryArtifactRegistry;
+        this.fileSystem = fileSystem;
     }
 
     Path createTemporaryFile(String prefix, String suffix) throws IOException {
@@ -76,11 +87,10 @@ final class FileStagingService {
             }
             throw new StorageAccessException("Resumable upload staging target already exists.");
         }
-        try {
-            return Files.move(source, target, StandardCopyOption.ATOMIC_MOVE);
-        } catch (java.nio.file.AtomicMoveNotSupportedException ex) {
-            return Files.move(source, target);
+        if (fileSystem.moveNoReplace(source, target) == FileSystemOperations.MoveResult.UNSUPPORTED) {
+            fileSystem.moveWithAtomicPreference(source, target);
         }
+        return target;
     }
 
     Path claimTemporaryFile(Path sourceFile, String prefix, String suffix) throws IOException {
@@ -90,21 +100,10 @@ final class FileStagingService {
         }
         Files.createDirectories(fileStagingRoot);
         Path target = Files.createTempFile(fileStagingRoot, prefix, suffix);
-        try {
-            try {
-                return Files.move(
-                        source,
-                        target,
-                        StandardCopyOption.ATOMIC_MOVE,
-                        StandardCopyOption.REPLACE_EXISTING
-                );
-            } catch (java.nio.file.AtomicMoveNotSupportedException ex) {
-                return Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
-            }
-        } catch (IOException | RuntimeException ex) {
-            Files.deleteIfExists(target);
-            throw ex;
-        }
+        // A failed replacement can already have consumed the source. Keep the reserved target,
+        // even if it is still empty, rather than deleting a possibly published staging artifact.
+        fileSystem.replace(source, target, FileSystemOperations.Atomicity.PREFERRED);
+        return target;
     }
 
     Path resumableStagingFile(String sessionId) {

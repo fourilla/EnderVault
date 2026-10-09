@@ -1,24 +1,28 @@
 package io.github.fourilla.endervault.filecommit;
 
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.file.AccessDeniedException;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.UUID;
 
 public final class DurableJsonFileWriter {
 
     private final ObjectMapper objectMapper;
+    private final FileSystemOperations fileSystem;
 
     public DurableJsonFileWriter(ObjectMapper objectMapper) {
+        this(objectMapper, FileSystemOperations.systemDefault());
+    }
+
+    public DurableJsonFileWriter(ObjectMapper objectMapper, FileSystemOperations fileSystem) {
         this.objectMapper = objectMapper;
+        this.fileSystem = java.util.Objects.requireNonNull(fileSystem, "fileSystem");
     }
 
     <T> T read(Path path, Class<T> type) throws IOException {
@@ -51,7 +55,7 @@ public final class DurableJsonFileWriter {
                 }
                 channel.force(true);
             }
-            moveReplacing(temporary, target);
+            fileSystem.replace(temporary, target, FileSystemOperations.Atomicity.PREFERRED);
             forceDirectory(parent);
         } finally {
             Files.deleteIfExists(temporary);
@@ -59,18 +63,6 @@ public final class DurableJsonFileWriter {
     }
 
     public void forceDirectory(Path directory) throws IOException {
-        try (FileChannel channel = FileChannel.open(directory, StandardOpenOption.READ)) {
-            channel.force(true);
-        } catch (AccessDeniedException | UnsupportedOperationException ex) {
-            // Windows does not generally allow opening a directory as a FileChannel.
-        }
-    }
-
-    private void moveReplacing(Path source, Path target) throws IOException {
-        try {
-            Files.move(source, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-        } catch (AtomicMoveNotSupportedException ex) {
-            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
-        }
+        fileSystem.syncDirectory(directory);
     }
 }
