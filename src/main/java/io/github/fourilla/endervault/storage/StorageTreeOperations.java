@@ -1,21 +1,18 @@
 package io.github.fourilla.endervault.storage;
 
 import io.github.fourilla.endervault.common.StorageAccessException;
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
 import io.github.fourilla.endervault.temporary.TemporaryArtifactType;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.channels.FileChannel;
-import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
-import java.nio.file.FileStore;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.stream.Collectors;
@@ -26,15 +23,26 @@ final class StorageTreeOperations {
     private final StoragePathResolver pathResolver;
     private final FileStagingService fileStagingService;
     private final TemporaryArtifactRegistry temporaryArtifactRegistry;
+    private final FileSystemOperations fileSystem;
 
     StorageTreeOperations(
             StoragePathResolver pathResolver,
             FileStagingService fileStagingService,
             TemporaryArtifactRegistry temporaryArtifactRegistry
     ) {
+        this(pathResolver, fileStagingService, temporaryArtifactRegistry, FileSystemOperations.systemDefault());
+    }
+
+    StorageTreeOperations(
+            StoragePathResolver pathResolver,
+            FileStagingService fileStagingService,
+            TemporaryArtifactRegistry temporaryArtifactRegistry,
+            FileSystemOperations fileSystem
+    ) {
         this.pathResolver = pathResolver;
         this.fileStagingService = fileStagingService;
         this.temporaryArtifactRegistry = temporaryArtifactRegistry;
+        this.fileSystem = fileSystem;
     }
 
     void move(Path source, Path target) throws IOException {
@@ -42,21 +50,27 @@ final class StorageTreeOperations {
     }
 
     void move(Path source, Path target, boolean overwrite) throws IOException {
-        StandardCopyOption[] options = overwrite
-                ? new StandardCopyOption[] { StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING }
-                : new StandardCopyOption[] { StandardCopyOption.ATOMIC_MOVE };
-        try {
-            Files.move(source, target, options);
-        } catch (AtomicMoveNotSupportedException ex) {
-            if (overwrite) {
-                Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
-            } else {
-                Files.move(source, target);
-            }
+        try (var publication = FileSystemOperations.publication()) {
+            movePrimary(source, target, overwrite);
+        }
+    }
+
+    private void movePrimary(Path source, Path target, boolean overwrite) throws IOException {
+        if (overwrite) {
+            fileSystem.replace(source, target, FileSystemOperations.Atomicity.PREFERRED);
+        } else if (fileSystem.moveNoReplace(source, target) == FileSystemOperations.MoveResult.UNSUPPORTED) {
+            // Preserve the existing provider-specific move policy when no stronger primitive is available.
+            fileSystem.moveWithAtomicPreference(source, target);
         }
     }
 
     void commitRegularFileNoReplace(Path source, Path target) throws IOException {
+        try (var publication = FileSystemOperations.publication()) {
+            commitRegularFileNoReplacePrimary(source, target);
+        }
+    }
+
+    private void commitRegularFileNoReplacePrimary(Path source, Path target) throws IOException {
         rejectSymbolicLink(source);
         if (!Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)) {
             throw new StorageAccessException("File commit source is not a regular file.");
@@ -65,9 +79,7 @@ final class StorageTreeOperations {
         if (targetParent == null || !Files.isDirectory(targetParent, LinkOption.NOFOLLOW_LINKS)) {
             throw new StorageAccessException("File commit destination directory is unavailable.");
         }
-        FileStore sourceStore = Files.getFileStore(source);
-        FileStore targetStore = Files.getFileStore(targetParent);
-        if (!sourceStore.equals(targetStore)) {
+        if (!fileSystem.sameFileSystem(source, targetParent)) {
             throw new StorageAccessException("Crash-safe file commit requires staging and destination on one filesystem.");
         }
 
@@ -79,8 +91,14 @@ final class StorageTreeOperations {
             }
             forceDirectory(targetParent);
         } else {
+            if (fileSystem.moveNoReplace(source, target) == FileSystemOperations.MoveResult.MOVED) {
+                forceDirectory(targetParent);
+                forceDirectory(source.getParent());
+                return;
+            }
             try {
                 Files.createLink(target, source);
+                FileSystemOperations.recordJavaPublication(source, target, "hard_link");
             } catch (UnsupportedOperationException ex) {
                 throw new StorageAccessException(
                         "The destination filesystem does not support crash-safe file commits.",
@@ -94,10 +112,16 @@ final class StorageTreeOperations {
         forceDirectory(source.getParent());
     }
 
-    // Java ATOMIC_MOVE has provider-specific replacement semantics. The existence check does not
-    // exclude external target writers, and fingerprints cannot lock the source tree against edits
-    // or same-directory renames between validation and move. Callers must control staging writers.
+    // The legacy atomic fallback has provider-specific replacement semantics and cannot exclude
+    // external target writers. Neither path locks source mutations after fingerprinting;
+    // callers must control staging writers.
     void commitEntryNoReplace(Path source, Path target) throws IOException {
+        try (var publication = FileSystemOperations.publication()) {
+            commitEntryNoReplacePrimary(source, target);
+        }
+    }
+
+    private void commitEntryNoReplacePrimary(Path source, Path target) throws IOException {
         rejectSymbolicLink(source);
         boolean validSource = Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)
                 || Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS);
@@ -111,11 +135,13 @@ final class StorageTreeOperations {
         if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
             throw new java.nio.file.FileAlreadyExistsException(target.toString());
         }
-        if (!Files.getFileStore(source).equals(Files.getFileStore(targetParent))) {
+        if (!fileSystem.sameFileSystem(source, targetParent)) {
             throw new StorageAccessException("Crash-safe archive commit requires one filesystem.");
         }
         try {
-            Files.move(source, target, StandardCopyOption.ATOMIC_MOVE);
+            if (fileSystem.moveNoReplace(source, target) == FileSystemOperations.MoveResult.UNSUPPORTED) {
+                fileSystem.moveAtomically(source, target);
+            }
         } catch (AtomicMoveNotSupportedException ex) {
             throw new StorageAccessException("The destination filesystem does not support atomic archive commits.", ex);
         }
@@ -135,9 +161,7 @@ final class StorageTreeOperations {
             }
             return;
         }
-        FileStore targetStore = Files.getFileStore(target);
-        FileStore backupStore = Files.getFileStore(backup.getParent());
-        if (!targetStore.equals(backupStore)) {
+        if (!fileSystem.sameFileSystem(target, backup.getParent())) {
             throw new StorageAccessException("Crash-safe file replacement requires one filesystem.");
         }
         try {
@@ -152,6 +176,12 @@ final class StorageTreeOperations {
     }
 
     void commitRegularFileReplace(Path source, Path target) throws IOException {
+        try (var publication = FileSystemOperations.publication()) {
+            commitRegularFileReplacePrimary(source, target);
+        }
+    }
+
+    private void commitRegularFileReplacePrimary(Path source, Path target) throws IOException {
         rejectSymbolicLink(source);
         rejectSymbolicLink(target);
         if (!Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)
@@ -159,13 +189,11 @@ final class StorageTreeOperations {
             throw new StorageAccessException("Crash-safe replacement requires regular files.");
         }
         Path targetParent = target.getParent();
-        FileStore sourceStore = Files.getFileStore(source);
-        FileStore targetStore = Files.getFileStore(targetParent);
-        if (!sourceStore.equals(targetStore)) {
+        if (!fileSystem.sameFileSystem(source, targetParent)) {
             throw new StorageAccessException("Crash-safe file replacement requires one filesystem.");
         }
         try {
-            Files.move(source, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            fileSystem.replace(source, target, FileSystemOperations.Atomicity.REQUIRED);
         } catch (AtomicMoveNotSupportedException ex) {
             throw new StorageAccessException("The destination filesystem does not support atomic file replacement.", ex);
         }
@@ -186,14 +214,16 @@ final class StorageTreeOperations {
     }
 
     private void forceDirectory(Path directory) throws IOException {
-        try (FileChannel channel = FileChannel.open(directory, StandardOpenOption.READ)) {
-            channel.force(true);
-        } catch (AccessDeniedException | UnsupportedOperationException ex) {
-            // Windows does not generally allow opening a directory as a FileChannel.
-        }
+        fileSystem.syncDirectory(directory);
     }
 
     void copyDirectory(Path source, Path target, StorageProgressListener progressListener) throws IOException {
+        try (var publication = FileSystemOperations.publication()) {
+            copyDirectoryPrimary(source, target, progressListener);
+        }
+    }
+
+    private void copyDirectoryPrimary(Path source, Path target, StorageProgressListener progressListener) throws IOException {
         StorageProgressListener progress = progressListener == null ? StorageProgressListener.NOOP : progressListener;
         try {
             Files.walkFileTree(source, new SimpleFileVisitor<>() {
@@ -217,10 +247,11 @@ final class StorageTreeOperations {
                     Path relative = source.relativize(file);
                     Path targetFile = target.resolve(relative).normalize();
                     pathResolver.ensureInsideBase(StorageScope.VAULT, targetFile);
-                    copyFile(file, targetFile, progress, false);
+                    copyFileDirect(file, targetFile, progress);
                     return FileVisitResult.CONTINUE;
                 }
             });
+            FileSystemOperations.recordJavaPublication(source, target, "copy_tree");
         } catch (IOException | RuntimeException ex) {
             if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
                 deleteRecursively(target);
@@ -231,9 +262,17 @@ final class StorageTreeOperations {
 
     void copyFile(Path source, Path target, StorageProgressListener progressListener, boolean overwrite)
             throws IOException {
+        try (var publication = FileSystemOperations.publication()) {
+            copyFilePrimary(source, target, progressListener, overwrite);
+        }
+    }
+
+    private void copyFilePrimary(Path source, Path target, StorageProgressListener progressListener, boolean overwrite)
+            throws IOException {
         StorageProgressListener progress = progressListener == null ? StorageProgressListener.NOOP : progressListener;
         if (!overwrite) {
             copyFileDirect(source, target, progress);
+            FileSystemOperations.recordJavaPublication(source, target, "copy");
             return;
         }
 

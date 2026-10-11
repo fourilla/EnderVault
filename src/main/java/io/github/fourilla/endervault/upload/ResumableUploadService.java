@@ -10,6 +10,8 @@ import io.github.fourilla.endervault.filecommit.FileCommitCoordinator;
 import io.github.fourilla.endervault.filecommit.FileCommitConflictException;
 import io.github.fourilla.endervault.filecommit.FileCommitOwner;
 import io.github.fourilla.endervault.filecommit.FileCommitOwnerType;
+import io.github.fourilla.endervault.filesystem.FileSystemOperation;
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import io.github.fourilla.endervault.pending.PendingFileDecision;
 import io.github.fourilla.endervault.pending.PendingFileDecisionService;
 import io.github.fourilla.endervault.pending.PendingFileDecisionSource;
@@ -132,7 +134,7 @@ public class ResumableUploadService {
                 normalizedResumeSessionId
         );
         if (reusable.isPresent()) {
-            return reusable.get();
+            return withFilesystemPolicy(reusable.get());
         }
 
         newSessionAdmissionGuard.run();
@@ -180,7 +182,7 @@ public class ResumableUploadService {
                         || session.size() != request.size() || !session.fingerprint().equals(fingerprint)) {
                     throw rejected(HttpStatus.CONFLICT, "The selected file differs from the directory upload.");
                 }
-                if (session.status() == ResumableUploadStatus.DIRECTORY_READY) return session;
+                if (session.status() == ResumableUploadStatus.DIRECTORY_READY) return withFilesystemPolicy(session);
             }
         }
         return admit(ResumableUploadSource.ADMIN, reference, destination, cleanFilename(request.filename()),
@@ -248,6 +250,31 @@ public class ResumableUploadService {
     }
 
     public synchronized FinalizationResult finalizeStaged(String id) throws IOException {
+        try (var ignored = filesystemOperation(id).activate()) {
+            return finalizeStagedWithPolicy(id);
+        }
+    }
+
+    /** Restores the admitted policy across HTTP requests and process recovery. */
+    public synchronized FileSystemOperation filesystemOperation(String id) throws IOException {
+        ResumableUploadSession session = require(id);
+        FileSystemOperation current = FileSystemOperations.operationOrCapture();
+        if (session.nativeEnabled() == null) {
+            repository.save(session.withNativeEnabled(current.nativeEnabled()));
+            return current;
+        }
+        FileSystemOperation saved = FileSystemOperations.operation(session.nativeEnabled());
+        return current.nativeEnabled() == saved.nativeEnabled() ? current : saved;
+    }
+
+    private ResumableUploadSession withFilesystemPolicy(ResumableUploadSession session) throws IOException {
+        if (session.nativeEnabled() != null) return session;
+        ResumableUploadSession updated = session.withNativeEnabled(FileSystemOperations.operationOrCapture().nativeEnabled());
+        repository.save(updated);
+        return updated;
+    }
+
+    private FinalizationResult finalizeStagedWithPolicy(String id) throws IOException {
         ResumableUploadSession session = require(id);
         if (session.directoryMember()) {
             if (session.status() == ResumableUploadStatus.DIRECTORY_READY) return FinalizationResult.from(session);
@@ -290,6 +317,9 @@ public class ResumableUploadService {
             FileItem committed = storageService.describeVaultPath(session.committedPath());
             if (committed.directory() || committed.size() != session.size()) {
                 throw new StorageAccessException("Committed upload target no longer matches the upload session.");
+            }
+            try (var ignored = FileSystemOperations.publication()) {
+                FileSystemOperations.recordRecoveredPublication(storageService.resolveVaultFile(session.committedPath()));
             }
             fileCommitCoordinator.completeForOwnerIfPresent(commitOwner(session));
             recordAcceptedQuota(session);
@@ -438,7 +468,7 @@ public class ResumableUploadService {
                 source, sourceReference, destination, filename, size, fingerprint, resumeSessionId
         );
         if (reusable.isPresent()) {
-            return reusable.get();
+            return withFilesystemPolicy(reusable.get());
         }
         validateOutstandingLimits(sourceReference);
         ensureDiskCapacity(size);
@@ -476,7 +506,8 @@ public class ResumableUploadService {
                 null,
                 null,
                 null,
-                null
+                null,
+                FileSystemOperations.captureOperation().nativeEnabled()
         );
         repository.save(session);
         return session;

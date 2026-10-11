@@ -26,6 +26,9 @@ public class NasProperties {
     private Storage storage = new Storage();
 
     @Valid
+    private Filesystem filesystem = new Filesystem();
+
+    @Valid
     private Setup setup = new Setup();
 
     @Valid
@@ -100,6 +103,14 @@ public class NasProperties {
 
     public void setStorage(Storage storage) {
         this.storage = storage;
+    }
+
+    public Filesystem getFilesystem() {
+        return filesystem;
+    }
+
+    public void setFilesystem(Filesystem filesystem) {
+        this.filesystem = filesystem;
     }
 
     public Setup getSetup() {
@@ -329,6 +340,18 @@ public class NasProperties {
 
         public void setDefaultConflictPolicy(String defaultConflictPolicy) {
             this.defaultConflictPolicy = defaultConflictPolicy;
+        }
+    }
+
+    public static class Filesystem {
+        private volatile boolean nativeEnabled = true;
+
+        public boolean isNativeEnabled() {
+            return nativeEnabled;
+        }
+
+        public void setNativeEnabled(boolean nativeEnabled) {
+            this.nativeEnabled = nativeEnabled;
         }
     }
 

@@ -8,6 +8,8 @@ import io.github.fourilla.endervault.filecommit.FileCommitCoordinator;
 import io.github.fourilla.endervault.filecommit.FileCommitOwner;
 import io.github.fourilla.endervault.filecommit.FileCommitOwnerType;
 import io.github.fourilla.endervault.filecommit.FileCommitFingerprints;
+import io.github.fourilla.endervault.filesystem.FileSystemOperation;
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import io.github.fourilla.endervault.pending.PendingFileDecisionService;
 import io.github.fourilla.endervault.pending.PendingFileDecisionSource;
 import io.github.fourilla.endervault.storage.StorageService;
@@ -96,7 +98,7 @@ public class DirectoryUploadService {
                 manifest.files().stream().map(f -> new DirectoryUpload.Entry(f.path(), f.size(), f.lastModified(), null, false)).toList(),
                 manifest.directories(), now,
                 now.plus(properties.getUpload().getResumableSessionRetentionHours(), ChronoUnit.HOURS),
-                DirectoryUpload.Status.RECEIVING, null, null);
+                DirectoryUpload.Status.RECEIVING, null, null, FileSystemOperations.captureOperation().nativeEnabled());
         repository.save(upload);
         register(upload);
         initializeDirectories(upload);
@@ -111,7 +113,7 @@ public class DirectoryUploadService {
 
     public synchronized ResumableUploadAdmissionResponse admit(String id, String relativePath,
             ResumableUploadAdmissionRequest request) throws IOException {
-        DirectoryUpload group = repository.require(id);
+        DirectoryUpload group = withFilesystemPolicy(repository.require(id));
         requireLive(group);
         if (group.status() != DirectoryUpload.Status.RECEIVING) throw new ResponseStatusException(HttpStatus.CONFLICT, "Directory is no longer receiving files.");
         DirectoryUpload.Entry entry = group.files().stream().filter(e -> e.path().equals(relativePath)).findFirst()
@@ -120,9 +122,11 @@ public class DirectoryUploadService {
         if (!filename.equals(request.filename()) || request.size() != entry.size() || request.lastModified() != entry.lastModified()) {
             throw new StorageAccessException("File does not match the directory manifest.");
         }
-        ResumableUploadSession session = uploads.admitDirectoryFile(id, relativePath, group.destinationPath(), request, entry.sessionId());
-        if (!entry.received()) repository.save(group.withEntry(entry.admitted(session.id())));
-        return ResumableUploadAdmissionResponse.from(session, uploads);
+        try (var ignored = filesystemOperation(group).activate()) {
+            ResumableUploadSession session = uploads.admitDirectoryFile(id, relativePath, group.destinationPath(), request, entry.sessionId());
+            if (!entry.received()) repository.save(group.withEntry(entry.admitted(session.id())));
+            return ResumableUploadAdmissionResponse.from(session, uploads);
+        }
     }
 
     public synchronized DirectoryUpload complete(String id) throws IOException {
@@ -136,6 +140,26 @@ public class DirectoryUploadService {
     }
 
     private DirectoryUpload refresh(DirectoryUpload upload) throws IOException {
+        upload = withFilesystemPolicy(upload);
+        try (var ignored = filesystemOperation(upload).activate()) {
+            return refreshWithPolicy(upload);
+        }
+    }
+
+    private DirectoryUpload withFilesystemPolicy(DirectoryUpload upload) throws IOException {
+        if (upload.nativeEnabled() != null) return upload;
+        DirectoryUpload updated = upload.withNativeEnabled(FileSystemOperations.operationOrCapture().nativeEnabled());
+        repository.save(updated);
+        return updated;
+    }
+
+    private FileSystemOperation filesystemOperation(DirectoryUpload upload) {
+        FileSystemOperation current = FileSystemOperations.operationOrCapture();
+        FileSystemOperation saved = FileSystemOperations.operation(upload.nativeEnabled());
+        return current.nativeEnabled() == saved.nativeEnabled() ? current : saved;
+    }
+
+    private DirectoryUpload refreshWithPolicy(DirectoryUpload upload) throws IOException {
         if (upload.terminal()) {
             finishJournal(upload);
             return upload;

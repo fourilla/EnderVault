@@ -33,6 +33,7 @@ export type GeneralSettingsSnapshot = {
     defaultTextColor: string;
   };
   storage: { defaultConflictPolicy: string };
+  filesystem: { nativeEnabled: boolean };
   recent: { maxItems: number; recordDirectories: boolean };
   trash: {
     retentionDays: number;

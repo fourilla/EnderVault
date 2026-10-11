@@ -1,5 +1,6 @@
 package io.github.fourilla.endervault.bookmark;
 
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
@@ -8,11 +9,9 @@ import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
 import io.github.fourilla.endervault.temporary.TemporaryArtifactType;
 import java.io.IOException;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -180,11 +179,8 @@ final class BookmarkFaviconCacheService {
         );
         try {
             Files.write(tempFile, favicon.bytes());
-            try {
-                Files.move(tempFile, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException ex) {
-                Files.move(tempFile, target, StandardCopyOption.REPLACE_EXISTING);
-            }
+            FileSystemOperations.systemDefault().replace(tempFile, target,
+                    FileSystemOperations.Atomicity.PREFERRED);
         } finally {
             try {
                 Files.deleteIfExists(tempFile);

@@ -166,6 +166,12 @@ public class ResumableUploadCoordinator {
     }
 
     private synchronized void tryFinalize(String sessionId, HttpServletRequest request) throws IOException {
+        try (var ignored = uploadService.filesystemOperation(sessionId).activate()) {
+            tryFinalizeWithPolicy(sessionId, request);
+        }
+    }
+
+    private void tryFinalizeWithPolicy(String sessionId, HttpServletRequest request) throws IOException {
         ResumableUploadSession session = uploadService.require(sessionId);
         if (session.status().terminal()) {
             return;

@@ -9,7 +9,7 @@ import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.filecommit.FileCommitCoordinator;
 import io.github.fourilla.endervault.filecommit.FileCommitJournalStore;
-import io.github.fourilla.endervault.storage.DirectoryMoveSupport;
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import io.github.fourilla.endervault.storage.FileLifecycleService;
 import io.github.fourilla.endervault.storage.StorageProgressListener;
 import io.github.fourilla.endervault.storage.StorageService;
@@ -42,7 +42,7 @@ class DirectoryTransferWholeMoveTest {
     FileCommitCoordinator commits;
     DirectoryTransferExecution execution;
     DirectoryTransferFinalizer finalizer;
-    DirectoryMoveSupport nativeMove;
+    FileSystemOperations fileSystem;
     FileLifecycleService lifecycle;
     DirectoryTransferWholeMoveCoordinator wholeMoves;
     DirectoryTransferService transfers;
@@ -59,11 +59,12 @@ class DirectoryTransferWholeMoveTest {
         journals.initialize();
         commits = spy(new FileCommitCoordinator(journals, storage, properties));
         lifecycle = mock(FileLifecycleService.class);
-        nativeMove = mock(DirectoryMoveSupport.class);
-        when(nativeMove.supported(any(), any())).thenReturn(true);
-        when(nativeMove.moveNoReplace(any(), any())).thenAnswer(call -> {
+        fileSystem = mock(FileSystemOperations.class);
+        when(fileSystem.supportsNoReplaceMove(any(), any())).thenReturn(true);
+        when(fileSystem.readIdentity(any())).thenAnswer(call -> FileSystemOperations.systemDefault().readIdentity(call.getArgument(0, Path.class)));
+        when(fileSystem.moveNoReplace(any(), any())).thenAnswer(call -> {
             Files.move(call.getArgument(0, Path.class), call.getArgument(1, Path.class));
-            return true;
+            return FileSystemOperations.MoveResult.MOVED;
         });
         rebuildWorkers();
         file("from/photos/sub/a.txt", "a");
@@ -75,7 +76,7 @@ class DirectoryTransferWholeMoveTest {
         execution = spy(new DirectoryTransferExecution(reviews,
                 new DirectoryTransferFilePublisher(reviews, storage, commits, registry), commits, storage, registry));
         finalizer = spy(new DirectoryTransferFinalizer(reviews, storage, commits, lifecycle, mapper));
-        wholeMoves = new DirectoryTransferWholeMoveCoordinator(reviews, storage, nativeMove, lifecycle, mapper);
+        wholeMoves = new DirectoryTransferWholeMoveCoordinator(reviews, storage, fileSystem, lifecycle);
         transfers = new DirectoryTransferService(reviews, execution, finalizer, wholeMoves);
     }
 
@@ -120,7 +121,7 @@ class DirectoryTransferWholeMoveTest {
                 });
         for (var item : review.plan().items()) {
             assertThat(reviews.completion(id, item.id()).phase()).isEqualTo(DirectoryTransferCompletion.Phase.COMPLETE);
-            assertThat(DirectoryMoveSupport.fileKey(root.resolve("to/photos").resolve(item.relativePath())))
+            assertThat(FileSystemOperations.systemDefault().readIdentity(root.resolve("to/photos").resolve(item.relativePath())))
                     .isNotBlank().isEqualTo(reviews.move(id).entryKeys().get(item.relativePath()));
         }
         assertThat(journals.list()).isEmpty();
@@ -137,7 +138,7 @@ class DirectoryTransferWholeMoveTest {
         var beforeKeys = new HashMap<String, String>();
         for (var item : review.plan().items()) {
             before.put(item.relativePath(), item.source());
-            beforeKeys.put(item.relativePath(), DirectoryMoveSupport.fileKey(root.resolve("from/photos").resolve(item.relativePath())));
+            beforeKeys.put(item.relativePath(), FileSystemOperations.systemDefault().readIdentity(root.resolve("from/photos").resolve(item.relativePath())));
         }
         assertThat(execute().phase()).isEqualTo(DirectoryTransferRun.Phase.COMPLETE);
         assertWholeMoveComplete();
@@ -148,24 +149,24 @@ class DirectoryTransferWholeMoveTest {
         }
         assertThat(root.resolve("to/photos/empty")).isEmptyDirectory();
         assertThat(root.resolve("to/photos/.hidden")).hasContent("hidden");
-        verify(nativeMove, times(1)).moveNoReplace(root.resolve("from/photos"), root.resolve("to/photos"));
+        verify(fileSystem, times(1)).moveNoReplace(root.resolve("from/photos"), root.resolve("to/photos"));
         verify(lifecycle, times(1)).applyMovedPathMetadata("from/photos", "to/photos");
         verifyNoMoreInteractions(lifecycle);
         assertThat(execute().phase()).isEqualTo(DirectoryTransferRun.Phase.COMPLETE);
-        verify(nativeMove, times(1)).moveNoReplace(any(), any());
+        verify(fileSystem, times(1)).moveNoReplace(any(), any());
     }
 
     @Test void actualSupportedLocalFileSystemMovesThroughTheCoordinatorWithoutCopying() throws Exception {
-        var actualNativeMove = new DirectoryMoveSupport();
-        Assumptions.assumeTrue(actualNativeMove.supported(root.resolve("from/photos"), root.resolve("to")),
+        var actualNativeMove = FileSystemOperations.systemDefault();
+        Assumptions.assumeTrue(actualNativeMove.supportsNoReplaceMove(root.resolve("from/photos"), root.resolve("to")),
                 "Whole-directory move requires a supported local file system and native no-replace primitive.");
         file("from/photos/sub/원본 % & +.txt", "native unicode move");
-        nativeMove = spy(actualNativeMove);
+        fileSystem = spy(actualNativeMove);
         rebuildWorkers();
         plan(Operation.MOVE);
         var beforeKeys = new HashMap<String, String>();
         for (var item : review.plan().items()) {
-            beforeKeys.put(item.relativePath(), DirectoryMoveSupport.fileKey(root.resolve("from/photos").resolve(item.relativePath())));
+            beforeKeys.put(item.relativePath(), FileSystemOperations.systemDefault().readIdentity(root.resolve("from/photos").resolve(item.relativePath())));
         }
         assertThat(execute().phase()).isEqualTo(DirectoryTransferRun.Phase.COMPLETE);
         assertWholeMoveComplete();
@@ -175,7 +176,7 @@ class DirectoryTransferWholeMoveTest {
                     .isEqualTo(item.source());
         }
         assertThat(root.resolve("to/photos/sub/원본 % & +.txt")).hasContent("native unicode move");
-        verify(nativeMove, times(1)).moveNoReplace(root.resolve("from/photos"), root.resolve("to/photos"));
+        verify(fileSystem, times(1)).moveNoReplace(root.resolve("from/photos"), root.resolve("to/photos"));
         verify(lifecycle, times(1)).applyMovedPathMetadata("from/photos", "to/photos");
     }
 
@@ -198,19 +199,83 @@ class DirectoryTransferWholeMoveTest {
     }
 
     @Test void absentNativeSupportKeepsTheItemwisePipeline() throws Exception {
-        when(nativeMove.supported(any(), any())).thenReturn(false);
+        when(fileSystem.supportsNoReplaceMove(any(), any())).thenReturn(false);
         plan(Operation.MOVE);
         assertThat(execute().phase()).isEqualTo(DirectoryTransferRun.Phase.COMPLETE);
         assertThat(reviews.run(review.plan().id()).strategy()).isEqualTo(DirectoryTransferRun.Strategy.ITEMWISE);
         assertThat(reviews.move(review.plan().id())).isNull();
-        verify(nativeMove, never()).moveNoReplace(any(), any());
+        verify(fileSystem, never()).moveNoReplace(any(), any());
         verify(execution).publishTransfer(anyString(), anyLong(), any());
         assertThat(root.resolve("from/photos")).doesNotExist();
         assertThat(root.resolve("to/photos/sub/a.txt")).hasContent("a");
     }
 
+    @Test void unavailableFileIdentityKeepsFreshMovesOnTheItemwisePipeline() throws Exception {
+        doReturn(null).when(fileSystem).readIdentity(any());
+        plan(Operation.MOVE);
+        assertThat(execute().phase()).isEqualTo(DirectoryTransferRun.Phase.COMPLETE);
+        assertThat(reviews.run(review.plan().id()).strategy()).isEqualTo(DirectoryTransferRun.Strategy.ITEMWISE);
+        assertThat(reviews.move(review.plan().id())).isNull();
+        verify(fileSystem, never()).moveNoReplace(any(), any());
+        verify(execution).publishTransfer(anyString(), anyLong(), any());
+        assertThat(root.resolve("from/photos")).doesNotExist();
+        assertThat(root.resolve("to/photos/sub/a.txt")).hasContent("a");
+    }
+
+    @Test void previouslySelectedMoveFallsBackWhenThePrimitiveDisappearsButItsIdentityProofRemains() throws Exception {
+        plan(Operation.MOVE);
+        doThrow(new IOException("restart before move")).when(fileSystem).moveNoReplace(any(), any());
+        assertThatThrownBy(this::execute).isInstanceOf(IOException.class);
+        assertThat(reviews.move(review.plan().id()).phase()).isEqualTo(DirectoryTransferMoveRecord.Phase.INTENT);
+        when(fileSystem.supportsNoReplaceMove(any(), any())).thenReturn(false);
+        doReturn(FileSystemOperations.MoveResult.UNSUPPORTED).when(fileSystem).moveNoReplace(any(), any());
+        restart();
+        assertThat(recovery().recover().recovered()).isEqualTo(1);
+        assertThat(reviews.move(review.plan().id()).phase()).isEqualTo(DirectoryTransferMoveRecord.Phase.FALLBACK);
+        assertThat(reviews.run(review.plan().id()).strategy()).isEqualTo(DirectoryTransferRun.Strategy.WHOLE_DIRECTORY_MOVE);
+        verify(execution).publishTransfer(anyString(), anyLong(), any());
+        assertThat(root.resolve("from/photos")).doesNotExist();
+        assertThat(root.resolve("to/photos/sub/a.txt")).hasContent("a");
+    }
+
+    @Test void losingIdentitySupportBeforeRenameStopsRecoveryInsteadOfCopyingUnprovenFiles() throws Exception {
+        plan(Operation.MOVE);
+        doThrow(new IOException("restart before move")).when(fileSystem).moveNoReplace(any(), any());
+        assertThatThrownBy(this::execute).isInstanceOf(IOException.class);
+        doReturn(null).when(fileSystem).readIdentity(any());
+        when(fileSystem.supportsNoReplaceMove(any(), any())).thenReturn(false);
+        restart();
+        assertThat(recovery().recover().review()).isEqualTo(1);
+        assertThat(reviews.move(review.plan().id()).phase()).isEqualTo(DirectoryTransferMoveRecord.Phase.NEEDS_REVIEW);
+        assertThat(root.resolve("from/photos/sub/a.txt")).hasContent("a");
+        assertThat(root.resolve("to/photos")).doesNotExist();
+        verify(execution, never()).publishTransfer(anyString(), anyLong(), any());
+        verifyNoInteractions(lifecycle);
+    }
+
+    @Test void losingIdentitySupportAfterRenameKeepsTheMovedTreeAndStopsMetadataRecovery() throws Exception {
+        plan(Operation.MOVE);
+        doAnswer(call -> {
+            var next = call.getArgument(1, DirectoryTransferMoveRecord.class);
+            Object value = call.callRealMethod();
+            if (next.phase() == DirectoryTransferMoveRecord.Phase.RENAMED) throw new IOException("restart after move");
+            return value;
+        }).when(reviews).saveMove(any(), any());
+        assertThatThrownBy(this::execute).isInstanceOf(IOException.class);
+        doReturn(null).when(fileSystem).readIdentity(any());
+        when(fileSystem.supportsNoReplaceMove(any(), any())).thenReturn(false);
+        restart();
+        assertThat(recovery().recover().review()).isEqualTo(1);
+        assertThat(reviews.move(review.plan().id()).phase()).isEqualTo(DirectoryTransferMoveRecord.Phase.NEEDS_REVIEW);
+        assertThat(root.resolve("from/photos")).doesNotExist();
+        assertThat(root.resolve("to/photos/sub/a.txt")).hasContent("a");
+        verify(fileSystem, times(1)).moveNoReplace(any(), any());
+        verify(execution, never()).publishTransfer(anyString(), anyLong(), any());
+        verifyNoInteractions(lifecycle);
+    }
+
     @Test void verifiedUnsupportedPrimitiveRecordsFallbackBeforePublishing() throws Exception {
-        doReturn(false).when(nativeMove).moveNoReplace(any(), any());
+        doReturn(FileSystemOperations.MoveResult.UNSUPPORTED).when(fileSystem).moveNoReplace(any(), any());
         plan(Operation.MOVE);
         assertThat(execute().phase()).isEqualTo(DirectoryTransferRun.Phase.COMPLETE);
         assertThat(reviews.move(review.plan().id()).phase()).isEqualTo(DirectoryTransferMoveRecord.Phase.FALLBACK);
@@ -223,11 +288,11 @@ class DirectoryTransferWholeMoveTest {
         plan(Operation.COPY);
         assertThat(execute().phase()).isEqualTo(DirectoryTransferRun.Phase.COMPLETE);
         assertThat(root.resolve("from/photos/sub/a.txt")).hasContent("a");
-        verify(nativeMove, never()).moveNoReplace(any(), any());
+        verify(fileSystem, never()).moveNoReplace(any(), any());
         plan(Operation.MOVE);
         review = reviews.chooseAll(review.plan().id(), 0, DirectoryTransferReview.Choice.OVERWRITE);
         assertThat(execute().phase()).isEqualTo(DirectoryTransferRun.Phase.COMPLETE);
-        verify(nativeMove, never()).moveNoReplace(any(), any());
+        verify(fileSystem, never()).moveNoReplace(any(), any());
         verify(execution, times(2)).publishTransfer(anyString(), anyLong(), any());
     }
 
@@ -238,7 +303,7 @@ class DirectoryTransferWholeMoveTest {
         assertThat(review.plan().items()).filteredOn(item -> item.relativePath().isEmpty())
                 .singleElement().extracting(Item::conflict).isEqualTo(Conflict.MERGE);
         assertThat(execute().phase()).isEqualTo(DirectoryTransferRun.Phase.COMPLETE);
-        verify(nativeMove, never()).moveNoReplace(any(), any());
+        verify(fileSystem, never()).moveNoReplace(any(), any());
         verify(execution).publishTransfer(anyString(), anyLong(), any());
         assertThat(root.resolve("to/photos/sub/a.txt")).hasContent("a");
         assertThat(root.resolve("from/photos")).doesNotExist();
@@ -253,7 +318,7 @@ class DirectoryTransferWholeMoveTest {
         assertThat(root.resolve("from/photos/sub/a.txt")).hasContent("a");
         assertThat(execute().phase()).isEqualTo(DirectoryTransferRun.Phase.COMPLETE);
         assertThat(reviews.run(review.plan().id()).strategy()).isEqualTo(DirectoryTransferRun.Strategy.ITEMWISE);
-        verify(nativeMove, never()).moveNoReplace(any(), any());
+        verify(fileSystem, never()).moveNoReplace(any(), any());
         verify(execution).publishTransfer(anyString(), anyLong(), any());
     }
 
@@ -264,7 +329,7 @@ class DirectoryTransferWholeMoveTest {
         assertThat(root.resolve("from/photos/unreviewed.txt")).hasContent("must stay");
         assertThat(root.resolve("from/photos/sub/a.txt")).hasContent("a");
         assertThat(root.resolve("to/photos")).doesNotExist();
-        verify(nativeMove, never()).moveNoReplace(any(), any());
+        verify(fileSystem, never()).moveNoReplace(any(), any());
         verify(execution, never()).publishTransfer(anyString(), anyLong(), any());
         verifyNoInteractions(lifecycle);
     }
@@ -275,7 +340,7 @@ class DirectoryTransferWholeMoveTest {
         assertThatThrownBy(this::execute).isInstanceOfAny(IOException.class, StorageAccessException.class);
         assertThat(root.resolve("from/photos/sub/a.txt")).hasContent("changed after review");
         assertThat(root.resolve("to/photos")).doesNotExist();
-        verify(nativeMove, never()).moveNoReplace(any(), any());
+        verify(fileSystem, never()).moveNoReplace(any(), any());
         verify(execution, never()).publishTransfer(anyString(), anyLong(), any());
         verifyNoInteractions(lifecycle);
     }
@@ -285,7 +350,7 @@ class DirectoryTransferWholeMoveTest {
         doAnswer(call -> {
             file("to/photos/other.txt", "new destination");
             throw new java.nio.file.FileAlreadyExistsException(call.getArgument(1, Path.class).toString());
-        }).when(nativeMove).moveNoReplace(any(), any());
+        }).when(fileSystem).moveNoReplace(any(), any());
         try { execute(); } catch (IOException | StorageAccessException ignored) { }
         assertThat(root.resolve("from/photos/sub/a.txt")).hasContent("a");
         assertThat(root.resolve("to/photos/other.txt")).hasContent("new destination");
@@ -322,7 +387,7 @@ class DirectoryTransferWholeMoveTest {
         assertThat(summary.recovered()).isZero();
         assertThat(summary.deferred()).isZero();
         assertThat(preservedOriginal).hasContent("a");
-        verify(nativeMove, never()).moveNoReplace(any(), any());
+        verify(fileSystem, never()).moveNoReplace(any(), any());
         verify(execution, never()).publishTransfer(anyString(), anyLong(), any());
         verifyNoInteractions(lifecycle);
     }
@@ -353,7 +418,7 @@ class DirectoryTransferWholeMoveTest {
         restart();
         assertThat(recovery().recover().recovered()).isZero();
         assertThat(reviews.move(review.plan().id())).isEqualTo(evidence);
-        verify(nativeMove, never()).moveNoReplace(any(), any());
+        verify(fileSystem, never()).moveNoReplace(any(), any());
         verify(execution, never()).publishTransfer(anyString(), anyLong(), any());
         verifyNoInteractions(lifecycle);
     }
@@ -362,14 +427,14 @@ class DirectoryTransferWholeMoveTest {
         plan(Operation.MOVE);
         var keys = new HashMap<String, String>();
         for (var item : review.plan().items()) {
-            keys.put(item.relativePath(), DirectoryMoveSupport.fileKey(root.resolve("from/photos").resolve(item.relativePath())));
+            keys.put(item.relativePath(), FileSystemOperations.systemDefault().readIdentity(root.resolve("from/photos").resolve(item.relativePath())));
         }
         // Some Linux providers expose mtime as creationTime. Renaming a child changes those parent times,
         // but the parent's stable filesystem key still proves that it is the approved directory.
         var sourceParent = new Snapshot(Kind.DIRECTORY, 0, Instant.EPOCH,
-                DirectoryMoveSupport.fileKey(root.resolve("from")), Instant.EPOCH);
+                FileSystemOperations.systemDefault().readIdentity(root.resolve("from")), Instant.EPOCH);
         var targetParent = new Snapshot(Kind.DIRECTORY, 0, Instant.EPOCH,
-                DirectoryMoveSupport.fileKey(root.resolve("to")), Instant.EPOCH);
+                FileSystemOperations.systemDefault().readIdentity(root.resolve("to")), Instant.EPOCH);
         reviews.freeze(review.plan().id(), review.revision());
         reviews.saveRun(null, new DirectoryTransferRun(review.plan().id(), review.revision(),
                 DirectoryTransferRun.Phase.PUBLISHING, false, DirectoryTransferRun.Strategy.WHOLE_DIRECTORY_MOVE));
@@ -380,7 +445,7 @@ class DirectoryTransferWholeMoveTest {
         assertWholeMoveComplete();
         assertThat(reviews.move(review.plan().id()).sourceParent()).isEqualTo(sourceParent);
         assertThat(reviews.move(review.plan().id()).targetParent()).isEqualTo(targetParent);
-        verify(nativeMove, times(1)).moveNoReplace(root.resolve("from/photos"), root.resolve("to/photos"));
+        verify(fileSystem, times(1)).moveNoReplace(root.resolve("from/photos"), root.resolve("to/photos"));
         verify(lifecycle, times(1)).applyMovedPathMetadata("from/photos", "to/photos");
     }
 
@@ -399,7 +464,7 @@ class DirectoryTransferWholeMoveTest {
         assertThat(reviews.move(review.plan().id()).phase()).isEqualTo(DirectoryTransferMoveRecord.Phase.NEEDS_REVIEW);
         assertThat(root.resolve("from/photos/sub/a.txt")).hasContent("changed at moving notification");
         assertThat(root.resolve("to/photos")).doesNotExist();
-        verify(nativeMove, never()).moveNoReplace(any(), any());
+        verify(fileSystem, never()).moveNoReplace(any(), any());
         verify(execution, never()).publishTransfer(anyString(), anyLong(), any());
         verifyNoInteractions(lifecycle);
     }
@@ -421,7 +486,7 @@ class DirectoryTransferWholeMoveTest {
         assertThat(root.resolve("to/photos")).doesNotExist();
         restart();
         assertThat(recovery().recover().recovered()).isZero();
-        verify(nativeMove, never()).moveNoReplace(any(), any());
+        verify(fileSystem, never()).moveNoReplace(any(), any());
         verify(execution, never()).publishTransfer(anyString(), anyLong(), any());
         verifyNoInteractions(lifecycle);
         assertThat(execute().phase()).isEqualTo(DirectoryTransferRun.Phase.COMPLETE);
@@ -449,7 +514,7 @@ class DirectoryTransferWholeMoveTest {
             assertThat(DirectoryTransferPlanner.snapshot(root.resolve("to/photos").resolve(entry.getKey())))
                     .isEqualTo(entry.getValue());
         }
-        verify(nativeMove, times(1)).moveNoReplace(any(), any());
+        verify(fileSystem, times(1)).moveNoReplace(any(), any());
         verify(lifecycle, times(1)).applyMovedPathMetadata("from/photos", "to/photos");
     }
 
@@ -467,7 +532,7 @@ class DirectoryTransferWholeMoveTest {
         assertThat(execute().phase()).isEqualTo(DirectoryTransferRun.Phase.NEEDS_REVIEW);
         assertThat(root.resolve("from/photos/sub/a.txt")).hasContent("a");
         assertThat(root.resolve("to/photos")).doesNotExist();
-        verify(nativeMove, never()).moveNoReplace(any(), any());
+        verify(fileSystem, never()).moveNoReplace(any(), any());
         verify(execution, never()).publishTransfer(anyString(), anyLong(), any());
         verifyNoInteractions(lifecycle);
     }
@@ -487,7 +552,7 @@ class DirectoryTransferWholeMoveTest {
         assertThat(root.resolve("original-from/photos/sub/a.txt")).hasContent("a");
         assertThat(root.resolve("from/photos/sub/a.txt")).hasContent("replacement tree");
         assertThat(root.resolve("to/photos")).doesNotExist();
-        verify(nativeMove, never()).moveNoReplace(any(), any());
+        verify(fileSystem, never()).moveNoReplace(any(), any());
         verify(execution, never()).publishTransfer(anyString(), anyLong(), any());
         verifyNoInteractions(lifecycle);
     }
@@ -506,7 +571,7 @@ class DirectoryTransferWholeMoveTest {
         restart();
         assertThat(recovery().recover().recovered()).isEqualTo(1);
         assertWholeMoveComplete();
-        verify(nativeMove, times(1)).moveNoReplace(any(), any());
+        verify(fileSystem, times(1)).moveNoReplace(any(), any());
         verify(lifecycle).applyMovedPathMetadata("from/photos", "to/photos");
     }
 
@@ -524,7 +589,7 @@ class DirectoryTransferWholeMoveTest {
         restart();
         assertThat(recovery().recover().recovered()).isEqualTo(1);
         assertWholeMoveComplete();
-        verify(nativeMove, times(1)).moveNoReplace(any(), any());
+        verify(fileSystem, times(1)).moveNoReplace(any(), any());
         verify(lifecycle).applyMovedPathMetadata("from/photos", "to/photos");
     }
 
@@ -539,7 +604,7 @@ class DirectoryTransferWholeMoveTest {
         assertThat(recovery().recover().recovered()).isEqualTo(1);
         assertWholeMoveComplete();
         verify(lifecycle, times(2)).applyMovedPathMetadata("from/photos", "to/photos");
-        verify(nativeMove, times(1)).moveNoReplace(any(), any());
+        verify(fileSystem, times(1)).moveNoReplace(any(), any());
     }
 
     @Test void crashWhileRecordingMovedItemsDoesNotReplayCompletedRootMetadata() throws Exception {
@@ -556,7 +621,7 @@ class DirectoryTransferWholeMoveTest {
         restart();
         assertThat(recovery().recover().recovered()).isEqualTo(1);
         assertWholeMoveComplete();
-        verify(nativeMove, times(1)).moveNoReplace(any(), any());
+        verify(fileSystem, times(1)).moveNoReplace(any(), any());
         verify(lifecycle, times(1)).applyMovedPathMetadata("from/photos", "to/photos");
     }
 
@@ -573,7 +638,7 @@ class DirectoryTransferWholeMoveTest {
         restart();
         assertThat(recovery().recover().recovered()).isEqualTo(1);
         assertWholeMoveComplete();
-        verify(nativeMove, times(1)).moveNoReplace(any(), any());
+        verify(fileSystem, times(1)).moveNoReplace(any(), any());
         verify(lifecycle, times(1)).applyMovedPathMetadata("from/photos", "to/photos");
     }
 
@@ -589,7 +654,7 @@ class DirectoryTransferWholeMoveTest {
         restart();
         assertThat(recovery().recover().recovered()).isEqualTo(1);
         assertWholeMoveComplete();
-        verify(nativeMove, times(1)).moveNoReplace(any(), any());
+        verify(fileSystem, times(1)).moveNoReplace(any(), any());
         verify(lifecycle, times(1)).applyMovedPathMetadata("from/photos", "to/photos");
     }
 
@@ -628,12 +693,12 @@ class DirectoryTransferWholeMoveTest {
         assertThat(recovery().recover().review()).isEqualTo(1);
         assertThat(root.resolve("to/photos/sub/a.txt")).hasContent("external modification");
         verify(lifecycle, times(1)).applyMovedPathMetadata(anyString(), anyString());
-        verify(nativeMove, times(1)).moveNoReplace(any(), any());
+        verify(fileSystem, times(1)).moveNoReplace(any(), any());
     }
 
     @Test void unknownNativeIoFailureNeverBlindlyFallsBackToCopy() throws Exception {
         plan(Operation.MOVE);
-        doThrow(new IOException("uncertain native outcome")).when(nativeMove).moveNoReplace(any(), any());
+        doThrow(new IOException("uncertain native outcome")).when(fileSystem).moveNoReplace(any(), any());
         assertThatThrownBy(this::execute).isInstanceOf(IOException.class);
         assertThat(root.resolve("from/photos/sub/a.txt")).hasContent("a");
         assertThat(root.resolve("to/photos")).doesNotExist();
@@ -646,8 +711,8 @@ class DirectoryTransferWholeMoveTest {
         plan(Operation.MOVE);
         doAnswer(call -> {
             Files.move(call.getArgument(0, Path.class), call.getArgument(1, Path.class));
-            return false;
-        }).when(nativeMove).moveNoReplace(any(), any());
+            return FileSystemOperations.MoveResult.UNSUPPORTED;
+        }).when(fileSystem).moveNoReplace(any(), any());
         try { execute(); } catch (IOException | StorageAccessException ignored) { }
         assertThat(root.resolve("to/photos/sub/a.txt")).hasContent("a");
         assertThat(root.resolve("from/photos")).doesNotExist();
@@ -665,7 +730,7 @@ class DirectoryTransferWholeMoveTest {
         assertThat(root.resolve("from/photos/sub/a.txt")).hasContent("a");
         assertThat(root.resolve("to/photos")).doesNotExist();
         assertThat(recovery().recover().recovered()).isZero();
-        verify(nativeMove, never()).moveNoReplace(any(), any());
+        verify(fileSystem, never()).moveNoReplace(any(), any());
         verifyNoInteractions(lifecycle);
         assertThat(execute().phase()).isEqualTo(DirectoryTransferRun.Phase.COMPLETE);
     }
@@ -676,8 +741,8 @@ class DirectoryTransferWholeMoveTest {
         doAnswer(call -> {
             Files.move(call.getArgument(0, Path.class), call.getArgument(1, Path.class));
             renamed.set(true);
-            return true;
-        }).when(nativeMove).moveNoReplace(any(), any());
+            return FileSystemOperations.MoveResult.MOVED;
+        }).when(fileSystem).moveNoReplace(any(), any());
         var listener = new StorageProgressListener() {
             @Override public void checkCanceled() { if (renamed.get()) throw new TaskCanceledException(); }
         };
@@ -699,14 +764,14 @@ class DirectoryTransferWholeMoveTest {
         assertThat(recovery().recover().recovered()).isZero();
         assertThat(execute().phase()).isEqualTo(DirectoryTransferRun.Phase.COMPLETE);
         assertWholeMoveComplete();
-        verify(nativeMove, times(1)).moveNoReplace(any(), any());
+        verify(fileSystem, times(1)).moveNoReplace(any(), any());
         verify(lifecycle).applyMovedPathMetadata("from/photos", "to/photos");
     }
 
     @Test void pausedFallbackKeepsItsApprovalAndCannotAbandonThroughTheItemwiseCleanup() throws Exception {
         file("from/photos/sub/b.txt", "b");
         plan(Operation.MOVE);
-        doReturn(false).when(nativeMove).moveNoReplace(any(), any());
+        doReturn(FileSystemOperations.MoveResult.UNSUPPORTED).when(fileSystem).moveNoReplace(any(), any());
         var published = new AtomicBoolean();
         doAnswer(call -> {
             Object value = call.callRealMethod();

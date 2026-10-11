@@ -103,6 +103,7 @@ public class TelegramActivityLogNotifier implements ActivityLogNotifier {
 
     private String safeMetadataLabel(ActivityLogEntry entry) {
         return entry.metadataView().entrySet().stream()
+                .filter(metadata -> !metadata.getKey().toLowerCase(Locale.ROOT).startsWith("fs."))
                 .map(metadata -> metadata.getKey() + "="
                         + safeMetadataValue(metadata.getKey(), metadata.getValue()))
                 .collect(Collectors.joining(", "));

@@ -5,17 +5,23 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.auth.ClientIpResolver;
+import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.directorytransfer.*;
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import io.github.fourilla.endervault.storage.*;
 import io.github.fourilla.endervault.transfer.*;
 import io.github.fourilla.endervault.trash.TrashService;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import tools.jackson.databind.json.JsonMapper;
 
 class FileOperationDirectoryTransferTest {
+    @TempDir Path root;
     TaskManagerService tasks = mock(TaskManagerService.class);
     StorageService storage = mock(StorageService.class);
     FileLifecycleService lifecycle = mock(FileLifecycleService.class);
@@ -79,6 +85,54 @@ class FileOperationDirectoryTransferTest {
         verifyNoInteractions(lifecycle);
         verify(storage, never()).moveVaultPath(anyString(), anyString(), any());
         verify(context, atLeastOnce()).resultReference(null);
+    }
+
+    @Test void observedFailureLogsNeedsReviewWithoutPollutingOtherPendingItems() throws Exception {
+        var properties = new NasProperties();
+        properties.getStorage().setRoot(root);
+        var activity = new ActivityLogService(JsonMapper.builder().findAndAddModules().build(), properties);
+        activity.initialize();
+        service = new FileOperationTaskService(tasks, storage, lifecycle, mock(TrashService.class),
+                activity, mock(ClientIpResolver.class), planner, reviews, transfers);
+        directory("a", true);
+        directory("b", true);
+        directory("c", false);
+        when(context.taskId()).thenReturn("task-initial");
+        var needsReview = mock(DirectoryTransferRun.class);
+        when(needsReview.phase()).thenReturn(DirectoryTransferRun.Phase.NEEDS_REVIEW);
+        when(transfers.execute(eq("a"), eq(0L), any())).thenAnswer(call -> {
+            try (var publication = FileSystemOperations.publication()) {
+                assertThrows(IOException.class, () -> FileSystemOperations.systemDefault().moveWithAtomicPreference(
+                        root.resolve("private-missing-source.txt"), root.resolve("target.txt")));
+            }
+            return needsReview;
+        });
+        when(transfers.execute(eq("b"), eq(0L), any()))
+                .thenReturn(needsReview);
+        try (var operation = FileSystemOperations.operation(false).activate()) {
+            var outcome = run(TransferOperation.MOVE, new TransferBufferItem("source/a", "a", true),
+                    new TransferBufferItem("source/b", "b", true), new TransferBufferItem("source/c", "c", true));
+            assertEquals(TaskStatus.PENDING, outcome.status());
+            assertTrue(outcome.message().contains("3 directory merge(s)"));
+            assertTrue(FileSystemOperations.currentDiagnostics().isEmpty());
+        }
+        var entries = activity.recentCurrentEntries(10);
+        assertEquals(1, entries.size());
+        var entry = entries.getFirst();
+        assertEquals("MOVE", entry.type());
+        assertFalse(entry.success());
+        assertEquals("anonymous", entry.actor());
+        assertEquals("source/a", entry.path());
+        assertEquals("target/a", entry.targetPath());
+        assertEquals("Directory transfer requires review", entry.message());
+        assertEquals("needs-review", entry.metadataView().get("reason"));
+        assertEquals("a", entry.metadataView().get("directoryTransferId"));
+        assertEquals("task-initial", entry.metadataView().get("taskId"));
+        assertEquals("UNKNOWN", entry.metadataView().get("fs.backend"));
+        assertEquals("1", entry.metadataView().get("fs.failedOperations"));
+        assertFalse(entry.detailLine().contains("private-missing-source"));
+        verify(transfers, never()).execute(eq("c"), anyLong(), any());
+        verifyNoInteractions(lifecycle);
     }
 
     @Test void currentSourceTypeOverridesStaleBufferType() throws Exception {

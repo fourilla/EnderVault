@@ -93,7 +93,7 @@ public class DirectoryTransferReviewStore {
     public synchronized void pauseRun(DirectoryTransferRun run, Throwable cancellation) throws IOException {
         boolean interrupted = Thread.interrupted();
         try {
-            saveRun(run, new DirectoryTransferRun(run.id(), run.revision(), run.phase(), true, run.recoveryRequired(), run.strategy()));
+            saveRun(run, new DirectoryTransferRun(run.id(), run.revision(), run.phase(), true, run.recoveryRequired(), run.strategy(), run.nativeEnabled()));
         } catch (IOException | RuntimeException failure) {
             failure.addSuppressed(cancellation);
             throw failure;
@@ -105,7 +105,7 @@ public class DirectoryTransferReviewStore {
     /** Preserve recovery eligibility; failure recording must not replace the original IO error. */
     synchronized void recordFailure(DirectoryTransferRun run, IOException failure) {
         try {
-            saveRun(run, new DirectoryTransferRun(run.id(), run.revision(), run.phase(), run.paused(), true, run.strategy()));
+            saveRun(run, new DirectoryTransferRun(run.id(), run.revision(), run.phase(), run.paused(), true, run.strategy(), run.nativeEnabled()));
         } catch (IOException | RuntimeException recordingFailure) {
             failure.addSuppressed(recordingFailure);
         }
@@ -537,7 +537,8 @@ public class DirectoryTransferReviewStore {
                     || next.phase() == DirectoryTransferRun.Phase.COMPLETE;
             default -> false;
         };
-        if (previous != null && (previous.revision() != next.revision() || previous.strategy() != next.strategy() || !allowed)) {
+        if (previous != null && (previous.revision() != next.revision() || previous.strategy() != next.strategy()
+                || previous.nativeEnabled() != null && !previous.nativeEnabled().equals(next.nativeEnabled()) || !allowed)) {
             throw new StorageAccessException("Invalid merge run transition.");
         }
         if (previous == null && next.phase() != DirectoryTransferRun.Phase.PUBLISHING) {

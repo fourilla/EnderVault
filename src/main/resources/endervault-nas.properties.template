@@ -27,6 +27,11 @@ nas.storage.metadata-directory=.endervault
 # overwrite currently applies to regular files only; directory overwrite is blocked.
 nas.storage.default-conflict-policy=cancel
 
+# Use JNA for supported filesystem operations when available.
+# Changes saved in Settings apply to new operations; running operations retain
+# the policy they started with. Unsupported environments use the Java path.
+nas.filesystem.native-enabled=true
+
 # ---------------------------------------------------------------------------
 # First-run setup
 # ---------------------------------------------------------------------------

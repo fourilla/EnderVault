@@ -10,6 +10,7 @@ import com.sun.net.httpserver.HttpServer;
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.auth.ClientIpResolver;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import io.github.fourilla.endervault.filetool.FileActionRegistry;
 import io.github.fourilla.endervault.filecommit.FileCommitCoordinator;
 import io.github.fourilla.endervault.filecommit.FileCommitJournalStore;
@@ -33,6 +34,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -58,6 +62,7 @@ class RemoteDownloadServiceTest {
     private TemporaryArtifactRegistry temporaryArtifactRegistry;
     private PendingFileDecisionService pendingFileDecisionService;
     private FileCommitJournalStore fileCommitJournalStore;
+    private ActivityLogService activityLogService;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -85,7 +90,7 @@ class RemoteDownloadServiceTest {
                 storageService,
                 properties
         );
-        ActivityLogService activityLogService = new ActivityLogService(objectMapper, properties);
+        activityLogService = new ActivityLogService(objectMapper, properties);
         activityLogService.initialize();
         RemoteDownloadValidator validator = new RemoteDownloadValidator(properties);
         OutboundHttpClientRegistry registry = new OutboundHttpClientRegistry(
@@ -177,6 +182,70 @@ class RemoteDownloadServiceTest {
         assertThat(fileCommitJournalStore.list()).isEmpty();
         assertThatThrownBy(() -> remoteDownloadService.start(inspection.requestId(), request))
                 .hasMessageContaining("not found or expired");
+    }
+
+    @Test
+    void queuedDownloadsKeepCapturedFilesystemPolicyWhenSettingsChange() throws Exception {
+        byte[] body = "remote text".getBytes(StandardCharsets.UTF_8);
+        CountDownLatch transferStarted = new CountDownLatch(1);
+        CountDownLatch releaseTransfer = new CountDownLatch(1);
+        AtomicInteger fullTransfers = new AtomicInteger();
+        AtomicBoolean nativeEnabled = new AtomicBoolean(false);
+        startServer("/files/policy.txt", exchange -> {
+            if (exchange.getRequestHeaders().getFirst("Range") == null
+                    && fullTransfers.incrementAndGet() == 1) {
+                transferStarted.countDown();
+                try {
+                    if (!releaseTransfer.await(10, TimeUnit.SECONDS)) throw new IOException("Transfer was not released.");
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException(ex);
+                }
+            }
+            normalResponse(exchange, body, "attachment; filename=\"policy.txt\"", "text/plain");
+        });
+        Files.createDirectories(root.resolve("one"));
+        Files.createDirectories(root.resolve("two"));
+        Files.createDirectories(root.resolve("three"));
+        MockHttpServletRequest request = request();
+        var firstTicket = inspect(serverUrl("/files/policy.txt"), "one", NetworkRoute.DIRECT, 1, request);
+        var queuedTicket = inspect(serverUrl("/files/policy.txt"), "two", NetworkRoute.DIRECT, 1, request);
+        var laterTicket = inspect(serverUrl("/files/policy.txt"), "three", NetworkRoute.DIRECT, 1, request);
+
+        FileSystemOperations.configureNativePolicy(nativeEnabled::get);
+        try {
+            var first = remoteDownloadService.start(firstTicket.requestId(), request);
+            assertThat(transferStarted.await(10, TimeUnit.SECONDS)).isTrue();
+            var queued = remoteDownloadService.start(queuedTicket.requestId(), request);
+            assertThat(queued.status()).isEqualTo(RemoteDownloadStatus.QUEUED);
+            nativeEnabled.set(true);
+            boolean laterPolicy = FileSystemOperations.captureOperation().nativeEnabled();
+            releaseTransfer.countDown();
+            waitUntilFinished(first);
+            waitUntilFinished(queued);
+            var later = remoteDownloadService.start(laterTicket.requestId(), request);
+            waitUntilFinished(later);
+            assertThat(first.status()).isEqualTo(RemoteDownloadStatus.COMPLETE);
+            assertThat(queued.status()).isEqualTo(RemoteDownloadStatus.COMPLETE);
+            assertThat(later.status()).isEqualTo(RemoteDownloadStatus.COMPLETE);
+
+            long deadline = System.currentTimeMillis() + 10_000L;
+            while (activityLogService.recentCurrentEntries(100).stream()
+                    .filter(entry -> "REMOTE_DOWNLOAD_COMPLETE".equals(entry.type())).count() < 3
+                    && System.currentTimeMillis() < deadline) Thread.sleep(25L);
+            var completed = activityLogService.recentCurrentEntries(100).stream()
+                    .filter(entry -> "REMOTE_DOWNLOAD_COMPLETE".equals(entry.type())).toList();
+            assertThat(completed).hasSize(3);
+            assertThat(completed.stream().filter(entry -> first.id().equals(entry.metadataView().get("taskId")))
+                    .findFirst().orElseThrow().metadataView()).containsEntry("fs.nativeEnabled", "false");
+            assertThat(completed.stream().filter(entry -> queued.id().equals(entry.metadataView().get("taskId")))
+                    .findFirst().orElseThrow().metadataView()).containsEntry("fs.nativeEnabled", "false");
+            assertThat(completed.stream().filter(entry -> later.id().equals(entry.metadataView().get("taskId")))
+                    .findFirst().orElseThrow().metadataView()).containsEntry("fs.nativeEnabled", Boolean.toString(laterPolicy));
+        } finally {
+            releaseTransfer.countDown();
+            FileSystemOperations.configureNativePolicy(() -> true);
+        }
     }
 
     @Test

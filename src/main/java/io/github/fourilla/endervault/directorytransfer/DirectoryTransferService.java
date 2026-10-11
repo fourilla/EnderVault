@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.directorytransfer;
 
 import io.github.fourilla.endervault.common.StorageAccessException;
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import io.github.fourilla.endervault.storage.StorageProgressListener;
 import io.github.fourilla.endervault.task.TaskCanceledException;
 import java.io.IOException;
@@ -30,6 +31,19 @@ public class DirectoryTransferService {
     }
 
     public synchronized DirectoryTransferRun execute(String id, long revision, StorageProgressListener listener) throws IOException {
+        var previous = reviews.run(id);
+        var current = FileSystemOperations.operationOrCapture();
+        var restored = previous != null && previous.nativeEnabled() != null
+                ? FileSystemOperations.operation(previous.nativeEnabled())
+                : previous != null && previous.strategy() == DirectoryTransferRun.Strategy.WHOLE_DIRECTORY_MOVE
+                    ? FileSystemOperations.operation(true) : current;
+        var operation = restored.nativeEnabled() == current.nativeEnabled() ? current : restored;
+        try (var scope = operation.activate()) {
+            return executeWithPolicy(id, revision, listener);
+        }
+    }
+
+    private DirectoryTransferRun executeWithPolicy(String id, long revision, StorageProgressListener listener) throws IOException {
         var review = reviews.require(id);
         if (review.revision() != revision) throw new StorageAccessException("Merge run approval changed.");
         if (review.plan().operation() == DirectoryTransferPlan.Operation.PENDING) {
@@ -47,7 +61,8 @@ public class DirectoryTransferService {
         review = reviews.freeze(id, revision);
         if (run == null) {
             var first = new DirectoryTransferRun(id, revision, DirectoryTransferRun.Phase.PUBLISHING, false,
-                    whole ? DirectoryTransferRun.Strategy.WHOLE_DIRECTORY_MOVE : DirectoryTransferRun.Strategy.ITEMWISE);
+                    false, whole ? DirectoryTransferRun.Strategy.WHOLE_DIRECTORY_MOVE : DirectoryTransferRun.Strategy.ITEMWISE,
+                    FileSystemOperations.operationOrCapture().nativeEnabled());
             reviews.saveRun(null, first);
             run = first;
         } else run = update(run, id, revision, run.phase(), false);
@@ -136,7 +151,9 @@ public class DirectoryTransferService {
     private DirectoryTransferRun update(DirectoryTransferRun previous, String id, long revision,
             DirectoryTransferRun.Phase phase, boolean paused) throws IOException {
         var next = new DirectoryTransferRun(id, revision, phase, paused, false,
-                previous == null ? DirectoryTransferRun.Strategy.ITEMWISE : previous.strategy());
+                previous == null ? DirectoryTransferRun.Strategy.ITEMWISE : previous.strategy(),
+                previous != null && previous.nativeEnabled() != null ? previous.nativeEnabled()
+                        : FileSystemOperations.operationOrCapture().nativeEnabled());
         reviews.saveRun(previous, next);
         return next;
     }

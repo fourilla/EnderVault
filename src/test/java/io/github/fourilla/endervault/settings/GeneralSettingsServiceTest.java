@@ -26,6 +26,7 @@ class GeneralSettingsServiceTest {
         Files.writeString(configFile, """
                 nas.setup.accepted=true
                 nas.storage.default-conflict-policy=cancel
+                nas.filesystem.native-enabled=true
                 nas.browser.default-view=table
                 nas.browser.default-sort=name
                 nas.browser.default-direction=asc
@@ -111,6 +112,7 @@ class GeneralSettingsServiceTest {
                 .contains("nas.sticky-notes.border-color=#63C7BD")
                 .contains("nas.sticky-notes.text-color=#F2FBFA")
                 .contains("nas.storage.default-conflict-policy=rename")
+                .contains("nas.filesystem.native-enabled=true")
                 .contains("nas.recent.max-items=55")
                 .contains("nas.recent.record-directories=false")
                 .contains("nas.trash.retention-days=14")
@@ -137,6 +139,7 @@ class GeneralSettingsServiceTest {
         assertThat(properties.getStickyNotes().getBorderColor()).isEqualTo("#63C7BD");
         assertThat(properties.getStickyNotes().getTextColor()).isEqualTo("#F2FBFA");
         assertThat(properties.getStorage().getDefaultConflictPolicy()).isEqualTo("rename");
+        assertThat(properties.getFilesystem().isNativeEnabled()).isTrue();
         assertThat(properties.getRecent().getMaxItems()).isEqualTo(55);
         assertThat(properties.getRecent().isRecordDirectories()).isFalse();
         assertThat(properties.getTrash().getRetentionDays()).isEqualTo(14);
@@ -187,6 +190,68 @@ class GeneralSettingsServiceTest {
         assertThatThrownBy(() -> service.save(service.updateFrom(parameters)))
                 .isInstanceOf(java.io.IOException.class);
         assertThat(properties.getBrowser().isShowTableActions()).isTrue();
+    }
+
+    @Test
+    void filesystemPolicyPersistsAndAppliesAfterSuccessfulSaveWithoutRestart() throws Exception {
+        Path config = tempDir.resolve("filesystem-policy.properties");
+        Files.writeString(config, "# Existing config without the new key\ncustom.property=preserved\n");
+        NasProperties properties = new NasProperties();
+        GeneralSettingsService service = service(properties, config);
+        assertThat(service.currentSettings().filesystem().nativeEnabled()).isTrue();
+        var originalAppearance = properties.getAppearance();
+        var originalStorageRoot = properties.getStorage().getRoot();
+        var parameters = validParameters();
+        parameters.remove("filesystemNativeEnabled");
+        var update = service.updateFrom(parameters);
+        assertThat(update.filesystem().nativeEnabled()).isFalse();
+        assertThat(service.requiresRestart(update)).isFalse();
+        assertThat(properties.getFilesystem().isNativeEnabled()).isTrue();
+
+        service.save(update);
+        assertThat(service.currentSettings().filesystem().nativeEnabled()).isFalse();
+        assertThat(Files.readString(config))
+                .contains("nas.filesystem.native-enabled=false")
+                .contains("custom.property=preserved");
+        assertThat(properties.getAppearance()).isEqualTo(originalAppearance);
+        assertThat(properties.getStorage().getRoot()).isEqualTo(originalStorageRoot);
+
+        parameters.set("filesystemNativeEnabled", "true");
+        service.save(service.updateFrom(parameters));
+        assertThat(properties.getFilesystem().isNativeEnabled()).isTrue();
+        assertThat(Files.readString(config)).contains("nas.filesystem.native-enabled=true");
+    }
+
+    @Test
+    void failedSaveDoesNotChangeFilesystemPolicy() throws Exception {
+        NasProperties properties = new NasProperties();
+        Path directory = tempDir.resolve("not-a-filesystem-config");
+        Files.createDirectories(directory);
+        GeneralSettingsService service = service(properties, directory);
+        var parameters = validParameters();
+        parameters.remove("filesystemNativeEnabled");
+        assertThatThrownBy(() -> service.save(service.updateFrom(parameters)))
+                .isInstanceOf(java.io.IOException.class);
+        assertThat(properties.getFilesystem().isNativeEnabled()).isTrue();
+    }
+
+    @Test
+    void filesystemPolicyAcceptsCheckboxOrBooleanAndRejectsAmbiguousValues() throws Exception {
+        GeneralSettingsService service = service(new NasProperties(), tempDir.resolve("filesystem-booleans.properties"));
+        var parameters = validParameters();
+        assertThat(service.updateFrom(parameters).filesystem().nativeEnabled()).isTrue();
+        parameters.set("filesystemNativeEnabled", "false");
+        assertThat(service.updateFrom(parameters).filesystem().nativeEnabled()).isFalse();
+        parameters.set("filesystemNativeEnabled", "automatic");
+        assertThatThrownBy(() -> service.updateFrom(parameters))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("true or false");
+        parameters.set("filesystemNativeEnabled", "true");
+        parameters.add("filesystemNativeEnabled", "false");
+        assertThatThrownBy(() -> service.updateFrom(parameters))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("one boolean value");
+        assertThat(service.currentSettings().filesystem().nativeEnabled()).isTrue();
     }
 
     @Test
@@ -261,6 +326,7 @@ class GeneralSettingsServiceTest {
         parameters.add("stickyNoteBorderColor", "#4E8F8A");
         parameters.add("stickyNoteTextColor", "#EAF6F4");
         parameters.add("defaultConflictPolicy", "cancel");
+        parameters.add("filesystemNativeEnabled", "on");
         parameters.add("recentMaxItems", "200");
         parameters.add("recordDirectories", "on");
         parameters.add("trashRetentionDays", "30");

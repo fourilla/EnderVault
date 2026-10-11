@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import io.github.fourilla.endervault.filecommit.*;
 import io.github.fourilla.endervault.filerequest.FileRequestService;
 import io.github.fourilla.endervault.pending.*;
@@ -18,6 +19,8 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import tools.jackson.databind.json.JsonMapper;
 
 class DirectoryUploadServiceTest {
@@ -100,6 +103,84 @@ class DirectoryUploadServiceTest {
         receive(group, "nested/a.txt", 1);
         receive(group, "b.txt", 2);
         assertThat(service.complete(group.id()).status()).isEqualTo(DirectoryUpload.Status.COMPLETED);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void admittedDirectoryAndLaterMembersKeepTheirFilesystemPolicy(boolean admittedPolicy) throws Exception {
+        boolean effectivePolicy = FileSystemOperations.operation(admittedPolicy).nativeEnabled();
+        DirectoryUpload group;
+        try (var ignored = FileSystemOperations.operation(admittedPolicy).activate()) {
+            group = service.create("", manifest("photos"));
+        }
+        assertThat(group.nativeEnabled()).isEqualTo(effectivePolicy);
+
+        // Later member admissions and publication may run under a newly enabled caller policy.
+        try (var ignored = FileSystemOperations.operation(!admittedPolicy).activate()) {
+            String first = receive(group, "nested/a.txt", 1);
+            String second = receive(group, "b.txt", 2);
+            assertThat(uploads.require(first).nativeEnabled()).isEqualTo(effectivePolicy);
+            assertThat(uploads.require(second).nativeEnabled()).isEqualTo(effectivePolicy);
+            var result = service.get(group.id());
+            assertThat(result.status()).isEqualTo(DirectoryUpload.Status.COMPLETED);
+            assertThat(result.nativeEnabled()).isEqualTo(effectivePolicy);
+        }
+        assertThat(repository.require(group.id()).nativeEnabled()).isEqualTo(effectivePolicy);
+        assertThat(root.resolve("photos/b.txt")).hasContent("abc");
+    }
+
+    @Test void legacyDirectoryMetadataCapturesPolicyBeforeAdmittingMembers() throws Exception {
+        var created = service.create("", manifest("photos"));
+        var legacy = new DirectoryUpload(created.id(), created.destinationPath(), created.name(),
+                created.files(), created.directories(), created.createdAt(), created.expiresAt(),
+                created.status(), created.committedPath(), created.pendingDecisionId());
+        repository.save(legacy);
+        Path metadata = root.resolve(properties.getStorage().getMetadataDirectory())
+                .resolve("directory-uploads").resolve(legacy.id() + ".json");
+        var mapper = JsonMapper.builder().findAndAddModules().build();
+        var tree = (tools.jackson.databind.node.ObjectNode) mapper.readTree(Files.readString(metadata));
+        tree.remove("nativeEnabled");
+        String json = mapper.writeValueAsString(tree);
+        assertThat(json).doesNotContain("nativeEnabled");
+        Files.writeString(metadata, json);
+        assertThat(repository.require(legacy.id()).nativeEnabled()).isNull();
+
+        try (var ignored = FileSystemOperations.operation(false).activate()) {
+            String member = receive(legacy, "nested/a.txt", 1);
+            assertThat(uploads.require(member).nativeEnabled()).isFalse();
+        }
+        assertThat(repository.require(legacy.id()).nativeEnabled()).isFalse();
+        try (var ignored = FileSystemOperations.operation(true).activate()) {
+            receive(legacy, "b.txt", 2);
+            assertThat(service.complete(legacy.id()).nativeEnabled()).isFalse();
+        }
+    }
+
+    @Test void directoryCompletionLogsRootPublicationUsingTheGroupPolicy() throws Exception {
+        var activity = new ActivityLogService(JsonMapper.builder().findAndAddModules().build(), properties);
+        activity.initialize();
+        service = new DirectoryUploadService(repository, uploads, mock(ResumableUploadCoordinator.class), storage,
+                commits, pending, artifacts, properties, activity);
+        DirectoryUpload group;
+        try (var ignored = FileSystemOperations.operation(false).activate()) {
+            group = service.create("", manifest("photos"));
+        }
+
+        try (var ignored = FileSystemOperations.operation(true).activate()) {
+            receive(group, "nested/a.txt", 1);
+            receive(group, "b.txt", 2);
+            assertThat(service.complete(group.id()).status()).isEqualTo(DirectoryUpload.Status.COMPLETED);
+        }
+
+        var entries = activity.recentCurrentEntries(20).stream()
+                .filter(entry -> "UPLOAD".equals(entry.type())).toList();
+        assertThat(entries).hasSize(1);
+        assertThat(entries.getFirst().metadataView())
+                .containsEntry("fs.nativeEnabled", "false")
+                .containsEntry("fs.backend", "JAVA")
+                .containsEntry("fs.jnaOperations", "0")
+                .containsEntry("fs.javaOperations", "1");
+        assertThat(root.resolve("photos/b.txt")).hasContent("abc");
     }
 
     @Test void newGroupsRespectConfiguredEntryDepthAndActiveLimits() throws Exception {

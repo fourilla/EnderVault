@@ -93,6 +93,50 @@ class TelegramActivityLogNotifierTest {
         }
     }
 
+    @Test
+    void keepsOrdinaryMetadataButOmitsFilesystemDiagnosticsFromTelegram() {
+        NasProperties properties = properties(true);
+        properties.getNotifications().getTelegram().getActivity().put("upload", true);
+        TelegramNotificationService telegram = mock(TelegramNotificationService.class);
+        TelegramActivityLogNotifier notifier = new TelegramActivityLogNotifier(properties, telegram);
+        try {
+            notifier.notify(new ActivityLogEntry("id", Instant.parse("2026-10-10T00:00:00Z"), "UPLOAD",
+                    "admin", "127.0.0.1", "file.txt", null, true, "Uploaded file.txt",
+                    Map.of("taskId", "task-1", "fs.backend", "JNA", "fs.os", "Windows 11",
+                            "fs.sourceType", "NTFS", "FS.targetType", "NTFS", "fs.jnaOperations", "1")));
+            verify(telegram, timeout(1000)).send(argThat(message ->
+                    message.contains("taskId=task-1")
+                            && message.contains("path: file.txt")
+                            && !message.contains("fs.")
+                            && !message.contains("FS.")
+                            && !message.contains("NTFS")
+                            && !message.contains("Windows 11")
+            ));
+        } finally {
+            notifier.shutdown();
+        }
+    }
+
+    @Test
+    void doesNotAppendAnEmptyMetadataLineWhenOnlyFilesystemDiagnosticsExist() {
+        NasProperties properties = properties(true);
+        properties.getNotifications().getTelegram().getActivity().put("upload", true);
+        TelegramNotificationService telegram = mock(TelegramNotificationService.class);
+        TelegramActivityLogNotifier notifier = new TelegramActivityLogNotifier(properties, telegram);
+        try {
+            notifier.notify(new ActivityLogEntry("id", Instant.parse("2026-10-10T00:00:00Z"), "UPLOAD",
+                    "admin", "127.0.0.1", "file.txt", null, true, "Uploaded file.txt",
+                    Map.of("fs.backend", "JAVA", "fs.javaOperations", "1")));
+            verify(telegram, timeout(1000)).send(argThat(message ->
+                    message.contains("type: UPLOAD")
+                            && !message.contains("metadata:")
+                            && !message.contains("fs.")
+            ));
+        } finally {
+            notifier.shutdown();
+        }
+    }
+
     private NasProperties properties(boolean enabled) {
         NasProperties properties = new NasProperties();
         properties.getNotifications().getTelegram().setEnabled(enabled);

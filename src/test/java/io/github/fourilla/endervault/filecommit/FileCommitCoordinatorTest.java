@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
 import io.github.fourilla.endervault.storage.StorageService;
 import java.io.IOException;
@@ -134,14 +135,19 @@ class FileCommitCoordinatorTest {
         createCommittingJournal(owner, staged, "incoming/upload.txt");
         Files.createLink(target, staged);
 
-        FileCommitCoordinator.StagedFileCommit commit = coordinator.commitSingleFile(
-                owner, staged, "incoming", "upload.txt"
-        );
+        try (var scope = FileSystemOperations.operation(false).activate()) {
+            FileCommitCoordinator.StagedFileCommit commit = coordinator.commitSingleFile(
+                    owner, staged, "incoming", "upload.txt"
+            );
 
-        assertThat(Files.exists(staged)).isFalse();
-        assertThat(Files.readString(target)).isEqualTo("payload");
-        assertThat(journalStore.load(commit.operationId()).state().phase())
-                .isEqualTo(FileCommitPhase.APPLYING_METADATA);
+            assertThat(Files.exists(staged)).isFalse();
+            assertThat(Files.readString(target)).isEqualTo("payload");
+            assertThat(journalStore.load(commit.operationId()).state().phase())
+                    .isEqualTo(FileCommitPhase.APPLYING_METADATA);
+            assertThat(FileSystemOperations.currentDiagnostics()).containsEntry("fs.backend", "UNKNOWN")
+                    .containsEntry("fs.recoveredOperations", "1").containsEntry("fs.javaOperations", "0")
+                    .containsEntry("fs.jnaOperations", "0").doesNotContainKey("fs.javaAttempts");
+        }
     }
 
     @Test
@@ -270,6 +276,47 @@ class FileCommitCoordinatorTest {
         assertThat(backup).doesNotExist();
         assertThat(journalStore.load(commit.operationId()).state().phase())
                 .isEqualTo(FileCommitPhase.APPLYING_METADATA);
+    }
+
+    @Test
+    void resumesReplacementHardlinkWithoutClaimingTheCleanupIsANewJavaPublication() throws IOException {
+        FileCommitOwner owner = owner();
+        Path staged = stagedFile("replacement");
+        Path target = target("incoming/note.txt");
+        Files.writeString(target, "existing");
+        FileCommitJournalEntry journal = createCommittingJournal(owner, staged, "incoming/note.txt",
+                ConflictPolicy.OVERWRITE, FileCommitCoordinator.fingerprint(target));
+        Path backup = replacementBackup(journal.manifest().operationId());
+        storageService.createStagedRegularFileReplacementBackup("incoming", "note.txt", backup);
+        Files.delete(target);
+        Files.createLink(target, staged);
+
+        try (var scope = FileSystemOperations.operation(false).activate()) {
+            var commit = coordinator.commitSingleFile(owner, staged, "incoming", "note.txt", ConflictPolicy.OVERWRITE);
+            assertThat(commit.operationId()).isEqualTo(journal.manifest().operationId());
+            assertThat(target).hasContent("replacement");
+            assertThat(staged).doesNotExist();
+            assertThat(backup).doesNotExist();
+            assertThat(journalStore.load(commit.operationId()).state().phase())
+                    .isEqualTo(FileCommitPhase.APPLYING_METADATA);
+            assertThat(FileSystemOperations.currentDiagnostics()).containsEntry("fs.backend", "UNKNOWN")
+                    .containsEntry("fs.recoveredOperations", "1").containsEntry("fs.javaOperations", "0")
+                    .containsEntry("fs.jnaOperations", "0").doesNotContainKey("fs.javaAttempts");
+        }
+    }
+
+    @Test
+    void aRejectedDestinationDoesNotInventJavaExecutionFromJournalWrites() throws IOException {
+        Path staged = stagedFile("new payload");
+        Path target = target("incoming/upload.txt");
+        Files.writeString(target, "existing payload");
+        try (var scope = FileSystemOperations.operation(false).activate()) {
+            assertThatThrownBy(() -> coordinator.commitSingleFile(owner(), staged, "incoming", "upload.txt"))
+                    .isInstanceOf(FileCommitConflictException.class);
+            assertThat(FileSystemOperations.currentDiagnostics()).isEmpty();
+            assertThat(staged).hasContent("new payload");
+            assertThat(target).hasContent("existing payload");
+        }
     }
 
     @Test

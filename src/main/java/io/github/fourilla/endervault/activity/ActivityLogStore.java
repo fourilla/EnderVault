@@ -1,5 +1,6 @@
 package io.github.fourilla.endervault.activity;
 
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.core.JacksonException;
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
@@ -7,11 +8,9 @@ import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -127,10 +126,9 @@ final class ActivityLogStore {
         }
 
         Path archive = nextArchiveFile();
-        try {
-            Files.move(currentLogFile, archive, StandardCopyOption.ATOMIC_MOVE);
-        } catch (AtomicMoveNotSupportedException ex) {
-            Files.move(currentLogFile, archive);
+        FileSystemOperations fileSystem = FileSystemOperations.systemDefault();
+        if (fileSystem.moveNoReplace(currentLogFile, archive) == FileSystemOperations.MoveResult.UNSUPPORTED) {
+            fileSystem.moveWithAtomicPreference(currentLogFile, archive);
         }
         cleanupOldArchives();
     }

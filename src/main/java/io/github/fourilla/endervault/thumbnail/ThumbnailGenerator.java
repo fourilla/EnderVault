@@ -1,5 +1,6 @@
 package io.github.fourilla.endervault.thumbnail;
 
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import io.github.fourilla.endervault.filetool.comic.ComicArchiveService;
 import io.github.fourilla.endervault.filetool.comic.ComicPageResource;
 import java.awt.Color;
@@ -11,10 +12,8 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.Locale;
 import javax.imageio.ImageIO;
 import org.apache.pdfbox.Loader;
@@ -355,11 +354,7 @@ final class ThumbnailGenerator {
     }
 
     private void moveIntoPlace(Path tempFile, Path cacheFile) throws IOException {
-        try {
-            Files.move(tempFile, cacheFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (AtomicMoveNotSupportedException ex) {
-            Files.move(tempFile, cacheFile, StandardCopyOption.REPLACE_EXISTING);
-        }
+        FileSystemOperations.systemDefault().replace(tempFile, cacheFile, FileSystemOperations.Atomicity.PREFERRED);
     }
 
     static Path temporaryFile(Path cacheFile) {

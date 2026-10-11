@@ -291,6 +291,22 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void filesystemPolicyIsExposedAsBooleanInGeneralSettings(
+            @Autowired io.github.fourilla.endervault.config.NasProperties properties) throws Exception {
+        boolean original = properties.getFilesystem().isNativeEnabled();
+        try {
+            for (boolean enabled : new boolean[]{false, true}) {
+                properties.getFilesystem().setNativeEnabled(enabled);
+                mockMvc.perform(get("/api/v1/settings/general"))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.filesystem.nativeEnabled").value(enabled));
+            }
+        } finally {
+            properties.getFilesystem().setNativeEnabled(original);
+        }
+    }
+
+    @Test
     void pagesLoadTheirOwningFrontendInsteadOfLegacyAdminActions() throws Exception {
         mockMvc.perform(get("/files/read-only"))
                 .andExpect(status().isOk())

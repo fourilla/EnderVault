@@ -7,6 +7,7 @@ import static io.github.fourilla.endervault.directorytransfer.DirectoryTransferP
 
 import io.github.fourilla.endervault.config.NasProperties;
 import io.github.fourilla.endervault.filecommit.*;
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import io.github.fourilla.endervault.storage.FileLifecycleService;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
@@ -90,6 +91,80 @@ class DirectoryTransferFinalizerTest {
         assertThat(journals.list()).isEmpty();
         verifyNoInteractions(lifecycle);
         assertThat(finish()).isEqualTo(results);
+    }
+
+    @Test void freshJavaPublicationIsNotMisclassifiedAsRecoveryDuringFinalization() throws Exception {
+        try (var operation = FileSystemOperations.operation(false).activate()) {
+            publish(Operation.COPY, Map.of());
+            assertThat(finish().values()).allMatch(r -> r.phase() == DirectoryTransferCompletion.Phase.COMPLETE);
+            assertThat(FileSystemOperations.currentDiagnostics()).containsEntry("fs.backend", "JAVA")
+                    .containsEntry("fs.javaOperations", "2").doesNotContainKey("fs.recoveredOperations");
+        }
+        assertThat(root.resolve("to/photos/a.txt")).hasContent("a");
+        assertThat(root.resolve("from/photos/a.txt")).hasContent("a");
+    }
+
+    @Test void finalizingOnlyResumeReportsPreviousPublicationWithoutInventingItsBackend() throws Exception {
+        try (var operation = FileSystemOperations.operation(false).activate()) {
+            publish(Operation.MOVE, Map.of());
+        }
+        var publishing = new DirectoryTransferRun(review.plan().id(), review.revision(),
+                DirectoryTransferRun.Phase.PUBLISHING, false, false, DirectoryTransferRun.Strategy.ITEMWISE, false);
+        reviews.saveRun(null, publishing);
+        reviews.saveRun(publishing, new DirectoryTransferRun(review.plan().id(), review.revision(),
+                DirectoryTransferRun.Phase.FINALIZING, false, false, DirectoryTransferRun.Strategy.ITEMWISE, false));
+        clearInvocations(execution);
+        try (var operation = FileSystemOperations.operation(false).activate()) {
+            assertThat(transfers().execute(review.plan().id(), review.revision(), null).phase())
+                    .isEqualTo(DirectoryTransferRun.Phase.COMPLETE);
+            assertThat(FileSystemOperations.currentDiagnostics()).containsEntry("fs.backend", "UNKNOWN")
+                    .containsEntry("fs.recoveredOperations", "2").containsEntry("fs.javaOperations", "0")
+                    .containsEntry("fs.jnaOperations", "0");
+        }
+        verify(execution, never()).publishTransfer(anyString(), anyLong(), any());
+        assertThat(root.resolve("to/photos/a.txt")).hasContent("a");
+        assertThat(root.resolve("from/photos")).doesNotExist();
+        assertThat(journals.list()).isEmpty();
+    }
+
+    @Test void priorPublicationAndFreshJavaPublicationKeepTheResumedBackendUnknown() throws Exception {
+        try (var operation = FileSystemOperations.operation(false).activate()) {
+            pauseCopyAfterFirstFile();
+        }
+        clearInvocations(commits);
+        try (var operation = FileSystemOperations.operation(false).activate()) {
+            assertThat(transfers().execute(review.plan().id(), review.revision(), null).phase())
+                    .isEqualTo(DirectoryTransferRun.Phase.COMPLETE);
+            assertThat(FileSystemOperations.currentDiagnostics()).containsEntry("fs.backend", "UNKNOWN")
+                    .containsEntry("fs.recoveredOperations", "2").containsEntry("fs.javaOperations", "1")
+                    .containsEntry("fs.jnaOperations", "0");
+        }
+        verify(commits, times(1)).prepareReviewedSingleFile(any(), any(), anyString(), anyString(), any(), any());
+        assertThat(root.resolve("to/photos/a.txt")).hasContent("a");
+        assertThat(root.resolve("to/photos/b.txt")).hasContent("b");
+        assertThat(root.resolve("from/photos/a.txt")).hasContent("a");
+        assertThat(journals.list()).isEmpty();
+    }
+
+    @Test void terminalCompletionDiagnosticResolutionFailureDoesNotPreventJournalCleanup() throws Exception {
+        publish(Operation.MOVE, Map.of());
+        var once = new AtomicBoolean();
+        doAnswer(call -> {
+            if (!once.getAndSet(true)) throw new IOException("before journal deletion");
+            return call.callRealMethod();
+        }).when(commits).complete(anyString());
+        assertThatThrownBy(this::finish).isInstanceOf(IOException.class);
+        storage = spy(storage);
+        doThrow(new IOException("diagnostic path unavailable")).when(storage).resolveVaultCommitTarget("to/photos/a.txt");
+        restart();
+        try (var operation = FileSystemOperations.operation(false).activate()) {
+            assertThat(finish().values()).allMatch(r -> r.phase() == DirectoryTransferCompletion.Phase.COMPLETE);
+            assertThat(FileSystemOperations.currentDiagnostics()).containsEntry("fs.backend", "UNKNOWN")
+                    .containsEntry("fs.recoveredOperations", "1");
+        }
+        assertThat(journals.list()).isEmpty();
+        assertThat(root.resolve("to/photos/a.txt")).hasContent("a");
+        verify(lifecycle, times(1)).applyMovedPathMetadata("from/photos/a.txt", "to/photos/a.txt");
     }
 
     void pauseCopyAfterFirstFile() throws Exception {

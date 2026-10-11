@@ -1,10 +1,10 @@
 package io.github.fourilla.endervault.config;
 
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -17,13 +17,19 @@ import org.springframework.stereotype.Component;
 public class LocalPropertiesFile {
 
     private final Path configFile;
+    private final FileSystemOperations fileSystem;
 
     public LocalPropertiesFile() {
         this(Path.of(StartupConfigBootstrap.CONFIG_FILE_NAME).toAbsolutePath().normalize());
     }
 
     public LocalPropertiesFile(Path configFile) {
+        this(configFile, FileSystemOperations.systemDefault());
+    }
+
+    LocalPropertiesFile(Path configFile, FileSystemOperations fileSystem) {
         this.configFile = configFile;
+        this.fileSystem = java.util.Objects.requireNonNull(fileSystem, "fileSystem");
     }
 
     public Path configFile() {
@@ -80,11 +86,11 @@ public class LocalPropertiesFile {
     private void writeAtomically(List<String> lines) throws IOException {
         Path parent = configFile.getParent();
         Path tempFile = Files.createTempFile(parent, "endervault-nas", ".properties.tmp");
-        Files.write(tempFile, lines, StandardCharsets.UTF_8);
         try {
-            Files.move(tempFile, configFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (IOException ex) {
-            Files.move(tempFile, configFile, StandardCopyOption.REPLACE_EXISTING);
+            Files.write(tempFile, lines, StandardCharsets.UTF_8);
+            fileSystem.replace(tempFile, configFile, FileSystemOperations.Atomicity.PREFERRED);
+        } finally {
+            Files.deleteIfExists(tempFile);
         }
     }
 

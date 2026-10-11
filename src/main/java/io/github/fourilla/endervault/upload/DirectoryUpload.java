@@ -6,8 +6,20 @@ import io.github.fourilla.endervault.filecommit.FileCommitFingerprint;
 
 public record DirectoryUpload(
         String id, String destinationPath, String name, List<Entry> files, List<String> directories,
-        Instant createdAt, Instant expiresAt, Status status, String committedPath, String pendingDecisionId
+        Instant createdAt, Instant expiresAt, Status status, String committedPath, String pendingDecisionId,
+        Boolean nativeEnabled
 ) {
+    public DirectoryUpload(String id, String destinationPath, String name, List<Entry> files,
+            List<String> directories, Instant createdAt, Instant expiresAt, Status status,
+            String committedPath, String pendingDecisionId) {
+        this(id, destinationPath, name, files, directories, createdAt, expiresAt, status,
+                committedPath, pendingDecisionId, null);
+    }
+
+    DirectoryUpload withNativeEnabled(boolean enabled) {
+        return new DirectoryUpload(id, destinationPath, name, files, directories, createdAt, expiresAt,
+                status, committedPath, pendingDecisionId, enabled);
+    }
     public enum Status { RECEIVING, COMMITTING, PENDING, COMPLETED, CANCELING, CANCELED }
 
     public record Entry(String path, long size, long lastModified, String sessionId, boolean received,
@@ -22,12 +34,12 @@ public record DirectoryUpload(
     DirectoryUpload withEntry(Entry entry) {
         return new DirectoryUpload(id, destinationPath, name,
                 files.stream().map(existing -> existing.path().equals(entry.path()) ? entry : existing).toList(),
-                directories, createdAt, expiresAt, status, committedPath, pendingDecisionId);
+                directories, createdAt, expiresAt, status, committedPath, pendingDecisionId, nativeEnabled);
     }
 
     DirectoryUpload withStatus(Status next, String path, String pendingId) {
         return new DirectoryUpload(id, destinationPath, name, files, directories, createdAt, expiresAt,
-                next, path, pendingId);
+                next, path, pendingId, nativeEnabled);
     }
 
     boolean terminal() { return status == Status.PENDING || status == Status.COMPLETED || status == Status.CANCELED; }

@@ -1,18 +1,17 @@
 package io.github.fourilla.endervault.thumbnail;
 
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.task.TaskContext;
 import io.github.fourilla.endervault.temporary.TemporaryArtifactRegistry;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -372,16 +371,8 @@ final class ThumbnailCacheStore {
         }
 
         Files.createDirectories(newCacheFile.getParent());
-        try {
-            Files.move(
-                    oldCacheFile,
-                    newCacheFile,
-                    StandardCopyOption.REPLACE_EXISTING,
-                    StandardCopyOption.ATOMIC_MOVE
-            );
-        } catch (AtomicMoveNotSupportedException ex) {
-            Files.move(oldCacheFile, newCacheFile, StandardCopyOption.REPLACE_EXISTING);
-        }
+        FileSystemOperations.systemDefault().replace(oldCacheFile, newCacheFile,
+                FileSystemOperations.Atomicity.PREFERRED);
     }
 
     private String childVaultPath(String baseVaultPath, Path relativePath) {

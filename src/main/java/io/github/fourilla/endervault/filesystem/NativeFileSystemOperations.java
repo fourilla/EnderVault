@@ -1,4 +1,4 @@
-package io.github.fourilla.endervault.storage;
+package io.github.fourilla.endervault.filesystem;
 
 import com.sun.jna.Library;
 import com.sun.jna.Memory;
@@ -22,11 +22,8 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import org.springframework.stereotype.Service;
-
 /** A no-replace rename primitive; its caller owns validation, durable intent, and recovery. */
-@Service
-public class DirectoryMoveSupport {
+final class NativeFileSystemOperations implements NativeFileSystem {
 
     private static final Set<String> LINUX_FILE_SYSTEMS = Set.of("ext2", "ext3", "ext4", "xfs", "btrfs", "tmpfs");
     private static final int MOVEFILE_WRITE_THROUGH = 8;
@@ -59,23 +56,32 @@ public class DirectoryMoveSupport {
     private final OperatingSystem operatingSystem;
     private final NativeAccess nativeAccess;
 
-    public DirectoryMoveSupport() {
+    NativeFileSystemOperations() {
         this(OperatingSystem.current(), loadNative(OperatingSystem.current()));
     }
 
-    DirectoryMoveSupport(OperatingSystem operatingSystem, NativeAccess nativeAccess) {
+    static NativeFileSystem create() {
+        OperatingSystem operatingSystem = OperatingSystem.current();
+        if (operatingSystem == OperatingSystem.OTHER) {
+            return null;
+        }
+        NativeAccess access = loadNative(operatingSystem);
+        return access == null ? null : new NativeFileSystemOperations(operatingSystem, access);
+    }
+
+    NativeFileSystemOperations(OperatingSystem operatingSystem, NativeAccess nativeAccess) {
         this.operatingSystem = operatingSystem;
         this.nativeAccess = nativeAccess;
     }
 
-    public boolean supported(Path source, Path targetParent) throws IOException {
+    public boolean supportsNoReplaceMove(Path source, Path targetParent) throws IOException {
         if (nativeAccess == null || !defaultPath(source) || !defaultPath(targetParent)) {
             return false;
         }
         Path absoluteSource = source.toAbsolutePath().normalize();
         Path absoluteParent = targetParent.toAbsolutePath().normalize();
         Path sourceParent = absoluteSource.getParent();
-        if (sourceParent == null || !identifiedDirectory(absoluteSource)
+        if (sourceParent == null || !identifiedEntry(absoluteSource)
                 || !identifiedDirectory(sourceParent) || !identifiedDirectory(absoluteParent)) {
             return false;
         }
@@ -86,6 +92,11 @@ public class DirectoryMoveSupport {
                 || !nativeAccess.sameFileSystem(absoluteSource, absoluteParent, sourceStore, targetStore)) {
             return false;
         }
+        // A mounted root and its parent may resolve to different stores even when the target
+        // belongs to the mounted store. Such a rename is rejected before invoking renameat2.
+        if (!sourceAndParentStoresMatch(operatingSystem, sourceStore, Files.getFileStore(sourceParent))) {
+            return false;
+        }
         if (operatingSystem == OperatingSystem.LINUX
                 && (!utf8FileNames() || !roundTrips(absoluteSource) || !roundTrips(absoluteParent))) {
             return false;
@@ -94,29 +105,30 @@ public class DirectoryMoveSupport {
     }
 
     /**
-     * False means no rename was attempted or the native API explicitly rejected unsupported use.
+     * UNSUPPORTED means no rename was attempted or the native API explicitly rejected unsupported use.
      * The caller must revalidate the original tree and absent target before selecting copying.
      * An IOException after invocation is never a request to retry using another strategy.
      */
-    public boolean moveNoReplace(Path source, Path target) throws IOException {
+    public FileSystemOperations.MoveResult moveNoReplace(Path source, Path target) throws IOException {
         if (!defaultPath(source) || !defaultPath(target)) {
-            return false;
+            return FileSystemOperations.MoveResult.UNSUPPORTED;
         }
         Path absoluteSource = source.toAbsolutePath().normalize();
         Path absoluteTarget = target.toAbsolutePath().normalize();
         if (absoluteTarget.equals(absoluteSource) || absoluteTarget.startsWith(absoluteSource)) {
-            throw new IOException("A directory cannot be moved into itself.");
+            throw new IOException("A filesystem entry cannot be moved into itself.");
         }
         Path targetParent = absoluteTarget.getParent();
-        if (targetParent == null || !supported(absoluteSource, targetParent)
+        if (targetParent == null || !supportsNoReplaceMove(absoluteSource, targetParent)
                 || (operatingSystem == OperatingSystem.LINUX && !roundTrips(absoluteTarget))) {
-            return false;
+            return FileSystemOperations.MoveResult.UNSUPPORTED;
         }
         NativeResult result;
         try {
             result = nativeAccess.move(absoluteSource, absoluteTarget);
-        } catch (LinkageError | RuntimeException ex) {
-            throw new IOException("Native directory move outcome could not be determined.", ex);
+        } catch (RuntimeException | Error ex) {
+            FileSystemOperationsProvider.rethrowFatal(ex);
+            throw new IOException("Native filesystem move outcome could not be determined.", ex);
         }
         return interpretResult(operatingSystem, result, absoluteSource, absoluteTarget);
     }
@@ -130,10 +142,14 @@ public class DirectoryMoveSupport {
         };
     }
 
-    static boolean interpretResult(OperatingSystem operatingSystem, NativeResult result, Path source, Path target)
+    static boolean sourceAndParentStoresMatch(OperatingSystem system, FileStore source, FileStore parent) {
+        return system != OperatingSystem.LINUX || source.equals(parent);
+    }
+
+    static FileSystemOperations.MoveResult interpretResult(OperatingSystem operatingSystem, NativeResult result, Path source, Path target)
             throws IOException {
         if (result.moved()) {
-            return true;
+            return FileSystemOperations.MoveResult.MOVED;
         }
         int error = result.error();
         if ((operatingSystem == OperatingSystem.WINDOWS
@@ -148,9 +164,9 @@ public class DirectoryMoveSupport {
                 || error == ERROR_NOT_SAME_DEVICE || error == ERROR_NOT_SUPPORTED || error == ERROR_CALL_NOT_IMPLEMENTED))
                 || (operatingSystem == OperatingSystem.LINUX
                 && (error == EINVAL || error == ENOSYS || error == EOPNOTSUPP || error == EXDEV))) {
-            return false;
+            return FileSystemOperations.MoveResult.UNSUPPORTED;
         }
-        throw new IOException("Native directory move failed (" + operatingSystem + ", error " + error
+        throw new IOException("Native filesystem move failed (" + operatingSystem + ", error " + error
                 + "): " + source + " -> " + target);
     }
 
@@ -167,13 +183,33 @@ public class DirectoryMoveSupport {
         return path != null && path.getFileSystem() == FileSystems.getDefault();
     }
 
-    private static boolean identifiedDirectory(Path path) throws IOException {
+    private boolean identifiedDirectory(Path path) throws IOException {
         BasicFileAttributes attributes = Files.readAttributes(path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
-        return attributes.isDirectory() && fileKey(path) != null;
+        return attributes.isDirectory() && readIdentity(path) != null;
+    }
+
+    private boolean identifiedEntry(Path path) throws IOException {
+        BasicFileAttributes attributes = Files.readAttributes(path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        return (attributes.isDirectory() || attributes.isRegularFile()) && readIdentity(path) != null;
+    }
+
+    @Override
+    public boolean sameFileSystem(Path source, Path targetParent) throws IOException {
+        if (source.getFileSystem() != targetParent.getFileSystem()) {
+            return false;
+        }
+        FileStore sourceStore = Files.getFileStore(source);
+        FileStore targetStore = Files.getFileStore(targetParent);
+        if (!defaultPath(source) || !defaultPath(targetParent) || nativeAccess == null) {
+            return sourceStore.equals(targetStore);
+        }
+        Boolean nativeResult = nativeAccess.querySameFileSystem(source.toAbsolutePath().normalize(),
+                targetParent.toAbsolutePath().normalize(), sourceStore, targetStore);
+        return nativeResult != null ? nativeResult : sourceStore.equals(targetStore);
     }
 
     /** Stable rename evidence, including NTFS providers whose basic attributes omit fileKey. */
-    public static String fileKey(Path path) throws IOException {
+    public String readIdentity(Path path) throws IOException {
         BasicFileAttributes attributes = Files.readAttributes(path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
         if (attributes.fileKey() != null) {
             return attributes.fileKey().toString();
@@ -214,7 +250,7 @@ public class DirectoryMoveSupport {
     static String windowsFileKey(int attributes, int volumeSerial, int indexHigh, int indexLow, Path path)
             throws IOException {
         if ((attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
-            throw new IOException("Directory move identity cannot use a reparse point: " + path);
+            throw new IOException("Filesystem identity cannot use a reparse point: " + path);
         }
         return String.format(Locale.ROOT, "windows:%08x:%08x%08x", volumeSerial, indexHigh, indexLow);
     }
@@ -226,7 +262,7 @@ public class DirectoryMoveSupport {
         if (error == 2 || error == 3) {
             throw new NoSuchFileException(path.toString());
         }
-        throw new IOException("Could not read Windows directory move identity (error " + error + "): " + path);
+        throw new IOException("Could not read Windows filesystem identity (error " + error + "): " + path);
     }
 
     private static WindowsIdentityCalls loadWindowsIdentity() {
@@ -239,7 +275,8 @@ public class DirectoryMoveSupport {
             library.getFunction("GetFileInformationByHandle");
             library.getFunction("CloseHandle");
             return Native.load("kernel32", WindowsIdentityCalls.class);
-        } catch (LinkageError | SecurityException ex) {
+        } catch (RuntimeException | Error ex) {
+            FileSystemOperationsProvider.rethrowFatal(ex);
             return null;
         }
     }
@@ -281,12 +318,17 @@ public class DirectoryMoveSupport {
 
                         @Override
                         public boolean sameFileSystem(Path source, Path parent, FileStore sourceStore, FileStore targetStore) {
+                            return Boolean.TRUE.equals(querySameFileSystem(source, parent, sourceStore, targetStore));
+                        }
+
+                        @Override
+                        public Boolean querySameFileSystem(Path source, Path parent, FileStore sourceStore, FileStore targetStore) {
                             // WindowsFileStore compares mount-point spelling, including the long-path prefix.
                             // Bind to the actual volume GUID instead of weakening the same-filesystem gate.
                             String sourceVolume = volumeName(source);
                             String targetVolume = volumeName(parent);
                             return sourceVolume != null && targetVolume != null
-                                    && sourceVolume.equalsIgnoreCase(targetVolume);
+                                    ? sourceVolume.equalsIgnoreCase(targetVolume) : null;
                         }
 
                         private String volumePath(Path path) {
@@ -330,7 +372,8 @@ public class DirectoryMoveSupport {
                 }
                 case OTHER -> null;
             };
-        } catch (LinkageError | SecurityException ex) {
+        } catch (RuntimeException | Error ex) {
+            FileSystemOperationsProvider.rethrowFatal(ex);
             // Native loading or symbol discovery failed before any filesystem mutation.
             return null;
         }
@@ -355,6 +398,11 @@ public class DirectoryMoveSupport {
 
         default boolean sameFileSystem(Path source, Path parent, FileStore sourceStore, FileStore targetStore) {
             return sourceStore.equals(targetStore);
+        }
+
+        /** Null is an unavailable native query, distinct from two known different volumes. */
+        default Boolean querySameFileSystem(Path source, Path parent, FileStore sourceStore, FileStore targetStore) {
+            return sameFileSystem(source, parent, sourceStore, targetStore);
         }
     }
 

@@ -1,18 +1,15 @@
 package io.github.fourilla.endervault.common;
 
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.exc.JacksonIOException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
-import java.nio.channels.FileChannel;
-import java.nio.file.AccessDeniedException;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -29,6 +26,7 @@ public class JsonRegistry<T> {
     private final TypeReference<T> typeReference;
     private final Supplier<T> defaultValueSupplier;
     private final CorruptionPolicy corruptionPolicy;
+    private final FileSystemOperations fileSystem = FileSystemOperations.systemDefault();
 
     public JsonRegistry(
             ObjectMapper objectMapper,
@@ -83,15 +81,9 @@ public class JsonRegistry<T> {
         try {
             objectMapper.writerWithDefaultPrettyPrinter().writeValue(tempFile.toFile(), value);
             // Owner journals may record completion immediately after this write returns.
-            try (FileChannel channel = FileChannel.open(tempFile, StandardOpenOption.WRITE)) {
-                channel.force(true);
-            }
+            fileSystem.syncFile(tempFile);
             moveReplacing(tempFile, registryFile);
-            try (FileChannel channel = FileChannel.open(registryFile.getParent(), StandardOpenOption.READ)) {
-                channel.force(true);
-            } catch (AccessDeniedException | UnsupportedOperationException ex) {
-                // Windows generally does not expose directory fsync through FileChannel.
-            }
+            fileSystem.syncDirectory(registryFile.getParent());
         } catch (JacksonIOException ex) {
             throw new IOException("Failed to write JSON registry " + registryFile, ex.getCause());
         } catch (JacksonException ex) {
@@ -145,11 +137,7 @@ public class JsonRegistry<T> {
     }
 
     private void moveReplacing(Path source, Path target) throws IOException {
-        try {
-            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (AtomicMoveNotSupportedException ex) {
-            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
-        }
+        fileSystem.replace(source, target, FileSystemOperations.Atomicity.PREFERRED);
     }
 
     public enum CorruptionPolicy {

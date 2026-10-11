@@ -1,8 +1,7 @@
 package io.github.fourilla.endervault.directorytransfer;
 
 import io.github.fourilla.endervault.common.StorageAccessException;
-import io.github.fourilla.endervault.filecommit.DurableJsonFileWriter;
-import io.github.fourilla.endervault.storage.DirectoryMoveSupport;
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import io.github.fourilla.endervault.storage.FileLifecycleService;
 import io.github.fourilla.endervault.storage.StorageProgressListener;
 import io.github.fourilla.endervault.storage.StorageService;
@@ -17,24 +16,21 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashMap;
 import java.util.Map;
 import org.springframework.stereotype.Service;
-import tools.jackson.databind.ObjectMapper;
 
 /** A no-replace rename has its own recovery proof; it must never enter per-file source cleanup. */
 @Service
 public class DirectoryTransferWholeMoveCoordinator {
     private final DirectoryTransferReviewStore reviews;
     private final StorageService storage;
-    private final DirectoryMoveSupport nativeMoves;
+    private final FileSystemOperations fileSystem;
     private final FileLifecycleService lifecycle;
-    private final DurableJsonFileWriter durability;
 
     public DirectoryTransferWholeMoveCoordinator(DirectoryTransferReviewStore reviews, StorageService storage,
-            DirectoryMoveSupport nativeMoves, FileLifecycleService lifecycle, ObjectMapper mapper) {
+            FileSystemOperations fileSystem, FileLifecycleService lifecycle) {
         this.reviews = reviews;
         this.storage = storage;
-        this.nativeMoves = nativeMoves;
+        this.fileSystem = fileSystem;
         this.lifecycle = lifecycle;
-        this.durability = new DurableJsonFileWriter(mapper);
     }
 
     /** Structural ineligibility uses the old engine; stale approval is rejected, never bypassed. */
@@ -52,7 +48,7 @@ public class DirectoryTransferWholeMoveCoordinator {
         var targetParent = identifiedSnapshot(paths.target().getParent());
         if (!stableDirectory(sourceParent) || !stableDirectory(targetParent)
                 || keys.size() != plan.items().size()) return false;
-        return nativeMoves.supported(paths.source(), paths.target().getParent());
+        return fileSystem.supportsNoReplaceMove(paths.source(), paths.target().getParent());
     }
 
     public DirectoryTransferMoveRecord execute(DirectoryTransferReview review, StorageProgressListener listener) throws IOException {
@@ -83,6 +79,7 @@ public class DirectoryTransferWholeMoveCoordinator {
             if (changed != null) return needsReview(move, changed);
         }
         try {
+            boolean movedNow = false;
             requireKeys(plan, move);
             var paths = paths(plan);
             validateParents(move, paths);
@@ -95,26 +92,36 @@ public class DirectoryTransferWholeMoveCoordinator {
                     validateParents(move, paths);
                     requireAbsent(paths.target());
                     progress.checkCanceled();
-                    boolean renamed;
-                    try { renamed = nativeMoves.moveNoReplace(paths.source(), paths.target()); }
+                    FileSystemOperations.MoveResult renamed;
+                    try (var publication = FileSystemOperations.publication()) {
+                        renamed = fileSystem.moveNoReplace(paths.source(), paths.target());
+                    }
                     catch (FileAlreadyExistsException ex) {
                         return needsReview(move, "Destination appeared before the directory could be moved.");
                     }
-                    if (!renamed) {
+                    if (renamed == FileSystemOperations.MoveResult.UNSUPPORTED) {
                         // A primitive can decline only with no side effects. Prove that again before falling back.
                         validateParents(move, paths);
                         validateTree(plan, paths.source(), progress, move.entryKeys());
                         requireAbsent(paths.target());
                         return update(move, DirectoryTransferMoveRecord.Phase.FALLBACK, null);
                     }
+                    movedNow = true;
                 } else if (sourcePresent || !targetPresent) {
                     return needsReview(move, "Directory move locations changed. Inspect the original and destination.");
                 }
                 // This also adopts a rename completed before a crash while the durable record still said INTENT.
                 validateRenamedTree(plan, move, paths);
-                durability.forceDirectory(paths.source().getParent());
-                durability.forceDirectory(paths.target().getParent());
+                fileSystem.syncDirectory(paths.source().getParent());
+                fileSystem.syncDirectory(paths.target().getParent());
                 move = update(move, DirectoryTransferMoveRecord.Phase.RENAMED, null);
+            }
+            if (!movedNow && (move.phase() == DirectoryTransferMoveRecord.Phase.RENAMED
+                    || move.phase() == DirectoryTransferMoveRecord.Phase.METADATA_APPLIED)) {
+                validateRenamedTree(plan, move, paths);
+                try (var publication = FileSystemOperations.publication()) {
+                    FileSystemOperations.recordRecoveredPublication(paths.target());
+                }
             }
             if (move.phase() == DirectoryTransferMoveRecord.Phase.RENAMED) {
                 progress.checkCanceled();
@@ -182,7 +189,7 @@ public class DirectoryTransferWholeMoveCoordinator {
         return new Paths(source, target);
     }
 
-    private static Map<String, String> validateTree(DirectoryTransferPlan plan, Path root, StorageProgressListener progress,
+    private Map<String, String> validateTree(DirectoryTransferPlan plan, Path root, StorageProgressListener progress,
             Map<String, String> expectedKeys) throws IOException {
         Map<String, DirectoryTransferPlan.Item> expected = new HashMap<>();
         Map<String, String> keys = new HashMap<>();
@@ -204,7 +211,7 @@ public class DirectoryTransferWholeMoveCoordinator {
                 if (item == null || !item.source().equals(DirectoryTransferPlanner.snapshot(path))) {
                     throw new StorageAccessException("Directory tree changed after approval. Inspect the transfer before continuing.");
                 }
-                String key = DirectoryMoveSupport.fileKey(path);
+                String key = fileSystem.readIdentity(path);
                 if (expectedKeys != null && (key == null || !key.equals(expectedKeys.get(relative)))) {
                     throw new StorageAccessException("Directory entry identity changed after move approval.");
                 }
@@ -245,10 +252,10 @@ public class DirectoryTransferWholeMoveCoordinator {
         return snapshot.kind() == DirectoryTransferPlan.Kind.DIRECTORY && snapshot.fileKey() != null;
     }
 
-    private static DirectoryTransferPlan.Snapshot identifiedSnapshot(Path path) throws IOException {
+    private DirectoryTransferPlan.Snapshot identifiedSnapshot(Path path) throws IOException {
         var value = DirectoryTransferPlanner.snapshot(path);
         return new DirectoryTransferPlan.Snapshot(value.kind(), value.size(), value.modifiedAt(),
-                DirectoryMoveSupport.fileKey(path), value.createdAt());
+                fileSystem.readIdentity(path), value.createdAt());
     }
 
     private static void requireKeys(DirectoryTransferPlan plan, DirectoryTransferMoveRecord move) {

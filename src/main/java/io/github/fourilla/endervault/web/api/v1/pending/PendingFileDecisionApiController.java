@@ -5,6 +5,7 @@ import io.github.fourilla.endervault.directorytransfer.DirectoryTransferQuerySer
 import io.github.fourilla.endervault.directorytransfer.DirectoryTransferPlan;
 import io.github.fourilla.endervault.common.ByteSizeFormatter;
 import io.github.fourilla.endervault.common.StorageAccessException;
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import io.github.fourilla.endervault.pending.PendingFileDecision;
 import io.github.fourilla.endervault.pending.PendingFileDecisionAction;
 import io.github.fourilla.endervault.pending.PendingFileDecisionService;
@@ -198,7 +199,7 @@ public class PendingFileDecisionApiController {
         var results = new java.util.ArrayList<PendingFileDecisionBulkItemResponse>();
         for (String id : selected) {
             // Each call retains the single-item lock, commit guards, observers and activity log.
-            try {
+            try (var operation = FileSystemOperations.captureOperation().activate()) {
                 var result = resolve(id, action, null, replaceConfirmed, request);
                 results.add(new PendingFileDecisionBulkItemResponse(id, BulkStatus.RESOLVED,
                         result.notification().message(), result.removedId(), result.committedPath()));

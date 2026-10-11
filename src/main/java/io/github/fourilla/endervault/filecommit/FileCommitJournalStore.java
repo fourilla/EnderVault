@@ -1,17 +1,16 @@
 package io.github.fourilla.endervault.filecommit;
 
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import tools.jackson.databind.ObjectMapper;
 import io.github.fourilla.endervault.config.NasProperties;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryNotEmptyException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -262,10 +261,9 @@ public class FileCommitJournalStore {
         Path deletingDirectory = journalRoot.resolve(
                 DELETING_PREFIX + FileCommitJournalPaths.requireOperationId(operationId) + "-" + java.util.UUID.randomUUID()
         );
-        try {
-            Files.move(operationDirectory, deletingDirectory, StandardCopyOption.ATOMIC_MOVE);
-        } catch (AtomicMoveNotSupportedException ex) {
-            Files.move(operationDirectory, deletingDirectory);
+        FileSystemOperations fileSystem = FileSystemOperations.systemDefault();
+        if (fileSystem.moveNoReplace(operationDirectory, deletingDirectory) == FileSystemOperations.MoveResult.UNSUPPORTED) {
+            fileSystem.moveWithAtomicPreference(operationDirectory, deletingDirectory);
         }
         jsonWriter.forceDirectory(journalRoot);
         deleteOperationDirectory(deletingDirectory);

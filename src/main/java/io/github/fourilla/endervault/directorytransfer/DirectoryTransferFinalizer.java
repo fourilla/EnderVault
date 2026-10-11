@@ -8,6 +8,7 @@ import io.github.fourilla.endervault.filecommit.DurableJsonFileWriter;
 import io.github.fourilla.endervault.filecommit.FileCommitCoordinator;
 import io.github.fourilla.endervault.filecommit.FileCommitOwner;
 import io.github.fourilla.endervault.filecommit.FileCommitOwnerType;
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import io.github.fourilla.endervault.storage.FileLifecycleService;
 import io.github.fourilla.endervault.storage.StorageService;
 import io.github.fourilla.endervault.storage.StorageProgressListener;
@@ -154,9 +155,9 @@ public class DirectoryTransferFinalizer {
                     }
                 }
                 if (state.phase() == Phase.RETAINED) completeJournal(review, item, result);
-                else finishItem(review, index, item, result, results, state, null, false);
+                else finishItem(review, index, item, result, results, state, null, false, false);
             } else {
-                finishItem(review, index, item, result, results, reviews.completion(review.plan().id(), item.id()), null, false);
+                finishItem(review, index, item, result, results, reviews.completion(review.plan().id(), item.id()), null, false, false);
             }
         }
     }
@@ -203,7 +204,12 @@ public class DirectoryTransferFinalizer {
             if (result == null) continue;
             var state = reviews.completion(id, item.id());
             if (state != null && terminal(state.phase())) {
-                if (state.phase() == Phase.COMPLETE) completeJournal(review, item, result);
+                if (state.phase() == Phase.COMPLETE) {
+                    // A durable completion already verified publication. Diagnostic recovery
+                    // must not introduce new target validation before the remaining journal cleanup.
+                    recordPriorPublication(result);
+                    completeJournal(review, item, result);
+                }
                 completed.put(item.id(), state);
                 progress.onProgress("Finalizing", completed.size(), ordered.size(), 0, 0);
                 continue;
@@ -224,7 +230,7 @@ public class DirectoryTransferFinalizer {
                                 || excludedParents.contains(item.relativePath()));
                     state = unfinishedChild ? update(id, item.id(), state, Phase.RETAINED,
                             "Original directory has unfinished or retained children.")
-                            : finishItem(review, index, item, result, results, state, sourceRoot, discard);
+                            : finishItem(review, index, item, result, results, state, sourceRoot, discard, true);
                 } catch (StorageAccessException | NoSuchFileException ex) {
                     // Journals and source data remain owned for explicit review; no automatic retry with new approval.
                     state = reviews.completion(id, item.id());
@@ -240,10 +246,13 @@ public class DirectoryTransferFinalizer {
 
     private DirectoryTransferCompletion finishItem(DirectoryTransferReview review, DirectoryTransferIndex index,
             Item item, DirectoryTransferResult result, Map<String, DirectoryTransferResult> results,
-            DirectoryTransferCompletion state, Path sourceRoot, boolean discard) throws IOException {
+            DirectoryTransferCompletion state, Path sourceRoot, boolean discard, boolean collectDiagnostics) throws IOException {
         String id = review.plan().id();
         if (state == null) {
-            if (!discard) validateTarget(index, item, result, results);
+            if (!discard) {
+                validateTarget(index, item, result, results);
+                if (collectDiagnostics) recordPriorPublication(result);
+            }
             if (review.plan().operation() != Operation.COPY) {
                 Path source = sourcePath(review.plan(), item, sourceRoot);
                 validateSourceParents(index, review.plan(), item, sourceRoot);
@@ -255,7 +264,10 @@ public class DirectoryTransferFinalizer {
             state = update(id, item.id(), null, Phase.PREPARED, null);
         }
         if (state.phase() == Phase.PREPARED) {
-            if (!discard) validateTarget(index, item, result, results);
+            if (!discard) {
+                validateTarget(index, item, result, results);
+                if (collectDiagnostics) recordPriorPublication(result);
+            }
             if (review.plan().operation() != Operation.COPY) {
                 Path source = sourcePath(review.plan(), item, sourceRoot);
                 validateSourceParents(index, review.plan(), item, sourceRoot);
@@ -275,7 +287,10 @@ public class DirectoryTransferFinalizer {
             }
         }
         if (state.phase() == Phase.SOURCE_REMOVED) {
-            if (!discard) validateTarget(index, item, result, results);
+            if (!discard) {
+                validateTarget(index, item, result, results);
+                if (collectDiagnostics) recordPriorPublication(result);
+            }
             Path source = sourcePath(review.plan(), item, sourceRoot);
             validateSourceParents(index, review.plan(), item, sourceRoot);
             DirectoryTransferPlanner.rejectLinks(source);
@@ -288,8 +303,23 @@ public class DirectoryTransferFinalizer {
         if (state.phase() == Phase.METADATA_APPLIED) {
             state = update(id, item.id(), state, Phase.COMPLETE, null);
         }
-        if (state.phase() == Phase.COMPLETE) completeJournal(review, item, result);
+        if (state.phase() == Phase.COMPLETE) {
+            // METADATA_APPLIED can resume directly into this durable completion as well.
+            if (collectDiagnostics) recordPriorPublication(result);
+            completeJournal(review, item, result);
+        }
         return state;
+    }
+
+    private void recordPriorPublication(DirectoryTransferResult result) {
+        if (result.status() != DirectoryTransferResult.Status.PUBLISHED || result.commitId() == null) return;
+        try (var publication = FileSystemOperations.publication()) {
+            // The collector ignores targets successfully published by the current operation
+            // and deduplicates repeated validation of the same recovered target.
+            FileSystemOperations.recordRecoveredPublication(storage.resolveVaultCommitTarget(result.targetPath()));
+        } catch (IOException | RuntimeException ex) {
+            // Resolving a diagnostic path must not prevent existing completion or journal cleanup.
+        }
     }
 
     private void completeJournal(DirectoryTransferReview review, Item item, DirectoryTransferResult result) throws IOException {

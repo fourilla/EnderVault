@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.fourilla.endervault.outbound.NetworkRoute;
 import java.util.List;
@@ -9,6 +10,27 @@ import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.mock.env.MockEnvironment;
 
 class NasPropertiesTest {
+
+    @Test
+    void filesystemNativePolicyDefaultsToEnabledAndBindsExplicitBooleans() {
+        assertThat(new NasProperties().getFilesystem().isNativeEnabled()).isTrue();
+        for (boolean enabled : new boolean[]{false, true}) {
+            MockEnvironment environment = new MockEnvironment()
+                    .withProperty("nas.filesystem.native-enabled", Boolean.toString(enabled));
+            NasProperties properties = Binder.get(environment)
+                    .bind("nas", NasProperties.class)
+                    .get();
+            assertThat(properties.getFilesystem().isNativeEnabled()).isEqualTo(enabled);
+        }
+    }
+
+    @Test
+    void rejectsInvalidFilesystemNativePolicyDuringBinding() {
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty("nas.filesystem.native-enabled", "automatic");
+        assertThatThrownBy(() -> Binder.get(environment).bind("nas", NasProperties.class))
+                .isInstanceOf(org.springframework.boot.context.properties.bind.BindException.class);
+    }
 
     @Test
     void bindsTelegramActivityFlagsByReadablePropertyNames() {

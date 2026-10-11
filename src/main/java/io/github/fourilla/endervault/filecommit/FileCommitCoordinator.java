@@ -2,6 +2,7 @@ package io.github.fourilla.endervault.filecommit;
 
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
 import io.github.fourilla.endervault.storage.StorageService;
 import java.io.IOException;
@@ -64,8 +65,8 @@ public class FileCommitCoordinator {
     /**
      * Publishes one direct file-staging child using a same-filesystem atomic move, never a merge.
      * The owner must stop staging writers and complete owner metadata before calling complete().
-     * Java's precheck plus ATOMIC_MOVE cannot guarantee no replacement against external writers
-     * racing the destination, or exclude source mutations/same-directory renames after fingerprinting.
+     * Supported filesystems reject a racing destination during the move itself. The legacy atomic
+     * fallback cannot guarantee that, and neither path excludes staging mutations after fingerprinting.
      * DIRECTORY_UPLOAD recovery and completion belong to the upload group service.
      */
     public synchronized StagedFileCommit commitSingleDirectory(
@@ -272,6 +273,12 @@ public class FileCommitCoordinator {
     }
 
     private StagedFileCommit resume(FileCommitJournalEntry initial, CommitPaths paths) throws IOException {
+        try (var scope = FileSystemOperations.operationOrCapture().activate()) {
+            return resumeWithPolicy(initial, paths);
+        }
+    }
+
+    private StagedFileCommit resumeWithPolicy(FileCommitJournalEntry initial, CommitPaths paths) throws IOException {
         FileCommitJournalEntry entry = initial;
         if (entry.state().phase() == FileCommitPhase.ABORTED) {
             throw conflict(entry, paths.targetFile());
@@ -296,6 +303,10 @@ public class FileCommitCoordinator {
             throw recoveryRequired(entry, "File commit is not ready to apply owner metadata.");
         }
         requireCommittedTarget(entry, paths.targetFile());
+        if (initial.state().phase() == FileCommitPhase.FILES_MOVED
+                || initial.state().phase() == FileCommitPhase.APPLYING_METADATA) {
+            recordRecoveredPublication(paths.targetFile());
+        }
         return new StagedFileCommit(
                 entry.manifest().operationId(),
                 new StorageService.CommittedVaultFile(
@@ -328,6 +339,7 @@ public class FileCommitCoordinator {
             storageService.commitStagedRegularFileNoReplace(
                     paths.stagedFile(), paths.destinationPath(), paths.filename()
             );
+            recordRecoveredPublication(paths.targetFile());
         } else if (sourceExists) {
             requireFingerprint(expected, paths.stagedFile(), entry, "Staging data changed before commit.");
             try {
@@ -347,6 +359,7 @@ public class FileCommitCoordinator {
         }
 
         requireFingerprint(expected, paths.targetFile(), entry, "Committed target does not match staging data.");
+        if (!sourceExists) recordRecoveredPublication(paths.targetFile());
         return update(entry, FileCommitPhase.FILES_MOVED, 1, "Staged file committed.");
     }
 
@@ -378,7 +391,8 @@ public class FileCommitCoordinator {
                 storageService.commitStagedRegularFileNoReplace(
                         paths.stagedFile(), paths.destinationPath(), paths.filename()
                 );
-            }
+                recordRecoveredPublication(paths.targetFile());
+            } else recordRecoveredPublication(paths.targetFile());
             return update(entry, FileCommitPhase.FILES_MOVED, 1, "Staged file replaced target.");
         }
 
@@ -399,6 +413,12 @@ public class FileCommitCoordinator {
         );
         requireFingerprint(stagedFingerprint, paths.targetFile(), entry, "Replacement target is incomplete.");
         return update(entry, FileCommitPhase.FILES_MOVED, 1, "Staged file replaced target.");
+    }
+
+    private void recordRecoveredPublication(Path target) {
+        try (var publication = FileSystemOperations.publication()) {
+            FileSystemOperations.recordRecoveredPublication(target);
+        }
     }
 
     private void cleanupReplacementBackup(FileCommitJournalEntry entry) throws IOException {

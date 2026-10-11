@@ -103,7 +103,7 @@ test('Settings initializes the global toggle, keeps it in Appearance & Browser a
   for (const showTableActions of [true, false]) {
     const snapshot = { appearance: {}, browser: { defaultView: 'table', defaultSort: 'name', defaultDirection: 'asc',
       defaultPageSize: 200, showTableActions }, stickyNotes: { backgroundColor: '#1B3033', borderColor: '#4E8F8A', textColor: '#EAF6F4' },
-      storage: {}, recent: {}, trash: {}, fileTools: {}, remoteDownload: {} };
+      storage: {}, filesystem: { nativeEnabled: showTableActions }, recent: {}, trash: {}, fileTools: {}, remoteDownload: {} };
     let values, afterSave, refreshes = 0;
     const module = { exports: {} };
     vm.runInNewContext(sources['settings/sections/GeneralSettings.tsx'], { module, exports: module.exports,
@@ -134,6 +134,17 @@ test('Settings initializes the global toggle, keeps it in Appearance & Browser a
     assert.equal(refreshes, 0);
     afterSave(values);
     assert.equal(refreshes, 1);
-    assert.ok(!nodes(render('files')).some(node => node.props?.name === 'showTableActions'));
+    const files = render('files');
+    assert.ok(!nodes(files).some(node => node.props?.name === 'showTableActions'));
+    const filesystemToggle = nodes(files).find(node => node.type?.name === 'SettingsToggle'
+      && node.props.name === 'filesystemNativeEnabled');
+    assert.equal(filesystemToggle.props.label, 'Use JNA when available');
+    assert.equal(filesystemToggle.props.values.filesystemNativeEnabled, showTableActions);
+    assert.match(filesystemToggle.props.description, /new operations after saving/);
+    assert.match(filesystemToggle.props.description, /Running operations keep their policy/);
+    assert.match(filesystemToggle.props.description, /Unsupported environments use Java/);
+    assert.notEqual(filesystemToggle.props.restartRequired, true);
+    assert.ok(!nodes(tree).some(node => node.props?.name === 'filesystemNativeEnabled'));
+    assert.equal(values.filesystemNativeEnabled, showTableActions);
   }
 });
