@@ -41,6 +41,7 @@ export interface AdminAppBootstrap {
   };
   browser: {
     showTableActions: boolean;
+    hidden: import('../shared/browser/types').HiddenMode;
   };
   sessions: {
     activeCount: number;

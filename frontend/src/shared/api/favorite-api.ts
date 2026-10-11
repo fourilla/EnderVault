@@ -7,7 +7,7 @@ export interface FavoriteToggleResult {
 
 type FavoriteDirection = 'up' | 'down';
 
-const favoritesChanged = () =>
+export const favoritesChanged = () =>
   document.dispatchEvent(new CustomEvent('endervault:favorites-changed'));
 
 export async function togglePathFavorite(path: string): Promise<FavoriteToggleResult> {

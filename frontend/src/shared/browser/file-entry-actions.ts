@@ -1,4 +1,4 @@
-import { togglePathFavorite } from '../api/favorite-api';
+import { favoritesChanged, togglePathFavorite } from '../api/favorite-api';
 import { createShareAndCopy } from '../api/share-api';
 import { notify, postForm, toastError } from '../api/form-api';
 import type { BrowserEntry, TransferBufferPayload } from './types';
@@ -83,6 +83,7 @@ export function createFileEntryActions<T extends EntryListing>({
     const body = await postForm('/api/v1/files/rename', {
       path: entry.parentPath, item: entry.name, newName: newName.trim(), conflictPolicy: 'ask',
     }, true);
+    favoritesChanged();
     notify(body);
     reload();
   };

@@ -18,6 +18,7 @@ export async function fetchAdminAppBootstrap(signal?: AbortSignal): Promise<Admi
   const response = await fetch('/api/v1/app/bootstrap', {
     headers: { Accept: 'application/json' },
     credentials: 'same-origin',
+    cache: 'no-store',
     signal,
   });
 

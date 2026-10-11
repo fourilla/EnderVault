@@ -50,7 +50,9 @@ import io.github.fourilla.endervault.upload.ResumableUploadSession;
 import io.github.fourilla.endervault.upload.ResumableUploadSource;
 import io.github.fourilla.endervault.upload.ResumableUploadStatus;
 import io.github.fourilla.endervault.web.support.FlashNotification;
+import io.github.fourilla.endervault.web.support.BrowserPreferenceCookies;
 import io.github.fourilla.endervault.web.support.ViteAssetService;
+import jakarta.servlet.http.Cookie;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -2065,6 +2067,161 @@ class AdminNotificationFlowTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/js/directory-picker.js")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("/js/settings-form.js"))));
+    }
+
+    @Test
+    void sidebarBootstrapFollowsHiddenPreferenceCookiesSavedByFilesSearchAndRecent() throws Exception {
+        SidebarFavoriteFixture fixture = createSidebarFavoriteFixture();
+        try {
+            Cookie hiddenCookie = null;
+            for (String endpoint : List.of("/api/v1/fs/listing", "/api/v1/fs/search", "/api/v1/recent")) {
+                for (String hidden : List.of("show", "hide")) {
+                    var request = get(endpoint).param("hidden", hidden);
+                    if (!endpoint.equals("/api/v1/recent")) {
+                        request.param("path", fixture.base());
+                    }
+                    if (hiddenCookie != null) {
+                        request.cookie(hiddenCookie);
+                    }
+                    MvcResult listing = mockMvc.perform(request)
+                            .andExpect(status().isOk())
+                            .andExpect(jsonPath("$.preferences.hidden").value(hidden))
+                            .andReturn();
+                    hiddenCookie = sharedHiddenCookie(listing);
+                    assertThat(hiddenCookie.getValue()).isEqualTo(hidden);
+                    assertSidebarFavorites(fixture, hidden,
+                            mockMvc.perform(get("/api/v1/app/bootstrap").cookie(hiddenCookie)).andReturn());
+                }
+            }
+        } finally {
+            removeSidebarFavoriteFixture(fixture);
+        }
+    }
+
+    @Test
+    void sidebarBootstrapHiddenModeAndFavoritesUseTheSameQueryCookieAndDefaultPrecedence() throws Exception {
+        SidebarFavoriteFixture fixture = createSidebarFavoriteFixture();
+        try {
+            assertSidebarFavorites(fixture, "hide",
+                    mockMvc.perform(get("/api/v1/app/bootstrap")).andReturn());
+            assertSidebarFavorites(fixture, "show", mockMvc.perform(get("/api/v1/app/bootstrap")
+                    .cookie(new Cookie(BrowserPreferenceCookies.FILES.hiddenCookie(), "true"))).andReturn());
+            for (String requested : List.of("show", "SHOW", "true")) {
+                assertSidebarFavorites(fixture, "show", mockMvc.perform(get("/api/v1/app/bootstrap")
+                        .cookie(new Cookie(BrowserPreferenceCookies.FILES.hiddenCookie(), "hide"))
+                        .param("hidden", requested)).andReturn());
+            }
+            for (String requested : List.of("hide", "false", "invalid", "")) {
+                assertSidebarFavorites(fixture, "hide", mockMvc.perform(get("/api/v1/app/bootstrap")
+                        .cookie(new Cookie(BrowserPreferenceCookies.FILES.hiddenCookie(), "show"))
+                        .param("hidden", requested)).andReturn());
+            }
+        } finally {
+            removeSidebarFavoriteFixture(fixture);
+        }
+    }
+
+    @Test
+    void resettingFilesOrRecentPreferencesRestoresVisibleOnlySidebarWithoutChangingReadOnlyPolicy() throws Exception {
+        SidebarFavoriteFixture fixture = createSidebarFavoriteFixture();
+        try {
+            for (String target : List.of("files", "recent")) {
+                MvcResult listing = mockMvc.perform(get("/api/v1/fs/listing")
+                                .param("path", fixture.base()).param("hidden", "show"))
+                        .andExpect(status().isOk()).andReturn();
+                Cookie hiddenCookie = sharedHiddenCookie(listing);
+                assertSidebarFavorites(fixture, "show",
+                        mockMvc.perform(get("/api/v1/app/bootstrap").cookie(hiddenCookie)).andReturn());
+                MvcResult reset = mockMvc.perform(post("/api/v1/browser-preferences/reset").with(csrf())
+                                .param("target", target).cookie(hiddenCookie))
+                        .andExpect(status().isOk()).andReturn();
+                assertThat(reset.getResponse().getHeaders(HttpHeaders.SET_COOKIE))
+                        .anySatisfy(value -> assertThat(value)
+                                .startsWith(BrowserPreferenceCookies.FILES.hiddenCookie() + "=")
+                                .contains("Max-Age=0"));
+                Cookie clearedCookie = sharedHiddenCookie(reset);
+                assertThat(clearedCookie.getValue()).isEmpty();
+                assertSidebarFavorites(fixture, "hide",
+                        mockMvc.perform(get("/api/v1/app/bootstrap").cookie(clearedCookie)).andReturn());
+                mockMvc.perform(get("/api/v1/fs/listing").param("path", fixture.base()).cookie(clearedCookie))
+                        .andExpect(status().isOk()).andExpect(jsonPath("$.preferences.hidden").value("hide"));
+            }
+
+            Cookie sharedShowCookie = new Cookie(BrowserPreferenceCookies.FILES.hiddenCookie(), "show");
+            MvcResult readOnlyReset = mockMvc.perform(post("/api/v1/browser-preferences/reset").with(csrf())
+                            .param("target", "read-only").cookie(sharedShowCookie))
+                    .andExpect(status().isOk()).andReturn();
+            assertThat(readOnlyReset.getResponse().getHeaders(HttpHeaders.SET_COOKIE))
+                    .noneMatch(value -> value.startsWith(BrowserPreferenceCookies.FILES.hiddenCookie() + "="));
+            assertSidebarFavorites(fixture, "show",
+                    mockMvc.perform(get("/api/v1/app/bootstrap").cookie(sharedShowCookie)).andReturn());
+        } finally {
+            removeSidebarFavoriteFixture(fixture);
+        }
+    }
+
+    private SidebarFavoriteFixture createSidebarFavoriteFixture() throws IOException {
+        String base = "sidebar-visibility-" + System.nanoTime();
+        Files.createDirectories(ROOT.resolve(base + "/private"));
+        Files.writeString(ROOT.resolve(base + "/visible.txt"), "visible");
+        Files.writeString(ROOT.resolve(base + "/secret.txt"), "hidden file");
+        Files.writeString(ROOT.resolve(base + "/private/child.txt"), "visible child of hidden directory");
+        String hiddenFile = storageService.setHiddenVaultPath(base + "/secret.txt", true,
+                io.github.fourilla.endervault.storage.ConflictPolicy.CANCEL);
+        String hiddenDirectory = storageService.setHiddenVaultPath(base + "/private", true,
+                io.github.fourilla.endervault.storage.ConflictPolicy.CANCEL);
+        SidebarFavoriteFixture fixture = new SidebarFavoriteFixture(
+                base, base + "/visible.txt", hiddenFile, hiddenDirectory, hiddenDirectory + "/child.txt");
+        for (String path : fixture.paths()) {
+            favoriteService.toggle(path);
+        }
+        assertThat(Files.isHidden(ROOT.resolve(fixture.hiddenFile()))).isTrue();
+        assertThat(Files.isHidden(ROOT.resolve(fixture.hiddenDirectory()))).isTrue();
+        assertThat(Files.isHidden(ROOT.resolve(fixture.descendant()))).isFalse();
+        return fixture;
+    }
+
+    private void removeSidebarFavoriteFixture(SidebarFavoriteFixture fixture) throws IOException {
+        favoriteService.removeVaultPath(fixture.base());
+        storageService.deleteVaultPath(fixture.base());
+    }
+
+    private Cookie sharedHiddenCookie(MvcResult response) {
+        String prefix = BrowserPreferenceCookies.FILES.hiddenCookie() + "=";
+        String setCookie = response.getResponse().getHeaders(HttpHeaders.SET_COOKIE).stream()
+                .filter(value -> value.startsWith(prefix)).findFirst().orElseThrow();
+        return new Cookie(BrowserPreferenceCookies.FILES.hiddenCookie(),
+                setCookie.substring(prefix.length()).split(";", 2)[0]);
+    }
+
+    private void assertSidebarFavorites(SidebarFavoriteFixture fixture, String hidden, MvcResult response)
+            throws Exception {
+        assertThat(response.getResponse().getStatus()).isEqualTo(200);
+        assertThat(response.getResponse().getHeader(HttpHeaders.CACHE_CONTROL)).contains("no-store");
+        JsonNode bootstrap = objectMapper.readTree(response.getResponse().getContentAsString());
+        assertThat(bootstrap.path("browser").path("hidden").asText()).isEqualTo(hidden);
+        Set<String> paths = new LinkedHashSet<>();
+        for (JsonNode favorite : bootstrap.path("favorites")) {
+            paths.add(favorite.path("path").asText());
+            if (fixture.paths().contains(favorite.path("path").asText())) {
+                assertThat(favorite.path("hidden").asBoolean())
+                        .isEqualTo(!favorite.path("path").asText().equals(fixture.visible()));
+            }
+        }
+        assertThat(paths).contains(fixture.visible());
+        if (hidden.equals("show")) {
+            assertThat(paths).containsAll(fixture.paths());
+        } else {
+            assertThat(paths).doesNotContain(fixture.hiddenFile(), fixture.hiddenDirectory(), fixture.descendant());
+        }
+    }
+
+    private record SidebarFavoriteFixture(
+            String base, String visible, String hiddenFile, String hiddenDirectory, String descendant
+    ) {
+        List<String> paths() {
+            return List.of(visible, hiddenFile, hiddenDirectory, descendant);
+        }
     }
 
     @Test

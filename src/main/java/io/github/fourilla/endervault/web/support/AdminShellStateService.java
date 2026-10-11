@@ -44,7 +44,7 @@ public class AdminShellStateService {
 
     public List<FavoriteDisplayItem> favorites(HttpServletRequest request) {
         try {
-            return favoriteService.listExistingDisplay(showHiddenFavorites(request));
+            return favoriteService.listExistingDisplay("show".equals(hiddenMode(request)));
         } catch (Exception ex) {
             return List.of();
         }
@@ -63,8 +63,8 @@ public class AdminShellStateService {
         return new UploadUiConfig(Math.min(nasProperties.getUpload().getMaxConcurrentChunks(), 8));
     }
 
-    public BrowserUiConfig browserUiConfig() {
-        return new BrowserUiConfig(nasProperties.getBrowser().isShowTableActions());
+    public BrowserUiConfig browserUiConfig(HttpServletRequest request) {
+        return new BrowserUiConfig(nasProperties.getBrowser().isShowTableActions(), hiddenMode(request));
     }
 
     public String bookmarkLinkClickAction() {
@@ -104,16 +104,15 @@ public class AdminShellStateService {
         return nasProperties.getAppearance();
     }
 
-    private boolean showHiddenFavorites(HttpServletRequest request) {
+    private String hiddenMode(HttpServletRequest request) {
         String requestedHidden = request.getParameter("hidden");
-        String hidden = requestedHidden == null
+        return requestedHidden == null
                 ? BrowserPreferenceCookies.value(
                         request,
                         BrowserPreferenceCookies.FILES.hiddenCookie(),
                         this::normalizeHiddenMode
                 )
                 : normalizeHiddenMode(requestedHidden);
-        return "show".equals(hidden);
     }
 
     private String normalizeHiddenMode(String hidden) {
@@ -133,7 +132,7 @@ public class AdminShellStateService {
     public record UploadUiConfig(int maxConcurrentUploads) {
     }
 
-    public record BrowserUiConfig(boolean showTableActions) {
+    public record BrowserUiConfig(boolean showTableActions, String hidden) {
     }
 
     public record Capabilities(

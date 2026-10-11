@@ -6,6 +6,7 @@ import { postForm, toastError } from '../shared/api/form-api';
 import type { BrowserHistoryState, BrowserPayload, BrowserView } from './types';
 import { useNavigationScroll } from '../shared/browser/useNavigationScroll';
 import { useListingRefresh } from '../shared/browser/useListingRefresh';
+import { useAdminApp } from '../app/AdminAppContext';
 
 export const listingRequestKeyFor = (state: BrowserHistoryState) => [
   state.mode,
@@ -19,6 +20,7 @@ export const listingRequestKeyFor = (state: BrowserHistoryState) => [
 ].join('\u0000');
 
 export function useBrowserNavigation() {
+  const { syncBrowserHidden } = useAdminApp();
   const { state, key: historyKey, remember, navigate: navigateHistory, isCurrent, ready } = useListingHistory(browserHistory);
   const [payload, setPayload] = useListingSnapshot<BrowserPayload>(historyKey);
   const [loading, setLoading] = useState(true);
@@ -79,6 +81,7 @@ export function useBrowserNavigation() {
     void loadBrowserPayload(requestState, controller.signal)
       .then((nextPayload) => {
         if (!isCurrent() || controller.signal.aborted || requestGeneration !== requestGenerationRef.current) return;
+        syncBrowserHidden(nextPayload.preferences.hidden);
         setPayload(nextPayload);
         const resolvedState = canonicalState(requestState, nextPayload);
         remember(resolvedState);
@@ -111,7 +114,7 @@ export function useBrowserNavigation() {
         }
       });
     return () => controller.abort();
-  }, [historyKey, listingRequestKey, refreshToken, remember, isCurrent, effectiveState]);
+  }, [historyKey, listingRequestKey, refreshToken, remember, isCurrent, effectiveState, syncBrowserHidden]);
 
   useEffect(() => {
     setSearchText(state.query);
