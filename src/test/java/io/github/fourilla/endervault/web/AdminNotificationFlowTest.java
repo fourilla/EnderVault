@@ -1192,6 +1192,211 @@ class AdminNotificationFlowTest {
     }
 
     @Test
+    void generatedBrowserSearchAndRecentLinksKeepPlusAndSpaceTargetsDistinct() throws Exception {
+        String base = "encoded-links-" + System.nanoTime();
+        String directory = base + "/parent+name/nested+한글 %2B#&";
+        List<String> names = List.of("encoded+name.txt", "encoded name.txt", "encoded-%2B+%#&한글.txt");
+        Files.createDirectories(ROOT.resolve(directory));
+        Files.createDirectories(ROOT.resolve(directory.replace('+', ' ')));
+        for (String name : names) {
+            Files.writeString(ROOT.resolve(directory).resolve(name), "original " + name, StandardCharsets.UTF_8);
+            Files.writeString(ROOT.resolve(directory.replace('+', ' ')).resolve(name.replace('+', ' ')),
+                    "wrong space alias", StandardCharsets.UTF_8);
+        }
+
+        JsonNode listing = objectMapper.readTree(mockMvc.perform(get("/api/v1/fs/listing").param("path", directory))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray());
+        JsonNode search = objectMapper.readTree(mockMvc.perform(get("/api/v1/fs/search")
+                        .param("path", base).param("q", "encoded").param("size", "50"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray());
+        for (String name : names) {
+            String path = directory + "/" + name;
+            byte[] expected = ("original " + name).getBytes(StandardCharsets.UTF_8);
+            for (JsonNode payload : List.of(listing, search)) {
+                JsonNode entry = browserEntryAtPath(payload.path("entries"), path);
+                JsonNode detail = followAdminDetailLink(entry.path("detailUrl").asText());
+                assertThat(detail.path("detail").path("path").asText()).isEqualTo(path);
+                assertThat(detail.path("text").path("content").asText()).isEqualTo("original " + name);
+                for (JsonNode action : detail.path("urls").path("actions")) {
+                    URI actionUrl = generatedAdminUri(action.path("href").asText());
+                    assertThat(java.net.URLDecoder.decode(actionUrl.getRawQuery().substring("path=".length()),
+                            StandardCharsets.UTF_8)).isEqualTo(path);
+                    mockMvc.perform(get(actionUrl)).andExpect(action.path("id").asText().equals("preview")
+                            ? status().is3xxRedirection() : status().isOk());
+                }
+                mockMvc.perform(get(generatedAdminUri(entry.path("downloadUrl").asText())))
+                        .andExpect(status().isOk()).andExpect(content().bytes(expected));
+                mockMvc.perform(get(generatedAdminUri(detail.path("urls").path("download").asText())))
+                        .andExpect(status().isOk()).andExpect(content().bytes(expected));
+                mockMvc.perform(get(generatedAdminUri(detail.path("urls").path("previewContent").asText())))
+                        .andExpect(status().isOk()).andExpect(content().bytes(expected));
+                MvcResult opened = mockMvc.perform(get(generatedAdminUri(entry.path("previewUrl").asText())))
+                        .andExpect(status().is3xxRedirection()).andReturn();
+                mockMvc.perform(get(generatedAdminUri(opened.getResponse().getRedirectedUrl())))
+                        .andExpect(status().isOk()).andExpect(content().bytes(expected));
+            }
+        }
+
+        JsonNode recent = objectMapper.readTree(mockMvc.perform(get("/api/v1/recent").param("q", base))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray());
+        for (String name : names) {
+            String path = directory + "/" + name;
+            JsonNode entry = browserEntryAtPath(recent.path("entries"), path);
+            assertThat(followAdminDetailLink(entry.path("detailUrl").asText())
+                    .path("detail").path("path").asText()).isEqualTo(path);
+            mockMvc.perform(get(generatedAdminUri(entry.path("downloadUrl").asText())))
+                    .andExpect(status().isOk())
+                    .andExpect(content().bytes(("original " + name).getBytes(StandardCharsets.UTF_8)));
+        }
+    }
+
+    @Test
+    void generatedDirectoryLinksKeepNestedPlusPathsInOpenParentAndZip() throws Exception {
+        String base = "encoded-directory-" + System.nanoTime();
+        String parent = base + "/parent+name";
+        String directory = parent + "/nested+%2B#&한글";
+        String filename = "note+%2B#&한글.txt";
+        Files.createDirectories(ROOT.resolve(directory));
+        Files.writeString(ROOT.resolve(directory).resolve(filename), "directory original", StandardCharsets.UTF_8);
+        Files.createDirectories(ROOT.resolve(directory.replace('+', ' ')));
+        Files.writeString(ROOT.resolve(directory.replace('+', ' ')).resolve("wrong.txt"), "wrong directory");
+        JsonNode listing = objectMapper.readTree(mockMvc.perform(get("/api/v1/fs/listing").param("path", parent))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray());
+        JsonNode entry = browserEntryAtPath(listing.path("directories"), directory);
+        JsonNode detail = followAdminDetailLink(entry.path("detailUrl").asText());
+        assertThat(detail.path("detail").path("path").asText()).isEqualTo(directory);
+        assertThat(detail.path("detail").path("directory").asBoolean()).isTrue();
+        for (var route : Map.of("openDirectory", directory, "parentDirectory", parent).entrySet()) {
+            URI url = generatedAdminUri(detail.path("urls").path(route.getKey()).asText());
+            mockMvc.perform(get(url)).andExpect(status().isOk());
+            // The SPA shell delegates directory resolution to the listing API with this same query.
+            mockMvc.perform(get(generatedAdminUri("/api/v1/fs/listing?" + url.getRawQuery())))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.path").value(route.getValue()));
+        }
+        MvcResult zipped = mockMvc.perform(get(generatedAdminUri(detail.path("urls").path("downloadZip").asText())))
+                .andExpect(status().isOk()).andExpect(content().contentType("application/zip")).andReturn();
+        try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(zipped.getResponse().getContentAsByteArray()))) {
+            ZipEntry item;
+            boolean originalFound = false;
+            while ((item = zip.getNextEntry()) != null) {
+                assertThat(item.getName()).doesNotEndWith("wrong.txt");
+                if (item.getName().endsWith("/" + filename)) {
+                    originalFound = true;
+                    assertThat(new String(zip.readAllBytes(), StandardCharsets.UTF_8)).isEqualTo("directory original");
+                }
+            }
+            assertThat(originalFound).isTrue();
+        }
+    }
+
+    @Test
+    void generatedMediaComicAndArchiveLinksResolveSpecialCharacterNames() throws Exception {
+        String directory = "encoded-media-" + System.nanoTime() + "/nested+%2B#&한글";
+        Files.createDirectories(ROOT.resolve(directory));
+        var imageBytes = new java.io.ByteArrayOutputStream();
+        assertThat(javax.imageio.ImageIO.write(new java.awt.image.BufferedImage(2, 2,
+                java.awt.image.BufferedImage.TYPE_INT_RGB), "png", imageBytes)).isTrue();
+        byte[] image = imageBytes.toByteArray();
+        String picture = "picture+%2B#&한글.png", comic = "comic+%2B#&한글.cbz", archive = "archive+%2B#&한글.zip";
+        Files.write(ROOT.resolve(directory).resolve(picture), image);
+        for (String name : List.of(comic, archive)) {
+            try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(ROOT.resolve(directory).resolve(name)))) {
+                zip.putNextEntry(new ZipEntry("001.png"));
+                zip.write(image);
+                zip.closeEntry();
+            }
+        }
+        JsonNode listing = objectMapper.readTree(mockMvc.perform(get("/api/v1/fs/listing").param("path", directory))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray());
+        JsonNode imageEntry = browserEntryAtPath(listing.path("entries"), directory + "/" + picture);
+        mockMvc.perform(get(generatedAdminUri(imageEntry.path("thumbnailUrl").asText())))
+                .andExpect(status().isOk()).andExpect(content().bytes(image));
+        JsonNode imageDetail = followAdminDetailLink(imageEntry.path("detailUrl").asText());
+        mockMvc.perform(get(generatedAdminUri(imageDetail.path("urls").path("previewContent").asText())))
+                .andExpect(status().isOk()).andExpect(content().bytes(image));
+
+        JsonNode comicEntry = browserEntryAtPath(listing.path("entries"), directory + "/" + comic);
+        mockMvc.perform(get(generatedAdminUri(comicEntry.path("thumbnailUrl").asText())))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE, Matchers.startsWith("image/")));
+        JsonNode comicDetail = followAdminDetailLink(comicEntry.path("detailUrl").asText());
+        assertThat(comicDetail.path("comic").path("manifest").path("pageCount").asInt()).isEqualTo(1);
+        mockMvc.perform(get(generatedAdminUri(comicDetail.path("comic").path("pageUrl").asText() + "&page=0")))
+                .andExpect(status().isOk()).andExpect(content().bytes(image));
+        MvcResult preview = mockMvc.perform(get(generatedAdminUri(comicDetail.path("urls").path("previewContent").asText())))
+                .andExpect(status().isOk()).andReturn();
+        String pagePrefix = (String) preview.getModelAndView().getModel().get("comicPageUrlPrefix");
+        mockMvc.perform(get(generatedAdminUri(pagePrefix + "0")))
+                .andExpect(status().isOk()).andExpect(content().bytes(image));
+
+        JsonNode archiveEntry = browserEntryAtPath(listing.path("entries"), directory + "/" + archive);
+        JsonNode archiveDetail = followAdminDetailLink(archiveEntry.path("detailUrl").asText());
+        mockMvc.perform(get(generatedAdminUri(archiveDetail.path("archive").path("entriesUrl").asText())))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.entries[0].path").value("001.png"));
+    }
+
+    @Test
+    void generatedMutationAndPreferenceReturnUrlsPreserveRawPathsAndQueries() throws Exception {
+        String directory = "encoded-return-" + System.nanoTime() + "/parent+%2B#&한글";
+        Files.createDirectories(ROOT.resolve(directory));
+        String original = directory + "/original+name.txt";
+        String renamed = "renamed+%2B#&한글.txt";
+        Files.writeString(ROOT.resolve(original), "renamed original", StandardCharsets.UTF_8);
+        JsonNode mutation = objectMapper.readTree(mockMvc.perform(post("/api/v1/files/detail/rename")
+                        .with(csrf()).param("path", original).param("newName", renamed))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray());
+        JsonNode detail = followAdminDetailLink(mutation.path("redirectUrl").asText());
+        assertThat(detail.path("detail").path("path").asText()).isEqualTo(directory + "/" + renamed);
+        assertThat(detail.path("text").path("content").asText()).isEqualTo("renamed original");
+
+        for (String target : List.of("files", "read-only")) {
+            JsonNode reset = objectMapper.readTree(mockMvc.perform(post("/api/v1/browser-preferences/reset")
+                            .with(csrf()).param("target", target).param("path", directory))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray());
+            URI url = generatedAdminUri(reset.path("redirectUrl").asText());
+            assertThat(java.net.URLDecoder.decode(url.getRawQuery().substring("path=".length()),
+                    StandardCharsets.UTF_8)).isEqualTo(directory);
+            mockMvc.perform(get(url)).andExpect(status().isOk());
+        }
+        String query = "renamed+%2B 한글";
+        JsonNode resetRecent = objectMapper.readTree(mockMvc.perform(post("/api/v1/browser-preferences/reset")
+                        .with(csrf()).param("target", "recent").param("q", query))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray());
+        JsonNode removedRecent = objectMapper.readTree(mockMvc.perform(post("/api/v1/recent/remove")
+                        .with(csrf()).param("paths", directory + "/" + renamed).param("q", query).param("page", "2"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray());
+        for (JsonNode response : List.of(resetRecent, removedRecent)) {
+            URI url = generatedAdminUri(response.path("redirectUrl").asText());
+            String queryValue = url.getRawQuery().split("&")[0].substring("q=".length());
+            assertThat(java.net.URLDecoder.decode(queryValue, StandardCharsets.UTF_8)).isEqualTo(query);
+            mockMvc.perform(get(url)).andExpect(status().isOk());
+        }
+        assertThat(removedRecent.path("redirectUrl").asText()).endsWith("&page=2");
+    }
+
+    private JsonNode browserEntryAtPath(JsonNode entries, String path) {
+        for (JsonNode entry : entries) {
+            if (path.equals(entry.path("path").asText())) return entry;
+        }
+        throw new AssertionError("Browser entry not found for " + path);
+    }
+
+    private URI generatedAdminUri(String href) {
+        URI url = URI.create(href);
+        // MockMvc may decode queries differently from a Servlet container; require '+' to be escaped too.
+        assertThat(url.getRawQuery()).isNotNull().doesNotContain("+");
+        return url;
+    }
+
+    private JsonNode followAdminDetailLink(String href) throws Exception {
+        URI url = generatedAdminUri(href);
+        mockMvc.perform(get(url)).andExpect(status().isOk());
+        // The SPA detail page requests this API with the generated link's query unchanged.
+        return objectMapper.readTree(mockMvc.perform(get(generatedAdminUri("/api/v1/fs/detail?" + url.getRawQuery())))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray());
+    }
+
+    @Test
     @WithMockUser(roles = "USER")
     void storageEntriesEndpointRequiresAdminRole() throws Exception {
         mockMvc.perform(get("/api/v1/fs/entries"))
@@ -2198,6 +2403,98 @@ class AdminNotificationFlowTest {
                 .singleElement()
                 .satisfies(entry -> assertThat(entry.metadataView())
                         .containsEntry("previewEnabled", "false"));
+    }
+
+    @Test
+    void generatedDirectDownloadLinksFromCreateListAndDetailReachSpecialCharacterFiles() throws Exception {
+        String directory = "direct-copy-links-" + System.nanoTime() + "/parent+name/nested+한글";
+        Files.createDirectories(ROOT.resolve(directory));
+        for (String filename : List.of("percent%.txt", "semicolon;name.txt", "literal%2B.txt",
+                "plus+name.txt", "space name.txt", "한글.txt")) {
+            String path = directory + "/" + filename;
+            byte[] expected = ("shared original " + filename).getBytes(StandardCharsets.UTF_8);
+            Files.write(ROOT.resolve(path), expected);
+            JsonNode created = objectMapper.readTree(mockMvc.perform(post("/api/v1/shares")
+                            .with(csrf()).param("path", path).param("previewEnabled", "false"))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray())
+                    .path("shareLink");
+            String token = created.path("token").asText();
+            String shareUrl = "http://localhost/s/" + token;
+            JsonNode listed = shareLinkWithToken(objectMapper.readTree(mockMvc.perform(get("/api/v1/shares"))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray()), token);
+            JsonNode detail = objectMapper.readTree(mockMvc.perform(get("/api/v1/fs/detail").param("path", path))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray());
+            JsonNode detailShare = shareLinkWithToken(detail.path("shares"), token);
+            for (JsonNode link : List.of(created, listed, detailShare)) {
+                assertThat(link.path("url").asText()).isEqualTo(shareUrl);
+                assertThat(link.path("path").asText()).isEqualTo(path);
+                assertThat(link.path("previewEnabled").asBoolean()).isFalse();
+                String href = link.path("directDownloadUrl").asText();
+                assertThat(href).isEqualTo(created.path("directDownloadUrl").asText());
+                URI direct = URI.create(href);
+                // A file token identifies its target without repeating its vault path in the URL.
+                assertThat(direct.getRawQuery()).isNull();
+                if (filename.contains("%") || filename.contains(";")) {
+                    assertThat(direct.getRawPath()).isEqualTo("/s/" + token + "/download");
+                } else {
+                    assertThat(direct.getPath()).isEqualTo("/s/" + token + "/download/" + filename);
+                }
+                assertGeneratedShareDownload(href, filename, expected);
+            }
+            JsonNode publicDetail = objectMapper.readTree(mockMvc.perform(get("/s/{token}/detail.json", token)
+                            .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.anonymous()))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray());
+            assertGeneratedShareDownload(publicDetail.path("downloadUrl").asText(), filename, expected);
+        }
+    }
+
+    @Test
+    void disablingDirectDownloadCopiesHidesUrlsWithoutDisablingSharedDownloads(
+            @Autowired io.github.fourilla.endervault.config.NasProperties properties) throws Exception {
+        String filename = "direct-copy-disabled+" + System.nanoTime() + ".txt";
+        byte[] expected = "downloads stay available".getBytes(StandardCharsets.UTF_8);
+        Files.write(ROOT.resolve(filename), expected);
+        boolean original = properties.getShare().isDirectDownloadLinkEnabled();
+        try {
+            properties.getShare().setDirectDownloadLinkEnabled(false);
+            JsonNode created = objectMapper.readTree(mockMvc.perform(post("/api/v1/shares")
+                            .with(csrf()).param("path", filename))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray())
+                    .path("shareLink");
+            String token = created.path("token").asText();
+            JsonNode listed = shareLinkWithToken(objectMapper.readTree(mockMvc.perform(get("/api/v1/shares"))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray()), token);
+            JsonNode detail = objectMapper.readTree(mockMvc.perform(get("/api/v1/fs/detail").param("path", filename))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray());
+            for (JsonNode link : List.of(created, listed, shareLinkWithToken(detail.path("shares"), token))) {
+                assertThat(link.path("url").asText()).isEqualTo("http://localhost/s/" + token);
+                assertThat(link.path("directDownloadUrl").isNull()).isTrue();
+            }
+            JsonNode publicDetail = objectMapper.readTree(mockMvc.perform(get("/s/{token}/detail.json", token)
+                            .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.anonymous()))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray());
+            assertGeneratedShareDownload(publicDetail.path("downloadUrl").asText(), filename, expected);
+        } finally {
+            properties.getShare().setDirectDownloadLinkEnabled(original);
+        }
+    }
+
+    private JsonNode shareLinkWithToken(JsonNode links, String token) {
+        for (JsonNode link : links) {
+            if (token.equals(link.path("token").asText())) return link;
+        }
+        throw new AssertionError("Share link not found for " + token);
+    }
+
+    private void assertGeneratedShareDownload(String href, String filename, byte[] expected) throws Exception {
+        URI url = URI.create(href);
+        String target = url.getRawPath() + (url.getRawQuery() == null ? "" : "?" + url.getRawQuery());
+        MvcResult downloaded = mockMvc.perform(get(URI.create(target))
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.anonymous()))
+                .andExpect(status().isOk()).andExpect(content().bytes(expected)).andReturn();
+        String disposition = downloaded.getResponse().getHeader(HttpHeaders.CONTENT_DISPOSITION);
+        assertThat(disposition).isNotNull();
+        assertThat(org.springframework.http.ContentDisposition.parse(disposition).getFilename()).isEqualTo(filename);
     }
 
     @Test

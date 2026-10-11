@@ -5,6 +5,7 @@ import io.github.fourilla.endervault.filetool.comic.ComicPageResource;
 import io.github.fourilla.endervault.storage.FileDetail;
 import io.github.fourilla.endervault.storage.StorageScope;
 import io.github.fourilla.endervault.storage.StorageService;
+import io.github.fourilla.endervault.web.support.InternalUrlBuilder;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
@@ -20,7 +21,6 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.util.UriComponentsBuilder;
 
 @Controller
 public class AdminComicController {
@@ -83,11 +83,9 @@ public class AdminComicController {
     }
 
     private String comicPageUrlPrefix(String path) {
-        String baseUrl = UriComponentsBuilder.fromPath("/files/detail/comic/page")
+        String baseUrl = InternalUrlBuilder.fromPath("/files/detail/comic/page")
                 .queryParam("path", path)
-                .build()
-                .encode()
-                .toUriString();
+                .build();
         return baseUrl + "&page=";
     }
 }

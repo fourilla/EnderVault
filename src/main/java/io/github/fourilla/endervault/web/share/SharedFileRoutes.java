@@ -1,10 +1,8 @@
 package io.github.fourilla.endervault.web.share;
 
+import io.github.fourilla.endervault.web.support.InternalUrlBuilder;
 import java.nio.file.Path;
 import java.util.Locale;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import org.springframework.web.util.UriComponentsBuilder;
 
 final class SharedFileRoutes {
 
@@ -33,20 +31,15 @@ final class SharedFileRoutes {
     }
 
     private static String comicUrl(String resource, String token, String path, String item) {
-        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/s/{token}/comic/" + resource);
-        Map<String, String> variables = new LinkedHashMap<>();
-        variables.put("token", token);
+        InternalUrlBuilder builder = InternalUrlBuilder.fromPath("/s/{token}/comic/" + resource)
+                .pathVariable("token", token);
         if (path != null && !path.isBlank()) {
-            builder.queryParam("path", "{path}");
-            variables.put("path", path);
+            builder.queryParam("path", path);
         }
         if (item != null && !item.isBlank()) {
-            builder.queryParam("item", "{item}");
-            variables.put("item", item);
+            builder.queryParam("item", item);
         }
-        return builder.encode()
-                .buildAndExpand(variables)
-                .toUriString();
+        return builder.build();
     }
 
     static String directoryUrl(String token, String path) {
@@ -58,16 +51,11 @@ final class SharedFileRoutes {
     }
 
     private static String directoryScopedUrl(String endpoint, String token, String path) {
-        UriComponentsBuilder builder = UriComponentsBuilder.fromPath(endpoint);
-        Map<String, String> variables = new LinkedHashMap<>();
-        variables.put("token", token);
+        InternalUrlBuilder builder = InternalUrlBuilder.fromPath(endpoint).pathVariable("token", token);
         if (path != null && !path.isBlank()) {
-            builder.queryParam("path", "{path}");
-            variables.put("path", path);
+            builder.queryParam("path", path);
         }
-        return builder.encode()
-                .buildAndExpand(variables)
-                .toUriString();
+        return builder.build();
     }
 
     static boolean isComic(Path file) {

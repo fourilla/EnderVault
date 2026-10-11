@@ -1,16 +1,16 @@
 package io.github.fourilla.endervault.web.api.v1.file;
 
-import io.github.fourilla.endervault.web.support.ActionResponse;
 import io.github.fourilla.endervault.web.file.browser.FileBrowserPreferences;
+import io.github.fourilla.endervault.web.support.ActionResponse;
 import io.github.fourilla.endervault.web.support.BrowserPreferenceCookies;
 import io.github.fourilla.endervault.web.support.FlashNotification;
+import io.github.fourilla.endervault.web.support.InternalUrlBuilder;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.util.UriComponentsBuilder;
 
 @RestController
 @RequestMapping("/api/v1/browser-preferences")
@@ -66,27 +66,27 @@ public class BrowserPreferenceApiController {
     }
 
     private String filesUrl(String path) {
-        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/files");
+        InternalUrlBuilder builder = InternalUrlBuilder.fromPath("/files");
         if (path != null && !path.isBlank()) {
             builder.queryParam("path", path);
         }
-        return builder.build().encode().toUriString();
+        return builder.build();
     }
 
     private String recentUrl(String query) {
-        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/files/recent");
+        InternalUrlBuilder builder = InternalUrlBuilder.fromPath("/files/recent");
         if (query != null && !query.isBlank()) {
             builder.queryParam("q", query);
         }
-        return builder.build().encode().toUriString();
+        return builder.build();
     }
 
     private String readOnlyUrl(String path) {
-        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/files/read-only");
+        InternalUrlBuilder builder = InternalUrlBuilder.fromPath("/files/read-only");
         if (path != null && !path.isBlank()) {
             builder.queryParam("path", path);
         }
-        return builder.build().encode().toUriString();
+        return builder.build();
     }
 
     public record ViewPreferenceResponse(String view) {

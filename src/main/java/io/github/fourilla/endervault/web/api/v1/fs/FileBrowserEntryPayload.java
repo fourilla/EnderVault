@@ -3,8 +3,8 @@ package io.github.fourilla.endervault.web.api.v1.fs;
 import io.github.fourilla.endervault.storage.FileItem;
 import io.github.fourilla.endervault.recent.RecentListItem;
 import io.github.fourilla.endervault.web.support.FilePreviewSupport;
+import io.github.fourilla.endervault.web.support.InternalUrlBuilder;
 import java.time.Instant;
-import org.springframework.web.util.UriComponentsBuilder;
 
 public record FileBrowserEntryPayload(
         String name,
@@ -105,19 +105,15 @@ public record FileBrowserEntryPayload(
     }
 
     private static String detailUrl(String path) {
-        return UriComponentsBuilder.fromPath("/files/detail")
+        return InternalUrlBuilder.fromPath("/files/detail")
                 .queryParam("path", path)
-                .build()
-                .encode()
-                .toUriString();
+                .build();
     }
 
     private static String downloadUrl(String path) {
-        return UriComponentsBuilder.fromPath("/files/detail/download")
+        return InternalUrlBuilder.fromPath("/files/detail/download")
                 .queryParam("path", path)
-                .build()
-                .encode()
-                .toUriString();
+                .build();
     }
 
     private static String thumbnailUrl(FileItem item, FilePreviewSupport filePreviewSupport) {

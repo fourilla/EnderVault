@@ -70,8 +70,12 @@ public record ShareLinkView(
     }
 
     private static String directDownloadUrl(String shareUrl, String path) {
-        return UriComponentsBuilder.fromUriString(shareUrl)
-                .pathSegment("download", targetName(path))
+        String name = targetName(path);
+        UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(shareUrl).pathSegment("download");
+        if (SharedDownloadUrlPolicy.canIncludeFilenameInPath(name)) {
+            builder.pathSegment(name);
+        }
+        return builder
                 .build()
                 .encode()
                 .toUriString();

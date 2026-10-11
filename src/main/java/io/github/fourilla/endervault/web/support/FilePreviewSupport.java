@@ -5,11 +5,8 @@ import io.github.fourilla.endervault.filetool.FileToolType;
 import io.github.fourilla.endervault.recent.RecentListItem;
 import io.github.fourilla.endervault.storage.FileDetail;
 import io.github.fourilla.endervault.storage.FileItem;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.springframework.web.util.UriComponentsBuilder;
 
 @Component
 public class FilePreviewSupport {
@@ -63,11 +60,9 @@ public class FilePreviewSupport {
 
     public String previewContentUrl(FileDetail detail) {
         if (previewType(detail.name()) == FileToolType.COMIC) {
-            return UriComponentsBuilder.fromPath("/files/detail/comic/preview")
+            return InternalUrlBuilder.fromPath("/files/detail/comic/preview")
                     .queryParam("path", detail.path())
-                    .build()
-                    .encode()
-                    .toUriString();
+                    .build();
         }
         return fileContentUrl("/files/preview", detail.name(), detail.path());
     }
@@ -85,16 +80,13 @@ public class FilePreviewSupport {
     }
 
     public String sharedDirectoryFileUrl(String token, FileItem item) {
-        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/s/{token}/file")
-                .queryParam("item", "{item}");
-        Map<String, String> variables = new LinkedHashMap<>();
-        variables.put("token", token);
-        variables.put("item", item.name());
+        InternalUrlBuilder builder = InternalUrlBuilder.fromPath("/s/{token}/file")
+                .pathVariable("token", token)
+                .queryParam("item", item.name());
         if (item.parentPath() != null && !item.parentPath().isBlank()) {
-            builder.queryParam("path", "{path}");
-            variables.put("path", item.parentPath());
+            builder.queryParam("path", item.parentPath());
         }
-        return builder.encode().buildAndExpand(variables).toUriString();
+        return builder.build();
     }
 
     public String sharedFileDownloadUrl(String token, FileItem item) {
@@ -114,11 +106,9 @@ public class FilePreviewSupport {
     }
 
     private String openUrl(String path) {
-        return UriComponentsBuilder.fromPath("/files/open")
+        return InternalUrlBuilder.fromPath("/files/open")
                 .queryParam("path", path)
-                .build()
-                .encode()
-                .toUriString();
+                .build();
     }
 
     private String cardMediaUrl(String name, String path, boolean image) {
@@ -126,62 +116,46 @@ public class FilePreviewSupport {
     }
 
     private String fileContentUrl(String endpoint, String name, String path) {
-        UriComponentsBuilder builder = UriComponentsBuilder.fromPath(endpoint);
+        InternalUrlBuilder builder = InternalUrlBuilder.fromPath(endpoint);
         String parentPath = parentPath(path);
         if (!parentPath.isBlank()) {
             builder.queryParam("path", parentPath);
         }
         return builder.queryParam("item", name)
-                .build()
-                .encode()
-                .toUriString();
+                .build();
     }
 
     private String sharedPreviewUrl(String token, String name, String path, String item) {
         String endpoint = previewType(name) == FileToolType.COMIC ? "/s/{token}/comic/preview" : "/s/{token}/preview";
-        UriComponentsBuilder builder = UriComponentsBuilder.fromPath(endpoint);
-        Map<String, String> variables = new LinkedHashMap<>();
-        variables.put("token", token);
+        InternalUrlBuilder builder = InternalUrlBuilder.fromPath(endpoint).pathVariable("token", token);
         if (path != null && !path.isBlank()) {
-            builder.queryParam("path", "{path}");
-            variables.put("path", path);
+            builder.queryParam("path", path);
         }
         if (item != null && !item.isBlank()) {
-            builder.queryParam("item", "{item}");
-            variables.put("item", item);
+            builder.queryParam("item", item);
         }
-        return builder.encode().buildAndExpand(variables).toUriString();
+        return builder.build();
     }
 
     private String sharedDownloadUrl(String token, String name, String path, String item) {
-        // Spring Security rejects encoded percent/semicolon in URL paths. The existing
-        // query-only endpoint keeps these valid filenames reachable without relaxing the firewall.
-        boolean queryOnly = name.indexOf('%') >= 0 || name.indexOf(';') >= 0;
-        UriComponentsBuilder builder = queryOnly
-                ? UriComponentsBuilder.fromPath("/s/{token}/download")
-                : UriComponentsBuilder.newInstance().pathSegment("s", "{token}", "download", "{name}");
-        Map<String, String> variables = new LinkedHashMap<>();
-        variables.put("token", token);
-        if (!queryOnly) {
-            variables.put("name", name);
+        InternalUrlBuilder builder = InternalUrlBuilder.fromPath("/s/{token}/download")
+                .pathVariable("token", token);
+        if (SharedDownloadUrlPolicy.canIncludeFilenameInPath(name)) {
+            builder.pathSegment("{name}").pathVariable("name", name);
         }
         if (path != null && !path.isBlank()) {
-            builder.queryParam("path", "{path}");
-            variables.put("path", path);
+            builder.queryParam("path", path);
         }
         if (item != null && !item.isBlank()) {
-            builder.queryParam("item", "{item}");
-            variables.put("item", item);
+            builder.queryParam("item", item);
         }
-        return builder.encode().buildAndExpand(variables).toUriString();
+        return builder.build();
     }
 
     private String downloadUrl(String path) {
-        return UriComponentsBuilder.fromPath("/files/detail/download")
+        return InternalUrlBuilder.fromPath("/files/detail/download")
                 .queryParam("path", path)
-                .build()
-                .encode()
-                .toUriString();
+                .build();
     }
 
     private FileToolType previewType(String name) {

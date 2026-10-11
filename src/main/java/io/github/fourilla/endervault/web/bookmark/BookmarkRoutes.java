@@ -1,8 +1,8 @@
 package io.github.fourilla.endervault.web.bookmark;
 
+import io.github.fourilla.endervault.web.support.InternalUrlBuilder;
 import java.util.List;
 import org.springframework.http.MediaType;
-import org.springframework.web.util.UriComponentsBuilder;
 
 public final class BookmarkRoutes {
 
@@ -10,7 +10,7 @@ public final class BookmarkRoutes {
     }
 
     public static String bookmarksUrl(String directoryId, String query) {
-        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/files/bookmarks");
+        InternalUrlBuilder builder = InternalUrlBuilder.fromPath("/files/bookmarks");
         String normalizedDirectoryId = normalizeId(directoryId);
         if (normalizedDirectoryId != null) {
             builder.queryParam("directory", normalizedDirectoryId);
@@ -19,7 +19,7 @@ public final class BookmarkRoutes {
         if (!normalizedQuery.isBlank()) {
             builder.queryParam("q", normalizedQuery);
         }
-        return builder.build().encode().toUriString();
+        return builder.build();
     }
 
     public static String redirectToBookmarks(String directoryId, String query) {
@@ -62,11 +62,9 @@ public final class BookmarkRoutes {
     }
 
     private static String bookmarkItemUrl(String path, String id) {
-        return UriComponentsBuilder.fromPath(path)
+        return InternalUrlBuilder.fromPath(path)
                 .queryParam("id", id)
-                .build()
-                .encode()
-                .toUriString();
+                .build();
     }
 
     static MediaType mediaType(String contentType) {
