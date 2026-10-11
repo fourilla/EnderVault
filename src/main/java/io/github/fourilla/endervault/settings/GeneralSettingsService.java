@@ -68,6 +68,7 @@ public class GeneralSettingsService {
                         stickyNotes.getTextColor()
                 ),
                 new StorageSettings(storage.getDefaultConflictPolicy()),
+                new FilesystemSettings(nasProperties.getFilesystem().isNativeEnabled()),
                 new RecentSettings(
                         recent.getMaxItems(),
                         recent.isRecordDirectories()
@@ -200,6 +201,7 @@ public class GeneralSettingsService {
                         parameters.containsKey("showTableActions")),
                 stickyNotes,
                 new StorageSettings(defaultConflictPolicy),
+                new FilesystemSettings(checkbox(parameters, "filesystemNativeEnabled", "Filesystem JNA policy")),
                 new RecentSettings(recentMaxItems, recordDirectories),
                 new TrashSettings(trashRetentionDays, cleanupOnStartup, cleanupIntervalMs),
                 new FileToolSettings(
@@ -231,7 +233,7 @@ public class GeneralSettingsService {
         );
     }
 
-    public void save(GeneralSettingsUpdate update) throws IOException {
+    public synchronized void save(GeneralSettingsUpdate update) throws IOException {
         persist(update);
         applyToRuntime(update);
     }
@@ -259,6 +261,7 @@ public class GeneralSettingsService {
 
         StorageSettings storage = update.storage();
         updates.put("nas.storage.default-conflict-policy", storage.defaultConflictPolicy());
+        updates.put("nas.filesystem.native-enabled", Boolean.toString(update.filesystem().nativeEnabled()));
 
         RecentSettings recent = update.recent();
         updates.put("nas.recent.max-items", Integer.toString(recent.maxItems()));
@@ -319,6 +322,7 @@ public class GeneralSettingsService {
 
         NasProperties.Storage storage = nasProperties.getStorage();
         storage.setDefaultConflictPolicy(update.storage().defaultConflictPolicy());
+        nasProperties.getFilesystem().setNativeEnabled(update.filesystem().nativeEnabled());
 
         NasProperties.Recent recent = nasProperties.getRecent();
         recent.setMaxItems(update.recent().maxItems());
@@ -378,6 +382,21 @@ public class GeneralSettingsService {
             throw new IllegalArgumentException("Remote allowed ports is required.");
         }
         return ports;
+    }
+
+    private static boolean checkbox(MultiValueMap<String, String> parameters, String name, String label) {
+        List<String> values = parameters.get(name);
+        if (values == null) {
+            return false;
+        }
+        if (values.size() != 1) {
+            throw new IllegalArgumentException(label + " must have one boolean value.");
+        }
+        return switch (clean(values.getFirst()).toLowerCase(Locale.ROOT)) {
+            case "on", "true" -> true;
+            case "false" -> false;
+            default -> throw new IllegalArgumentException(label + " must be true or false.");
+        };
     }
 
     private static String oneOf(String value, List<String> allowed, String label) {
@@ -452,6 +471,7 @@ public class GeneralSettingsService {
             BrowserSettings browser,
             StickyNoteSettings stickyNotes,
             StorageSettings storage,
+            FilesystemSettings filesystem,
             RecentSettings recent,
             TrashSettings trash,
             FileToolSettings fileTools,
@@ -465,6 +485,7 @@ public class GeneralSettingsService {
             BrowserSettings browser,
             StickyNoteSettings stickyNotes,
             StorageSettings storage,
+            FilesystemSettings filesystem,
             RecentSettings recent,
             TrashSettings trash,
             FileToolSettings fileTools,
@@ -496,6 +517,9 @@ public class GeneralSettingsService {
     }
 
     public record StorageSettings(String defaultConflictPolicy) {
+    }
+
+    public record FilesystemSettings(boolean nativeEnabled) {
     }
 
     public record RecentSettings(int maxItems, boolean recordDirectories) {

@@ -1,6 +1,8 @@
 package io.github.fourilla.endervault.directorytransfer;
 
+import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.common.StorageAccessException;
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import io.github.fourilla.endervault.storage.StorageProgressListener;
 import io.github.fourilla.endervault.task.AppTask;
 import io.github.fourilla.endervault.task.TaskContext;
@@ -23,18 +25,20 @@ public class DirectoryTransferTaskService {
     private final DirectoryTransferPendingExecutionService pending;
     private final DirectoryTransferReplanningService transferReplanning;
     private final DirectoryTransferPendingReplanningService pendingReplanning;
+    private final ActivityLogService activity;
     private final Map<String, Submission> submissions = new HashMap<>();
 
     public DirectoryTransferTaskService(TaskManagerService tasks, DirectoryTransferReviewStore reviews,
             DirectoryTransferService transfers, DirectoryTransferPendingExecutionService pending,
             DirectoryTransferReplanningService transferReplanning,
-            DirectoryTransferPendingReplanningService pendingReplanning) {
+            DirectoryTransferPendingReplanningService pendingReplanning, ActivityLogService activity) {
         this.tasks = tasks;
         this.reviews = reviews;
         this.transfers = transfers;
         this.pending = pending;
         this.transferReplanning = transferReplanning;
         this.pendingReplanning = pendingReplanning;
+        this.activity = activity;
     }
 
     public synchronized AppTask execute(String id, long revision, String actor, String ip) throws IOException {
@@ -115,24 +119,32 @@ public class DirectoryTransferTaskService {
             throw new StorageAccessException("Directory merge review is incomplete.");
         }
         Submission submission = new Submission(revision, replan, false);
-        submission.task = tasks.submit(TaskType.DIRECTORY_MERGE,
-                replan ? "Review changed directory transfer" : DirectoryTransferPresentation.title(review.plan().operation()),
-                review.plan().destinationPath(), actor, ip, context -> {
-                    submission.started = true;
-                    try {
-                        return run(id, revision, replan, review.plan().operation(), context);
-                    } catch (CancellationException ex) {
-                        throw new TaskCanceledException();
-                    } finally {
-                        submission.done = true;
-                    }
-                });
+        var plan = review.plan();
+        var operation = run != null && run.nativeEnabled() != null
+                ? FileSystemOperations.operation(run.nativeEnabled())
+                : run != null && run.strategy() == DirectoryTransferRun.Strategy.WHOLE_DIRECTORY_MOVE
+                    ? FileSystemOperations.operation(true) : FileSystemOperations.operationOrCapture();
+        try (var scope = operation.activate()) {
+            submission.task = tasks.submit(TaskType.DIRECTORY_MERGE,
+                    replan ? "Review changed directory transfer" : DirectoryTransferPresentation.title(plan.operation()),
+                    plan.destinationPath(), actor, ip, context -> {
+                        submission.started = true;
+                        try {
+                            return run(id, revision, replan, plan, actor, ip, context);
+                        } catch (CancellationException ex) {
+                            throw new TaskCanceledException();
+                        } finally {
+                            submission.done = true;
+                        }
+                    });
+        }
         submissions.put(id, submission);
         return submission.task;
     }
 
-    private TaskOutcome run(String id, long revision, boolean replan, DirectoryTransferPlan.Operation operation,
-            TaskContext context) throws IOException {
+    private TaskOutcome run(String id, long revision, boolean replan, DirectoryTransferPlan plan,
+            String actor, String ip, TaskContext context) throws IOException {
+        var operation = plan.operation();
         StorageProgressListener listener = TaskContext.transferProgress(context);
         // Publication and cleanup count the same entries; do not report these as one percentage.
         context.message(replan ? "Scanning remaining directory items." : "Applying reviewed "
@@ -147,22 +159,48 @@ public class DirectoryTransferTaskService {
             context.resultReference(next.plan().id());
             return TaskOutcome.pending("Directory merge review is ready. Review the remaining items before continuing.");
         }
-        DirectoryTransferRun result;
-        if (isPending) {
-            pending.execute(id, revision, listener);
-            result = reviews.run(id);
-        } else {
-            result = transfers.execute(id, revision, listener);
+        var previous = isPending ? null : reviews.run(id);
+        // Repeating an already completed review validates its guards without creating a new activity.
+        boolean logExecution = !isPending && (previous == null || previous.phase() != DirectoryTransferRun.Phase.COMPLETE);
+        try {
+            DirectoryTransferRun result;
+            if (isPending) {
+                pending.execute(id, revision, listener);
+                result = reviews.run(id);
+            } else {
+                result = transfers.execute(id, revision, listener);
+            }
+            if (result == null || !result.terminal()) throw new IOException("Directory merge did not reach a final outcome.");
+            if (result.phase() == DirectoryTransferRun.Phase.ABANDONED) {
+                return TaskOutcome.complete("Remaining transfer abandoned. Remaining originals and published files were kept; completed moves were not rolled back.");
+            }
+            if (result.phase() == DirectoryTransferRun.Phase.COMPLETE) {
+                if (logExecution) recordExecution(id, plan, actor, ip, context, true, "Completed directory transfer", null);
+                return TaskOutcome.complete(DirectoryTransferPresentation.title(operation) + " complete.");
+            }
+            if (logExecution && result.phase() == DirectoryTransferRun.Phase.NEEDS_REVIEW
+                    && !FileSystemOperations.currentDiagnostics().isEmpty()) {
+                recordExecution(id, plan, actor, ip, context, false, "Directory transfer requires review", "needs-review");
+            }
+            return TaskOutcome.pending(result.strategy() == DirectoryTransferRun.Strategy.WHOLE_DIRECTORY_MOVE
+                    ? "Directory move locations changed. Inspect the original and destination before further changes."
+                    : "Directory items changed. A new review is required.");
+        } catch (IOException | StorageAccessException ex) {
+            if (logExecution) recordExecution(id, plan, actor, ip, context, false,
+                    "Could not complete directory transfer", ex.getClass().getSimpleName());
+            throw ex;
         }
-        if (result == null || !result.terminal()) throw new IOException("Directory merge did not reach a final outcome.");
-        if (result.phase() == DirectoryTransferRun.Phase.ABANDONED) {
-            return TaskOutcome.complete("Remaining transfer abandoned. Remaining originals and published files were kept; completed moves were not rolled back.");
-        }
-        return result.phase() == DirectoryTransferRun.Phase.COMPLETE
-                ? TaskOutcome.complete(DirectoryTransferPresentation.title(operation) + " complete.")
-                : TaskOutcome.pending(result.strategy() == DirectoryTransferRun.Strategy.WHOLE_DIRECTORY_MOVE
-                        ? "Directory move locations changed. Inspect the original and destination before further changes."
-                        : "Directory items changed. A new review is required.");
+    }
+
+    private void recordExecution(String id, DirectoryTransferPlan plan, String actor, String ip,
+            TaskContext context, boolean success, String message, String reason) {
+        var metadata = new HashMap<String, String>();
+        metadata.put("directoryTransferId", id);
+        String taskId = context.taskId();
+        if (taskId != null && !taskId.isBlank()) metadata.put("taskId", taskId);
+        if (reason != null) metadata.put("reason", reason);
+        activity.record(plan.operation().name(), actor, ip, plan.sourceReference(), plan.destinationPath(), success,
+                message, Map.copyOf(metadata));
     }
 
     private static final class Submission {

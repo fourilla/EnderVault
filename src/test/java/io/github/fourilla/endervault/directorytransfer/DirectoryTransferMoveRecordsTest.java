@@ -111,6 +111,34 @@ class DirectoryTransferMoveRecordsTest {
                 "to/photos/file.txt", file.source(), null, null)).isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test void savedNativePolicySurvivesPauseFailureAndCannotChange() throws Exception {
+        store.freeze(id(), review.revision());
+        var run = new DirectoryTransferRun(id(), review.revision(), DirectoryTransferRun.Phase.PUBLISHING,
+                false, false, DirectoryTransferRun.Strategy.ITEMWISE, false);
+        store.saveRun(null, run);
+        store.pauseRun(run, new IOException("Paused"));
+        var paused = store.run(id());
+        assertThat(paused.nativeEnabled()).isFalse();
+        store.recordFailure(paused, new IOException("Retry failed"));
+        var failed = store.run(id());
+        assertThat(failed.nativeEnabled()).isFalse();
+        assertThatThrownBy(() -> store.saveRun(failed, new DirectoryTransferRun(id(), review.revision(),
+                failed.phase(), false, false, failed.strategy(), true)))
+                .hasMessageContaining("Invalid merge run transition");
+        assertThat(store.run(id())).isEqualTo(failed);
+    }
+
+    @Test void legacyRunWithoutNativePolicyCanCaptureItOnce() throws Exception {
+        var legacy = mapper.readValue("{\"id\":\"" + id() + "\",\"revision\":0,"
+                + "\"phase\":\"PUBLISHING\",\"paused\":false}", DirectoryTransferRun.class);
+        assertThat(legacy.nativeEnabled()).isNull();
+        store.freeze(id(), review.revision());
+        store.saveRun(null, legacy);
+        var upgraded = new DirectoryTransferRun(id(), 0, legacy.phase(), false, false, legacy.strategy(), true);
+        store.saveRun(legacy, upgraded);
+        assertThat(store.run(id()).nativeEnabled()).isTrue();
+    }
+
     @Test void fingerprintIgnoresItemOrderAndIdsButTracksAllSourceSnapshots() {
         var items = new ArrayList<>(review.plan().items());
         Collections.reverse(items);

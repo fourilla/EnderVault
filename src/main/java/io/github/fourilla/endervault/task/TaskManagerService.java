@@ -1,6 +1,8 @@
 package io.github.fourilla.endervault.task;
 
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.filesystem.FileSystemOperation;
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import jakarta.annotation.PreDestroy;
 import java.util.Comparator;
 import java.util.List;
@@ -48,10 +50,11 @@ public class TaskManagerService implements ApplicationEventPublisherAware {
     }
 
     public AppTask submit(TaskType type, String title, String targetPath, String actor, String ip, TaskWork work) {
+        FileSystemOperation operation = FileSystemOperations.captureOperation();
         AppTask task = new AppTask(UUID.randomUUID().toString(), type, title, targetPath, actor, ip);
         tasks.put(task.id(), task);
         trimHistory();
-        Future<?> future = executorService.submit(() -> run(task, work));
+        Future<?> future = executorService.submit(() -> run(task, work, operation));
         taskFutures.put(task.id(), future);
         if (!task.active()) {
             taskFutures.remove(task.id(), future);
@@ -176,9 +179,9 @@ public class TaskManagerService implements ApplicationEventPublisherAware {
         }
     }
 
-    private void run(AppTask task, TaskWork work) {
+    private void run(AppTask task, TaskWork work, FileSystemOperation operation) {
         boolean awaitingReview = false;
-        try {
+        try (var scope = operation.activate()) {
             synchronized (task) {
                 if (task.cancelRequested()) throw new TaskCanceledException();
                 task.markRunning();

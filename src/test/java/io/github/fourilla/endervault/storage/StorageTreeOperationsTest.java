@@ -200,4 +200,111 @@ class StorageTreeOperationsTest {
         assertThat(target).doesNotExist();
         verify(fileSystem, never()).moveNoReplace(any(), any());
     }
+
+    @Test void directCopyRecordsOneSuccessfulJavaPublication() throws Exception {
+        Path source = Files.writeString(root.resolve("source.txt"), "content");
+        Path target = destination.resolve("copy.txt");
+        var operation = FileSystemOperations.operation(false);
+        try (var ignored = operation.activate()) {
+            operations.copyFile(source, target, StorageProgressListener.NOOP, false);
+            assertThat(FileSystemOperations.currentDiagnostics())
+                    .containsEntry("fs.backend", "JAVA")
+                    .containsEntry("fs.javaOperations", "1")
+                    .containsEntry("fs.jnaOperations", "0")
+                    .containsEntry("fs.javaMethods", "copy");
+        }
+        assertThat(source).hasContent("content");
+        assertThat(target).hasContent("content");
+    }
+
+    @Test void copyingAnEmptyDirectoryRecordsItsJavaPublication() throws Exception {
+        Path source = Files.createDirectory(root.resolve("empty"));
+        Path target = destination.resolve("empty");
+        try (var ignored = FileSystemOperations.operation(false).activate()) {
+            operations.copyDirectory(source, target, StorageProgressListener.NOOP);
+            assertThat(FileSystemOperations.currentDiagnostics())
+                    .containsEntry("fs.backend", "JAVA")
+                    .containsEntry("fs.javaOperations", "1")
+                    .containsEntry("fs.javaMethods", "copy_tree");
+        }
+        assertThat(target).isEmptyDirectory();
+    }
+
+    @Test void copyingATreeCountsTheCompletedTreeRatherThanItsMemberStreams() throws Exception {
+        Path source = Files.createDirectories(root.resolve("source/nested"));
+        Files.writeString(source.resolve("one.txt"), "one");
+        Files.writeString(source.resolve("two.txt"), "two");
+        Files.createDirectory(source.resolve("empty"));
+        Path target = destination.resolve("tree");
+        try (var ignored = FileSystemOperations.operation(false).activate()) {
+            operations.copyDirectory(source, target, StorageProgressListener.NOOP);
+            assertThat(FileSystemOperations.currentDiagnostics())
+                    .containsEntry("fs.javaOperations", "1")
+                    .containsEntry("fs.javaMethods", "copy_tree");
+        }
+        assertThat(target.resolve("one.txt")).hasContent("one");
+        assertThat(target.resolve("two.txt")).hasContent("two");
+        assertThat(target.resolve("empty")).isEmptyDirectory();
+    }
+
+    @Test void overwriteCopyCountsOnlyFinalReplacementAndExcludesStagingStreams() throws Exception {
+        operations = realOperations();
+        Path source = Files.writeString(root.resolve("source.txt"), "new content");
+        Path target = Files.writeString(destination.resolve("copy.txt"), "old content");
+        try (var ignored = FileSystemOperations.operation(false).activate()) {
+            operations.copyFile(source, target, StorageProgressListener.NOOP, true);
+            assertThat(FileSystemOperations.currentDiagnostics())
+                    .containsEntry("fs.backend", "JAVA")
+                    .containsEntry("fs.javaOperations", "1")
+                    .containsEntry("fs.jnaOperations", "0")
+                    .containsEntry("fs.javaMethods", "replace");
+        }
+        assertThat(source).hasContent("new content");
+        assertThat(target).hasContent("new content");
+        assertThat(staging).isEmptyDirectory();
+    }
+
+    @Test void incompleteTreeCopyDoesNotInventASuccessfulPublication() throws Exception {
+        Path source = Files.createDirectory(root.resolve("source"));
+        Files.writeString(source.resolve("file.txt"), "content");
+        Path target = destination.resolve("tree");
+        var operation = FileSystemOperations.operation(false);
+        try (var ignored = operation.activate()) {
+            assertThatThrownBy(() -> operations.copyDirectory(source, target, failingCopyProgress()))
+                    .isInstanceOf(StorageAccessException.class).hasMessage("Interrupted copy");
+            assertThat(FileSystemOperations.currentDiagnostics()).isEmpty();
+            assertThat(operation.diagnostics())
+                    .containsEntry("fs.backend", "UNKNOWN")
+                    .containsEntry("fs.javaOperations", "0");
+        }
+        assertThat(target).doesNotExist();
+        assertThat(source.resolve("file.txt")).hasContent("content");
+    }
+
+    @Test void failedOverwriteStagingCopyLeavesOldTargetAndNoPublicationCount() throws Exception {
+        operations = realOperations();
+        Path source = Files.writeString(root.resolve("source.txt"), "new content");
+        Path target = Files.writeString(destination.resolve("copy.txt"), "old content");
+        try (var ignored = FileSystemOperations.operation(false).activate()) {
+            assertThatThrownBy(() -> operations.copyFile(source, target, failingCopyProgress(), true))
+                    .isInstanceOf(StorageAccessException.class).hasMessage("Interrupted copy");
+            assertThat(FileSystemOperations.currentDiagnostics()).isEmpty();
+        }
+        assertThat(target).hasContent("old content");
+        assertThat(staging).isEmptyDirectory();
+    }
+
+    private StorageTreeOperations realOperations() {
+        var paths = new StoragePathResolver(root, root.resolve("trash"), root.resolve("metadata"), staging);
+        var registry = new TemporaryArtifactRegistry();
+        return new StorageTreeOperations(paths, new FileStagingService(staging, paths, registry), registry);
+    }
+
+    private StorageProgressListener failingCopyProgress() {
+        return new StorageProgressListener() {
+            @Override public void onBytesProcessed(long bytes) {
+                throw new StorageAccessException("Interrupted copy");
+            }
+        };
+    }
 }

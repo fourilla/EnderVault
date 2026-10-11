@@ -12,6 +12,7 @@ import io.github.fourilla.endervault.filecommit.FileCommitJournalStore;
 import io.github.fourilla.endervault.filecommit.FileCommitOwner;
 import io.github.fourilla.endervault.filecommit.FileCommitOwnerType;
 import io.github.fourilla.endervault.filetool.FileActionRegistry;
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import io.github.fourilla.endervault.pending.*;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
 import io.github.fourilla.endervault.storage.StorageService;
@@ -25,6 +26,7 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -82,6 +84,50 @@ class PendingDecisionBulkResolutionTest {
         assertThat(artifacts.isActive(storage.resolveFileStagingFile(file.stagingFilename()))).isFalse();
         assertThat(artifacts.isActive(storage.resolveFileStagingFile(directory.stagingFilename()))).isFalse();
         verify(observer, times(2)).afterResolved(any(), eq(PendingFileDecisionAction.KEEP_BOTH), eq(false), any());
+    }
+
+    @Test
+    void batchLogsKeepEachPublicationSeparateAndRetainTheAdmittedPolicy() throws Exception {
+        var first = stage("first.txt", false);
+        var second = stage("second.txt", false);
+        var discarded = stage("discarded.txt", false);
+        var properties = new NasProperties();
+        properties.getStorage().setRoot(root);
+        var activity = new ActivityLogService(JsonMapper.builder().findAndAddModules().build(), properties);
+        activity.initialize();
+        api = new PendingFileDecisionApiController(pending, activity, mock(DirectoryTransferQueryService.class));
+
+        var nativeEnabled = new AtomicBoolean(false);
+        FileSystemOperations.configureNativePolicy(nativeEnabled::get);
+        doAnswer(call -> {
+            nativeEnabled.set(true);
+            return null;
+        }).when(observer).afterResolved(eq(first), eq(PendingFileDecisionAction.KEEP_BOTH), eq(false), any());
+        try (var requestScope = FileSystemOperations.captureOperation().activate()) {
+            assertThat(resolve(List.of(first.id(), second.id()), PendingFileDecisionAction.KEEP_BOTH)
+                    .succeededCount()).isEqualTo(2);
+            assertThat(resolve(List.of(discarded.id()), PendingFileDecisionAction.DISCARD)
+                    .succeededCount()).isEqualTo(1);
+            assertThat(FileSystemOperations.currentDiagnostics()).isEmpty();
+        } finally {
+            FileSystemOperations.configureNativePolicy(() -> true);
+        }
+
+        assertThat(root.resolve("first.txt")).hasContent("new data");
+        assertThat(root.resolve("second.txt")).hasContent("new data");
+        assertThat(root.resolve("discarded.txt")).doesNotExist();
+        var logs = activity.recentCurrentEntries(10);
+        assertThat(logs).hasSize(3);
+        assertThat(logs.stream().filter(entry -> "KEEP_BOTH".equals(entry.metadataView().get("action"))))
+                .hasSize(2).allSatisfy(entry -> assertThat(entry.metadataView())
+                        .containsEntry("fs.nativeEnabled", "false")
+                        .containsEntry("fs.backend", "JAVA")
+                        .containsEntry("fs.javaOperations", "1")
+                        .containsEntry("fs.jnaOperations", "0"));
+        assertThat(logs.stream().filter(entry -> "DISCARD".equals(entry.metadataView().get("action"))))
+                .singleElement().satisfies(entry -> assertThat(entry.metadataView().keySet())
+                        .noneMatch(key -> key.startsWith("fs.")));
+        assertThat(FileSystemOperations.captureOperation().nativeEnabled()).isTrue();
     }
 
     @Test

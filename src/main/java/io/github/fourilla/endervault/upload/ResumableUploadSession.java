@@ -19,8 +19,27 @@ public record ResumableUploadSession(
         String stagingFilename,
         String committedPath,
         String pendingDecisionId,
-        String failureMessage
+        String failureMessage,
+        Boolean nativeEnabled
 ) {
+
+    /** Existing metadata and callers may not have a captured filesystem policy yet. */
+    public ResumableUploadSession(
+            String id, ResumableUploadSource source, String sourceReference, String destinationPath,
+            String originalFilename, String contentType, long size, String submittedBy, String fingerprint,
+            Instant createdAt, Instant expiresAt, ResumableUploadStatus status, String protocolUploadUri,
+            String stagingFilename, String committedPath, String pendingDecisionId, String failureMessage
+    ) {
+        this(id, source, sourceReference, destinationPath, originalFilename, contentType, size, submittedBy,
+                fingerprint, createdAt, expiresAt, status, protocolUploadUri, stagingFilename, committedPath,
+                pendingDecisionId, failureMessage, null);
+    }
+
+    public ResumableUploadSession withNativeEnabled(boolean enabled) {
+        return new ResumableUploadSession(id, source, sourceReference, destinationPath, originalFilename,
+                contentType, size, submittedBy, fingerprint, createdAt, expiresAt, status, protocolUploadUri,
+                stagingFilename, committedPath, pendingDecisionId, failureMessage, enabled);
+    }
 
     public ResumableUploadSession withProtocolUpload(String uploadUri) {
         return copy(ResumableUploadStatus.UPLOADING, uploadUri, stagingFilename,
@@ -87,7 +106,7 @@ public record ResumableUploadSession(
                 id, source, sourceReference, destinationPath, originalFilename, contentType,
                 size, submittedBy, fingerprint, createdAt, expiresAt, nextStatus,
                 nextProtocolUploadUri, nextStagingFilename, nextCommittedPath,
-                nextPendingDecisionId, nextFailureMessage
+                nextPendingDecisionId, nextFailureMessage, nativeEnabled
         );
     }
 

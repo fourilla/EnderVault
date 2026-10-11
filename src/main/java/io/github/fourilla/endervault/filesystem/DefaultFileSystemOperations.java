@@ -7,32 +7,58 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
-import org.springframework.stereotype.Service;
+import java.util.function.Supplier;
 
 /** Keeps optional native loading and platform-specific failures away from domain services. */
-@Service
 public final class DefaultFileSystemOperations implements FileSystemOperations {
 
-    private final NativeFileSystem nativeFileSystem;
+    private final Supplier<NativeFileSystem> nativeLoader;
+    private volatile NativeFileSystem nativeFileSystem;
+    private volatile boolean nativeLoaded;
     private final NioFileSystem nio;
 
     public DefaultFileSystemOperations() {
-        this(FileSystemOperationsProvider.nativeBackend(FileSystemOperationsProvider.nativeEnabled(),
-                () -> NativeFileSystemOperations.create()), new NioFileSystem());
+        this(new NioFileSystem(), () -> NativeFileSystemOperations.create());
     }
 
     DefaultFileSystemOperations(NativeFileSystem nativeFileSystem, NioFileSystem nio) {
         this.nativeFileSystem = nativeFileSystem;
         this.nio = nio;
+        this.nativeLoader = () -> nativeFileSystem;
+        this.nativeLoaded = true;
+    }
+
+    DefaultFileSystemOperations(NioFileSystem nio, Supplier<NativeFileSystem> nativeLoader) {
+        this.nio = nio;
+        this.nativeLoader = nativeLoader;
+    }
+
+    private NativeFileSystem nativeBackend() {
+        if (!FileSystemOperationsProvider.nativeEnabled()) {
+            return null;
+        }
+        if (!nativeLoaded) {
+            synchronized (this) {
+                if (!nativeLoaded) {
+                    nativeFileSystem = FileSystemOperationsProvider.nativeBackend(true, nativeLoader);
+                    nativeLoaded = true;
+                }
+            }
+        }
+        return nativeFileSystem;
     }
 
     @Override
     public boolean supportsNoReplaceMove(Path source, Path targetParent) throws IOException {
-        if (nativeFileSystem == null) {
+        return supportsNoReplaceMove(nativeBackend(), source, targetParent);
+    }
+
+    private boolean supportsNoReplaceMove(NativeFileSystem backend, Path source, Path targetParent) throws IOException {
+        if (backend == null) {
             return false;
         }
         try {
-            return nativeFileSystem.supportsNoReplaceMove(source, targetParent);
+            return backend.supportsNoReplaceMove(source, targetParent);
         } catch (RuntimeException | Error ex) {
             FileSystemOperationsProvider.rethrowFatal(ex);
             return false;
@@ -41,18 +67,45 @@ public final class DefaultFileSystemOperations implements FileSystemOperations {
 
     @Override
     public MoveResult moveNoReplace(Path source, Path target) throws IOException {
-        if (nativeFileSystem == null) {
+        FileSystemOperation operation = FileSystemOperationsProvider.publicationOperation();
+        NativeFileSystem backend = nativeBackend();
+        if (backend == null) {
+            if (operation != null) {
+                operation.fallback(FileSystemOperationsProvider.nativeEnabled() ? "native-unavailable" : "native-disabled");
+            }
             return MoveResult.UNSUPPORTED;
         }
         // Preflight failures cannot have changed the filesystem and may select the old pipeline.
         Path parent = target.toAbsolutePath().normalize().getParent();
-        if (parent == null || !supportsNoReplaceMove(source, parent)) {
+        if (parent == null || !supportsNoReplaceMove(backend, source, parent)) {
+            if (operation != null) {
+                operation.fallback("native-capability-unavailable");
+            }
             return MoveResult.UNSUPPORTED;
         }
+        if (operation != null) {
+            operation.attempted(true, source, target, "no-replace-rename");
+        }
         try {
-            return nativeFileSystem.moveNoReplace(source, target);
+            MoveResult result = backend.moveNoReplace(source, target);
+            if (operation != null) {
+                if (result == MoveResult.MOVED) {
+                    operation.succeeded(true, target);
+                } else {
+                    operation.fallback("native-operation-unsupported");
+                }
+            }
+            return result;
+        } catch (IOException ex) {
+            if (operation != null) {
+                operation.failed(true, !(ex instanceof java.nio.file.FileAlreadyExistsException));
+            }
+            throw ex;
         } catch (RuntimeException | Error ex) {
             FileSystemOperationsProvider.rethrowFatal(ex);
+            if (operation != null) {
+                operation.failed(true, true);
+            }
             // Invocation may already have changed the filesystem. Never advertise fallback here.
             throw new IOException("Native filesystem move outcome could not be determined.", ex);
         }
@@ -64,11 +117,12 @@ public final class DefaultFileSystemOperations implements FileSystemOperations {
         if (attributes.fileKey() != null) {
             return attributes.fileKey().toString();
         }
-        if (nativeFileSystem == null) {
+        NativeFileSystem backend = nativeBackend();
+        if (backend == null) {
             return null;
         }
         try {
-            return nativeFileSystem.readIdentity(path);
+            return backend.readIdentity(path);
         } catch (RuntimeException | Error ex) {
             FileSystemOperationsProvider.rethrowFatal(ex);
             // Optional identity is unavailable; NIO attribute/permission IO failures still propagate.
@@ -81,9 +135,10 @@ public final class DefaultFileSystemOperations implements FileSystemOperations {
         if (source.getFileSystem() != targetParent.getFileSystem()) {
             return false;
         }
-        if (nativeFileSystem != null) {
+        NativeFileSystem backend = nativeBackend();
+        if (backend != null) {
             try {
-                return nativeFileSystem.sameFileSystem(source, targetParent);
+                return backend.sameFileSystem(source, targetParent);
             } catch (RuntimeException | Error ex) {
                 FileSystemOperationsProvider.rethrowFatal(ex);
                 // This compatibility query must remain usable by the legacy NIO pipeline.
@@ -95,27 +150,65 @@ public final class DefaultFileSystemOperations implements FileSystemOperations {
 
     @Override
     public void replace(Path source, Path target, Atomicity atomicity) throws IOException {
+        FileSystemOperation operation = FileSystemOperationsProvider.publicationOperation();
+        if (operation != null) {
+            operation.attempted(false, source, target, "replace");
+        }
         try {
-            nio.move(source, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-        } catch (AtomicMoveNotSupportedException ex) {
-            if (atomicity == Atomicity.REQUIRED) {
-                throw ex;
+            try {
+                nio.move(source, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException ex) {
+                if (atomicity == Atomicity.REQUIRED) {
+                    throw ex;
+                }
+                nio.move(source, target, StandardCopyOption.REPLACE_EXISTING);
             }
-            nio.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+            if (operation != null) {
+                operation.succeeded(false, target);
+            }
+        } catch (IOException ex) {
+            recordFailure(operation, ex);
+            throw ex;
         }
     }
 
     @Override
     public void moveAtomically(Path source, Path target) throws IOException {
-        nio.move(source, target, StandardCopyOption.ATOMIC_MOVE);
+        javaMove(source, target, false);
     }
 
     @Override
     public void moveWithAtomicPreference(Path source, Path target) throws IOException {
+        javaMove(source, target, true);
+    }
+
+    private void javaMove(Path source, Path target, boolean preferredAtomicity) throws IOException {
+        FileSystemOperation operation = FileSystemOperationsProvider.publicationOperation();
+        if (operation != null) {
+            operation.attempted(false, source, target, "move");
+        }
         try {
-            moveAtomically(source, target);
-        } catch (AtomicMoveNotSupportedException ex) {
-            nio.move(source, target);
+            try {
+                nio.move(source, target, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException ex) {
+                if (!preferredAtomicity) {
+                    throw ex;
+                }
+                nio.move(source, target);
+            }
+            if (operation != null) {
+                operation.succeeded(false, target);
+            }
+        } catch (IOException ex) {
+            recordFailure(operation, ex);
+            throw ex;
+        }
+    }
+
+    private static void recordFailure(FileSystemOperation operation, IOException failure) {
+        if (operation != null) {
+            operation.failed(false, !(failure instanceof AtomicMoveNotSupportedException)
+                    && !(failure instanceof java.nio.file.FileAlreadyExistsException));
         }
     }
 

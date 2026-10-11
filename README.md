@@ -347,22 +347,17 @@ ENDERVAULT_STORAGE_PATH
 
 JNA를 로딩할 수 없거나 해당 filesystem이 최적화를 지원하지 않으면 새 디렉토리 MOVE는 기존 복사·완료 기록·원본 정리 파이프라인을 사용합니다. 기존 작업도 같은 filesystem, hard link, atomic move 등 필요한 조건은 충족해야 하므로 Java가 실행되는 모든 filesystem에서 모든 작업이 지원되는 것은 아닙니다. 이미 통째 이동의 복구 기록이 있는 작업은 확인 없이 복사 방식으로 전환하지 않습니다.
 
-native 최적화를 명시적으로 끄려면 JVM 옵션을 지정합니다.
+Settings → Files & Storage → Filesystem Operations의 **Use JNA when available**로 native 최적화 허용 여부를 선택합니다. 기본값은 true이며, 저장하면 새 작업부터 적용됩니다. 진행 중이거나 큐에서 대기 중인 작업과 기존 업로드 세션은 접수한 정책을 유지합니다.
 
-```bash
-java -Dendervault.filesystem.native-enabled=false -jar target/endervault-nas-0.1.0-SNAPSHOT.jar
+직접 설정할 때는 `endervault-nas.properties`에 다음 값을 지정합니다. Docker에서는 `docker/runtime/state/endervault-nas.properties`를 사용합니다. 직접 파일을 수정한 값은 앱을 다음에 시작할 때 읽으며, Settings에서 저장한 값은 실행 중에도 새 작업에 적용됩니다.
+
+```properties
+nas.filesystem.native-enabled=false
 ```
 
-Docker Compose에서는 다음 내용의 `compose.override.yaml`을 추가할 수 있습니다.
+임시 `-Dendervault.filesystem.native-enabled` 옵션은 제거했습니다. 기존 `JAVA_TOOL_OPTIONS`에 이 옵션이 있다면 위 properties 설정으로 옮깁니다.
 
-```yaml
-services:
-  endervault:
-    environment:
-      JAVA_TOOL_OPTIONS: "-Dendervault.filesystem.native-enabled=false"
-```
-
-기존 `JAVA_TOOL_OPTIONS`가 있다면 필요한 옵션을 함께 유지합니다. `docker compose`는 기본 override 파일을 읽으며, `-f`로 구성 파일을 직접 지정할 때는 `-f compose.override.yaml`도 포함해야 합니다.
+Activity Log의 Metadata에는 실제 주요 파일 이동·게시 결과를 기록합니다. `fs.backend=JNA`는 성공한 native 이동·게시가 한 번 이상 있었다는 뜻이며, 전체 복사나 다운로드가 JNA로 실행됐다는 뜻은 아닙니다. native 성공 없이 Java 성공이 있고 이전 게시 복구·불명 native 결과가 없으면 `JAVA`, 나머지는 `UNKNOWN`으로 표시합니다. 상세 실행 건수·fallback·OS·filesystem type도 함께 확인할 수 있습니다. JSON/cache 저장이나 로그 회전은 집계하지 않으며, filesystem 진단은 Telegram 알림에 포함하지 않습니다.
 
 ---
 

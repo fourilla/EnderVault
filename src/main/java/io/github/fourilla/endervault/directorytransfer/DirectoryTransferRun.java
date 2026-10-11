@@ -6,7 +6,12 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 
 /** Only this record authorizes startup resumption; a saved review alone does not. */
 public record DirectoryTransferRun(String id, @JsonProperty(required = true) long revision,
-        Phase phase, @JsonProperty(required = true) boolean paused, boolean recoveryRequired, Strategy strategy) {
+        Phase phase, @JsonProperty(required = true) boolean paused, boolean recoveryRequired, Strategy strategy,
+        Boolean nativeEnabled) {
+    public DirectoryTransferRun(String id, long revision, Phase phase, boolean paused,
+            boolean recoveryRequired, Strategy strategy) {
+        this(id, revision, phase, paused, recoveryRequired, strategy, null);
+    }
     public DirectoryTransferRun(String id, long revision, Phase phase, boolean paused) {
         this(id, revision, phase, paused, false, Strategy.ITEMWISE);
     }
@@ -25,10 +30,11 @@ public record DirectoryTransferRun(String id, @JsonProperty(required = true) lon
             @JsonProperty("phase") Phase phase,
             @JsonProperty(value = "paused", required = true) boolean paused,
             @JsonProperty("recoveryRequired") Boolean recoveryRequired,
-            @JsonProperty("strategy") Strategy strategy) {
+            @JsonProperty("strategy") Strategy strategy,
+            @JsonProperty("nativeEnabled") Boolean nativeEnabled) {
         // This diagnostic flag was absent in existing runs; execution authority stays strict.
         return new DirectoryTransferRun(id, revision, phase, paused, Boolean.TRUE.equals(recoveryRequired),
-                strategy == null ? Strategy.ITEMWISE : strategy);
+                strategy == null ? Strategy.ITEMWISE : strategy, nativeEnabled);
     }
     public enum Strategy { ITEMWISE, WHOLE_DIRECTORY_MOVE }
     public enum Phase { PUBLISHING, FINALIZING, OWNER_COMPLETING, COMPLETE, NEEDS_REVIEW, ABANDONING, ABANDONED }

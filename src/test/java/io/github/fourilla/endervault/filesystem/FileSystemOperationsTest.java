@@ -22,6 +22,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -31,6 +33,16 @@ class FileSystemOperationsTest {
 
     @TempDir
     Path root;
+
+    @BeforeEach
+    void useDefaultPolicy() {
+        FileSystemOperations.configureNativePolicy(() -> true);
+    }
+
+    @AfterEach
+    void restoreDefaultPolicy() {
+        FileSystemOperations.configureNativePolicy(() -> true);
+    }
 
     @Test
     void explicitlyDisabledNativeAccessNeverCallsTheLoader() {

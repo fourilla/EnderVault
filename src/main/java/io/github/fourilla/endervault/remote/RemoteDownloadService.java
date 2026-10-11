@@ -4,6 +4,8 @@ import io.github.fourilla.endervault.activity.ActivityLogService;
 import io.github.fourilla.endervault.auth.ClientIpResolver;
 import io.github.fourilla.endervault.common.StorageAccessException;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.filesystem.FileSystemOperation;
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import io.github.fourilla.endervault.outbound.NetworkRoute;
 import io.github.fourilla.endervault.storage.StorageService;
 import jakarta.annotation.PreDestroy;
@@ -91,6 +93,7 @@ public class RemoteDownloadService {
     }
 
     public RemoteDownloadTask start(String requestId, HttpServletRequest request) throws IOException {
+        FileSystemOperation filesystem = FileSystemOperations.captureOperation();
         requireEnabled();
         RemoteDownloadPreparedRequest prepared = ticketService.consume(requestId, request);
         RemoteDownloadRequestSpec requestSpec = prepared.request();
@@ -128,7 +131,7 @@ public class RemoteDownloadService {
                         "cookieIncluded", Boolean.toString(requestSpec.cookieIncluded())
                 )
         );
-        Future<?> future = executorService.submit(() -> runDownload(task, requestSpec));
+        Future<?> future = executorService.submit(() -> runDownload(task, requestSpec, filesystem));
         taskFutures.put(task.id(), future);
         return task;
     }
@@ -182,6 +185,13 @@ public class RemoteDownloadService {
     @PreDestroy
     public void shutdown() {
         executorService.shutdownNow();
+    }
+
+    private void runDownload(RemoteDownloadTask task, RemoteDownloadRequestSpec requestSpec,
+            FileSystemOperation filesystem) {
+        try (var ignored = filesystem.activate()) {
+            runDownload(task, requestSpec);
+        }
     }
 
     private void runDownload(RemoteDownloadTask task, RemoteDownloadRequestSpec requestSpec) {

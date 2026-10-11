@@ -8,6 +8,7 @@ import io.github.fourilla.endervault.directorytransfer.DirectoryTransferPlanner;
 import io.github.fourilla.endervault.directorytransfer.DirectoryTransferReviewStore;
 import io.github.fourilla.endervault.directorytransfer.DirectoryTransferRun;
 import io.github.fourilla.endervault.directorytransfer.DirectoryTransferService;
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import io.github.fourilla.endervault.storage.ConflictPolicy;
 import io.github.fourilla.endervault.storage.FileItem;
 import io.github.fourilla.endervault.storage.FileLifecycleService;
@@ -21,6 +22,7 @@ import io.github.fourilla.endervault.transfer.TransferOperation;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.security.Principal;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -137,59 +139,72 @@ public class FileOperationTaskService {
             context.checkCanceled();
             context.message(runningLabel(operation) + " " + item.name());
             String savedReview = null;
-            try {
-                FileItem source = storageService.describeVaultPath(item.path());
-                if (source.directory() && !source.parentPath().equals(destination)) {
-                    var plan = transferPlanner.planTransfer(operation == TransferOperation.MOVE
-                            ? DirectoryTransferPlan.Operation.MOVE : DirectoryTransferPlan.Operation.COPY,
-                            source.path(), destination, cancellationListener(context));
-                    var review = transferReviews.create(plan);
-                    savedReview = plan.id();
-                    context.directoryTransferReview(plan.id());
-                    context.resultReference(plan.id());
-                    boolean complete = review.fullyReviewed()
-                            && directoryTransfers.execute(plan.id(), review.revision(), cancellationListener(context))
-                                    .phase() == DirectoryTransferRun.Phase.COMPLETE;
-                    if (complete) {
-                        // Transfer execution has already applied moved-path metadata.
-                        completedCount++;
-                        activityLogService.record(operation.activityType(), request.actor(), request.ip(),
-                                source.path(), plan.destinationPath(), true, "Completed directory transfer", Map.of());
-                    } else {
-                        pendingCount++;
-                        if (firstReview == null) firstReview = plan.id();
+            try (var scope = FileSystemOperations.captureOperation().activate()) {
+                try {
+                    FileItem source = storageService.describeVaultPath(item.path());
+                    if (source.directory() && !source.parentPath().equals(destination)) {
+                        var plan = transferPlanner.planTransfer(operation == TransferOperation.MOVE
+                                ? DirectoryTransferPlan.Operation.MOVE : DirectoryTransferPlan.Operation.COPY,
+                                source.path(), destination, cancellationListener(context));
+                        var review = transferReviews.create(plan);
+                        savedReview = plan.id();
+                        context.directoryTransferReview(plan.id());
+                        context.resultReference(plan.id());
+                        var result = review.fullyReviewed()
+                                ? directoryTransfers.execute(plan.id(), review.revision(), cancellationListener(context)) : null;
+                        boolean complete = result != null && result.phase() == DirectoryTransferRun.Phase.COMPLETE;
+                        if (complete) {
+                            // Transfer execution has already applied moved-path metadata.
+                            completedCount++;
+                            activityLogService.record(operation.activityType(), request.actor(), request.ip(),
+                                    source.path(), plan.destinationPath(), true, "Completed directory transfer", Map.of());
+                        } else {
+                            pendingCount++;
+                            if (firstReview == null) firstReview = plan.id();
+                            if (result != null && result.phase() == DirectoryTransferRun.Phase.NEEDS_REVIEW
+                                    && !FileSystemOperations.currentDiagnostics().isEmpty()) {
+                                var metadata = new HashMap<String, String>();
+                                metadata.put("directoryTransferId", plan.id());
+                                metadata.put("reason", "needs-review");
+                                String taskId = context.taskId();
+                                if (taskId != null && !taskId.isBlank()) metadata.put("taskId", taskId);
+                                activityLogService.record(operation.activityType(), request.actor(), request.ip(),
+                                        source.path(), plan.destinationPath(), false,
+                                        "Directory transfer requires review", Map.copyOf(metadata));
+                            }
+                        }
+                        continue;
                     }
-                    continue;
-                }
-                if (source.directory() && operation == TransferOperation.MOVE) {
+                    if (source.directory() && operation == TransferOperation.MOVE) {
+                        completedCount++;
+                        continue;
+                    }
+                    if (source.directory() && conflictPolicy != ConflictPolicy.RENAME) {
+                        throw new StorageAccessException("Copying a directory to its current location requires Keep both.");
+                    }
+                    String newPath = operation == TransferOperation.MOVE
+                            ? storageService.moveVaultPath(item.path(), targetPath, conflictPolicy)
+                            : storageService.copyVaultPath(item.path(), targetPath, listener(context), conflictPolicy);
+                    if (operation == TransferOperation.MOVE) {
+                        context.incrementProcessedItems();
+                        finishMovedItem(item, newPath, request);
+                    } else {
+                        finishCopiedItem(item, newPath, targetPath, request);
+                    }
                     completedCount++;
-                    continue;
+                } catch (TaskCanceledException ex) {
+                    if (savedReview != null && firstReview == null) firstReview = savedReview;
+                    throw ex;
+                } catch (StorageAccessException | IOException ex) {
+                    failedCount++;
+                    if (savedReview != null) {
+                        pendingCount++;
+                        if (firstReview == null) firstReview = savedReview;
+                    }
+                    recordFailedTransfer(operation, item, targetPath, request, ex);
+                } finally {
+                    context.resultReference(firstReview);
                 }
-                if (source.directory() && conflictPolicy != ConflictPolicy.RENAME) {
-                    throw new StorageAccessException("Copying a directory to its current location requires Keep both.");
-                }
-                String newPath = operation == TransferOperation.MOVE
-                        ? storageService.moveVaultPath(item.path(), targetPath, conflictPolicy)
-                        : storageService.copyVaultPath(item.path(), targetPath, listener(context), conflictPolicy);
-                if (operation == TransferOperation.MOVE) {
-                    context.incrementProcessedItems();
-                    finishMovedItem(item, newPath, request);
-                } else {
-                    finishCopiedItem(item, newPath, targetPath, request);
-                }
-                completedCount++;
-            } catch (TaskCanceledException ex) {
-                if (savedReview != null && firstReview == null) firstReview = savedReview;
-                throw ex;
-            } catch (StorageAccessException | IOException ex) {
-                failedCount++;
-                if (savedReview != null) {
-                    pendingCount++;
-                    if (firstReview == null) firstReview = savedReview;
-                }
-                recordFailedTransfer(operation, item, targetPath, request, ex);
-            } finally {
-                context.resultReference(firstReview);
             }
         }
 
@@ -216,35 +231,37 @@ public class FileOperationTaskService {
         for (FileItem item : items) {
             context.checkCanceled();
             context.message("Moving " + item.name() + " to trash.");
-            try {
-                TrashRecord record = trashService.moveVaultPathToTrash(item.path());
-                activityLogService.record(
-                        "TRASH_MOVE",
-                        request.actor(),
-                        request.ip(),
-                        record.originalPath(),
-                        null,
-                        true,
-                        "Moved item to trash",
-                        Map.of()
-                );
-                completedCount++;
-                context.incrementProcessedItems();
-            } catch (TaskCanceledException ex) {
-                throw ex;
-            } catch (StorageAccessException | IOException ex) {
-                failedCount++;
-                activityLogService.record(
-                        "TRASH_MOVE",
-                        request.actor(),
-                        request.ip(),
-                        item.path(),
-                        null,
-                        false,
-                        "Could not move item to trash",
-                        Map.of("reason", ex.getClass().getSimpleName())
-                );
-                context.incrementProcessedItems();
+            try (var scope = FileSystemOperations.captureOperation().activate()) {
+                try {
+                    TrashRecord record = trashService.moveVaultPathToTrash(item.path());
+                    activityLogService.record(
+                            "TRASH_MOVE",
+                            request.actor(),
+                            request.ip(),
+                            record.originalPath(),
+                            null,
+                            true,
+                            "Moved item to trash",
+                            Map.of()
+                    );
+                    completedCount++;
+                    context.incrementProcessedItems();
+                } catch (TaskCanceledException ex) {
+                    throw ex;
+                } catch (StorageAccessException | IOException ex) {
+                    failedCount++;
+                    activityLogService.record(
+                            "TRASH_MOVE",
+                            request.actor(),
+                            request.ip(),
+                            item.path(),
+                            null,
+                            false,
+                            "Could not move item to trash",
+                            Map.of("reason", ex.getClass().getSimpleName())
+                    );
+                    context.incrementProcessedItems();
+                }
             }
         }
 

@@ -79,6 +79,7 @@ public class DirectoryTransferWholeMoveCoordinator {
             if (changed != null) return needsReview(move, changed);
         }
         try {
+            boolean movedNow = false;
             requireKeys(plan, move);
             var paths = paths(plan);
             validateParents(move, paths);
@@ -92,7 +93,9 @@ public class DirectoryTransferWholeMoveCoordinator {
                     requireAbsent(paths.target());
                     progress.checkCanceled();
                     FileSystemOperations.MoveResult renamed;
-                    try { renamed = fileSystem.moveNoReplace(paths.source(), paths.target()); }
+                    try (var publication = FileSystemOperations.publication()) {
+                        renamed = fileSystem.moveNoReplace(paths.source(), paths.target());
+                    }
                     catch (FileAlreadyExistsException ex) {
                         return needsReview(move, "Destination appeared before the directory could be moved.");
                     }
@@ -103,6 +106,7 @@ public class DirectoryTransferWholeMoveCoordinator {
                         requireAbsent(paths.target());
                         return update(move, DirectoryTransferMoveRecord.Phase.FALLBACK, null);
                     }
+                    movedNow = true;
                 } else if (sourcePresent || !targetPresent) {
                     return needsReview(move, "Directory move locations changed. Inspect the original and destination.");
                 }
@@ -111,6 +115,13 @@ public class DirectoryTransferWholeMoveCoordinator {
                 fileSystem.syncDirectory(paths.source().getParent());
                 fileSystem.syncDirectory(paths.target().getParent());
                 move = update(move, DirectoryTransferMoveRecord.Phase.RENAMED, null);
+            }
+            if (!movedNow && (move.phase() == DirectoryTransferMoveRecord.Phase.RENAMED
+                    || move.phase() == DirectoryTransferMoveRecord.Phase.METADATA_APPLIED)) {
+                validateRenamedTree(plan, move, paths);
+                try (var publication = FileSystemOperations.publication()) {
+                    FileSystemOperations.recordRecoveredPublication(paths.target());
+                }
             }
             if (move.phase() == DirectoryTransferMoveRecord.Phase.RENAMED) {
                 progress.checkCanceled();

@@ -1,6 +1,7 @@
 package io.github.fourilla.endervault.directorytransfer;
 
 import io.github.fourilla.endervault.pending.PendingFileDecisionService;
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import io.github.fourilla.endervault.storage.StorageProgressListener;
 import io.github.fourilla.endervault.task.TaskCanceledException;
 import java.io.IOException;
@@ -35,6 +36,18 @@ public class DirectoryTransferPendingExecutionService {
 
     public synchronized Map<String, DirectoryTransferCompletion> execute(String id, long revision,
             StorageProgressListener listener) throws IOException {
+        var previous = reviews.run(id);
+        var current = FileSystemOperations.operationOrCapture();
+        var restored = previous != null && previous.nativeEnabled() != null
+                ? FileSystemOperations.operation(previous.nativeEnabled()) : current;
+        var operation = restored.nativeEnabled() == current.nativeEnabled() ? current : restored;
+        try (var scope = operation.activate()) {
+            return executeWithPolicy(id, revision, listener);
+        }
+    }
+
+    private Map<String, DirectoryTransferCompletion> executeWithPolicy(String id, long revision,
+            StorageProgressListener listener) throws IOException {
         var review = reviews.require(id);
         if (review.plan().operation() != DirectoryTransferPlan.Operation.PENDING) {
             throw new io.github.fourilla.endervault.common.StorageAccessException("A pending merge is required.");
@@ -52,14 +65,15 @@ public class DirectoryTransferPendingExecutionService {
         if (previous != null && previous.terminal()) {
             return completions(review);
         }
-        var run = new DirectoryTransferRun(id, revision, previous == null ? DirectoryTransferRun.Phase.PUBLISHING : previous.phase(), false);
+        var run = nextRun(previous, id, revision,
+                previous == null ? DirectoryTransferRun.Phase.PUBLISHING : previous.phase());
         reviews.saveRun(previous, run);
         try {
             if (run.phase() == DirectoryTransferRun.Phase.PUBLISHING) {
                 var decision = pending.requireDirectoryMergeOwner(review.plan().sourceReference(), id);
                 execution.publishPending(id, revision, decision, listener);
                 if (listener != null) listener.checkCanceled();
-                var next = new DirectoryTransferRun(id, revision, DirectoryTransferRun.Phase.FINALIZING, false);
+                var next = nextRun(run, id, revision, DirectoryTransferRun.Phase.FINALIZING);
                 reviews.saveRun(run, next);
                 run = next;
             }
@@ -75,8 +89,8 @@ public class DirectoryTransferPendingExecutionService {
                 });
                 boolean complete = completion.size() == review.plan().items().size()
                         && completion.values().stream().allMatch(item -> item.phase() == DirectoryTransferCompletion.Phase.COMPLETE);
-                var next = new DirectoryTransferRun(id, revision, complete ? DirectoryTransferRun.Phase.OWNER_COMPLETING
-                        : DirectoryTransferRun.Phase.NEEDS_REVIEW, false);
+                var next = nextRun(run, id, revision, complete ? DirectoryTransferRun.Phase.OWNER_COMPLETING
+                        : DirectoryTransferRun.Phase.NEEDS_REVIEW);
                 reviews.saveRun(run, next);
                 run = next;
                 if (!complete) return completion;
@@ -93,7 +107,7 @@ public class DirectoryTransferPendingExecutionService {
             }
             boolean discarded = result.status() == DirectoryTransferResult.Status.DISCARD_APPROVED;
             pending.completeDirectoryMerge(review.plan().sourceReference(), id, result.targetPath(), discarded);
-            reviews.saveRun(run, new DirectoryTransferRun(id, revision, DirectoryTransferRun.Phase.COMPLETE, false));
+            reviews.saveRun(run, nextRun(run, id, revision, DirectoryTransferRun.Phase.COMPLETE));
             return completion;
         } catch (TaskCanceledException | CancellationException ex) {
             if (run.phase() == DirectoryTransferRun.Phase.PUBLISHING) reviews.pauseRun(run, ex);
@@ -129,12 +143,12 @@ public class DirectoryTransferPendingExecutionService {
             var decision = pending.requireDirectoryMergeOwner(review.plan().sourceReference(), id);
             finalizer.validatePendingAbandonment(review, decision);
             if (run.phase() != DirectoryTransferRun.Phase.ABANDONING) {
-                var next = new DirectoryTransferRun(id, revision, DirectoryTransferRun.Phase.ABANDONING, false);
+                var next = nextRun(run, id, revision, DirectoryTransferRun.Phase.ABANDONING);
                 reviews.saveRun(run, next);
                 run = next;
             }
             finalizer.completePublishedPending(review, decision);
-            var next = new DirectoryTransferRun(id, revision, DirectoryTransferRun.Phase.ABANDONED, false);
+            var next = nextRun(run, id, revision, DirectoryTransferRun.Phase.ABANDONED);
             reviews.saveRun(run, next);
             run = next;
         }
@@ -164,6 +178,14 @@ public class DirectoryTransferPendingExecutionService {
         if (run == null || run.paused() || run.terminal()) return run;
         execute(id, run.revision(), null);
         return reviews.run(id);
+    }
+
+    private DirectoryTransferRun nextRun(DirectoryTransferRun previous, String id, long revision,
+            DirectoryTransferRun.Phase phase) {
+        return new DirectoryTransferRun(id, revision, phase, false, false,
+                previous == null ? DirectoryTransferRun.Strategy.ITEMWISE : previous.strategy(),
+                previous != null && previous.nativeEnabled() != null ? previous.nativeEnabled()
+                        : FileSystemOperations.operationOrCapture().nativeEnabled());
     }
 
     private Map<String, DirectoryTransferCompletion> completions(DirectoryTransferReview review) throws IOException {

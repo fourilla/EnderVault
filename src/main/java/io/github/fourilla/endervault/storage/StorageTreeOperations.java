@@ -50,6 +50,12 @@ final class StorageTreeOperations {
     }
 
     void move(Path source, Path target, boolean overwrite) throws IOException {
+        try (var publication = FileSystemOperations.publication()) {
+            movePrimary(source, target, overwrite);
+        }
+    }
+
+    private void movePrimary(Path source, Path target, boolean overwrite) throws IOException {
         if (overwrite) {
             fileSystem.replace(source, target, FileSystemOperations.Atomicity.PREFERRED);
         } else if (fileSystem.moveNoReplace(source, target) == FileSystemOperations.MoveResult.UNSUPPORTED) {
@@ -59,6 +65,12 @@ final class StorageTreeOperations {
     }
 
     void commitRegularFileNoReplace(Path source, Path target) throws IOException {
+        try (var publication = FileSystemOperations.publication()) {
+            commitRegularFileNoReplacePrimary(source, target);
+        }
+    }
+
+    private void commitRegularFileNoReplacePrimary(Path source, Path target) throws IOException {
         rejectSymbolicLink(source);
         if (!Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)) {
             throw new StorageAccessException("File commit source is not a regular file.");
@@ -86,6 +98,7 @@ final class StorageTreeOperations {
             }
             try {
                 Files.createLink(target, source);
+                FileSystemOperations.recordJavaPublication(source, target, "hard_link");
             } catch (UnsupportedOperationException ex) {
                 throw new StorageAccessException(
                         "The destination filesystem does not support crash-safe file commits.",
@@ -103,6 +116,12 @@ final class StorageTreeOperations {
     // external target writers. Neither path locks source mutations after fingerprinting;
     // callers must control staging writers.
     void commitEntryNoReplace(Path source, Path target) throws IOException {
+        try (var publication = FileSystemOperations.publication()) {
+            commitEntryNoReplacePrimary(source, target);
+        }
+    }
+
+    private void commitEntryNoReplacePrimary(Path source, Path target) throws IOException {
         rejectSymbolicLink(source);
         boolean validSource = Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)
                 || Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS);
@@ -157,6 +176,12 @@ final class StorageTreeOperations {
     }
 
     void commitRegularFileReplace(Path source, Path target) throws IOException {
+        try (var publication = FileSystemOperations.publication()) {
+            commitRegularFileReplacePrimary(source, target);
+        }
+    }
+
+    private void commitRegularFileReplacePrimary(Path source, Path target) throws IOException {
         rejectSymbolicLink(source);
         rejectSymbolicLink(target);
         if (!Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)
@@ -193,6 +218,12 @@ final class StorageTreeOperations {
     }
 
     void copyDirectory(Path source, Path target, StorageProgressListener progressListener) throws IOException {
+        try (var publication = FileSystemOperations.publication()) {
+            copyDirectoryPrimary(source, target, progressListener);
+        }
+    }
+
+    private void copyDirectoryPrimary(Path source, Path target, StorageProgressListener progressListener) throws IOException {
         StorageProgressListener progress = progressListener == null ? StorageProgressListener.NOOP : progressListener;
         try {
             Files.walkFileTree(source, new SimpleFileVisitor<>() {
@@ -216,10 +247,11 @@ final class StorageTreeOperations {
                     Path relative = source.relativize(file);
                     Path targetFile = target.resolve(relative).normalize();
                     pathResolver.ensureInsideBase(StorageScope.VAULT, targetFile);
-                    copyFile(file, targetFile, progress, false);
+                    copyFileDirect(file, targetFile, progress);
                     return FileVisitResult.CONTINUE;
                 }
             });
+            FileSystemOperations.recordJavaPublication(source, target, "copy_tree");
         } catch (IOException | RuntimeException ex) {
             if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
                 deleteRecursively(target);
@@ -230,9 +262,17 @@ final class StorageTreeOperations {
 
     void copyFile(Path source, Path target, StorageProgressListener progressListener, boolean overwrite)
             throws IOException {
+        try (var publication = FileSystemOperations.publication()) {
+            copyFilePrimary(source, target, progressListener, overwrite);
+        }
+    }
+
+    private void copyFilePrimary(Path source, Path target, StorageProgressListener progressListener, boolean overwrite)
+            throws IOException {
         StorageProgressListener progress = progressListener == null ? StorageProgressListener.NOOP : progressListener;
         if (!overwrite) {
             copyFileDirect(source, target, progress);
+            FileSystemOperations.recordJavaPublication(source, target, "copy");
             return;
         }
 

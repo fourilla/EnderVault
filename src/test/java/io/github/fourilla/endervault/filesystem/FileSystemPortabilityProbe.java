@@ -1,12 +1,16 @@
 package io.github.fourilla.endervault.filesystem;
 
+import io.github.fourilla.endervault.config.FileSystemConfiguration;
+import io.github.fourilla.endervault.config.NasProperties;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Objects;
+import java.util.Map;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.core.env.MapPropertySource;
 
 /** Runs outside the test JVM so JNA initialization cannot leak between portability cases. */
 public final class FileSystemPortabilityProbe {
@@ -26,6 +30,19 @@ public final class FileSystemPortabilityProbe {
         }
         require(jnaPresent != "absent".equals(mode), "JNA classpath fixture was not applied.");
 
+        if ("disabled".equals(mode)) {
+            FileSystemOperations.configureNativePolicy(() -> false);
+        }
+
+        if ("properties-disabled".equals(mode)) {
+            try (var context = springContext(false)) {
+                require(context.getBean(FileSystemOperations.class) == FileSystemOperations.systemDefault(),
+                        "Spring and standalone helpers must use the same filesystem facade.");
+                require(!FileSystemOperations.captureOperation().nativeEnabled(),
+                        "Bound properties must disable new operations without a JVM option.");
+            }
+        }
+
         FileSystemOperations operations = FileSystemOperations.systemDefault();
         Path source = Files.createDirectory(root.resolve("source"));
         Files.createDirectory(source.resolve("nested"));
@@ -43,8 +60,8 @@ public final class FileSystemPortabilityProbe {
                 "Identity lookup must retain the available NIO identity without requiring JNA.");
         require(operations.sameFileSystem(source, parent), "Local NIO filesystem comparison failed.");
 
-        try (AnnotationConfigApplicationContext context =
-                new AnnotationConfigApplicationContext(DefaultFileSystemOperations.class)) {
+        try (AnnotationConfigApplicationContext context = springContext(
+                !"properties-disabled".equals(mode) && !"disabled".equals(mode))) {
             FileSystemOperations bean = context.getBean(FileSystemOperations.class);
             require(!bean.supportsNoReplaceMove(source, parent), "The Spring bean unexpectedly enabled native moves.");
             require(bean.moveNoReplace(source, target) == FileSystemOperations.MoveResult.UNSUPPORTED,
@@ -90,6 +107,25 @@ public final class FileSystemPortabilityProbe {
                 "NIO copying fallback did not preserve the content.");
         require(!Boolean.parseBoolean(System.getProperty("jna.loaded")), "JNA native support unexpectedly loaded.");
         System.out.println("PORTABILITY_OK " + mode + " nativeLoaded=false");
+    }
+
+    private static AnnotationConfigApplicationContext springContext(boolean enabled) {
+        var context = new AnnotationConfigApplicationContext();
+        context.getEnvironment().getPropertySources().addFirst(new MapPropertySource("filesystem-policy",
+                Map.of("nas.filesystem.native-enabled", Boolean.toString(enabled))));
+        context.registerBean("earlyQuery", Boolean.class, () -> {
+            require(FileSystemOperations.captureOperation().nativeEnabled() == enabled,
+                    "Early initialization did not apply the configured native policy.");
+            return enabled;
+        });
+        context.registerBean(NasProperties.class, () -> {
+            var properties = new NasProperties();
+            properties.getFilesystem().setNativeEnabled(enabled);
+            return properties;
+        });
+        context.register(FileSystemConfiguration.class);
+        context.refresh();
+        return context;
     }
 
     private static void require(boolean condition, String message) {

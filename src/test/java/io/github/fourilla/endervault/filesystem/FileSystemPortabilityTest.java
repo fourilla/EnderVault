@@ -20,14 +20,17 @@ class FileSystemPortabilityTest {
     @Test
     void explicitlyDisabledNativeAccessKeepsTheNioPipelineUsable() throws Exception {
         runProbe("disabled", classpath(), List.of(
-                "-Dendervault.filesystem.native-enabled=false",
                 "-Djna.nosys=true", "-Djna.noclasspath=true"));
+    }
+
+    @Test
+    void propertiesCanDisableNativeAccessWithoutInitializingAvailableJna() throws Exception {
+        runProbe("properties-disabled", classpath(), List.of());
     }
 
     @Test
     void anUnavailableJnaNativeLibraryKeepsTheNioPipelineUsable() throws Exception {
         runProbe("unavailable", classpath(), List.of(
-                "-Dendervault.filesystem.native-enabled=true",
                 "-Djna.nosys=true", "-Djna.noclasspath=true"));
     }
 
@@ -37,8 +40,7 @@ class FileSystemPortabilityTest {
         List<String> withoutJna = entries.stream().filter(entry -> !jnaJar(entry)).toList();
         assertThat(withoutJna.size()).as("The isolated classpath must actually remove JNA").isLessThan(entries.size());
 
-        runProbe("absent", String.join(File.pathSeparator, withoutJna),
-                List.of("-Dendervault.filesystem.native-enabled=true"));
+        runProbe("absent", String.join(File.pathSeparator, withoutJna), List.of());
     }
 
     private void runProbe(String mode, String classpath, List<String> properties) throws Exception {

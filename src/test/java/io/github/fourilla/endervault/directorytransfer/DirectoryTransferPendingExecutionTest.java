@@ -5,6 +5,7 @@ import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
 
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import io.github.fourilla.endervault.filecommit.*;
 import io.github.fourilla.endervault.pending.*;
 import io.github.fourilla.endervault.storage.*;
@@ -17,6 +18,7 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import tools.jackson.databind.json.JsonMapper;
@@ -35,6 +37,10 @@ class DirectoryTransferPendingExecutionTest {
     DirectoryTransferFinalizer finalizer;
     PendingFileDecisionResolutionObserver observer;
     DirectoryTransferPendingReplanningService replanning;
+
+    @AfterEach void restoreFilesystemPolicy() {
+        FileSystemOperations.configureNativePolicy(() -> true);
+    }
 
     @BeforeEach void setup() throws Exception {
         var properties = new NasProperties();
@@ -95,6 +101,21 @@ class DirectoryTransferPendingExecutionTest {
         })).isInstanceOf(io.github.fourilla.endervault.task.TaskCanceledException.class);
     }
 
+    @Test void pausedUploadMergeRetainsItsPolicyAfterSettingsChange() throws Exception {
+        FileSystemOperations.configureNativePolicy(() -> false);
+        pauseUploadAfterFirstFile();
+        assertThat(reviews.run(review.plan().id()).nativeEnabled()).isFalse();
+        FileSystemOperations.configureNativePolicy(() -> true);
+        service.execute(review.plan().id(), review.revision(), new StorageProgressListener() {
+            @Override public void checkCanceled() {
+                assertThat(FileSystemOperations.operationOrCapture().nativeEnabled()).isFalse();
+            }
+        });
+        assertThat(reviews.run(review.plan().id()).nativeEnabled()).isFalse();
+        assertThat(reviews.run(review.plan().id()).phase()).isEqualTo(DirectoryTransferRun.Phase.COMPLETE);
+        assertThat(FileSystemOperations.operationOrCapture().nativeEnabled()).isTrue();
+    }
+
     @Test void partialUploadAbandonmentReturnsWholeStagingAndKeepsPublishedFiles() throws Exception {
         pauseUploadAfterFirstFile();
         String id = review.plan().id();
@@ -151,7 +172,8 @@ class DirectoryTransferPendingExecutionTest {
         pauseUploadAfterFirstFile();
         String id = review.plan().id();
         var previous = reviews.run(id);
-        reviews.saveRun(previous, new DirectoryTransferRun(id, review.revision(), DirectoryTransferRun.Phase.FINALIZING, true));
+        reviews.saveRun(previous, new DirectoryTransferRun(id, review.revision(), DirectoryTransferRun.Phase.FINALIZING,
+                true, previous.recoveryRequired(), previous.strategy(), previous.nativeEnabled()));
         assertThat(new DirectoryTransferQueryService(reviews).get(id, 0, 50, false).review().canAbandonRemainingTransfer()).isFalse();
         assertThatThrownBy(() -> service.abandonRemaining(id, review.revision())).hasMessageContaining("cleanup has already started");
         assertThat(pending.directoryMergeOwner(decision.id())).contains(id);

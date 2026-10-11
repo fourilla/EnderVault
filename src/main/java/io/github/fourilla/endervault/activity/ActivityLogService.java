@@ -3,6 +3,7 @@ package io.github.fourilla.endervault.activity;
 import tools.jackson.databind.ObjectMapper;
 import io.github.fourilla.endervault.auth.ClientIpResolver;
 import io.github.fourilla.endervault.config.NasProperties;
+import io.github.fourilla.endervault.filesystem.FileSystemOperations;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
@@ -14,6 +15,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -25,6 +27,13 @@ import org.springframework.stereotype.Service;
 public class ActivityLogService {
 
     private static final Logger logger = LoggerFactory.getLogger(ActivityLogService.class);
+    private static final Set<String> FILESYSTEM_ACTIVITY_TYPES = Set.of(
+            "MOVE", "RENAME", "COPY", "HIDDEN_CHANGE", "TRASH_MOVE", "TRASH_RESTORE",
+            "UPLOAD", "FILE_REQUEST_UPLOAD", "TEXT_SAVE", "TEXT_SAVE_AS", "PENDING_FILE_DECISION_RESOLVE",
+            "ARCHIVE_CREATE_COMPLETE", "ARCHIVE_CREATE_FAILED", "ARCHIVE_CREATE_CANCELED",
+            "ARCHIVE_EXTRACT_COMPLETE", "ARCHIVE_EXTRACT_FAILED", "ARCHIVE_EXTRACT_CANCELED",
+            "REMOTE_DOWNLOAD_COMPLETE", "REMOTE_DOWNLOAD_FAILED", "REMOTE_DOWNLOAD_CANCELED"
+    );
 
     private final ActivityLogStore store;
     private final ActivityLogNotifier activityLogNotifier;
@@ -167,10 +176,13 @@ public class ActivityLogService {
                 blankToNull(targetPath),
                 success,
                 message,
-                cleanMetadata(metadata)
+                metadataWithFilesystemDiagnostics(type, metadata)
         );
 
-        store.append(entry);
+        // Log rotation is auxiliary IO, even when the caller is still in a publication scope.
+        try (var ignored = FileSystemOperations.operationOrCapture().activate()) {
+            store.append(entry);
+        }
         return entry;
     }
 
@@ -275,6 +287,20 @@ public class ActivityLogService {
 
     private String blankToDefault(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private Map<String, String> metadataWithFilesystemDiagnostics(String type, Map<String, String> metadata) {
+        Map<String, String> cleaned = cleanMetadata(metadata);
+        if (type == null || !FILESYSTEM_ACTIVITY_TYPES.contains(type)) {
+            return cleaned;
+        }
+        Map<String, String> diagnostics = FileSystemOperations.currentDiagnostics();
+        if (diagnostics.isEmpty()) {
+            return cleaned;
+        }
+        Map<String, String> merged = new LinkedHashMap<>(cleaned);
+        merged.putAll(diagnostics);
+        return Map.copyOf(merged);
     }
 
     private Map<String, String> cleanMetadata(Map<String, String> metadata) {

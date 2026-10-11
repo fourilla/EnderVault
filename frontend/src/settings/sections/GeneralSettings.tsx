@@ -55,6 +55,7 @@ const toValues = (snapshot: GeneralSettingsSnapshot): FormValues => ({
   stickyNoteBorderColor: snapshot.stickyNotes.borderColor,
   stickyNoteTextColor: snapshot.stickyNotes.textColor,
   defaultConflictPolicy: snapshot.storage.defaultConflictPolicy,
+  filesystemNativeEnabled: snapshot.filesystem.nativeEnabled,
   recentMaxItems: String(snapshot.recent.maxItems),
   recordDirectories: snapshot.recent.recordDirectories,
   trashRetentionDays: String(snapshot.trash.retentionDays),
@@ -190,6 +191,14 @@ function GeneralSettingsEditor({ snapshot, scope, onDirtyChange }: {
             { value: 'rename', label: 'Rename automatically' },
             { value: 'overwrite', label: 'Overwrite files' },
           ] })}
+        </div>
+      </SettingsSection>}
+
+      {scope === 'files' && <SettingsSection title="Filesystem Operations" description="Execution policy for file movement and publication.">
+        <div className="settings-field-grid">
+          <SettingsToggle name="filesystemNativeEnabled" label="Use JNA when available"
+            description="Applies to new operations after saving. Running operations keep their policy. Unsupported environments use Java."
+            values={editor.values} onChange={editor.change} />
         </div>
       </SettingsSection>}
 
