@@ -1,8 +1,6 @@
 package io.github.fourilla.endervault.web.file;
 
-import java.nio.charset.StandardCharsets;
-import org.springframework.web.util.UriComponentsBuilder;
-import org.springframework.web.util.UriUtils;
+import io.github.fourilla.endervault.web.support.InternalUrlBuilder;
 
 public final class FileRedirects {
 
@@ -46,18 +44,18 @@ public final class FileRedirects {
     ) {
         int pageNumber = page == null ? 1 : Math.max(1, page);
 
-        UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/files");
+        InternalUrlBuilder builder = InternalUrlBuilder.fromPath("/files");
         if (path != null && !path.isBlank()) {
             builder.queryParam("path", path);
         }
         if (pageNumber > 1) {
             builder.queryParam("page", pageNumber);
         }
-        return builder.build().encode().toUriString();
+        return builder.build();
     }
 
     public static String detailUrl(String path) {
-        return "/files/detail?path=" + UriUtils.encodeQueryParam(path, StandardCharsets.UTF_8);
+        return InternalUrlBuilder.fromPath("/files/detail").queryParam("path", path).build();
     }
 
     public static String targetPath(String directoryPath, String filename) {

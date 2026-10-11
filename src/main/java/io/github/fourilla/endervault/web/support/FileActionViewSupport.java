@@ -6,8 +6,8 @@ import io.github.fourilla.endervault.recent.RecentListItem;
 import io.github.fourilla.endervault.storage.FileDetail;
 import io.github.fourilla.endervault.storage.FileItem;
 import java.util.List;
+import java.util.function.Supplier;
 import org.springframework.stereotype.Component;
-import org.springframework.web.util.UriComponentsBuilder;
 
 @Component("fileActions")
 public class FileActionViewSupport {
@@ -57,50 +57,22 @@ public class FileActionViewSupport {
     }
 
     private String browserHref(FileActionKind kind, FileItem item) {
-        return switch (kind) {
-            case DETAILS -> UriComponentsBuilder.fromPath("/files/detail")
-                    .queryParam("path", item.path())
-                    .build()
-                    .encode()
-                    .toUriString();
-            case DOWNLOAD -> UriComponentsBuilder.fromPath("/files/detail/download")
-                    .queryParam("path", item.path())
-                    .build()
-                    .encode()
-                    .toUriString();
-            case PREVIEW -> filePreviewSupport.previewUrl(item);
-        };
+        return fileHref(kind, item.path(), () -> filePreviewSupport.previewUrl(item));
     }
 
     private String browserHref(FileActionKind kind, RecentListItem item) {
-        return switch (kind) {
-            case DETAILS -> UriComponentsBuilder.fromPath("/files/detail")
-                    .queryParam("path", item.path())
-                    .build()
-                    .encode()
-                    .toUriString();
-            case DOWNLOAD -> UriComponentsBuilder.fromPath("/files/detail/download")
-                    .queryParam("path", item.path())
-                    .build()
-                    .encode()
-                    .toUriString();
-            case PREVIEW -> filePreviewSupport.previewUrl(item);
-        };
+        return fileHref(kind, item.path(), () -> filePreviewSupport.previewUrl(item));
     }
 
     private String detailFileHref(FileActionKind kind, FileDetail detail) {
+        return fileHref(kind, detail.path(), () -> filePreviewSupport.previewUrl(detail));
+    }
+
+    private String fileHref(FileActionKind kind, String path, Supplier<String> previewUrl) {
         return switch (kind) {
-            case DETAILS -> UriComponentsBuilder.fromPath("/files/detail")
-                    .queryParam("path", detail.path())
-                    .build()
-                    .encode()
-                    .toUriString();
-            case DOWNLOAD -> UriComponentsBuilder.fromPath("/files/detail/download")
-                    .queryParam("path", detail.path())
-                    .build()
-                    .encode()
-                    .toUriString();
-            case PREVIEW -> filePreviewSupport.previewUrl(detail);
+            case DETAILS -> InternalUrlBuilder.fromPath("/files/detail").queryParam("path", path).build();
+            case DOWNLOAD -> InternalUrlBuilder.fromPath("/files/detail/download").queryParam("path", path).build();
+            case PREVIEW -> previewUrl.get();
         };
     }
 

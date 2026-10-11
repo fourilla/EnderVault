@@ -9,9 +9,9 @@ import io.github.fourilla.endervault.web.file.detail.FileDetailResult;
 import io.github.fourilla.endervault.web.support.FileActionLink;
 import io.github.fourilla.endervault.web.support.FileActionViewSupport;
 import io.github.fourilla.endervault.web.support.FilePreviewSupport;
+import io.github.fourilla.endervault.web.support.InternalUrlBuilder;
 import io.github.fourilla.endervault.web.support.ShareLinkPayload;
 import java.util.List;
-import org.springframework.web.util.UriComponentsBuilder;
 
 public record FileDetailPayload(
         DetailPayload detail,
@@ -134,19 +134,17 @@ public record FileDetailPayload(
         }
 
         private static String filesUrl(String path) {
-            UriComponentsBuilder builder = UriComponentsBuilder.fromPath("/files");
+            InternalUrlBuilder builder = InternalUrlBuilder.fromPath("/files");
             if (path != null && !path.isBlank()) {
                 builder.queryParam("path", path);
             }
-            return builder.build().encode().toUriString();
+            return builder.build();
         }
 
         private static String detailUrl(String endpoint, String path) {
-            return UriComponentsBuilder.fromPath(endpoint)
+            return InternalUrlBuilder.fromPath(endpoint)
                     .queryParam("path", path)
-                    .build()
-                    .encode()
-                    .toUriString();
+                    .build();
         }
     }
 
@@ -180,11 +178,9 @@ public record FileDetailPayload(
                     result.comicPageNumber(),
                     result.comicPreviousPageNumber(),
                     result.comicNextPageNumber(),
-                    UriComponentsBuilder.fromPath("/files/detail/comic/page")
+                    InternalUrlBuilder.fromPath("/files/detail/comic/page")
                             .queryParam("path", result.detail().path())
                             .build()
-                            .encode()
-                            .toUriString()
             );
         }
     }
@@ -197,11 +193,9 @@ public record FileDetailPayload(
             return new ArchivePayload(
                     result.archiveSuggestedName(),
                     result.archiveDestinationPath(),
-                    UriComponentsBuilder.fromPath("/api/v1/fs/archive/entries")
+                    InternalUrlBuilder.fromPath("/api/v1/fs/archive/entries")
                             .queryParam("path", result.detail().path())
                             .build()
-                            .encode()
-                            .toUriString()
             );
         }
     }

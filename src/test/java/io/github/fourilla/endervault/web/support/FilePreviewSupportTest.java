@@ -20,7 +20,7 @@ class FilePreviewSupportTest {
         FileItem item = item("demo file.mp4", "series/demo file.mp4", "video/mp4", true);
 
         assertThat(filePreviewSupport.previewUrl(item))
-                .isEqualTo("/files/open?path=series/demo%20file.mp4");
+                .isEqualTo("/files/open?path=series%2Fdemo%20file.mp4");
     }
 
     @Test
@@ -42,7 +42,31 @@ class FilePreviewSupportTest {
         assertThat(filePreviewSupport.previewContentUrl(video))
                 .isEqualTo("/files/preview?path=series&item=episode.mp4");
         assertThat(filePreviewSupport.previewContentUrl(comic))
-                .isEqualTo("/files/detail/comic/preview?path=series/book.cbz");
+                .isEqualTo("/files/detail/comic/preview?path=series%2Fbook.cbz");
+    }
+
+    @Test
+    void adminUrlsPreserveSpecialCharactersInNamesAndAncestorDirectories() {
+        String parent = "parent+name/nested + %2B & 한글";
+        String name = "note+%2B#&{path}.txt";
+        String path = parent + "/" + name;
+        FileItem item = item(name, path, "text/plain", true);
+        FileDetail detail = detail(name, path, "text/plain", "txt", true);
+
+        for (String url : new String[] {filePreviewSupport.previewUrl(item), filePreviewSupport.previewUrl(detail)}) {
+            assertThat(URI.create(url).getRawQuery()).doesNotContain("+");
+            assertThat(decodedQuery(url, "path")).isEqualTo(path);
+        }
+        for (String url : new String[] {filePreviewSupport.cardMediaUrl(item), filePreviewSupport.cardMediaUrl(detail),
+                filePreviewSupport.previewContentUrl(detail)}) {
+            assertThat(URI.create(url).getRawQuery()).doesNotContain("+");
+            assertThat(decodedQuery(url, "path")).isEqualTo(parent);
+            assertThat(decodedQuery(url, "item")).isEqualTo(name);
+        }
+        FileDetail comic = detail("book+%2B.cbz", parent + "/book+%2B.cbz", "application/zip", "cbz", true);
+        assertThat(decodedQuery(filePreviewSupport.previewContentUrl(comic), "path")).isEqualTo(comic.path());
+        FileDetail binary = detail("data+%2B.bin", parent + "/data+%2B.bin", "application/octet-stream", "bin", false);
+        assertThat(decodedQuery(filePreviewSupport.openTargetUrl(binary), "path")).isEqualTo(binary.path());
     }
 
     @Test
