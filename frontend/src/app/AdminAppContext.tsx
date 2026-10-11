@@ -14,6 +14,7 @@ import { AdminAppAccessDeniedError, AdminAppSessionExpiredError, fetchAdminAppBo
 import { bootstrapReducer, initialBootstrapState } from './bootstrap-state';
 import type { AdminAppBootstrap } from './types';
 import { applyAppearance } from '../shared/appearance/presets';
+import { observeFavoriteFileTasks } from '../shared/api/favorite-api';
 import type { HiddenMode } from '../shared/browser/types';
 
 interface AdminAppContextValue {
@@ -93,7 +94,11 @@ export function AdminAppProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     const refreshFavorites = () => void load();
     document.addEventListener('endervault:favorites-changed', refreshFavorites);
-    return () => document.removeEventListener('endervault:favorites-changed', refreshFavorites);
+    const stopObservingTasks = observeFavoriteFileTasks();
+    return () => {
+      stopObservingTasks();
+      document.removeEventListener('endervault:favorites-changed', refreshFavorites);
+    };
   }, [load]);
 
   const value = useMemo<AdminAppContextValue | null>(() => bootstrap ? ({
