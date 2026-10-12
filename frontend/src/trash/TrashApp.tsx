@@ -136,11 +136,15 @@ export function TrashApp() {
                       disabled={!selectable} aria-label={`Select ${item.originalName}`}
                       onChange={event => selection.selectItem(item, event.currentTarget.checked)} /></td>
                     <td>
-                      <span className="item-name" title={item.originalName}>
-                        {icon(item.directory ? 'fas fa-folder item-icon' : 'fas fa-file item-icon')}
-                        <OverflowMarquee text={item.originalName} />
-                      </span>
-                      {failures.has(item.id) && <small role="status">{failures.get(item.id)}</small>}
+                      <div className="table-cell-stack">
+                        <span className="item-name" title={item.originalName}>
+                          {icon(item.directory ? 'fas fa-folder item-icon' : 'fas fa-file item-icon')}
+                          <OverflowMarquee text={item.originalName} />
+                        </span>
+                        {failures.has(item.id) && <small role="status" title={failures.get(item.id)}>
+                          <OverflowMarquee text={failures.get(item.id)!} />
+                        </small>}
+                      </div>
                     </td>
                     <td><span className="path-cell"><OverflowMarquee text={item.originalPath} /></span></td>
                     <td>{item.typeLabel}</td>
