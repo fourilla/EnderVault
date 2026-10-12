@@ -2,6 +2,8 @@ package io.github.fourilla.endervault.web.dashboard;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 class RuntimeResourceServiceTest {
@@ -16,10 +18,6 @@ class RuntimeResourceServiceTest {
         assertThat(RuntimeResourceService.percent(0.1234)).isEqualTo(12.3);
         assertThat(RuntimeResourceService.percent(1)).isEqualTo(100);
         assertThat(RuntimeResourceService.positive(-1)).isNull();
-        assertThat(RuntimeResourceService.usedMemory(null, 1)).isNull();
-        assertThat(RuntimeResourceService.usedMemory(100L, -1)).isNull();
-        assertThat(RuntimeResourceService.usedMemory(100L, 101)).isNull();
-        assertThat(RuntimeResourceService.usedMemory(100L, 30)).isEqualTo(70L);
     }
 
     @Test
@@ -31,5 +29,22 @@ class RuntimeResourceServiceTest {
         assertThat(snapshot.uptimeMs()).isNotNegative();
         assertThat(snapshot.sampledAt()).isNotNull();
         assertThat(service.snapshot()).isSameAs(snapshot);
+    }
+
+    @Test
+    void linuxMemoryPairIsIncludedInTheSharedSnapshot() {
+        var reads = new AtomicInteger();
+        var sampler = new SystemMemorySampler(true, () -> {
+            reads.incrementAndGet();
+            return List.of("MemTotal: 16777216 kB", "MemAvailable: 12582912 kB", "MemFree: 128 kB");
+        });
+        var service = new RuntimeResourceService(sampler);
+
+        var snapshot = service.snapshot();
+
+        assertThat(snapshot.memoryTotalBytes()).isEqualTo(17_179_869_184L);
+        assertThat(snapshot.memoryUsedBytes()).isEqualTo(4_294_967_296L);
+        assertThat(service.snapshot()).isSameAs(snapshot);
+        assertThat(reads).hasValue(1);
     }
 }
