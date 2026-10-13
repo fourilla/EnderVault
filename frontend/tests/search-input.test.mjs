@@ -16,9 +16,9 @@ const inputCode = await compile('useSearchInput.ts');
 const assistanceCode = await compile('useSearchAssistance.ts');
 const panelCode = await compile('SearchSuggestions.tsx');
 const schema = { scope: 'files', limits: { maxLength: 4096 }, fields: [
-  { key: 'name', label: 'Name', type: 'TEXT', values: [] },
-  { key: 'path', label: 'Path', type: 'PATH', values: [] },
-  { key: 'type', label: 'Type', type: 'ENUM', values: ['file', 'directory'] },
+  { key: 'name', label: 'Name', type: 'TEXT', operators: ['CONTAINS', 'EQUALS', 'GLOB'], values: [] },
+  { key: 'path', label: 'Path', type: 'PATH', operators: ['CONTAINS', 'EQUALS', 'GLOB'], values: [] },
+  { key: 'type', label: 'Type', type: 'ENUM', operators: ['EQUALS'], values: ['file', 'directory'] },
 ] };
 
 function harness() {
@@ -545,6 +545,57 @@ test('path suggestions debounce one parent and abort old caret, hidden-policy an
   assert.equal(app.calls[3].args[2].aborted, true);
 });
 
+test('active path globs abort concrete lookups and quoted literal stars restore lookup', async (t) => {
+  const app = assistanceSetup(t);
+  const setQuery = (query, caret = query.length) => {
+    app.options.query = query;
+    app.options.caret = app.options.selectionEnd = caret;
+    return app.render();
+  };
+  app.options.enabled = true;
+  app.render();
+  app.calls[0].resolve(schema);
+  await flush();
+
+  setQuery('path:photos/s');
+  app.runTimers();
+  const pending = app.calls[1];
+  assert.equal(pending.args[0], 'photos');
+  // The wildcard is active even when the caret is immediately before it.
+  let result = setQuery('path:photos/s*', 'path:photos/s'.length);
+  assert.equal(pending.args[2].aborted, true);
+  assert.equal(app.timers.size, 0);
+  assert.equal(result.loading, false);
+  assert.equal(result.unavailable, false);
+  assert.equal(result.options.length, 0);
+  pending.resolve([{ name: 'stale', path: 'photos/stale', type: 'directory' }]);
+  await flush();
+  result = app.render();
+  assert.equal(result.options.length, 0);
+  app.runTimers();
+  assert.equal(app.calls.length, 2);
+
+  // Quotes turn the same symbol into a concrete directory-name character.
+  setQuery('path:"photos*/su"');
+  assert.equal(app.timers.size, 1);
+  app.runTimers();
+  assert.equal(app.calls.length, 3);
+  assert.equal(app.calls[2].args[0], 'photos*');
+  assert.equal(app.calls[2].args[1], 'hide');
+  app.calls[2].resolve([{ name: 'summer', path: 'photos*/summer', type: 'directory' }]);
+  await flush();
+  result = app.render();
+  assert.equal(result.options[0].replacement, '"photos*/summer/"');
+  assert.equal(result.loading, false);
+
+  setQuery('path:photos/s');
+  assert.equal(app.timers.size, 1);
+  setQuery('path:photos/s?');
+  assert.equal(app.timers.size, 0);
+  app.runTimers();
+  assert.equal(app.calls.length, 3);
+});
+
 test('assistance failures stay local and optional, with no recursive searches or automatic retries', async (t) => {
   const app = assistanceSetup(t);
   app.options.enabled = true; app.render();
@@ -589,6 +640,7 @@ test('suggestion rows preserve input focus and keyboard scrolling changes only t
     hint: null, loading: false, unavailable: false, choose: (index) => { chosen = index; } };
   const render = () => h.render(() => app.SearchSuggestions(props));
   const root = render(), list = root.props.children[0];
+  assert.match(root.props.children.at(-1).props.children, /! \/ !\(…\): NOT/);
   let prevented = false;
   const row = list.props.children[0];
   row.props.onPointerDown({ preventDefault() { prevented = true; } });
