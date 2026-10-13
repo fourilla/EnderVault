@@ -161,6 +161,9 @@ test('admin file and directory conflicts announce durable decisions without reso
     else manager.pending(upload, 'file');
     assert.equal(upload.status, 'pending');
     assert.equal(upload.loaded, 5);
+    const activity = state.activity.snapshot().items.find(item => item.id === `upload-${upload.id}`);
+    assert.equal(activity.percent, 100);
+    assert.equal(activity.message, `${directory ? '1 / 1 files; ' : ''}5 B / 5 B; Waiting in Pending Decisions`);
   }
   assert.deepEqual(announced, ['file', 'directory']);
   assert.equal(manager.hasActiveUploads(), false);
@@ -175,6 +178,8 @@ test('the upload manager announces one batch after queue rows exist, not when qu
   manager.startFiles([{ name: 'one.txt', size: 10 }, { name: 'two.txt', size: 10 }], 'target');
   assert.deepEqual(state.events, [['upload-1', 'upload-2']]);
   assert.equal(state.activity.snapshot().items.length, 2);
+  assert.equal(state.activity.snapshot().items[0].message, '0 B / 10 B; Waiting to upload');
+  assert.equal(state.activity.snapshot().items[1].message, '0 B / 10 B; Waiting to upload');
   state.paint();
   state.active(null);
   manager.setMaxConcurrentUploads(2);
@@ -184,6 +189,47 @@ test('the upload manager announces one batch after queue rows exist, not when qu
   assert.equal(state.events.length, 1);
   manager.startFiles([{ name: 'three.txt', size: 10 }], 'other');
   assert.deepEqual(state.events[1], ['upload-3']);
+});
+
+test('admin file progress keeps bytes alongside preparation, upload and resume messages through completion', async (t) => {
+  const state = setup(t);
+  const refreshed = [];
+  let callbacks, finish;
+  state.window.location = { href: '/files?path=target' };
+  state.window.EnderVaultFileBrowser = { requestListingRefresh: url => refreshed.push(url) };
+  state.window.EnderVaultResumableUpload = { create(options) {
+    callbacks = options;
+    return { start: () => new Promise(resolve => { finish = resolve; }) };
+  } };
+  const { TestUploadManager } = await loadTsx('app/uploads/UploadManagerContext.tsx', state.window, state.document,
+    () => ({ createContext: () => ({}) }), 'export { AdminUploadManager as TestUploadManager };');
+  const manager = new TestUploadManager(1, () => {});
+  manager.startFiles([new File([new Uint8Array(8192)], 'archive.bin')], 'target');
+  const item = () => state.activity.snapshot().items[0];
+  callbacks.onState('fingerprinting', 'Preparing upload');
+  assert.equal(item().message, '0 B / 8.0 KB; Preparing upload');
+  callbacks.onState('reserving', 'Reserving upload');
+  assert.equal(item().message, '0 B / 8.0 KB; Reserving upload');
+  callbacks.onState('uploading', 'Uploading');
+  callbacks.onProgress(2048, 8192);
+  assert.equal(item().message, '2.0 KB / 8.0 KB; Uploading');
+  assert.equal(item().percent, 25);
+  callbacks.onState('uploading', 'Resuming upload');
+  callbacks.onProgress(6144, 8192);
+  assert.equal(item().message, '6.0 KB / 8.0 KB; Resuming upload');
+  assert.equal(item().percent, 75);
+  callbacks.onProgress(4096, 8192);
+  assert.equal(item().message, '4.0 KB / 8.0 KB; Resuming upload');
+  assert.equal(item().percent, 50);
+  callbacks.onState('uploading');
+  assert.equal(item().message, '4.0 KB / 8.0 KB; Uploading');
+  finish({ status: 'COMPLETED', redirectUrl: '/files?path=target' });
+  await new Promise(setImmediate);
+  assert.equal(item().message, '8.0 KB / 8.0 KB; Complete');
+  assert.equal(item().percent, 100);
+  assert.equal(manager.hasActiveUploads(), false);
+  assert.deepEqual(refreshed, ['/files?path=target']);
+  assert.deepEqual(state.events, [['upload-1']]);
 });
 
 test('remote starts publish immediately; an older in-flight snapshot cannot erase them or re-announce', async (t) => {
@@ -272,6 +318,9 @@ test('directory cancellation displays the server terminal outcome rather than un
     await manager.cancel(upload);
     assert.equal(upload.status, expected);
     assert.equal(upload.cancelRequested, status === 'CANCELED');
+    const activity = state.activity.snapshot().items.find(item => item.id === `upload-${upload.id}`);
+    assert.equal(activity.message, status === 'CANCELED' ? '0 / 2 files; 0 B / 5 B; Canceled'
+      : `2 / 2 files; 5 B / 5 B; ${status === 'COMPLETED' ? 'Complete' : 'Waiting in Pending Decisions'}`);
     if (status !== 'CANCELED') {
       assert.equal(upload.completedCount, 2);
       assert.equal(upload.loaded, 5);
