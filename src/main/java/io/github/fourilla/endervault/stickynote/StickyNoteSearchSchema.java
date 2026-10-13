@@ -11,9 +11,9 @@ import java.util.function.Predicate;
 public final class StickyNoteSearchSchema {
 
     private static final SearchSchema<Candidate> SCHEMA = new SearchSchema<>(
-            (item, term) -> contains(item.summary(), term) || contains(item.targetLabel(), term)
-                    || contains(item.note().context().targetType().name(), term)
-                    || contains(item.note().context().surface().label(), term),
+            (item, condition) -> condition.test(item.summary()) || condition.test(item.targetLabel())
+                    || condition.test(item.note().context().targetType().name())
+                    || condition.test(item.note().context().surface().label()),
             List.of(
                     SearchSchema.text("name", "Summary", Candidate::summary),
                     SearchSchema.text("content", "Full content", item -> item.note().content()),
@@ -42,10 +42,6 @@ public final class StickyNoteSearchSchema {
 
     public static Predicate<Candidate> compile(String query) {
         return SCHEMA.compile(query);
-    }
-
-    private static boolean contains(String value, String term) {
-        return value != null && value.toLowerCase(Locale.ROOT).contains(term);
     }
 
     public record Candidate(StickyNote note, String summary, String targetLabel, BooleanSupplier targetLookup) {

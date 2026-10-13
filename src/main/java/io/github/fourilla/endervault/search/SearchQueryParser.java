@@ -3,6 +3,7 @@ package io.github.fourilla.endervault.search;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 final class SearchQueryParser {
 
@@ -11,17 +12,53 @@ final class SearchQueryParser {
     static final int MAX_TERMS = 128;
     static final int MAX_DEPTH = 16;
 
-    sealed interface Expression permits All, Term, And, Or {}
+    sealed interface Expression permits All, Term, Not, And, Or {}
 
     record All() implements Expression {}
 
-    record Term(String field, String value, boolean quoted, int position) implements Expression {}
+    /** Quoted fragments remain literal when adjacent fragments form a single search value. */
+    record ValuePart(String text, boolean quoted) {}
+
+    record Term(String field, String value, boolean quoted, int position, List<ValuePart> parts)
+            implements Expression {
+
+        Term {
+            parts = List.copyOf(parts);
+        }
+
+        Term(String field, String value, boolean quoted, int position) {
+            this(field, value, quoted, position, List.of(new ValuePart(value, quoted)));
+        }
+
+        boolean hasUnquotedPrefix(String prefix) {
+            int matched = 0;
+            for (ValuePart part : parts) {
+                for (int index = 0; index < part.text().length() && matched < prefix.length(); index++) {
+                    if (part.quoted() || part.text().charAt(index) != prefix.charAt(matched)) {
+                        return false;
+                    }
+                    matched++;
+                }
+                if (matched == prefix.length()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        boolean hasWildcards() {
+            return parts.stream().anyMatch(part -> !part.quoted()
+                    && (part.text().indexOf('*') >= 0 || part.text().indexOf('?') >= 0));
+        }
+    }
+
+    record Not(Expression expression) implements Expression {}
 
     record And(List<Expression> terms) implements Expression {}
 
     record Or(List<Expression> terms) implements Expression {}
 
-    private enum Kind { WORD, QUOTED, AND, OR, OPEN, CLOSE, END }
+    private enum Kind { WORD, QUOTED, NOT, AND, OR, OPEN, CLOSE, END }
 
     private record Token(Kind kind, String value, int start, int end) {}
 
@@ -97,10 +134,13 @@ final class SearchQueryParser {
     }
 
     private Expression parseAtom(int depth) {
+        if (peek().kind() == Kind.NOT) {
+            requireDepth(depth);
+            take();
+            return new Not(parseAtom(depth + 1));
+        }
         if (peek().kind() == Kind.OPEN) {
-            if (depth >= MAX_DEPTH) {
-                throw error("Search groups are nested too deeply.");
-            }
+            requireDepth(depth);
             take();
             Expression result = parseOr(depth + 1);
             if (peek().kind() != Kind.CLOSE) {
@@ -116,6 +156,7 @@ final class SearchQueryParser {
         String field = null;
         String value = token.value();
         boolean quoted = token.kind() == Kind.QUOTED;
+        List<ValuePart> parts = new ArrayList<>();
         int colon = value.indexOf(':');
         if (!quoted && colon > 0 && isFieldName(value.substring(0, colon))) {
             String suffix = value.substring(colon + 1);
@@ -126,7 +167,7 @@ final class SearchQueryParser {
                 field = value.substring(0, colon).toLowerCase(Locale.ROOT);
                 value = suffix;
                 if (value.isEmpty()) {
-                    if (peek().kind() != Kind.WORD && peek().kind() != Kind.QUOTED) {
+                    if (peek().kind() != Kind.WORD && peek().kind() != Kind.QUOTED && peek().kind() != Kind.NOT) {
                         throw error("A search field needs a value.");
                     }
                     Token fieldValue = take();
@@ -135,17 +176,36 @@ final class SearchQueryParser {
                 }
             }
         }
+        parts.add(new ValuePart(value, quoted));
+        while ((peek().kind() == Kind.WORD || peek().kind() == Kind.QUOTED || peek().kind() == Kind.NOT)
+                && tokens.get(cursor - 1).end() == peek().start()) {
+            Token fragment = take();
+            parts.add(new ValuePart(fragment.value(), fragment.kind() == Kind.QUOTED));
+        }
+        value = parts.stream().map(ValuePart::text).collect(Collectors.joining());
+        quoted = parts.stream().allMatch(ValuePart::quoted);
+        Term term = new Term(field, value, quoted, token.start(), parts);
+        if (term.hasUnquotedPrefix("!=")) {
+            throw new SearchQueryException("The != operator is not supported. Negate the search condition with !.",
+                    token.start());
+        }
         if (value.isBlank()) {
             throw new SearchQueryException("Search conditions cannot be empty.", token.start());
         }
         if (++termCount > MAX_TERMS) {
             throw new SearchQueryException("Too many search conditions.", token.start());
         }
-        return new Term(field, value, quoted, token.start());
+        return term;
+    }
+
+    private void requireDepth(int depth) {
+        if (depth >= MAX_DEPTH) {
+            throw error("Search groups and negations are nested too deeply.");
+        }
     }
 
     private static boolean startsAtom(Kind kind) {
-        return kind == Kind.WORD || kind == Kind.QUOTED || kind == Kind.OPEN;
+        return kind == Kind.WORD || kind == Kind.QUOTED || kind == Kind.OPEN || kind == Kind.NOT;
     }
 
     private Token peek() {
@@ -172,7 +232,14 @@ final class SearchQueryParser {
             int start = index;
             Kind kind;
             String value;
-            if (character == '(' || character == ')') {
+            if (character == '!' && !adjacentValue(tokens, index)) {
+                if (index + 1 < input.length() && input.charAt(index + 1) == '=') {
+                    throw new SearchQueryException(
+                            "The != operator is not supported. Negate the search condition with !.", start);
+                }
+                kind = Kind.NOT;
+                value = input.substring(index, ++index);
+            } else if (character == '(' || character == ')') {
                 kind = character == '(' ? Kind.OPEN : Kind.CLOSE;
                 value = input.substring(index, ++index);
             } else if (isOperatorAt(input, index)) {
@@ -225,5 +292,13 @@ final class SearchQueryParser {
         char character = input.charAt(index);
         return (character == '&' || character == '|')
                 && index + 1 < input.length() && input.charAt(index + 1) == character;
+    }
+
+    private static boolean adjacentValue(List<Token> tokens, int index) {
+        if (tokens.isEmpty()) {
+            return false;
+        }
+        Token previous = tokens.getLast();
+        return (previous.kind() == Kind.WORD || previous.kind() == Kind.QUOTED) && previous.end() == index;
     }
 }

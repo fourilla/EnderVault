@@ -4,13 +4,12 @@ import io.github.fourilla.endervault.search.SearchSchema;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.Predicate;
 
 public final class ShareLinkSearchSchema {
 
     private static final SearchSchema<Candidate> SCHEMA = new SearchSchema<>(
-            (item, term) -> item.path().toLowerCase(Locale.ROOT).contains(term),
+            (item, condition) -> condition.test(item.path()),
             List.of(
                     SearchSchema.text("name", "Target name", Candidate::name),
                     SearchSchema.path("path", "Target path", Candidate::path),

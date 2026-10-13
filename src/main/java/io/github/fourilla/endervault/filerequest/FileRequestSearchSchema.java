@@ -11,7 +11,7 @@ import java.util.function.Predicate;
 public final class FileRequestSearchSchema {
 
     private static final SearchSchema<Candidate> SCHEMA = new SearchSchema<>(
-            (item, term) -> contains(item.request().title(), term) || contains(item.destination(), term),
+            (item, condition) -> condition.test(item.request().title()) || condition.test(item.destination()),
             List.of(
                     SearchSchema.text("name", "Request title", item -> item.request().title()),
                     SearchSchema.text("description", "Description", item -> item.request().description()),
@@ -38,10 +38,6 @@ public final class FileRequestSearchSchema {
     public static Predicate<FileRequest> compile(String query, Instant now) {
         var filter = SCHEMA.compile(query);
         return request -> filter.test(new Candidate(request, now));
-    }
-
-    private static boolean contains(String value, String term) {
-        return value != null && value.toLowerCase(Locale.ROOT).contains(term);
     }
 
     private record Candidate(FileRequest request, Instant now) {

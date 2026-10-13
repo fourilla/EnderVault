@@ -71,7 +71,7 @@ class TrashSearchSchemaTest {
         assertThat(TrashSearchSchema.fields()).extracting(SearchSchema.FieldInfo::key)
                 .containsExactly("name", "path", "type", "extension", "deleted", "expires");
         assertThat(TrashSearchSchema.fields().get(2).values()).containsExactly("file", "directory");
-        assertThat(TrashSearchSchema.fields().get(3).operators()).containsExactly(SearchSchema.Operator.EQUALS);
+        assertThat(TrashSearchSchema.fields().get(3).operators()).containsExactly(SearchSchema.Operator.EQUALS, SearchSchema.Operator.GLOB);
         assertThatThrownBy(() -> TrashSearchSchema.fields().clear()).isInstanceOf(UnsupportedOperationException.class);
     }
 }

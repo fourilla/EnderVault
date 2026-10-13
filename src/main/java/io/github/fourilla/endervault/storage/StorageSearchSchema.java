@@ -11,13 +11,12 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.Predicate;
 
 public final class StorageSearchSchema {
 
     private static final SearchSchema<Candidate> SCHEMA = new SearchSchema<>(
-            (candidate, term) -> candidate.name().toLowerCase(Locale.ROOT).contains(term),
+            (candidate, condition) -> condition.test(candidate.name()),
             List.of(
                     SearchSchema.text("name", "Name", Candidate::name),
                     SearchSchema.path("path", "Path", Candidate::relativePath),

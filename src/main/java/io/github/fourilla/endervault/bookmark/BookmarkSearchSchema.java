@@ -3,13 +3,12 @@ package io.github.fourilla.endervault.bookmark;
 import io.github.fourilla.endervault.search.SearchSchema;
 import java.time.ZoneId;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.Predicate;
 
 public final class BookmarkSearchSchema {
 
     private static final SearchSchema<BookmarkItem> SCHEMA = new SearchSchema<>(
-            (item, term) -> contains(item.title(), term) || contains(item.url(), term),
+            (item, condition) -> condition.test(item.title()) || condition.test(item.url()),
             List.of(
                     SearchSchema.text("name", "Title", BookmarkItem::title),
                     SearchSchema.text("url", "URL", BookmarkItem::url),
@@ -35,7 +34,4 @@ public final class BookmarkSearchSchema {
         return SCHEMA.compile(query);
     }
 
-    private static boolean contains(String value, String term) {
-        return value != null && value.toLowerCase(Locale.ROOT).contains(term);
-    }
 }

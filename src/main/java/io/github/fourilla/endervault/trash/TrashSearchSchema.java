@@ -4,14 +4,12 @@ import io.github.fourilla.endervault.common.FileNameExtensions;
 import io.github.fourilla.endervault.search.SearchSchema;
 import java.time.ZoneId;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.Predicate;
 
 public final class TrashSearchSchema {
 
     private static final SearchSchema<TrashRecord> SCHEMA = new SearchSchema<>(
-            (item, term) -> item.originalName().toLowerCase(Locale.ROOT).contains(term)
-                    || item.originalPath().toLowerCase(Locale.ROOT).contains(term),
+            (item, condition) -> condition.test(item.originalName()) || condition.test(item.originalPath()),
             List.of(
                     SearchSchema.text("name", "Original name", TrashRecord::originalName),
                     SearchSchema.path("path", "Original path", TrashRecord::originalPath),
