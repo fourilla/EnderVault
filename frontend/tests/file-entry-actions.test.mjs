@@ -167,8 +167,37 @@ test('rename uses the clicked item parent, resolves conflicts and refreshes with
   assert.equal(state.requests[0].body.get('item'), state.entries[1].name);
   assert.equal(state.requests[0].body.get('newName'), 'renamed.txt');
   assert.equal(state.requests[0].body.get('conflictPolicy'), 'ask');
+  assert.deepEqual(state.events, ['endervault:favorites-changed']);
   assert.equal(state.reloads(), 1);
   assert.deepEqual(state.urls, []);
+});
+
+test('rename notifies shared Favorites only after the mutation succeeds', async (t) => {
+  const state = setup(t), response = deferred();
+  state.respond(response.promise);
+  const rename = state.actions.renameEntry(state.entries[0]);
+  await Promise.resolve();
+  assert.equal(state.requests.length, 1);
+  assert.deepEqual(state.events, []);
+  assert.equal(state.reloads(), 0);
+  response.resolve({});
+  await rename;
+  assert.deepEqual(state.events, ['endervault:favorites-changed']);
+  assert.equal(state.reloads(), 1);
+});
+
+test('rename cancellation, unchanged names and failed requests do not invalidate Favorites', async (t) => {
+  const state = setup(t);
+  window.EnderVault.askTextInput = async () => null;
+  await state.actions.renameEntry(state.entries[0]);
+  window.EnderVault.askTextInput = async () => state.entries[0].name;
+  await state.actions.renameEntry(state.entries[0]);
+  assert.deepEqual(state.requests, []);
+  window.EnderVault.askTextInput = async () => 'renamed.txt';
+  state.respond(new Error('Rename denied'));
+  await assert.rejects(state.actions.renameEntry(state.entries[0]), /Rename denied/);
+  assert.deepEqual(state.events, []);
+  assert.equal(state.reloads(), 0);
 });
 
 test('favorite and buffer actions share API updates without touching a same-named sibling', async (t) => {

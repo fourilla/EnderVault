@@ -148,9 +148,9 @@ class AdminUploadManager {
 
   private statusText(upload: ManagedUpload) {
     const message = this.statusMessage(upload);
-    if (!upload.root) return message;
     const format = window.EnderVaultActivity?.formatBytes ?? ((bytes: number) => `${bytes} B`);
-    return `${upload.completedCount} / ${upload.root.files.length} files; ${format(upload.loaded)} / ${format(upload.total)}; ${message}`;
+    const files = upload.root ? `${upload.completedCount} / ${upload.root.files.length} files; ` : '';
+    return `${files}${format(upload.loaded)} / ${format(upload.total)}; ${message}`;
   }
 
   private statusMessage(upload: ManagedUpload) {
@@ -161,9 +161,7 @@ class AdminUploadManager {
     if (upload.status === 'failed') return upload.message || 'Failed';
     if (upload.status === 'canceled') return 'Canceled';
     if (upload.status === 'pending') return upload.message || 'Waiting in Pending Decisions';
-    const format = window.EnderVaultActivity?.formatBytes ?? ((bytes: number) => `${bytes} B`);
-    const progress = `${format(upload.loaded)} / ${format(upload.total)}`;
-    return upload.message || (upload.root ? 'Uploading directory' : progress);
+    return upload.message || (upload.root ? 'Uploading directory' : 'Uploading');
   }
 
   private finish(upload: ManagedUpload, status: UploadStatus, message = '') {

@@ -7,8 +7,19 @@ export interface FavoriteToggleResult {
 
 type FavoriteDirection = 'up' | 'down';
 
-const favoritesChanged = () =>
+export const favoritesChanged = () =>
   document.dispatchEvent(new CustomEvent('endervault:favorites-changed'));
+
+export function observeFavoriteFileTasks() {
+  const refresh = (event: Event) => {
+    const task = (event as CustomEvent<{ type: string; active: boolean }>).detail;
+    if (task?.active !== false || !['FILE_MOVE', 'FILE_TRASH', 'DIRECTORY_MERGE'].includes(task.type)) return;
+    // Partial, canceled and failed batches can already have changed paths or removed favorites.
+    favoritesChanged();
+  };
+  document.addEventListener('endervault:task-terminal', refresh);
+  return () => document.removeEventListener('endervault:task-terminal', refresh);
+}
 
 export async function togglePathFavorite(path: string): Promise<FavoriteToggleResult> {
   const body = await postForm('/api/v1/favorites/toggle', { path });

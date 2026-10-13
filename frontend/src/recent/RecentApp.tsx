@@ -27,6 +27,7 @@ import './recent-app.css';
 export function RecentApp() {
   const routeNavigate = useNavigate();
   const adminApp = useAdminApp();
+  const { syncBrowserHidden } = adminApp;
   const openFile = useCallback((detailUrl: string) => routeNavigate(detailUrl), [routeNavigate]);
   const { state, key: historyKey, remember, navigate: navigateHistory, isCurrent, ready } = useListingHistory(recentHistory);
   const [payload, setPayload] = useListingSnapshot<RecentPayload>(historyKey);
@@ -60,6 +61,7 @@ export function RecentApp() {
     void loadRecentPayload(requestState, controller.signal)
       .then((next) => {
         if (!isCurrent() || controller.signal.aborted) return;
+        syncBrowserHidden(next.preferences.hidden);
         setPayload(next);
         const canonical = canonicalRecentState(requestState, next);
         stateRef.current = canonical;
@@ -74,7 +76,7 @@ export function RecentApp() {
         if (isCurrent() && !controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [state, refreshToken, remember, isCurrent, effectiveState]);
+  }, [state, refreshToken, remember, isCurrent, effectiveState, syncBrowserHidden]);
 
   useEffect(() => {
     setSearchText(state.query);

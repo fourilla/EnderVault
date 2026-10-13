@@ -14,10 +14,13 @@ import { AdminAppAccessDeniedError, AdminAppSessionExpiredError, fetchAdminAppBo
 import { bootstrapReducer, initialBootstrapState } from './bootstrap-state';
 import type { AdminAppBootstrap } from './types';
 import { applyAppearance } from '../shared/appearance/presets';
+import { observeFavoriteFileTasks } from '../shared/api/favorite-api';
+import type { HiddenMode } from '../shared/browser/types';
 
 interface AdminAppContextValue {
   bootstrap: AdminAppBootstrap;
   refreshBootstrap: () => Promise<void>;
+  syncBrowserHidden: (hidden: HiddenMode) => void;
 }
 
 const AdminAppContext = createContext<AdminAppContextValue | null>(null);
@@ -27,6 +30,8 @@ export function AdminAppProvider({ children }: PropsWithChildren) {
   const requestId = useRef(0);
   const activeRequest = useRef<AbortController | null>(null);
   const warnedAboutRefresh = useRef(false);
+  const observedHidden = useRef<HiddenMode | null>(null);
+  const confirmedHidden = useRef<HiddenMode | null>(null);
 
   const load = useCallback(async () => {
     const id = ++requestId.current;
@@ -37,6 +42,8 @@ export function AdminAppProvider({ children }: PropsWithChildren) {
     try {
       const next = await fetchAdminAppBootstrap(controller.signal);
       if (!controller.signal.aborted) {
+        confirmedHidden.current = next.browser.hidden;
+        observedHidden.current ??= next.browser.hidden;
         applyAppearance(next.appearance);
         dispatch({ type: 'success', requestId: id, bootstrap: next });
       }
@@ -51,6 +58,14 @@ export function AdminAppProvider({ children }: PropsWithChildren) {
       if (activeRequest.current === controller) activeRequest.current = null;
     }
   }, []);
+
+  const syncBrowserHidden = useCallback((hidden: HiddenMode) => {
+    const changed = observedHidden.current !== hidden;
+    observedHidden.current = hidden;
+    // A failed refresh keeps the old snapshot, so the next accepted listing can retry.
+    if (!changed && (confirmedHidden.current === hidden || activeRequest.current)) return;
+    void load();
+  }, [load]);
 
   useEffect(() => {
     void load();
@@ -79,13 +94,18 @@ export function AdminAppProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     const refreshFavorites = () => void load();
     document.addEventListener('endervault:favorites-changed', refreshFavorites);
-    return () => document.removeEventListener('endervault:favorites-changed', refreshFavorites);
+    const stopObservingTasks = observeFavoriteFileTasks();
+    return () => {
+      stopObservingTasks();
+      document.removeEventListener('endervault:favorites-changed', refreshFavorites);
+    };
   }, [load]);
 
   const value = useMemo<AdminAppContextValue | null>(() => bootstrap ? ({
     bootstrap,
     refreshBootstrap: load,
-  }) : null, [bootstrap, load]);
+    syncBrowserHidden,
+  }) : null, [bootstrap, load, syncBrowserHidden]);
 
   if (!value && failure) {
     return (

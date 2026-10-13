@@ -101,7 +101,8 @@ function payload(state, view = state.view || 'table') {
 async function flush() { await new Promise(setImmediate); }
 
 function setup(t) {
-  const h = hooks(), scrolls = [], pending = [];
+  const h = hooks(), scrolls = [], pending = [], hiddenModes = [];
+  const syncBrowserHidden = (hidden) => hiddenModes.push(hidden);
   const router = createMemoryRouter([{ path: '*', element: null }], { initialEntries: ['/files'] });
   const window = { scrollY: 0, scrollTo({ top }) { this.scrollY = top; scrolls.push(top); } };
   const document = { dispatchEvent() {}, querySelector: () => null };
@@ -114,6 +115,7 @@ function setup(t) {
     'react-router-dom': { useLocation: () => router.state.location, useNavigate: () => routeNavigate },
     './browser-history': { browserHistory },
     './scroll-restoration': { createScrollRestoration },
+    '../app/AdminAppContext': { useAdminApp: () => ({ syncBrowserHidden }) },
     '../shared/browser/useListingRefresh': { useListingRefresh() {} },
     '../shared/api/form-api': { postForm: async (_url, { view }) => ({ view }), toastError() {} },
     './browser-api': { canonicalState, loadBrowserPayload: (state, signal) => new Promise((resolve) => {
@@ -130,7 +132,7 @@ function setup(t) {
   const { useBrowserNavigation } = load(filesCode, require, window, document);
   t.after(() => { h.dispose(); unsubscribe(); history.dispose(); router.dispose(); });
   const render = () => h.render(useBrowserNavigation);
-  return { router, history, window, scrolls, pending, render, h, context,
+  return { router, history, window, scrolls, pending, hiddenModes, render, h, context,
     async finish(index = pending.length - 1) {
       pending[index].resolve(payload(pending[index].state));
       await flush(); return render();
@@ -221,6 +223,7 @@ test('late Files response cannot change sticky context, visible data, or the cur
   // Resolve before unmount cleanup to exercise the synchronous Router ownership guard.
   s.pending[0].resolve(payload(s.pending[0].state));
   await flush();
+  assert.deepEqual(s.hiddenModes, [], 'departed Files response cannot update sidebar visibility');
   assert.equal(s.router.state.location.pathname, '/files/recent');
   assert.equal(s.history.isCurrent(s.router.state.location), true);
   await s.router.navigate(-1);
@@ -246,7 +249,8 @@ test('snapshot setter from an old visit cannot remove or replace the current row
 
 // Actual page, Router, selection and shortcut hooks; leaf components and network are controlled.
 function setupSelectablePage(t, kind) {
-  const h = hooks(), pending = [], posts = [], confirmations = [], listeners = new Map(), scrolls = [];
+  const h = hooks(), pending = [], posts = [], confirmations = [], listeners = new Map(), scrolls = [], hiddenModes = [];
+  const syncBrowserHidden = (hidden) => hiddenModes.push(hidden);
   const config = kind === 'files' ? browserHistory : kind === 'bookmarks' ? bookmarkHistory : recentHistory;
   const router = createMemoryRouter([{ path: '*', element: null }], { initialEntries: [config.pathname] });
   const window = { scrollY: 0, clearTimeout, setTimeout,
@@ -299,7 +303,7 @@ function setupSelectablePage(t, kind) {
     './useFileContextMenu': { useFileContextMenu() {} },
     '../app/uploads/UploadManagerContext': { useUploadManager: () => ({}) },
     './useAdminUploadDropzone': { useAdminUploadDropzone() {} },
-    '../app/AdminAppContext': { useAdminApp: () => ({ bootstrap: { capabilities: {} } }) },
+    '../app/AdminAppContext': { useAdminApp: () => ({ bootstrap: { capabilities: {} }, syncBrowserHidden }) },
     '../app/RouteSearch': { useRouteSearch: (options) => { search = options; } },
     '../app/FloatingPageActions': { FloatingPageActions: 'FloatingPageActions' },
     '../shared/api/favorite-api': { toggleBookmarkFavorite() {} },
@@ -317,7 +321,7 @@ function setupSelectablePage(t, kind) {
   };
   const loadModule = (code) => load(code, require, window, document);
   modules['../api/form-api'] = modules['../shared/api/form-api'];
-  modules['../api/favorite-api'] = { togglePathFavorite() {} };
+  modules['../api/favorite-api'] = { togglePathFavorite() {}, favoritesChanged() {} };
   modules['../api/share-api'] = { createShareAndCopy() {} };
   modules['../shared/browser/file-entry-actions'] = loadModule(fileEntryActionsCode);
   modules['../shared/browser/ListingHistoryContext'] = loadModule(contextCode);
@@ -363,7 +367,7 @@ function setupSelectablePage(t, kind) {
     return Boolean(event.defaultPrevented);
   };
   t.after(() => { h.dispose(); unsubscribe(); history.dispose(); router.dispose(); });
-  return { router, window, scrolls, pending, posts, confirmations, render, find, tables, items, identity, rowClick, key,
+  return { router, window, scrolls, pending, posts, confirmations, hiddenModes, render, find, tables, items, identity, rowClick, key,
     get searchControl() { return search; },
     selected: () => [...tables()[0].selected], refresh: () => { refresh(); render(); },
     async finish(index = pending.length - 1, transform = (value) => value) {
@@ -576,4 +580,67 @@ test('Recent view-only changes preserve visit, page, scroll, selection and ancho
   await s.finish();
   assert.equal(s.window.scrollY, 600);
   assert.equal(s.router.state.location.key, visit);
+});
+
+for (const kind of ['files', 'recent']) {
+  test(`${kind} visibility sync follows accepted responses, history and preference reset`, async (t) => {
+    const s = setupSelectablePage(t, kind);
+    s.render();
+    assert.deepEqual(s.hiddenModes, []);
+    await s.finish();
+    const control = () => s.find(kind === 'files' ? 'BrowserToolbar' : 'ViewOptionsControl')[0];
+    const apply = (hidden) => {
+      const props = control();
+      (kind === 'files' ? props.applyPreferences : props.apply)({ hidden });
+      s.render();
+    };
+    apply('show');
+    assert.deepEqual(s.hiddenModes, ['hide'], 'Apply must wait for cookie persistence in the accepted GET');
+    await s.finish();
+    apply('hide'); await s.finish();
+    assert.deepEqual(s.hiddenModes, ['hide', 'show', 'hide']);
+    await s.router.navigate(-1); s.render();
+    assert.deepEqual(s.hiddenModes, ['hide', 'show', 'hide'], 'restored history snapshot cannot publish stale policy');
+    await s.finish();
+    assert.equal(s.hiddenModes.at(-1), 'show');
+    const props = control();
+    await (kind === 'files' ? props.actions.resetPreferences : props.reset)();
+    s.render();
+    assert.equal(s.hiddenModes.at(-1), 'show');
+    await s.finish();
+    assert.equal(s.hiddenModes.at(-1), 'hide');
+    assert.equal(s.posts.at(-1).url, '/api/v1/browser-preferences/reset');
+  });
+
+  test(`${kind} canceled, failed and departed responses cannot update sidebar visibility`, async (t) => {
+    const s = setupSelectablePage(t, kind);
+    s.render(); await s.finish();
+    const apply = (hidden) => {
+      const props = s.find(kind === 'files' ? 'BrowserToolbar' : 'ViewOptionsControl')[0];
+      (kind === 'files' ? props.applyPreferences : props.apply)({ hidden }); s.render();
+    };
+    apply('show');
+    const oldIndex = s.pending.length - 1;
+    apply('hide');
+    assert.equal(s.pending[oldIndex].signal.aborted, true);
+    await s.finish(oldIndex);
+    assert.deepEqual(s.hiddenModes, ['hide']);
+    s.pending.at(-1).reject(new Error('offline')); await flush(); s.render();
+    assert.deepEqual(s.hiddenModes, ['hide']);
+    s.refresh();
+    await s.router.navigate('/dashboard');
+    await s.finish();
+    assert.deepEqual(s.hiddenModes, ['hide'], 'route ownership guards shell state even before unmount');
+  });
+}
+
+test('Search forwards the server canonical hidden mode rather than the requested value', async (t) => {
+  const s = setupSelectablePage(t, 'files');
+  s.render(); await s.finish();
+  await s.search('needle'); await s.finish();
+  s.find('BrowserToolbar')[0].applyPreferences({ hidden: 'show' }); s.render();
+  assert.equal(s.pending.at(-1).state.mode, 'search');
+  assert.equal(s.pending.at(-1).state.hidden, 'show');
+  await s.finish(undefined, value => ({ ...value, preferences: { ...value.preferences, hidden: 'hide' } }));
+  assert.equal(s.hiddenModes.at(-1), 'hide');
 });

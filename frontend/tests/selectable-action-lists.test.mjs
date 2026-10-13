@@ -51,8 +51,20 @@ for (const domain of domains) {
     const h = listHarness(t, domain); h.render(); await h.finish(0, ['one', 'two']); h.render();
     for (const row of rows(h.render())) checkbox(row).props.onChange({ currentTarget: { checked: true } });
     h.render();
+    const message = 'Could not complete this action. Refresh the list before retrying.';
+    const assertFailure = tree => {
+      const failedRow = rows(tree).find(row => row.key === 'two');
+      const nameCell = nodes(failedRow).filter(node => node.type === 'td')[1];
+      const stack = nodes(nameCell).find(node => node.props.className === 'table-cell-stack');
+      assert.ok(stack, 'The failure shares the name cell width constraint');
+      const failure = nodes(stack).find(node => node.type === 'small' && node.props.role === 'status');
+      assert.ok(failure, 'The failed item keeps its accessible feedback');
+      assert.equal(failure.props.title, message);
+      const marquee = nodes(failure).find(node => node.type?.name === 'OverflowMarquee');
+      assert.equal(marquee?.props.text, message);
+    };
     h.setBulkOutcome({ ok: true, succeededCount: 1, failedCount: 1, results: [
-      { id: 'one', status: 'APPLIED', message: 'Done' }, { id: 'two', status: 'FAILED', message: 'Try again later' }] });
+      { id: 'one', status: 'APPLIED', message: 'Done' }, { id: 'two', status: 'FAILED', message }] });
     h.key({ key: 'Delete', target: h.document.body, preventDefault() {} });
     await flush(); let tree = h.render();
     assert.equal(h.confirmations.length, 1);
@@ -60,9 +72,12 @@ for (const domain of domains) {
     assert.deepEqual(Array.from(h.mutations[0].args[0]), ['one', 'two']);
     assert.deepEqual(rows(tree).map(row => row.key), ['two']);
     assert.deepEqual(selected(tree), ['two']);
-    assert.ok(nodes(tree).some(node => node.props?.role === 'status' && node.props.children === 'Try again later'));
+    assertFailure(tree);
     assert.equal(h.requests.length, 2);
-    await h.finish(1, ['two', 'new']); assert.deepEqual(selected(h.render()), ['two']);
+    await h.finish(1, ['two', 'new']); tree = h.render();
+    assert.deepEqual(selected(tree), ['two']);
+    assertFailure(tree);
+    assert.ok(!nodes(rows(tree).find(row => row.key === 'new')).some(node => node.props.role === 'status'));
   });
   test(`${domain.scope} cancelling confirmation changes nothing; leaving before confirmation never submits`, async t => {
     const h = listHarness(t, domain); h.render(); await h.finish(0, ['one']); h.render();

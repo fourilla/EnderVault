@@ -3,7 +3,7 @@ import { startTransition, useCallback, useEffect, useMemo, useRef, useState } fr
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { TransferBufferPanel } from '../files/TransferBufferPanel';
 import type { TransferBufferPayload } from '../files/types';
-import { togglePathFavorite } from '../shared/api/favorite-api';
+import { favoritesChanged, togglePathFavorite } from '../shared/api/favorite-api';
 import { createShareAndCopy } from '../shared/api/share-api';
 import { usePageContextMenu, type PageMenuAction } from '../shared/browser/usePageContextMenu';
 import { notify, postForm, toastError } from '../shared/api/form-api';
@@ -209,6 +209,7 @@ export function FileDetailApp() {
     setMutating(true);
     try {
       const body = await postForm(endpoint, values, conflict);
+      favoritesChanged();
       notify(body);
       if (!stillHere()) return;
       if (!body.redirectUrl) { refresh(); return; }

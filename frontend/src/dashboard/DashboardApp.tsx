@@ -143,8 +143,8 @@ export function DashboardApp() {
     <div className="overview-main">
       <section className="overview-section" aria-labelledby="runtimeHeading">
         <header><h2 id="runtimeHeading">Runtime Resources</h2>
-          <span title="Resources visible to the JVM; Docker may report container limits rather than the physical host.">
-            <i className="fas fa-circle-info" aria-hidden="true" /> JVM environment</span></header>
+          <span title="System memory and JVM runtime measurements. Memory usage accounts for available memory where supported.">
+            <i className="fas fa-circle-info" aria-hidden="true" /> System resources</span></header>
         <div className="dashboard-panel overview-runtime-panel">
           <div className="overview-resource-gauges">
             <Gauge label="CPU" value={resources?.cpuPercent} detail={`EnderVault process: ${percentLabel(resources?.processCpuPercent)}`} />

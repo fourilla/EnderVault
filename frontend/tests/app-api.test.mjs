@@ -22,7 +22,7 @@ test('bootstrap loads JSON with same-origin credentials and the cancellation sig
   assert.deepEqual(await fetchAdminAppBootstrap(controller.signal), snapshot);
   assert.equal(request.mock.calls[0].arguments[0], '/api/v1/app/bootstrap');
   assert.deepEqual(request.mock.calls[0].arguments[1], {
-    headers: { Accept: 'application/json' }, credentials: 'same-origin', signal: controller.signal,
+    headers: { Accept: 'application/json' }, credentials: 'same-origin', cache: 'no-store', signal: controller.signal,
   });
 });
 

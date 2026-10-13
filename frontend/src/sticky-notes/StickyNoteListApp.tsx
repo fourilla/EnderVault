@@ -113,8 +113,12 @@ export function StickyNoteListApp() {
                     <td className="select-cell"><input type="checkbox" className="row-select-checkbox" checked={selection.selected.has(note.id)}
                       disabled={!selectable} aria-label={`Select ${note.summary || 'sticky note'}`}
                       onChange={event => selection.selectItem(note, event.currentTarget.checked)} /></td>
-                    <td><span className="table-primary-text" title={note.content}><OverflowMarquee text={note.summary} /></span>
-                      {failures.has(note.id) && <small role="status">{failures.get(note.id)}</small>}</td>
+                    <td><div className="table-cell-stack">
+                      <span className="table-primary-text" title={note.content}><OverflowMarquee text={note.summary} /></span>
+                      {failures.has(note.id) && <small role="status" title={failures.get(note.id)}>
+                        <OverflowMarquee text={failures.get(note.id)!} />
+                      </small>}
+                    </div></td>
                     <td><span className="table-primary-text"><OverflowMarquee text={note.contextLabel} /></span><small>{note.targetType}</small></td>
                     <td>{note.surfaceLabel}</td>
                     <td title={note.updatedLabel}>{note.updatedLabel}</td>

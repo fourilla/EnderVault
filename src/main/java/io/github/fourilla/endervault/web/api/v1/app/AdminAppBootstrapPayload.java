@@ -24,7 +24,8 @@ public record AdminAppBootstrapPayload(
     static AdminAppBootstrapPayload from(
             String username,
             AdminShellStateService shellStateService,
-            List<FavoriteDisplayItem> favorites
+            List<FavoriteDisplayItem> favorites,
+            AdminShellStateService.BrowserUiConfig browser
     ) {
         String bookmarkLinkClickAction = shellStateService.bookmarkLinkClickAction();
         return new AdminAppBootstrapPayload(
@@ -40,7 +41,7 @@ public record AdminAppBootstrapPayload(
                         .toList(),
                 shellStateService.taskUiConfig(),
                 shellStateService.uploadUiConfig(),
-                shellStateService.browserUiConfig(),
+                browser,
                 new SessionPayload(shellStateService.activeSessionCount()),
                 OutboundRoutePayload.from(shellStateService.outboundRoute()),
                 shellStateService.stickyNoteTheme(),

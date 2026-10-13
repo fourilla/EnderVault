@@ -99,16 +99,20 @@ export function FavoritesApp() {
                       disabled={!selectable} aria-label={`Select ${entry.name}`}
                       onChange={event => selection.selectItem(entry, event.currentTarget.checked)} /></td>
                     <td>
-                      <div className="table-item-label">
-                      <AppNavigationLink className="item-name" href={entry.openUrl}
-                        target={entry.openInNewTab ? '_blank' : undefined}
-                        rel={entry.openInNewTab ? 'noopener noreferrer' : undefined}
-                        title={entry.targetLabel}>
-                        <i className={`${entry.iconClass} item-icon`} aria-hidden="true" /><OverflowMarquee text={entry.name} />
-                      </AppNavigationLink>
-                      {entry.hidden && <span className="status-badge expired hidden-badge">Hidden</span>}
+                      <div className="table-cell-stack">
+                        <div className="table-item-label">
+                          <AppNavigationLink className="item-name" href={entry.openUrl}
+                            target={entry.openInNewTab ? '_blank' : undefined}
+                            rel={entry.openInNewTab ? 'noopener noreferrer' : undefined}
+                            title={entry.targetLabel}>
+                            <i className={`${entry.iconClass} item-icon`} aria-hidden="true" /><OverflowMarquee text={entry.name} />
+                          </AppNavigationLink>
+                          {entry.hidden && <span className="status-badge expired hidden-badge">Hidden</span>}
+                        </div>
+                        {failures.has(entry.path) && <small role="status" title={failures.get(entry.path)}>
+                          <OverflowMarquee text={failures.get(entry.path)!} />
+                        </small>}
                       </div>
-                      {failures.has(entry.path) && <small role="status">{failures.get(entry.path)}</small>}
                     </td>
                     <td>{entry.typeLabel}</td>
                     <td><span className="path-cell"><OverflowMarquee text={entry.targetLabel} /></span></td>
