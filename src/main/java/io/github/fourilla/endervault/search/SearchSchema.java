@@ -19,7 +19,7 @@ public final class SearchSchema<T> {
 
     public enum ValueType { TEXT, PATH, ENUM, DATE_TIME, NUMBER }
 
-    public enum Operator { CONTAINS, EQUALS, BEFORE, BEFORE_OR_ON, AFTER, AFTER_OR_ON, RANGE,
+    public enum Operator { CONTAINS, EQUALS, GLOB, BEFORE, BEFORE_OR_ON, AFTER, AFTER_OR_ON, RANGE,
         LESS_THAN, LESS_THAN_OR_EQUAL, GREATER_THAN, GREATER_THAN_OR_EQUAL }
 
     public record QueryLimits(int maxLength, int maxTokens, int maxTerms, int maxDepth) {}
@@ -55,12 +55,12 @@ public final class SearchSchema<T> {
         }
     }
 
-    private final BiPredicate<T, String> defaultMatcher;
+    private final BiPredicate<T, SearchTextCondition> defaultMatcher;
     private final Map<String, Field<T>> fields;
     private final List<FieldInfo> fieldInfo;
 
-    /** The default matcher receives a Locale.ROOT lowercase term. */
-    public SearchSchema(BiPredicate<T, String> defaultMatcher, List<Field<T>> fields) {
+    /** The domain applies the prepared text condition to its existing default search values. */
+    public SearchSchema(BiPredicate<T, SearchTextCondition> defaultMatcher, List<Field<T>> fields) {
         this.defaultMatcher = Objects.requireNonNull(defaultMatcher);
         Map<String, Field<T>> registered = new LinkedHashMap<>();
         for (Field<T> field : fields) {
@@ -86,6 +86,7 @@ public final class SearchSchema<T> {
         return switch (expression) {
             case SearchQueryParser.All ignored -> item -> true;
             case SearchQueryParser.Term term -> compileTerm(term);
+            case SearchQueryParser.Not not -> compile(not.expression()).negate();
             case SearchQueryParser.And and -> {
                 List<Predicate<T>> parts = and.terms().stream().map(this::compile).toList();
                 yield item -> {
@@ -113,8 +114,8 @@ public final class SearchSchema<T> {
 
     private Predicate<T> compileTerm(SearchQueryParser.Term term) {
         if (term.field() == null) {
-            String value = term.value().toLowerCase(Locale.ROOT);
-            return item -> defaultMatcher.test(item, value);
+            SearchTextCondition condition = SearchTextCondition.compile(term, SearchTextCondition.Mode.CONTAINS);
+            return item -> defaultMatcher.test(item, condition);
         }
         Field<T> field = fields.get(term.field());
         if (field == null) {
@@ -124,23 +125,15 @@ public final class SearchSchema<T> {
     }
 
     public static <T> Field<T> text(String key, String label, Function<T, String> extractor) {
-        return containing(key, label, ValueType.TEXT, extractor);
+        return textual(key, label, ValueType.TEXT, extractor, SearchTextCondition.Mode.CONTAINS);
     }
 
     public static <T> Field<T> path(String key, String label, Function<T, String> extractor) {
-        return containing(key, label, ValueType.PATH, extractor);
+        return textual(key, label, ValueType.PATH, extractor, SearchTextCondition.Mode.CONTAINS);
     }
 
     public static <T> Field<T> exactText(String key, String label, Function<T, String> extractor) {
-        Objects.requireNonNull(extractor);
-        return new Field<>(info(key, label, ValueType.TEXT, List.of(Operator.EQUALS), List.of(), null), term -> {
-            requireLiteralOperator(term);
-            String expected = term.value().toLowerCase(Locale.ROOT);
-            return item -> {
-                String actual = extractor.apply(item);
-                return actual != null && actual.toLowerCase(Locale.ROOT).equals(expected);
-            };
-        });
+        return textual(key, label, ValueType.TEXT, extractor, SearchTextCondition.Mode.EQUALS);
     }
 
     public static <T> Field<T> number(String key, String label, Function<T, Long> extractor) {
@@ -159,6 +152,7 @@ public final class SearchSchema<T> {
         FieldInfo metadata = new FieldInfo(base.key(), base.label(), base.type(), base.operators(), base.values(),
                 base.timeZone(), bytes ? SearchNumberFilter.byteUnits() : List.of());
         return new Field<>(metadata, term -> {
+            requireTypedValue(term);
             var filter = SearchNumberFilter.compile(term, bytes);
             return item -> {
                 Long actual = extractor.apply(item);
@@ -167,17 +161,17 @@ public final class SearchSchema<T> {
         });
     }
 
-    private static <T> Field<T> containing(
-            String key, String label, ValueType type, Function<T, String> extractor
+    private static <T> Field<T> textual(
+            String key, String label, ValueType type, Function<T, String> extractor,
+            SearchTextCondition.Mode defaultMode
     ) {
         Objects.requireNonNull(extractor);
-        return new Field<>(info(key, label, type, List.of(Operator.CONTAINS), List.of(), null), term -> {
-            requireLiteralOperator(term);
-            String expected = term.value().toLowerCase(Locale.ROOT);
-            return item -> {
-                String actual = extractor.apply(item);
-                return actual != null && actual.toLowerCase(Locale.ROOT).contains(expected);
-            };
+        List<Operator> operators = defaultMode == SearchTextCondition.Mode.CONTAINS
+                ? List.of(Operator.CONTAINS, Operator.EQUALS, Operator.GLOB)
+                : List.of(Operator.EQUALS, Operator.GLOB);
+        return new Field<>(info(key, label, type, operators, List.of(), null), term -> {
+            SearchTextCondition condition = SearchTextCondition.compile(term, defaultMode);
+            return item -> condition.test(extractor.apply(item));
         });
     }
 
@@ -197,8 +191,8 @@ public final class SearchSchema<T> {
         }
         return new Field<>(info(key, label, ValueType.ENUM, List.of(Operator.EQUALS),
                 List.copyOf(allowed.values()), null), term -> {
-            requireLiteralOperator(term);
-            String expected = term.value().toLowerCase(Locale.ROOT);
+            requireTypedValue(term);
+            String expected = equalityValue(term).toLowerCase(Locale.ROOT);
             if (!allowed.containsKey(expected)) {
                 throw invalid(term, "Invalid value for search field: " + term.field());
             }
@@ -218,6 +212,7 @@ public final class SearchSchema<T> {
                 List.of(Operator.EQUALS, Operator.BEFORE, Operator.BEFORE_OR_ON,
                         Operator.AFTER, Operator.AFTER_OR_ON, Operator.RANGE),
                 List.of(), zone.getId()), term -> {
+            requireTypedValue(term);
             Predicate<Instant> filter = dateFilter(term, zone);
             return item -> {
                 Instant actual = extractor.apply(item);
@@ -236,10 +231,16 @@ public final class SearchSchema<T> {
         return new FieldInfo(key.toLowerCase(Locale.ROOT), label, type, operators, values, timeZone, List.of());
     }
 
-    private static void requireLiteralOperator(SearchQueryParser.Term term) {
-        if (!term.quoted() && (term.value().startsWith(">") || term.value().startsWith("<")
-                || term.value().startsWith("="))) {
+    private static String equalityValue(SearchQueryParser.Term term) {
+        if (term.hasUnquotedPrefix(">") || term.hasUnquotedPrefix("<")) {
             throw invalid(term, "Comparison operators require a date/time or numeric search field.");
+        }
+        return term.hasUnquotedPrefix("=") ? term.value().substring(1) : term.value();
+    }
+
+    private static void requireTypedValue(SearchQueryParser.Term term) {
+        if (term.hasWildcards()) {
+            throw invalid(term, "Wildcard patterns require a text or path search field.");
         }
     }
 
@@ -248,7 +249,7 @@ public final class SearchSchema<T> {
     private static Predicate<Instant> dateFilter(SearchQueryParser.Term term, ZoneId zone) {
         String value = term.value();
         String operator = "";
-        for (String candidate : List.of(">=", "<=", ">", "<")) {
+        for (String candidate : List.of(">=", "<=", ">", "<", "=")) {
             if (value.startsWith(candidate)) {
                 operator = candidate;
                 value = value.substring(candidate.length());

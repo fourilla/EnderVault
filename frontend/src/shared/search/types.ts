@@ -25,6 +25,8 @@ export interface CompletionContext {
   prefix: string;
   field?: SearchField;
   parent?: string;
+  exact?: boolean;
+  glob?: boolean;
 }
 
 export interface SearchSuggestion {

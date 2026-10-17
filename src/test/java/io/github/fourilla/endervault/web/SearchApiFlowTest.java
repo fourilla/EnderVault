@@ -172,6 +172,27 @@ class SearchApiFlowTest {
     }
 
     @Test
+    void textModesAndNegationReachTheFileSearchEndpointWithoutChangingScope() throws Exception {
+        Path directory = directory();
+        Files.writeString(directory.resolve("report1.pdf"), "one");
+        Files.writeString(directory.resolve("report2.pdf"), "two");
+        Files.writeString(directory.resolve("old-report1.pdf"), "prefix");
+        Files.writeString(directory.resolve("report1.pdf.bak"), "suffix");
+        String path = directory.getFileName().toString();
+
+        mockMvc.perform(get("/api/v1/fs/search").param("path", path)
+                        .param("q", "name:report?.pdf !name:=report2.pdf type:=file"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page.totalItems").value(1))
+                .andExpect(jsonPath("$.entries[0].name").value("report1.pdf"));
+        mockMvc.perform(get("/api/v1/fs/search").param("path", path)
+                        .param("q", "!(extension:p?f) name:report"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page.totalItems").value(1))
+                .andExpect(jsonPath("$.entries[0].name").value("report1.pdf.bak"));
+    }
+
+    @Test
     void typedAndOrConditionsFilterBeforeNaturalSortAndPagination() throws Exception {
         Path directory = directory();
         Files.createDirectories(directory.resolve("nested"));
@@ -198,7 +219,8 @@ class SearchApiFlowTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"name:", "typo:report", "type:unknown", "modified:2026-02-30", "report || typo:value",
-            "report || size:-1", "size:1MiB..1MB", "size:9223372036854775808", "extension:>pdf"})
+            "report || size:-1", "size:1MiB..1MB", "size:9223372036854775808", "extension:>pdf",
+            "name:=report*", "type:f*", "report || !typo:value", "size:!=0"})
     void invalidQueriesReturnStructuredBadRequestBeforeListingANonexistentRoot(String query) throws Exception {
         mockMvc.perform(get("/api/v1/fs/search").param("path", "not-created").param("q", query))
                 .andExpect(status().isBadRequest())

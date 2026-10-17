@@ -17,7 +17,7 @@ public final class PendingDecisionSearchSchema {
             Stream.of("directory_copy", "directory_move")).toList();
 
     private static final SearchSchema<Candidate> SCHEMA = new SearchSchema<>(
-            (item, term) -> contains(item.name(), term) || contains(item.destination(), term),
+            (item, condition) -> condition.test(item.name()) || condition.test(item.destination()),
             List.of(
                     SearchSchema.text("name", "Item name", Candidate::name),
                     SearchSchema.path("destination", "Destination", Candidate::destination),
@@ -44,10 +44,6 @@ public final class PendingDecisionSearchSchema {
 
     public static Predicate<Candidate> compile(String query) {
         return SCHEMA.compile(query);
-    }
-
-    private static boolean contains(String value, String term) {
-        return value != null && value.toLowerCase(Locale.ROOT).contains(term);
     }
 
     public record Candidate(String name, String destination, String source,

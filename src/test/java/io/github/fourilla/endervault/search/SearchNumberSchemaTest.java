@@ -12,7 +12,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class SearchNumberSchemaTest {
     private record Entry(String name, Long size, Long count) {}
-    private final SearchSchema<Entry> schema = new SearchSchema<>((item, term) -> item.name().contains(term), List.of(
+    private final SearchSchema<Entry> schema = new SearchSchema<>((item, condition) -> condition.test(item.name()), List.of(
             SearchSchema.byteSize("size", "Size", Entry::size),
             SearchSchema.number("count", "Count", Entry::count),
             SearchSchema.exactText("extension", "Extension", Entry::name)));
@@ -93,7 +93,7 @@ class SearchNumberSchemaTest {
             assertThat(schema.compile(query).test(unknown)).as(query).isFalse();
         }
         assertThat(schema.compile("size:<1KB").test(new Entry("file", -1L, null))).isFalse();
-        var tracked = new SearchSchema<Entry>((item, term) -> item.name().equals(term), List.of(
+        var tracked = new SearchSchema<Entry>((item, condition) -> condition.test(item.name()), List.of(
                 SearchSchema.byteSize("size", "Size", item -> { throw new AssertionError("Unexpected read"); })));
         assertThat(tracked.compile("file || size:0").test(unknown)).isTrue();
         assertThat(tracked.compile("missing size:0").test(unknown)).isFalse();
@@ -108,6 +108,20 @@ class SearchNumberSchemaTest {
         assertThat(schema.compile("extension:custom").test(new Entry("custom", null, null))).isTrue();
         assertThat(schema.compile("extension:pdf").test(new Entry(null, null, null))).isFalse();
         assertThatThrownBy(() -> schema.compile("extension:>=pdf")).isInstanceOf(SearchQueryException.class);
-        assertThat(schema.fields().get(2).operators()).containsExactly(SearchSchema.Operator.EQUALS);
+        assertThat(schema.fields().get(2).operators()).containsExactly(SearchSchema.Operator.EQUALS, SearchSchema.Operator.GLOB);
+    }
+
+    @Test
+    void exactExtensionPatternsAndNumericNegationKeepTypedMeaning() {
+        Entry pdf = new Entry("pdf", 0L, null);
+        assertThat(schema.compile("extension:=PDF").test(pdf)).isTrue();
+        assertThat(schema.compile("extension:p?f").test(pdf)).isTrue();
+        assertThat(schema.compile("!extension:txt !size:>0").test(pdf)).isTrue();
+        assertThat(schema.compile("!size:=0").test(pdf)).isFalse();
+        assertThat(schema.compile("!size:=0").test(new Entry("file", null, null))).isTrue();
+        for (String query : List.of("size:*", "count:1?", "size:!=0", "size:=0*")) {
+            assertThatThrownBy(() -> schema.compile("file || !" + query))
+                    .as(query).isInstanceOf(SearchQueryException.class);
+        }
     }
 }

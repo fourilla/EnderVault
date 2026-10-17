@@ -42,6 +42,63 @@ class SearchSchemaTest {
     }
 
     @Test
+    void textModesAndNegationPreserveDefaultTargetsAndLogicalPrecedence() {
+        assertThat(schema.compile("*REPORT").test(report)).isTrue();
+        assertThat(schema.compile("*2026*").test(report)).isFalse();
+        assertThat(schema.compile("name:=\"Summer holiday report\"").test(report)).isTrue();
+        assertThat(schema.compile("name:=report").test(report)).isFalse();
+        assertThat(schema.compile("name:\"Summer holiday \"*").test(report)).isTrue();
+        assertThat(schema.compile("path:photos/*/report.???").test(report)).isTrue();
+        assertThat(schema.compile("!name:missing type:file").test(report)).isTrue();
+        assertThat(schema.compile("!name:report || type:directory").test(report)).isFalse();
+        assertThat(schema.compile("!(name:report || type:directory)").test(report)).isFalse();
+        assertThat(schema.compile("!!name:report").test(report)).isTrue();
+        assertThat(schema.compile("name:missing || !type:directory name:report").test(report)).isTrue();
+    }
+
+    @Test
+    void equalityAliasesPreserveEnumDateDayAndExactInstantSemantics() {
+        assertThat(schema.compile("type:=FILE created:=2026-10-03").test(report)).isTrue();
+        assertThat(schema.compile("created:=2026-10-02T15:00:00Z").test(report)).isTrue();
+        assertThat(schema.compile("created:=2026-10-02T15:00:00.000000001Z").test(report)).isFalse();
+        for (String query : List.of("type:f*", "created:2026-*", "name:=report*", "name:!=report")) {
+            assertThatThrownBy(() -> schema.compile("name:report || !" + query))
+                    .as(query).isInstanceOf(SearchQueryException.class);
+        }
+    }
+
+    @Test
+    void literalPatternCharactersAndNullNegationAreExplicit() {
+        Entry literal = new Entry("report*.pdf", "photos/a?b.pdf", "file", report.created());
+        assertThat(schema.compile("name:=\"report*.pdf\"").test(literal)).isTrue();
+        assertThat(schema.compile("name:*\"report*\"*").test(literal)).isTrue();
+        assertThat(schema.compile("path:\"a?b\"").test(literal)).isTrue();
+        Entry absent = new Entry(null, null, null, null);
+        assertThat(schema.compile("!name:report").test(absent)).isTrue();
+        assertThat(schema.compile("!created:=2026-10-03").test(absent)).isTrue();
+        assertThat(schema.compile("!type:file type:directory").test(absent)).isFalse();
+    }
+
+    @Test
+    void negationDoesNotHideFieldFailuresOrReadUnusedBranches() {
+        AtomicInteger reads = new AtomicInteger();
+        SearchSchema<Entry> tracked = new SearchSchema<>((entry, condition) -> condition.test(entry.name()),
+                List.of(SearchSchema.text("broken", "Broken", entry -> {
+                    reads.incrementAndGet();
+                    throw new IllegalStateException("Read failure");
+                })));
+        Predicate<Entry> filter = tracked.compile("!broken:value");
+        assertThat(reads).hasValue(0);
+        assertThatThrownBy(() -> filter.test(report)).isInstanceOf(IllegalStateException.class)
+                .hasMessage("Read failure");
+        assertThat(tracked.compile("report || !broken:value").test(report)).isTrue();
+        assertThat(reads).hasValue(1);
+        assertThatThrownBy(() -> tracked.compile("report || !unknown:value"))
+                .isInstanceOf(SearchQueryException.class);
+        assertThat(reads).hasValue(1);
+    }
+
+    @Test
     void blankQueryMatchesCandidateAndDomainStillControlsBlankInputBehavior() {
         assertThat(schema.compile(null).test(report)).isTrue();
         assertThat(schema.compile(" \t").test(report)).isTrue();
@@ -90,7 +147,7 @@ class SearchSchemaTest {
                 .isInstanceOfSatisfying(SearchQueryException.class, ex -> assertThat(ex.position()).isEqualTo(2));
         assertThatThrownBy(() -> schema.compile("name:>=a")).isInstanceOf(SearchQueryException.class);
         assertThatThrownBy(() -> schema.compile("path:<a")).isInstanceOf(SearchQueryException.class);
-        assertThatThrownBy(() -> schema.compile("type:=file")).isInstanceOf(SearchQueryException.class);
+        assertThat(schema.compile("type:=file").test(report)).isTrue();
     }
 
     @Test
@@ -177,7 +234,7 @@ class SearchSchemaTest {
     @ParameterizedTest
     @ValueSource(strings = {
             "created:2026-02-30", "created:2026-10-3", "created:yesterday",
-            "created:2026-10-03T09:00:00", "created:>=", "created:=2026-10-03",
+            "created:2026-10-03T09:00:00", "created:>=", "created:=",
             "created:2026-10-04..2026-10-03", "created:..2026-10-03", "created:2026-10-03..",
             "created:>=2026-10-01..2026-10-03", "created:2026-10-01..2026-10-02..2026-10-03",
             "created:2026-10-03T16:00:00Z..2026-10-03", "created:+999999999-12-31"
@@ -199,7 +256,8 @@ class SearchSchemaTest {
 
         assertThat(snapshot.fields()).extracting(SearchSchema.FieldInfo::key)
                 .containsExactly("name", "type", "created");
-        assertThat(snapshot.fields().get(0).operators()).containsExactly(SearchSchema.Operator.CONTAINS);
+        assertThat(snapshot.fields().get(0).operators()).containsExactly(
+                SearchSchema.Operator.CONTAINS, SearchSchema.Operator.EQUALS, SearchSchema.Operator.GLOB);
         assertThat(snapshot.fields().get(1).values()).containsExactly("file", "directory");
         assertThat(snapshot.fields().get(2).timeZone()).isEqualTo("Asia/Seoul");
         assertThat(snapshot.compile("type:file").test(report)).isTrue();
@@ -225,7 +283,7 @@ class SearchSchemaTest {
     @Test
     void randomIncompleteInputsEitherCompileOrFailWithAQueryError() {
         Random random = new Random(41528);
-        String characters = "ab ()&|:\"\\\t123<>.\uc0ac\uc9c4";
+        String characters = "ab ()&|:\"\\\t123<>.!=*?\uc0ac\uc9c4";
         for (int attempt = 0; attempt < 2000; attempt++) {
             StringBuilder query = new StringBuilder();
             int length = random.nextInt(80);
@@ -248,8 +306,8 @@ class SearchSchemaTest {
                 SearchSchema.dateTime("created", "Created", zone, Entry::created)));
     }
 
-    private boolean contains(String actual, String term) {
-        return actual != null && actual.toLowerCase(java.util.Locale.ROOT).contains(term);
+    private boolean contains(String actual, SearchTextCondition condition) {
+        return condition.test(actual);
     }
 
     private Entry at(String instant) {

@@ -6,10 +6,10 @@ import { createSearchAssistanceClient } from '../src/shared/search/search-assist
 const schema = { scope: 'files', defaultFields: ['name'], defaultOperator: 'AND',
   limits: { maxLength: 4096, maxTokens: 256, maxTerms: 128, maxDepth: 16 },
   fields: [
-    { key: 'name', label: 'Name', type: 'TEXT', values: [], operators: ['CONTAINS'], timeZone: null },
-    { key: 'path', label: 'Path', type: 'PATH', values: [], operators: ['CONTAINS'], timeZone: null },
+    { key: 'name', label: 'Name', type: 'TEXT', values: [], operators: ['CONTAINS', 'EQUALS', 'GLOB'], timeZone: null },
+    { key: 'path', label: 'Path', type: 'PATH', values: [], operators: ['CONTAINS', 'EQUALS', 'GLOB'], timeZone: null },
     { key: 'type', label: 'Entry type', type: 'ENUM', values: ['file', 'directory'], operators: ['EQUALS'], timeZone: null },
-    { key: 'modified', label: 'Modified', type: 'DATE_TIME', values: [], operators: ['RANGE'], timeZone: 'Asia/Seoul' },
+    { key: 'modified', label: 'Modified', type: 'DATE_TIME', values: [], operators: ['EQUALS', 'RANGE'], timeZone: 'Asia/Seoul' },
   ] };
 const context = (query, caret = query.length, end = caret) => completionContext(query, caret, end, schema);
 
@@ -74,7 +74,7 @@ test('numeric and exact text hints use server metadata without unit conversion o
     assert.deepEqual(suggestionsFor(token(query), numeric), []);
   }
   assert.match(completionHint(token('count:')), /integer/);
-  assert.equal(completionHint(token('extension:pdf')), 'File extension: exact text');
+  assert.equal(completionHint(token('extension:pdf')), 'File extension: exact text; optional =');
   assert.deepEqual(suggestionsFor(token('extension:'), numeric), []);
   const custom = { ...numeric, fields: [{ ...numeric.fields[0], units: ['custom-server-unit'] }] };
   assert.match(completionHint(completionContext('size:', 5, 5, custom)), /custom-server-unit/);
@@ -113,6 +113,110 @@ test('quote escaping agrees with the supported quote/backslash syntax', () => {
   assert.equal(quotedValue('a||b'), '"a||b"');
 });
 
+test('unary negation survives field and equality value replacement at the caret', () => {
+  for (const query of ['!na', '!!na', '!(na)', '!name:report']) {
+    const caret = query === '!(na)' ? 4 : query === '!name:report' ? 3 : query.length;
+    const token = context(query, caret);
+    const next = applySuggestion(query, token, suggestionsFor(token, schema)[0]);
+    assert.equal(next.value, query.replace(/na(?:me:)?/u, 'name:'));
+  }
+  for (const query of ['!type:=fi', '!!type:="fi"', '!(type:=fi)', '!type: =fi', '!type:""=fi']) {
+    const caret = query.endsWith(')') ? query.length - 1 : query.length;
+    const token = context(query, caret);
+    assert.equal(token.exact, true);
+    assert.equal(token.prefix, 'fi');
+    assert.equal(token.field.key, 'type');
+    const next = applySuggestion(query, token, suggestionsFor(token, schema)[0]);
+    assert.equal(next.value, query.replace(/"?fi"?/u, 'file'));
+  }
+  assert.equal(context('!name:report', 0), null);
+  assert.equal(context('name:!draft').prefix, '!draft');
+  assert.equal(context('=name').kind, 'field');
+  assert.equal(context('=name').prefix, '=name');
+  assert.deepEqual(suggestionsFor(context('=name'), schema), []);
+});
+
+test('mixed quoted values share one replacement range and distinguish literal patterns', () => {
+  for (const [query, prefix, glob] of [
+    ['name:"annual report"*.pdf', 'annual report*.pdf', true],
+    ['name:*"a*b"*', '*a*b*', true],
+    ['name:="annual report.pdf"', 'annual report.pdf', false],
+    ['name:"a*b?c"', 'a*b?c', false],
+    ['name:"a\\"b"?.pdf', 'a"b?.pdf', true],
+  ]) {
+    const token = context(query);
+    assert.equal(token.prefix, prefix, query);
+    assert.equal(token.glob, glob, query);
+    assert.equal(token.start, query.indexOf(':') + (token.exact ? 2 : 1), query);
+    assert.equal(token.end, query.length, query);
+  }
+  const query = 'name:"annual report"*.pdf type:fi';
+  const middle = context(query, query.indexOf('report') + 3);
+  assert.equal(middle.prefix, 'annual rep');
+  assert.equal(middle.glob, true);
+  assert.equal(middle.end, query.indexOf(' type:'));
+  const enumToken = context('type:"fi"le');
+  assert.deepEqual(applySuggestion('type:"fi"le', enumToken, suggestionsFor(enumToken, schema)[0]),
+    { value: 'type:file', caret: 9 });
+  for (const query of ['!"type:file"', 'name:"!draft"', 'name:"=draft"']) {
+    if (query.startsWith('!"')) assert.equal(context(query), null);
+    else assert.equal(context(query).exact, false);
+  }
+});
+
+test('active path patterns never request a directory parent or offer concrete replacements', () => {
+  const entries = [{ name: 'summer', path: 'photos/summer', type: 'directory' }];
+  for (const query of ['path:photos/*', '!path:photos/su?', 'path:"photo albums"/*', 'path:="photos"*']) {
+    const token = context(query);
+    assert.equal(token.parent, undefined, query);
+    assert.deepEqual(suggestionsFor(token, schema, entries), [], query);
+  }
+  const query = 'path:photos/su*';
+  assert.equal(context(query, query.length - 1).parent, undefined);
+  assert.equal(context('path:"photos*/su"').parent, 'photos*');
+  assert.equal(context('path:photos/"su?"').parent, 'photos');
+});
+
+test('exact path suggestions retain negation and equality without changing directory identity', () => {
+  const query = '!path:="photo albums/ho" type:file';
+  const token = context(query, query.indexOf('ho"') + 2);
+  assert.equal(token.parent, 'photo albums');
+  const option = suggestionsFor(token, schema,
+    [{ name: 'holiday (1)', path: 'photo albums/holiday (1)', type: 'directory' }])[0];
+  assert.equal(option.keepOpen, false);
+  const next = applySuggestion(query, token, option);
+  assert.equal(next.value, '!path:="photo albums/holiday (1)" type:file');
+  assert.equal(next.value.slice(0, next.caret), '!path:="photo albums/holiday (1)"');
+});
+
+test('recommendations quote literal glob and leading operator characters', () => {
+  for (const value of ['a*b', 'a?b', '!draft', '=draft']) {
+    const encoded = quotedValue(value);
+    assert.equal(encoded, `"${value}"`);
+    assert.equal(context(`path:${encoded}`).glob, false);
+    assert.equal(context(`path:${encoded}`).exact, false);
+  }
+  const token = context('path:');
+  const option = suggestionsFor(token, schema,
+    [{ name: '!a*b', path: '!a*b', type: 'directory' }])[0];
+  assert.equal(option.replacement, '"!a*b/"');
+  const next = applySuggestion('path:', token, option);
+  assert.equal(context(next.value, next.caret).glob, false);
+});
+
+test('operator hints follow server metadata including exact-default text fields', () => {
+  assert.match(completionHint(context('name:')), /partial text.*= exact match.*\* \/ \? pattern/);
+  assert.match(completionHint(context('path:')), /Vault-relative path.*= exact match.*quote/);
+  assert.match(completionHint(context('type:=')), /exact value.*optional =/);
+  assert.match(completionHint(context('modified:=')), /YYYY-MM-DD.*=, >=.*Asia\/Seoul/);
+  const custom = { ...schema, fields: [{ ...schema.fields[0], key: 'extension', label: 'Extension', operators: ['EQUALS', 'GLOB'] }] };
+  const exactText = completionContext('extension:', 10, 10, custom);
+  assert.match(completionHint(exactText), /exact text.*optional =.*\* \/ \? pattern/);
+  assert.doesNotMatch(completionHint(exactText), /partial/);
+  const limited = { ...custom, fields: [{ ...custom.fields[0], operators: ['EQUALS'] }] };
+  assert.doesNotMatch(completionHint(completionContext('extension:', 10, 10, limited)), /pattern/);
+});
+
 test('suggestion lists are bounded while retaining server order', () => {
   const values = Array.from({ length: 100 }, (_, i) => `value-${i}`);
   const custom = { ...schema, fields: [{ ...schema.fields[2], values }] };
@@ -121,7 +225,7 @@ test('suggestion lists are bounded while retaining server order', () => {
 
 test('incomplete token scanning terminates for arbitrary cursor positions without changing input', () => {
   let seed = 1739;
-  const alphabet = 'ab :"\\()&|가';
+  const alphabet = 'ab :"\\()&|가!=*?';
   for (let i = 0; i < 1000; i++) {
     seed = (seed * 1664525 + 1013904223) >>> 0;
     const query = Array.from({ length: seed % 70 }, () => {
